@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Audit vòng 2 REST /files/v1 (docs/audit-files.md "Vòng 2"): Postgres 17 thật (fixture phiên `pg`) + MỘT
-SeaweedFS 4.48 (`xt-it-seaweed-<hex>`, cổng loopback ngẫu nhiên, tmpfs, `docker rm -f -v`),
-composition thật, uvicorn loopback, token ký bằng khóa test qua JWKS tĩnh.
+"""Audit vòng 2 REST /files/v1 (docs/audit-files.md "Vòng 2"): Postgres 17 thật (fixture phiên
+`pg`) + MỘT SeaweedFS 4.48 (`xt-it-seaweed-<hex>`, cổng loopback ngẫu nhiên, tmpfs,
+`docker rm -f -v`), composition thật, uvicorn loopback, token ký bằng khóa test qua JWKS tĩnh.
 
-Giống `tests/integration/composition/test_files_api.py::fstack` nhưng tenant riêng (`fxa`, `fxb`),
+Giống `tests/integration/composition/test_files_api.py::fstack` nhưng tenant riêng (`fyc`, `fyd`),
 CẢ HAI tenant cài gói `tep-dinh-kem` (để thử tham chiếu chéo tenant bằng tệp có thật).
 """
 
@@ -121,6 +121,10 @@ def xstack(
         "XT_FILES_MAX_PENDING_PER_USER": str(PENDING),
         "XT_FILES_USER_QUOTA_BYTES": str(USER_Q),
         "XT_FILES_TENANT_QUOTA_BYTES": str(8 * USER_Q),
+        # R2-F1/F3: dọn tệp xóa mềm ngay ở lần `maintain` kế tiếp (không chờ 30 ngày).
+        "XT_FILES_RETENTION_SECONDS": "0",
+        # R2-F5: tách quyết định IAM `file.read` khỏi chính sách tải tệp chưa quét.
+        "XT_FILES_UNSCANNED_DOWNLOAD": "allow",
     }
     tenants: dict[str, Any] = {}
     for alias, name in ((A, "Files audit A"), (B, "Files audit B")):

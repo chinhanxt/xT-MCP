@@ -165,3 +165,47 @@ uv run pytest -m integration tests/integration/files_audit --no-cov -rxX
   - FB-04 (PII dò ngược từ audit).
 - **Profile full:** cần FB-01 trước khi bật ClamAV.
 - **Lỗi thấp:** FB-05..09 sửa sau, có test xfail strict trong `tests/integration/files_audit/` để giữ hồi quy.
+
+## Vòng 2 (16/10/2026, tester Opus 5.5)
+
+Môi trường như vòng 1: 1 Postgres 17 + 1 SeaweedFS 4.48 (tmpfs, `docker rm -f -v`), uvicorn loopback. Peer cùng mạng là container `alpine` tạm (`--rm`, xóa bằng `docker rm -f -v`). Conftest đặt `XT_FILES_RETENTION_SECONDS=0` (job dọn chạy ngay) và `XT_FILES_UNSCANNED_DOWNLOAD=allow` (để kiểm riêng quyết định IAM `file.read`). Không sửa `src/` hay `deploy/`.
+
+```bash
+uv run pytest -m integration tests/integration/files_audit_r2 --no-cov -rxX
+# 8 passed, 8 xfailed (strict), ~20 s, chạy lại 3 lần đều ổn định
+```
+
+| Mã | Hạng mục | KQ | Bằng chứng (`tests/integration/files_audit_r2/test_files_r2.py`) |
+|---|---|---|---|
+| R2-F1 | Quota tính cả byte đã xóa mềm cho tới khi dọn | **FAIL** | `test_quota_counts_soft_deleted_bytes`: tải 200 KiB → xóa, lặp 6 lần (quota 1 MiB) → cả 6 lần đều 200. `PgFileRepository.usage` lọc `WHERE deleted_at IS NULL`, nên byte còn trên S3 suốt thời gian lưu (mặc định 30 ngày) không được tính. Đối chứng `test_storage_quota_enforced_for_live_files` PASS: với tệp còn sống, lần thứ 6 trả 507 `storage_quota` |
+| R2-F2 | Field `file` dạng `xrn:<t>:file:<id>` | **FAIL** | `test_record_file_field_xrn_ref_validated_like_bare_id`: `create_record(tep="xrn:fyc:file:<tệp đồng nghiệp>")` → ok, lưu thành `file:<id>`. Nguyên nhân: `FileToolService.check_attachable` chỉ bóc tiền tố `file:`, còn `xrn:...` thì `UUID()` lỗi rồi `continue`; sau đó `parse_record_ref` của records lại nhận xrn. Đối chứng PASS: `file:<id>` và id trần đều bị từ chối |
+| R2-F3 | Purge theo nội dung chạy đồng thời với finalize cùng nội dung | **FAIL** | Hai cách xen kẽ, tái hiện tất định bằng hook trên `store.head` / `store.delete`. (1) finalize HEAD thấy `sha256/<h>` còn nên bỏ qua copy, purge chen vào và xóa. (2) purge đã kiểm `object_in_use` (= không), finalize commit, sau đó purge mới xóa. Cả hai: finalize 200 nhưng tải về **500** (`BlobError` ở `s3.py:stream`), byte mất hẳn. `object_in_use` không thấy hàng chưa commit, và giữa finalize với purge không có khóa nào chung |
+| R2-F4 | Master SeaweedFS nhận thao tác admin/assign không xác thực | **FAIL** | `test_compose_seaweed_master_has_guard_whitelist`: `configs.seaweed-security` chỉ có 4 mục `jwt.*`, không có `[guard] white_list`. `test_seaweed_master_rejects_unauthenticated_admin_from_peer` (peer cùng mạng): `GET :9333/dir/assign` → **200 + fid**; `/col/delete?collection=<không tồn tại>` → 400 (đã qua guard, tới bước tìm collection; suy ra collection có thật sẽ bị xóa, không thử trực tiếp để tránh phá dữ liệu). JWT volume vẫn chặn ghi byte (assign không trả `auth`), nhưng xóa collection và grow volume thì mở. PASS: seaweedfs chỉ ở mạng `files` internal, không publish cổng; harness test dùng đúng các mục security.toml của compose |
+| R2-F5 | Quyền đọc tệp đi theo quyền đọc bản ghi (decisions.md "Quyền đọc tệp đính kèm") | **FAIL** | Gói test `r2-chung-tu` cài thật (`xt pack install`): model `chung_tu_tt` có field `file`, kế toán đọc mọi phòng. `test_accountant_reads_attachment_of_readable_cross_department_record`: kế toán NV-0005 (D02) `get_record` được đề nghị của NV-0013 (D03), nhưng `GET /files/v1/<id>` → 404. `FilesPep` chỉ xét owner/department, không xét bản ghi đã gắn. PASS: tệp chưa gắn chỉ người tải lên và trưởng phòng cùng phòng đọc được (kế toán, HR, trưởng phòng khác, đồng nghiệp đều 404). Gắn vào bản ghi mà kế toán không đọc được thì tệp vẫn kín |
+| R2-F6 | CL+TE: server ngừng đọc trong trần nhỏ, đo phía server | PASS | Đếm byte mà uvicorn/h11 thật sự đọc từ socket (`H11Protocol.data_received`, theo cổng client), client đẩy 32 MiB. Multipart CL=100 + chunked → 400, server đọc ≤ 2 MiB. PUT link CL=10 + chunked → 413, server đọc ≤ MAX + 2 MiB |
+| R2-W1 | `files.maintain` trong `xt worker` | **CHƯA NỐI** | `test_worker_registers_files_maintain`: `composition.worker.handlers()` (có S3, không có ClamAV) chỉ có `model.apply, workflow.relay_timers, workflow.tick, workflow.timer_starts`. `FilesMaintenance` chưa được dùng ở đâu trong `src/`. `build_jobs` chỉ dựng files khi có `XT_FILES_CLAMD`. Integrator đang nối |
+
+### Sửa đề xuất
+
+- **R2-F1:** trong `usage`, tính `held` cho các hàng `deleted_at IS NULL OR object_key IS NOT NULL`. Phải đổi cả SQL lẫn index `file_object_pending`. Test sẽ XPASS khi lần thứ 6 trả 507 và sau `maintain` tải lên lại được.
+- **R2-F2:** chuẩn hóa ref một chỗ, dùng chung `parse_record_ref` (nhận `file:`, `xrn:<t>:file:`, id trần; tenant khác → not_found) trong `check_attachable`. Ref không parse được thì **từ chối**, không `continue`.
+- **R2-F3:** tuần tự hóa theo khóa nội dung. Cả `_promote` lẫn purge lấy `pg_advisory_xact_lock(hash(tenant, sha256))`; purge kiểm lại `object_in_use` sau khi có khóa. Hoặc: finalize luôn `copy` (ghi đè idempotent) thay vì tin HEAD, còn purge chỉ xóa khi giữ khóa.
+- **R2-F4:** thêm `[guard]\nwhite_list = "127.0.0.1"` vào `seaweed-security` (S3 gateway cùng tiến trình gọi master qua loopback), và cập nhật `tests/integration/seaweed.py` cho khớp (test mirror sẽ báo nếu lệch).
+- **R2-F5:** khi `file.read` bị từ chối, tìm các bản ghi (field kiểu `file`) trỏ tới tệp và cho đọc nếu người gọi `record.read` được ít nhất một bản ghi (IAM + RLS của model). Có thể dùng bảng liên kết file→record do records ghi khi create/update.
+- **R2-W1:** làm theo `docs/integration-notes.md` §files: `build_jobs` luôn dựng `files` khi có `XT_FILES_S3_ENDPOINT`, `handlers()` gộp `FilesMaintenance.handlers()`, `bind-queue` gọi `register`.
+
+### Info
+
+- Ở profile minimal (`XT_FILES_UNSCANNED_DOWNLOAD=uploader`, mặc định của compose), chỉ người tải lên tải được byte của tệp `not_scanned`. Vì vậy, kể cả khi đã sửa R2-F5, kế toán vẫn nhận 409 `file_not_scanned` khi tải chứng từ. Cần chốt lại: dùng `allow` cho minimal, hoặc nói rõ chỉ profile full (ClamAV) mới có quyền đọc theo bản ghi.
+
+### Kết luận vòng 2
+
+**CHƯA ĐẠT.** R2-F6 đã sửa đúng: đo phía server, server dừng đọc ≤ 2 MiB.
+
+- **Chặn trước demo:**
+  - R2-F3 (mất byte vĩnh viễn khi job dọn chạy);
+  - R2-F2 (lách FB-09 bằng xrn);
+  - R2-F4 (`/col/delete` không xác thực xóa được cả bucket từ peer trong mạng `files`).
+- **R2-F1 và R2-W1** phải sửa cùng nhau. Khi chưa có worker, byte xóa mềm không bao giờ được dọn và cũng không bị tính quota, nên lặp lại đúng FB-02.
+- **R2-F5** là quyết định của chủ dự án nhưng chưa được hiện thực.
+- Mọi lỗi đều có test `xfail(strict=True, raises=AssertionError)` mang mã R2-Fx. Setup hỏng sẽ ném `RuntimeError`, không bị xfail che.

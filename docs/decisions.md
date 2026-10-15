@@ -231,3 +231,20 @@ Bối cảnh: W9 / E10 yêu cầu DB tự chặn `decider = requester`, dưới 
   - Tệp chưa gắn bản ghi nào: chỉ người tải lên và phòng của họ (theo policy) đọc được.
   - Xóa mềm vẫn tính vào quota cho tới khi bị dọn hẳn.
 - **Lý do:** không phải duy trì một ma trận quyền riêng cho tệp, tránh lệch giữa quyền đọc bản ghi và quyền đọc tệp, và khớp nghiệp vụ thực tế (chứng từ đi kèm đề nghị).
+
+## start_process + timer start (16/10/2026, chủ dự án – Opus 5.5)
+Bối cảnh: sau D-OPS, demo 3 gói lõi kẹt vì (1) không có bề mặt khởi động `giao-viec-sla` / `nhan-su-vong-doi` (quy trình không gắn model đề nghị), (2) `xt-worker` không chạy timer start (`weekly_digest`).
+- **D-START-1. Hiện thực `start_process` đúng contract TCV1 §6.1** (schema, effects -> annotations, IAM `process.start`, trần L3), là tool v1.0 đầu tiên trong catalog (18 tool). MCP và REST `POST /workflow/v1/instances` (`{definition_id, subject_ref?, parameters?}`) đi CÙNG dispatcher (IAM -> idempotency -> plan -> tự chủ -> commit -> làn PII), không đường tắt.
+- **D-START-2. Không đưa vào `core-10`.** Hồ sơ model nhỏ giữ đúng 10 tool đo ở §10 (token, eval qwen3.5:4b); khởi động quy trình là việc hiếm, của người quản lý/HR. Hồ sơ đầy đủ có tool; skill nêu nó ở `references/`.
+- **D-START-3. Mức hiệu lực L1.** Người được đại diện luôn là người khởi tạo (`requester`), tương đương "gửi đề xuất của chính mình" (§3.5); quyền ai được khởi động quy trình nào là IAM dữ liệu của gói (statement `process.start` trên `xrn:<t>:process:<id>`). Trần L3 của contract giữ chỗ cho quy trình khai mức cao sau này (spec chưa có trường mức).
+- **D-START-4. Phạm vi:** chỉ trigger `manual` không gắn model `request` (gắn -> `wrong_tool`, đi `submit_request`; `timer` -> `not_manual_trigger`). Subject phải đọc được bằng RLS của người gọi; quy ước dữ liệu: input `<model>_id` kiểu str nhận ref subject nếu chưa truyền. Subject được nối với instance (inbox/timeline thấy bản ghi), subject đã gắn instance khác thì giữ liên kết cũ.
+- **D-START-5. Timer start là job `workflow.timer_starts`**, relay hẹn mỗi chu kỳ (không thêm chuỗi tự hẹn thứ hai, không thêm bước `bind-queue`). Idempotent bằng khóa chính `xt_meta.workflow_timer_fire(tenant, process_id, period_key)` trong CÙNG transaction tạo instance qua `ProcessService`; `not_before` = `process_definition.created_at` (không chạy bù kỳ trước lúc cài). Đã kiểm 2 worker đồng thời: đúng một instance/kỳ.
+- **Việc còn mở:** chưa có tool hoàn thành bước người của quy trình không gắn đề nghị (`decide_request` chỉ nhận ref đề nghị).
+
+## Tải tệp chưa quét ở profile minimal (16/10/2026, chủ dự án – Opus 5.5)
+
+- **Câu hỏi:** ở `minimal` không có ClamAV, tệp ở trạng thái `not_scanned`. Với mặc định `uploader`, kế toán không tải được chứng từ của đề nghị mà họ có quyền xử lý.
+- **Quyết định:**
+  - `XT_FILES_UNSCANNED_DOWNLOAD=readers` là mặc định của `minimal`: ai đọc được bản ghi gắn kèm thì tải được, luôn kèm `Content-Disposition: attachment` + `X-Content-Type-Options: nosniff`, và audit ghi rõ trạng thái `not_scanned`.
+  - Profile `full`: bắt buộc quét bằng ClamAV, chỉ tải được khi `clean`.
+- **Lý do:** profile `minimal` dành cho demo và thử nghiệm. Nghiệp vụ phải chạy được, rủi ro được khoanh vùng bằng header tải về và audit; triển khai thật dùng `full`.
