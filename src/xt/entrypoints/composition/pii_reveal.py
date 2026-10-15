@@ -13,7 +13,7 @@ research/spike-pii-lane.md §3.7; quyết định "Tier PII của Desk chat").
    `XT_PII_REVEAL_ORIGINS` (CORS chỉ cho origin đó); lệch `ts` ≤ 30 s; chữ ký ECDSA P-256 SHA-256
    (P1363) trên `"{ticket}.{ts}"` bằng khóa đã gắn; vé đánh dấu đã dùng nguyên tử (một lần thử,
    kể cả khi chữ ký sai). Quyền xem: `basic` = người đang làm trong tenant; `sensitive` (hoặc
-   không rõ mức) = policy IAM cho phép `pii.reveal` trên `xrn:<tenant>:<model>:*`.
+   không rõ mức) = policy IAM cho phép `pii.reveal` trên `xrn:<tenant>:<model>:<field>`.
    Response `Cache-Control: no-store`; mỗi lần xem ghi `xt_meta.pii_egress` (tier `human`,
    `person`, các field đã mở). Giá trị thật không bao giờ đi vào kết quả tool MCP.
 """
@@ -29,7 +29,6 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
-from uuid import UUID
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
@@ -80,9 +79,7 @@ def _verify(jwk: Mapping[str, Any], message: bytes, sig_b64u: str) -> bool:
         x = int.from_bytes(_b64u(str(jwk["x"])), "big")
         y = int.from_bytes(_b64u(str(jwk["y"])), "big")
         key = ec.EllipticCurvePublicNumbers(x, y, ec.SECP256R1()).public_key()
-        der = encode_dss_signature(
-            int.from_bytes(raw[:32], "big"), int.from_bytes(raw[32:], "big")
-        )
+        der = encode_dss_signature(int.from_bytes(raw[:32], "big"), int.from_bytes(raw[32:], "big"))
         key.verify(der, message, ec.ECDSA(hashes.SHA256()))
         return True
     except (InvalidSignature, ValueError, KeyError, TypeError):
@@ -131,7 +128,9 @@ class PiiReveal:
                 raise invalid_request("Arguments do not match the tool input schema.", "schema")
             if ctx.actor.client_id not in self.settings.clients:
                 raise access_denied(
-                    "Kênh xem giá trị thật chỉ dành cho ứng dụng xT Desk.", "client_not_allowed", None
+                    "Kênh xem giá trị thật chỉ dành cho ứng dụng xT Desk.",
+                    "client_not_allowed",
+                    None,
                 )
             caller = self.rt.caller(ctx)
             tokens = list(dict.fromkeys(str(t) for t in args["tokens"]))
@@ -298,10 +297,6 @@ class PiiReveal:
         if hit.get("level") == "basic":
             return True
         field = str(hit.get("field") or "")
-        model = field.split(".", 1)[0] if "." in field else "pii"
-        xrn = f"xrn:{caller.alias}:{model}:*"
+        model, _, name = field.partition(".") if "." in field else ("pii", "", "unknown")
+        xrn = f"xrn:{caller.alias}:{model}:{name or 'unknown'}"  # tài nguyên mức field
         return self.guard.allows(caller, caller.person, "pii.reveal", xrn, now)
-
-
-def person_uuid(v: Any) -> UUID:
-    return v if isinstance(v, UUID) else UUID(str(v))

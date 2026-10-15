@@ -298,6 +298,13 @@ class ScopedDispatcher(ToolDispatcher):
         *,
         duplicate_keys: Sequence[str] = (),
     ) -> ToolOutcome:
+        def body() -> ToolOutcome:
+            return ToolDispatcher.call(self, name, arguments, ctx, duplicate_keys=duplicate_keys)
+
+        return self.scoped(name, ctx, body)
+
+    def scoped(self, name: str, ctx: CallContext, body: Callable[[], ToolOutcome]) -> ToolOutcome:
+        """Chạy `body` (tool của catalog hoặc tool app-only) trong MỘT transaction tenant."""
         try:
             caller = self.runtime.resolve(ctx.actor, ctx.trace_id)
         except CallerError as e:
@@ -309,9 +316,6 @@ class ScopedDispatcher(ToolDispatcher):
                 ctx.trace_id,
                 ToolError(ErrorCode.INTERNAL_ERROR, "Unexpected server failure."),
             )
-
-        def body() -> ToolOutcome:
-            return ToolDispatcher.call(self, name, arguments, ctx, duplicate_keys=duplicate_keys)
 
         try:
             return self.runtime.run_as(caller, ctx.actor, body)

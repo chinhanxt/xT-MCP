@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from xte2e import compose
-from xte2e.config import DEPLOY, E2E, HEADLESS_CLIENT, HEADLESS_REDIRECT, ROOT, STACK_OVERRIDES, ensure_secret, load_users, save_users, settings
+from xte2e.config import DEPLOY, E2E, HEADLESS_CLIENT, ROOT, STACK_OVERRIDES, ensure_secret, load_users, save_users, settings
 from xte2e.kcadmin import Admin
 
 AGENT_CLIENT = "xt-desk-agent"
@@ -49,6 +49,8 @@ TENANTS: list[dict[str, Any]] = [
         "org": E2E / "data" / "an-phat-org.json",
         "packs": ["de-xuat-phe-duyet", "giao-viec-sla"],
         "people": ["AP-001", "AP-002", "AP-003"],
+        # Diễn tập SLA (E7): cùng gói, chỉ đổi DỮ LIỆU gói (mọi `sla.after` -> PT2M), không đổi code.
+        "sla": "PT2M",
     },
 ]
 MULTI_ORG_USER = "e2e.hai-to-chuc"
@@ -94,14 +96,13 @@ def realm_and_data(kc: Admin) -> dict[str, Any]:
     log("provision realm (deploy/keycloak/provision.py)")
     out["provision_realm"] = run_host([sys.executable, "keycloak/provision.py"]).splitlines()[-3:]
     kc.login()
-    log(f"client headless {HEADLESS_CLIENT} (public, auth-code + PKCE S256, loopback)")
-    kc.upsert_client({
-        "clientId": HEADLESS_CLIENT, "name": "xT headless CLI (curl/demo Tầng 1)", "publicClient": True,
-        "standardFlowEnabled": True, "directAccessGrantsEnabled": False, "serviceAccountsEnabled": False,
-        "implicitFlowEnabled": False, "redirectUris": [HEADLESS_REDIRECT], "webOrigins": [],
-        "attributes": {"pkce.code.challenge.method": "S256"}, "fullScopeAllowed": False,
-    })
-    log("scope xt-data (deploy/keycloak/provision_data.py)")
+    # Client headless `xt-cli` do provision.py tạo; dọn client tạm của bản harness cũ nếu còn.
+    old = kc.client("xt-headless")
+    if old:
+        kc.call("DELETE", f"/clients/{old['id']}")
+    if kc.client(HEADLESS_CLIENT) is None:
+        raise SystemExit(f"[demo-seed] realm thiếu client {HEADLESS_CLIENT} (deploy/keycloak/provision.py)")
+    log("scope xt-data + xt-workflow (deploy/keycloak/provision_data.py)")
     out["provision_data"] = run_host([sys.executable, "keycloak/provision_data.py"]).splitlines()[-1:]
     log("lớp PostgREST trong DB (deploy/scripts/configure_data.py, kết nối quản trị trong mạng compose)")
     e = settings().env
@@ -176,8 +177,11 @@ def seed_users(kc: Admin, t: dict[str, Any], hr: dict[str, Any], state_ref: dict
 
 
 def links_for(subjects: dict[str, str]) -> dict[str, Any]:
+    """Quyền L1 cho agent Desk (xt-desk-agent) và client headless (xt-cli, REST /workflow/v1) thay mặt
+    từng người có đăng nhập; người vận hành cấp tường minh, không có quyền ngầm."""
     return {"subjects": subjects,
-            "agent_grants": [{"person": k, "client_id": AGENT_CLIENT, "autonomy": 1, "roles": ["agent"]} for k in subjects]}
+            "agent_grants": [{"person": k, "client_id": cid, "autonomy": 1, "roles": ["agent"]}
+                             for k in subjects for cid in (AGENT_CLIENT, HEADLESS_CLIENT)]}
 
 
 def import_org(alias: str, org_file: Path, links: dict[str, Any], extra_grants: list[dict[str, Any]] | None = None) -> str:
@@ -196,11 +200,32 @@ def import_org(alias: str, org_file: Path, links: dict[str, Any], extra_grants: 
         shutil.rmtree(d, ignore_errors=True)
 
 
-def install_pack(alias: str, pack: str, approver: str) -> dict[str, str]:
+def sla_variant(pack: str, after: str) -> Path:
+    """Bản sao gói với mọi SLA = `after` (tệp tạm 0755/0644 cho container đọc); chỉ dữ liệu, không code."""
+    d = Path(tempfile.mkdtemp(prefix="xt-e2e-pack-"))
+    dst = d / pack
+    shutil.copytree(ROOT / "packages" / pack, dst)
+    for f in (dst / "processes").glob("*.json"):
+        f.write_text(re.sub(r'"after":\s*"PT[0-9]+[HMS]"', f'"after": "{after}"', f.read_text(encoding="utf-8")),
+                     encoding="utf-8")
+    for p in [d, *d.rglob("*")]:
+        p.chmod(0o755 if p.is_dir() else 0o644)
+    return d
+
+
+def install_pack(alias: str, pack: str, approver: str, sla: str | None = None) -> dict[str, Any]:
     """Hai bước như vận hành thật: xem kế hoạch (diễn tập, chưa áp) -> chạy lại với đúng mã xác nhận."""
     common = ["pack", "install", "--tenant", alias, f"/packages/{pack}",
               "--proposed-by", "agent:demo-seed", "--approved-by", f"person:{approver}"]
-    mounts = [(ROOT / "packages", "/packages")]
+    src = sla_variant(pack, sla) if sla and pack == "de-xuat-phe-duyet" else ROOT / "packages"
+    try:
+        return _install(common, [(src, "/packages")], pack)
+    finally:
+        if src != ROOT / "packages":
+            shutil.rmtree(src, ignore_errors=True)
+
+
+def _install(common: list[str], mounts: list[tuple[Path, str]], pack: str) -> dict[str, Any]:
     rc, plan = compose.xt(common, mounts=mounts)
     m = re.search(r"(sha256:[0-9a-f]{64})", plan)
     if rc != 0 or not m:
@@ -260,7 +285,7 @@ def main() -> int:
                 log(f"tenant {alias}: gói {pack} đã cài")
                 continue
             log(f"tenant {alias}: xt pack install {pack} (kế hoạch -> --confirm)")
-            res = install_pack(alias, pack, director)
+            res = install_pack(alias, pack, director, t.get("sla"))
             report[f"pack-{alias}-{pack}"] = res
             failures = state.setdefault("pack_failures", {})
             if res["ok"]:
@@ -270,7 +295,7 @@ def main() -> int:
         log(f"tenant {alias}: xt tenant bind-queue")
         report[f"bind-{alias}"] = bind_queue(alias)
         tenants[alias] = {**tenant_row(alias), "name": t["name"], "org_id": org_id, "links": links,
-                          "org_file": str(t["org"]), "packs": t["packs"]}
+                          "org_file": str(t["org"]), "packs": t["packs"], "sla": t.get("sla")}
     # User thuộc hai Organization (E4: tenant_ambiguous); không có người trong xT.
     ent = ensure_secret(secrets_db.setdefault(MULTI_ORG_USER, {}), totp=False)
     uid = kc.upsert_user({"username": MULTI_ORG_USER, "email": "hai-to-chuc@e2e.example", "firstName": "Hai",

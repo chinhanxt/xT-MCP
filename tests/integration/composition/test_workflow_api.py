@@ -93,6 +93,8 @@ def wstack(
         "XT_IDP_INTROSPECTION": "off",
         "XT_MCP_RESOURCE": f"{base}/mcp",
         "XT_MCP_ALLOWED_CLIENTS": AGENT_CLIENT,
+        "XT_PII_REVEAL_ORIGINS": base,  # bắt buộc từ khi có /pii/reveal (integration-notes)
+        "XT_PII_REVEAL_CLIENTS": AGENT_CLIENT,
         "XT_MCP_HUMAN_CLIENTS": DESK_CLIENT,
         "XT_MCP_REQUIRED_SCOPES": "mcp-xt",
         "XT_MCP_SCOPES_SUPPORTED": "openid mcp-xt",

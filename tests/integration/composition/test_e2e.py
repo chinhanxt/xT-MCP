@@ -46,6 +46,8 @@ PACK = ROOT / "packages" / "de-xuat-phe-duyet"
 # Tier `local` chỉ cho client confidential phía server (decisions.md "Tier PII của Desk chat");
 # `xt-desk-agent` (public) luôn ở tier masked.
 LOCAL_AGENT = "it-bff-confidential"
+DESK_AGENT = "xt-desk-agent"  # client public của Desk chat: tier masked, kênh người /pii/reveal
+PII_PACK = ROOT / "packages" / "kenh-pii"
 # Nhân sự của tệp seed: người đề nghị (Kinh doanh), trưởng phòng Kinh doanh, giám đốc.
 REQUESTER, DEPT_HEAD, DIRECTOR = "NV-0013", "NV-0010", "NV-0001"
 IT_ADMIN = "NV-0031"  # vai trò `it`: người duyệt thứ hai của thay đổi model PHÁ HỦY
@@ -126,7 +128,9 @@ def stack(
         "XT_IDP_ALLOW_HTTP": "1",
         "XT_IDP_INTROSPECTION": "off",
         "XT_MCP_RESOURCE": f"{base}/mcp",
-        "XT_MCP_ALLOWED_CLIENTS": f"{AGENT_CLIENT},{LOCAL_AGENT}",
+        "XT_MCP_ALLOWED_CLIENTS": f"{AGENT_CLIENT},{LOCAL_AGENT},{DESK_AGENT}",
+        "XT_PII_REVEAL_ORIGINS": base,
+        "XT_PII_REVEAL_CLIENTS": DESK_AGENT,
         "XT_MCP_HUMAN_CLIENTS": DESK_CLIENT,
         "XT_MCP_LOCAL_CLIENTS": LOCAL_AGENT,
         "XT_MCP_CONFIDENTIAL_CLIENTS": LOCAL_AGENT,
@@ -150,7 +154,7 @@ def stack(
             "agent_grants": [
                 {"person": k, "client_id": c, "autonomy": 1, "roles": ["agent"]}
                 for k in LINKED
-                for c in (AGENT_CLIENT, LOCAL_AGENT)
+                for c in (AGENT_CLIENT, LOCAL_AGENT, DESK_AGENT)
             ],
         }
         lf = d / f"links-{alias}.json"
@@ -174,13 +178,14 @@ def stack(
         assert rc == 0, out
         outputs[f"plan-{alias}"] = plan
         outputs[f"install-{alias}"] = out
-        mp = ["pack", "install", "--tenant", alias, str(MODEL_PACK)]
-        rc, mplan = run_admin([*mp, *who], env)
-        assert rc == 0, mplan
-        mdigest = re.search(r"\(digest\): (sha256:[0-9a-f]{64})", mplan)
-        assert mdigest, mplan
-        rc, out = run_admin([*mp, *who, "--confirm", mdigest.group(1)], env)
-        assert rc == 0, out
+        for extra_pack in (MODEL_PACK, PII_PACK):
+            mp = ["pack", "install", "--tenant", alias, str(extra_pack)]
+            rc, mplan = run_admin([*mp, *who], env)
+            assert rc == 0, mplan
+            mdigest = re.search(r"\(digest\): (sha256:[0-9a-f]{64})", mplan)
+            assert mdigest, mplan
+            rc, out = run_admin([*mp, *who, "--confirm", mdigest.group(1)], env)
+            assert rc == 0, out
         with connect(pg.migrator_dsn) as c:
             tenants[alias] = tenant_of_alias(c, alias)
     ns = argparse.Namespace(transport="http", host="127.0.0.1", port=mcp_port, profile="full")
@@ -252,7 +257,7 @@ def confirm_in_desk(
 
 # ---------------------------------------------------------------------- kiểm thử ----
 def test_admin_outputs(stack: Stack) -> None:
-    assert "{'units': 7, 'people': 60, 'agent_grants': 8}" in stack.outputs["org-acme"]
+    assert "{'units': 7, 'people': 60, 'agent_grants': 12}" in stack.outputs["org-acme"]
     plan = stack.outputs["plan-acme"]
     assert "Gói de-xuat-phe-duyet 0.2.0" in plan and "proposal_approval v3" in plan
     assert "đã cài de-xuat-phe-duyet 0.2.0 vào acme" in stack.outputs["install-acme"]
@@ -859,3 +864,158 @@ async def test_w2_model_change_approved_then_applied_by_worker(
     st = await s.call("acme", DIRECTOR, "get_record", {"ref": rref})
     assert st["data"]["record"]["values"]["destructive_confirmed"], st
     assert len(st["data"]["record"]["values"]["decided_by"]) == 2
+
+
+# ---------------------------------------------- kênh người xem PII: Desk <-> /pii/reveal ----
+class DeskFrame:
+    """Phía Desk theo hợp đồng `desk/src/pii.ts`: khóa P-256 riêng mỗi lần xem, vé chỉ ở _meta,
+    POST thẳng tới origin xT, chữ ký P1363 trên "{ticket}.{ts}"."""
+
+    def __init__(self) -> None:
+        from cryptography.hazmat.primitives.asymmetric import ec
+
+        self.key = ec.generate_private_key(ec.SECP256R1())
+        n = self.key.public_key().public_numbers()
+
+        def b64u(i: int) -> str:
+            import base64
+
+            return base64.urlsafe_b64encode(i.to_bytes(32, "big")).decode().rstrip("=")
+
+        self.jwk = {"kty": "EC", "crv": "P-256", "x": b64u(n.x), "y": b64u(n.y), "ext": True,
+                    "key_ops": ["verify"]}  # fmt: skip
+
+    def sign(self, ticket: str, ts: int) -> str:
+        import base64
+
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
+
+        der = self.key.sign(f"{ticket}.{ts}".encode(), ec.ECDSA(hashes.SHA256()))
+        r, sv = decode_dss_signature(der)
+        raw = r.to_bytes(32, "big") + sv.to_bytes(32, "big")
+        return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+
+async def _mint(stack: Stack, key: str, tokens: list[str], frame: DeskFrame) -> Any:
+    async with stack.app.session(stack.token("acme", key, DESK_AGENT)) as sess:
+        return await sess.call_tool(
+            "pii_reveal_ticket", {"tokens": tokens, "pubkey_jwk": frame.jwk}
+        )
+
+
+def _post(stack: Stack, body: dict[str, Any], origin: str | None) -> httpx.Response:
+    headers = {"content-type": "application/json"}
+    if origin:
+        headers["origin"] = origin
+    return httpx.post(f"{stack.app.base}/pii/reveal", json=body, headers=headers, timeout=10)
+
+
+@pytest.mark.anyio
+async def test_pii_reveal_human_channel(stack: Stack, pg: pgfixture.Pg) -> None:
+    import anyio.to_thread
+
+    s = stack
+    values = advance(2_500_000, payout_method="bank_transfer", bank_account="9704229912345678")
+    c = await s.call(
+        "acme",
+        REQUESTER,
+        "create_record",
+        {"model_id": "advance_request", "values": values, "idempotency_key": "it-key-rv-1"},
+        client=DESK_AGENT,
+    )
+    assert c["ok"], c
+    tok = c["data"]["record"]["values"]["bank_account"]
+    assert re.fullmatch(r"\[PII:[a-z2-7]{16}\]", tok), tok  # Desk chat (public) = masked
+
+    # App-only tool: có trong tools/list với visibility app; MCP App đã đăng ký.
+    async with s.app.session(s.token("acme", REQUESTER, DESK_AGENT)) as sess:
+        listed = {t.name: t for t in (await sess.list_tools()).tools}
+        resources = {str(r.uri) for r in (await sess.list_resources()).resources}
+    assert (listed["pii_reveal_ticket"].meta or {})["ui"]["visibility"] == ["app"]
+    assert {"ui://xt/orgchart", "ui://xt/approval-card", "ui://xt/record-table"} <= resources
+
+    origin = s.app.base
+    frame = DeskFrame()
+    minted = await _mint(s, DIRECTOR, [tok], frame)
+    assert not minted.is_error, minted
+    meta = minted.meta["xt/reveal"]
+    ticket = meta["ticket"]
+    assert meta["url"] == f"{origin}/pii/reveal"
+    # Vé chỉ ở _meta, không trong content/structuredContent.
+    assert ticket not in json.dumps(minted.structured_content)
+    assert ticket not in minted.content[0].text
+
+    pre = httpx.options(
+        f"{origin}/pii/reveal",
+        headers={"origin": origin, "access-control-request-method": "POST"},
+    )
+    assert pre.status_code == 204 and pre.headers["access-control-allow-origin"] == origin
+    ts = int(time.time())
+    body = {"ticket": ticket, "ts": ts, "sig": frame.sign(ticket, ts)}
+    bad_origin = await anyio.to_thread.run_sync(_post, s, body, "https://evil.example")
+    assert bad_origin.status_code == 403 and bad_origin.json() == {"error": "BAD_ORIGIN"}
+    assert "access-control-allow-origin" not in bad_origin.headers
+    ok = await anyio.to_thread.run_sync(_post, s, body, origin)
+    assert ok.status_code == 200, ok.text
+    assert ok.json() == {"values": {tok: "9704229912345678"}, "denied": []}
+    assert ok.headers["cache-control"] == "no-store"
+    assert ok.headers["access-control-allow-origin"] == origin
+    s.outputs["reveal-ok"] = ok.text
+    # Dùng một lần.
+    again = await anyio.to_thread.run_sync(_post, s, body, origin)
+    assert again.status_code == 403 and again.json() == {"error": "TICKET_INVALID"}
+
+    # Vé bị chép nhưng không có khóa của khung -> BAD_SIGNATURE (và vé bị tiêu).
+    m2 = await _mint(s, DIRECTOR, [tok], DeskFrame())
+    t2 = m2.meta["xt/reveal"]["ticket"]
+    forged = {"ticket": t2, "ts": ts, "sig": frame.sign(t2, ts)}
+    r = await anyio.to_thread.run_sync(_post, s, forged, origin)
+    assert r.status_code == 403 and r.json() == {"error": "BAD_SIGNATURE"}
+    # ts lệch quá 30 s.
+    f3 = DeskFrame()
+    t3 = (await _mint(s, DIRECTOR, [tok], f3)).meta["xt/reveal"]["ticket"]
+    old = ts - 120
+    r = await anyio.to_thread.run_sync(
+        _post, s, {"ticket": t3, "ts": old, "sig": f3.sign(t3, old)}, origin
+    )
+    assert r.status_code == 403 and r.json() == {"error": "STALE_REQUEST"}
+
+    # sensitive: người không có `pii.reveal` (nhân viên) bị từ chối từng token.
+    f4 = DeskFrame()
+    t4 = (await _mint(s, REQUESTER, [tok], f4)).meta["xt/reveal"]["ticket"]
+    ts4 = int(time.time())
+    r = await anyio.to_thread.run_sync(
+        _post, s, {"ticket": t4, "ts": ts4, "sig": f4.sign(t4, ts4)}, origin
+    )
+    assert r.status_code == 200 and r.json() == {"values": {}, "denied": [tok]}
+
+    # Client không phải Desk (agent cloud) không xin được vé; token lạ bị từ chối.
+    async with s.app.session(s.token("acme", DIRECTOR)) as sess:
+        nope = await sess.call_tool("pii_reveal_ticket", {"tokens": [tok], "pubkey_jwk": frame.jwk})
+    assert nope.is_error and "client_not_allowed" in json.dumps(envelope(nope))
+    unknown = await _mint(s, DIRECTOR, ["[PII:aaaaaaaaaaaaaaaa]"], DeskFrame())
+    assert unknown.is_error and "PII_TOKEN_UNKNOWN" in unknown.content[0].text
+
+    # Mọi lần xem đều được ghi (tier human, người xem, field đã mở); không có giá trị thật.
+    with pg.su() as su:
+        rows = su.execute(
+            "SELECT fields, person FROM xt_meta.pii_egress WHERE tool='pii_reveal'"
+            " AND client_class='human' ORDER BY at"
+        ).fetchall()
+    assert any("advance_request.bank_account:reveal_human" in r[0] for r in rows), rows
+    assert all(r[1] is not None for r in rows)
+    assert "9704229912345678" not in json.dumps([list(r[0]) for r in rows])
+
+
+@pytest.mark.anyio
+async def test_org_person_details_masks_contact_for_desk_chat(stack: Stack) -> None:
+    async with stack.app.session(stack.token("acme", REQUESTER, DESK_AGENT)) as sess:
+        me = await sess.call_tool("inspect_workspace", {})
+        pref = envelope(me)["data"]["me"]["ref"]
+        res = await sess.call_tool("org_person_details", {"ref": pref})
+    env = envelope(res)
+    assert env["ok"], env
+    assert re.fullmatch(r"\[PII:[a-z2-7]{16}\]", env["data"]["email"]), env
+    assert env["meta"]["pii"]["mode"] == "masked"

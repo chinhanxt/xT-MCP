@@ -47,6 +47,10 @@ describe("extractTokens", () => {
     expect(extractTokens(r)).toEqual([TOKEN, "⟨NV-1.ho_ten⟩"]);
     expect(extractTokens(undefined)).toEqual([]);
   });
+  it("nhận token của server xT [PII:<16 base32>] (tool-contracts-v1 §3.8)", () => {
+    const r: ToolResult = { structuredContent: { values: { bank_account: "[PII:k5jkkvvmaxb2spjp]", x: "[PII:short]" } } };
+    expect(extractTokens(r)).toEqual(["[PII:k5jkkvvmaxb2spjp]"]);
+  });
   it("tooltip tiếng Việt giải thích không gửi cho AI", () => {
     expect(REVEAL_TOOLTIP).toContain("không bao giờ được gửi cho mô hình AI");
   });

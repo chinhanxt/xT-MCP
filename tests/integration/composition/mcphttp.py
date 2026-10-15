@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 
-import httpx
+import httpx2
 import uvicorn
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
@@ -47,7 +47,8 @@ class RunningApp:
     @asynccontextmanager
     async def session(self, token: str) -> AsyncIterator[ClientSession]:
         async with (
-            httpx.AsyncClient(headers={"Authorization": f"Bearer {token}"}, timeout=30) as http,
+            # client `mcp` >= 2.x dùng httpx2 (phụ thuộc của chính mcp)
+            httpx2.AsyncClient(headers={"Authorization": f"Bearer {token}"}, timeout=30) as http,
             streamable_http_client(self.mcp_url, http_client=http) as (read, write),
             ClientSession(read, write) as s,
         ):

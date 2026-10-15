@@ -118,6 +118,8 @@ class Browser:
 
     ip: str | None = None
     trail: list[str] = field(default_factory=list)
+    picked_org: str | None = None
+    last_url: str | None = None
 
     def __post_init__(self) -> None:
         self.c = net.client(self.ip)
@@ -134,6 +136,7 @@ class Browser:
                     return Step("redirect", loc, status=r.status_code)
                 r = self.c.get(loc)
                 continue
+            self.last_url = str(r.request.url)
             return Step("page", str(r.request.url), r.text, r.status_code)
         raise LoginError("quá nhiều chuyển hướng")
 
@@ -147,10 +150,11 @@ class Browser:
         if f is None:
             raise LoginError(f"không thấy form {form_id or match}; lỗi trang: {kc_error(page)!r}")
         body = {**f["inputs"], **data}
-        return self.follow(self.c.post(html.unescape(f["action"]), data=body), stop)
+        action = urljoin(self.last_url or settings().issuer, html.unescape(f["action"]))
+        return self.follow(self.c.post(action, data=body), stop)
 
     def login_pages(self, step: Step, user: str, password: str, totp_raw: str | None,
-                    stop: str, consent: bool = True) -> Step:
+                    stop: str, consent: bool = True, org: str | None = None) -> Step:
         """Đi qua các trang Keycloak (login, OTP, consent) tới redirect `stop`."""
         tried_password = False
         otp_tries = 0
@@ -177,6 +181,14 @@ class Browser:
                 if otp_tries > 2:
                     raise LoginError(f"{user}: OTP bị từ chối: {kc_error(page)!r}")
                 step = self.submit(page, "kc-otp-login-form", {"otp": fresh_totp(user, totp_raw)}, stop)
+            elif "kc.org" in page and 'name="kc.org"' in page:
+                # Identity-first của Organizations: user thuộc nhiều tổ chức phải chọn một.
+                fs = [f for f in forms(page) if any(n == "kc.org" for n, _ in f["buttons"])]
+                choices = [v for n, v in fs[0]["buttons"] if n == "kc.org"]
+                pick = org if org in choices else choices[0]
+                self.picked_org = pick
+                step = self.follow(self.c.post(urljoin(self.last_url or settings().issuer, html.unescape(fs[0]["action"])),
+                                               data={**fs[0]["inputs"], "kc.org": pick}), stop)
             elif "login-actions/consent" in page and consent:
                 step = self.submit(page, None, {"accept": "Yes"}, stop, match="login-actions/consent")
             elif "kc-totp-settings-form" in page or "CONFIGURE_TOTP" in page:
@@ -275,7 +287,7 @@ class Session:
 def register_client(redirect_uri: str, name: str, ip: str | None = None) -> dict[str, Any]:
     """DCR ẩn danh (RFC 7591) qua gateway, đúng như connector Claude Code (loopback)."""
     body = {"client_name": name, "redirect_uris": [redirect_uri], "grant_types": ["authorization_code", "refresh_token"],
-            "response_types": ["code"], "token_endpoint_auth_method": "none", "scope": "openid mcp-xt"}
+            "response_types": ["code"], "token_endpoint_auth_method": "none"}
     with net.client(ip) as c:
         r = c.post(f"{settings().issuer}/clients-registrations/openid-connect", json=body)
     if r.status_code != 201:

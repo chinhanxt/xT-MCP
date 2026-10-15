@@ -12,7 +12,9 @@ danh sách lỗi (không mặc định giả, không fallback in-memory):
 | `XT_AUDIT_KEY_FILE`, `XT_AUDIT_KEY_ID` | Khóa HMAC audit (G-M2) + kid; DB chỉ giữ dấu vân tay |
 | `XT_CURSOR_KEY_FILE` | Khóa ≥ 32 byte ký MAC cursor phân trang |
 | `XT_PII_KEY_FILE` | Khóa ≥ 32 byte HMAC token `[PII:…]` |
-| `XT_DESK_URL` | URL công khai của trang xác nhận (`/desk/confirm/{id}`) |
+| `XT_DESK_URL` | URL công khai của `/desk/confirm/{id}`; origin = origin xT của MCP App |
+| `XT_PII_REVEAL_ORIGINS` | Origin Desk được gọi `POST /pii/reveal` (CORS) |
+| `XT_PII_REVEAL_CLIENTS` | Client được xin vé xem PII (`pii_reveal_ticket`) |
 | `XT_CONFIRM_AUTHORIZATION_URL`, `XT_CONFIRM_TOKEN_URL` | Endpoint OIDC của client confirm |
 | `XT_CONFIRM_*`, `XT_RECEIPT_*`, `XT_IDP_*` | Step-up + biên nhận (docs/identity.md) |
 
@@ -21,7 +23,7 @@ Luồng và output thật: `docs/integration.md`.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -38,12 +40,23 @@ from xt.adapters.identity import (
     load_step_up_settings,
 )
 from xt.adapters.identity.config import ReceiptSettings, StepUpSettings
+from xt.adapters.mcp import AppsBundle, register_apps
+from xt.adapters.mcp.apps.registry import normalize_origin
+from xt.adapters.mcp.server import AppTool
 from xt.adapters.workflow.bpmn.spiff import SpiffProcessEngine
-from xt.application.tools import ToolDispatcher, ToolServices, ToolSettings
+from xt.application.tools import (
+    CallContext,
+    ToolDispatcher,
+    ToolOutcome,
+    ToolServices,
+    ToolSettings,
+)
 from xt.application.tools.handlers import HANDLERS
+from xt.contracts.tools.apps import PII_REVEAL_TICKET
 from xt.entrypoints.composition.confirm_web import ConfirmPages, ConfirmSettings
 from xt.entrypoints.composition.model_changes import ModelChangeDecisions
 from xt.entrypoints.composition.pii import PostgresPiiLane
+from xt.entrypoints.composition.pii_reveal import PiiReveal, RevealSettings
 from xt.entrypoints.composition.process import ProcessToolAdapter
 from xt.entrypoints.composition.records import (
     ModelCatalogAdapter,
@@ -61,6 +74,10 @@ class CompositionConfigError(ValueError):
     def __init__(self, problems: list[str]) -> None:
         self.problems = problems
         super().__init__("; ".join(problems))
+
+
+def _csv(env: Mapping[str, str], name: str) -> list[str]:
+    return [w.strip() for w in env.get(name, "").split(",") if w.strip()]
 
 
 def _key_file(env: Mapping[str, str], name: str, problems: list[str]) -> bytes:
@@ -88,6 +105,7 @@ class CompositionConfig:
     confirm: ConfirmSettings
     receipts: ReceiptSettings
     human_clients: frozenset[str]
+    reveal: RevealSettings
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> CompositionConfig:
@@ -135,6 +153,28 @@ class CompositionConfig:
             problems.append(
                 "XT_MCP_HUMAN_CLIENTS chỉ được chứa client xác nhận (XT_CONFIRM_CLIENT_ID)"
             )
+        reveal_origins: list[str] = []
+        for o in _csv(env, "XT_PII_REVEAL_ORIGINS"):
+            try:
+                reveal_origins.append(normalize_origin(o))
+            except ValueError as e:
+                problems.append(f"XT_PII_REVEAL_ORIGINS: {e}")
+        if not reveal_origins:
+            problems.append(
+                "XT_PII_REVEAL_ORIGINS chưa đặt (origin của xT Desk được gọi POST /pii/reveal)"
+            )
+        reveal_clients = frozenset(_csv(env, "XT_PII_REVEAL_CLIENTS"))
+        if not reveal_clients:
+            problems.append(
+                "XT_PII_REVEAL_CLIENTS chưa đặt (client của Desk được xin vé xem PII, vd"
+                " xt-desk-agent)"
+            )
+        desk_origin = ""
+        if desk:
+            try:
+                desk_origin = normalize_origin(desk)
+            except ValueError as e:
+                problems.append(f"XT_DESK_URL: {e}")
         if problems:
             raise CompositionConfigError(problems)
         assert step_up is not None and receipts is not None
@@ -147,6 +187,7 @@ class CompositionConfig:
             ConfirmSettings(desk, authz, token, step_up, step_up.idp.http_timeout_s),
             receipts,
             humans,
+            RevealSettings(desk_origin, frozenset(reveal_origins), reveal_clients),
         )
 
 
@@ -158,6 +199,7 @@ class Composition:
         self.runtime = runtime
         self.engine = SpiffProcessEngine()
         self._jwks = build_jwks_cache(config.confirm.step_up.idp)
+        self._reveal: PiiReveal | None = None
 
     def services(self, settings: ToolSettings) -> ToolServices:
         rt, key = self.runtime, self.config.cursor_key
@@ -209,12 +251,46 @@ class Composition:
             self.runtime, dispatcher, cfg.confirm, verifier, receipts, model_changes=decisions
         )
 
+    def reveal(self) -> PiiReveal:
+        if self._reveal is None:
+            self._reveal = PiiReveal(
+                self.runtime, ToolAccessGuard(self.runtime), self.config.reveal
+            )
+        return self._reveal
+
     def http_routes(self, dispatcher: ToolDispatcher) -> list[BaseRoute]:
-        return list(self.confirm_pages(dispatcher).routes())
+        return [*self.confirm_pages(dispatcher).routes(), *self.reveal().routes()]
+
+    def mcp_apps(self, dispatcher: ToolDispatcher) -> AppsBundle:
+        """3 MCP App + tool app-only (`org_person_details`, `records_table_page`,
+        `pii_reveal_ticket`), mỗi lời gọi tool app-only chạy trong một transaction tenant."""
+        services = dispatcher.services
+        people = services.directory
+        assert isinstance(people, PeopleDirectory)
+        bundle = register_apps(
+            xt_origin=self.config.reveal.origin, dispatcher=dispatcher, people=people
+        )
+        reveal = self.reveal()
+        tools = [
+            *bundle.app_tools,
+            AppTool(PII_REVEAL_TICKET, lambda ctx, a, d: reveal.mint(dispatcher, ctx, a, d)),
+        ]
+        if isinstance(dispatcher, ScopedDispatcher):
+            tools = [_scoped(dispatcher, t) for t in tools]
+        return AppsBundle(bundle.ui_resources, tuple(tools))
 
     def close(self) -> None:
         self.runtime.close()
         self.runtime.app_db.close()
+
+
+def _scoped(d: ScopedDispatcher, tool: AppTool) -> AppTool:
+    run = tool.run
+
+    def scoped(ctx: CallContext, args: Mapping[str, Any], dups: Sequence[str]) -> ToolOutcome:
+        return d.scoped(tool.contract.name, ctx, lambda: run(ctx, args, dups))
+
+    return AppTool(tool.contract, scoped)
 
 
 class _Ids:

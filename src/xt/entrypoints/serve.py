@@ -37,6 +37,7 @@ from xt.adapters.identity.access_token import AccessTokenVerifier
 from xt.adapters.identity.config import ResourceServerSettings
 from xt.adapters.identity.introspection import RevocationGuard
 from xt.adapters.mcp import (
+    AppsBundle,
     Challenge,
     ClientClassifier,
     XtMcpServer,
@@ -70,6 +71,13 @@ class ComposedServices(Protocol):
     def http_routes(self, dispatcher: ToolDispatcher) -> list[Any]: ...
 
     def close(self) -> None: ...
+
+
+@runtime_checkable
+class AppsProvider(Protocol):
+    """Composition có MCP Apps (`ui://xt/*`) + tool app-only (docs/mcp-server.md)."""
+
+    def mcp_apps(self, dispatcher: ToolDispatcher) -> AppsBundle: ...
 
 
 class TokenVerifier(Protocol):
@@ -273,6 +281,9 @@ def build_server(
             if isinstance(services, ComposedServices)
             else ToolDispatcher(services, cfg.tool_settings)
         )
+    apps = (
+        services.mcp_apps(dispatcher) if isinstance(services, AppsProvider) else AppsBundle((), ())
+    )
     resolver = (
         http_caller
         if cfg.transport == "http"
@@ -285,6 +296,8 @@ def build_server(
         profile=cfg.profile,
         classify=ClientClassifier(cfg.local_clients),
         ensure_active=revocation.ensure_active,
+        ui_resources=apps.ui_resources,
+        app_tools=apps.app_tools,
     )
 
 
@@ -336,8 +349,11 @@ class Prepared:
         )
         if not isinstance(self.services, ComposedServices):
             return app
+        from xt.entrypoints.workflow_http import with_workflow_api
+
         extra = self.services.http_routes(self.dispatcher)
-        return Starlette(routes=[*extra, *app.routes], lifespan=app.router.lifespan_context)
+        merged = Starlette(routes=[*extra, *app.routes], lifespan=app.router.lifespan_context)
+        return with_workflow_api(self, self.cfg.env, merged)
 
     def close(self) -> None:
         if isinstance(self.services, ComposedServices):

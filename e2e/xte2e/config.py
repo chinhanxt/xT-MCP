@@ -23,8 +23,9 @@ E2E = ROOT / "e2e"
 
 # Biến môi trường harness luôn ép cho stack e2e (không sửa deploy/.env của người dùng):
 # - XT_MCP_LOCAL_CLIENTS rỗng: client public (xt-desk-agent) chỉ tier masked (decisions.md "Tier PII").
-# - XT_DATA_CLIENTS: client headless duy nhất được xin scope xt-data (decisions.md D-E2E-2).
-HEADLESS_CLIENT = "xt-headless"
+# - XT_DATA_CLIENTS: client headless duy nhất được xin scope xt-data: `xt-cli` (deploy/keycloak/provision.py,
+#   public + PKCE, redirect loopback RFC 8252 mọi cổng); xt-workflow cũng chỉ cấp cho xt-cli (mặc định).
+HEADLESS_CLIENT = "xt-cli"
 HEADLESS_REDIRECT = "http://127.0.0.1:8765/callback"
 STACK_OVERRIDES = {
     "XT_MCP_LOCAL_CLIENTS": "",

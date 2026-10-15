@@ -70,7 +70,12 @@ def test_contract_links_views_and_app_tools() -> None:
     for t in APP_TOOLS:
         assert t.ui_resource in uris and t.name not in BY_NAME
         assert t.delegates_to is None or t.delegates_to in BY_NAME
-    assert set(APP_TOOLS_BY_NAME) == {"org_person_details", "records_table_page"}
+    # pii_reveal_ticket: kênh người /pii/reveal, do composition đăng ký (cần store vé thật).
+    assert set(APP_TOOLS_BY_NAME) == {
+        "org_person_details",
+        "records_table_page",
+        "pii_reveal_ticket",
+    }
     # Thẻ phê duyệt không có tool app-only (TCV1: không có tool app-only để ghi/duyệt).
     assert not [t for t in APP_TOOLS if t.ui_resource == APPROVAL_CARD_URI]
 
@@ -137,7 +142,12 @@ async def test_tool_meta_linkage_and_app_only_visibility(h: Harness) -> None:
             assert ui == {"resourceUri": c.ui_resource}, c.name  # model + app (mặc định)
         else:
             assert ui is None, c.name  # không gắn resource chưa đăng ký
-    for t in APP_TOOLS:
+    # register_apps đăng ký 2 tool app-only; pii_reveal_ticket do composition thêm.
+    assert {t.name for t in APP_TOOLS if t.name in tools} == {
+        "org_person_details",
+        "records_table_page",
+    }
+    for t in (t for t in APP_TOOLS if t.name in tools):
         ui = tools[t.name].meta["ui"]  # type: ignore[index]
         assert ui == {"resourceUri": t.ui_resource, "visibility": ["app"]}
         assert tools[t.name].annotations.read_only_hint is True  # type: ignore[union-attr]

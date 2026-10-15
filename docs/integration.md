@@ -209,7 +209,7 @@ Cột `ma_du_an` có trong `information_schema`, `create_record` với field m�
 ## 5. Còn mở
 
 - **I-AUD-META**: bảng cấu hình `xt_meta.*` (policy, định nghĩa quy trình, gói, sự kiện quy trình, PII egress, receipt) chưa vào hash-chain vì `xt_audit.log` mới chỉ nhận bảng model của schema tenant; cần API audit metadata từ model engine (`docs/integration-notes.md`).
-- `/pii/reveal` (kênh xem giá trị thật cho người) chưa có trong 17 tool v0.1.
+- `/pii/reveal` đã có (kênh người, `test_pii_reveal_human_channel`); kênh `xt_page` (đăng nhập + MFA trên origin xT cho `sensitive`) của spike chưa làm.
 - I-3: instance do `TimerPoller` tạo (quy trình `trigger=schedule`) chưa vào inbox; gói v0.1 chưa bind quy trình nào loại này.
-- Mount REST `/workflow/v1` và đăng ký MCP Apps: chờ module của agent tương ứng (chưa có hàm đăng ký khi viết tài liệu này).
+- REST `/workflow/v1` và MCP Apps (`orgchart`, `approval-card`, `record-table` + tool app-only) đã nối vào `xt serve`.
 - `tests/integration/queue_audit/test_queue_round2.py::test_dlq_requeue_defers_a_new_fenced_job_and_purge_abandons` đang đỏ trong phần việc DLQ của tác giả queue (không thuộc composition).

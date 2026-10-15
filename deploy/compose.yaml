@@ -127,6 +127,9 @@ services:
       XT_WORKER_MAX_ATTEMPTS: ${XT_WORKER_MAX_ATTEMPTS:-3}
       XT_WORKER_RETRY_SECONDS: ${XT_WORKER_RETRY_SECONDS:-30}
       XT_WORKER_HANDLERS: ${XT_WORKER_HANDLERS:-xt.entrypoints.composition.worker:handlers}
+      XT_WORKFLOW_RELAY_SECONDS: ${XT_WORKFLOW_RELAY_SECONDS:-60}
+      # `docker compose run --rm xt-init xt tenant bind-queue --tenant <alias>` (job role + relay)
+      XT_DB_OWNER_URL: postgresql://${POSTGRES_USER:-xt}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-xt}
     volumes:
       - ./scripts/init_db.py:/init/init_db.py:ro
       - type: bind
@@ -188,6 +191,10 @@ services:
       XT_PII_KEY_FILE: /run/secrets/xt/pii.key
       XT_MCP_SERVICES: ${XT_MCP_SERVICES:-xt.entrypoints.composition:build}   # module:factory trả ToolServices/composition
       XT_DESK_URL: https://${XT_DOMAIN_DESK}
+      # Kênh người xem PII (/pii/reveal): CORS chỉ cho origin Desk; chỉ client Desk xin được vé
+      XT_PII_REVEAL_ORIGINS: https://${XT_DOMAIN_DESK}
+      XT_PII_REVEAL_CLIENTS: ${XT_DESK_AGENT_CLIENT_ID:-xt-desk-agent}
+      XT_MCP_CONFIDENTIAL_CLIENTS: ${XT_MCP_CONFIDENTIAL_CLIENTS:-}
       # Desk gọi /mcp cùng origin qua host Desk (route desk-mcp): thêm host + origin Desk
       XT_MCP_ALLOWED_HOSTS: ${XT_DOMAIN_MCP},${XT_DOMAIN_DESK}
       XT_MCP_ALLOWED_ORIGINS: https://${XT_DOMAIN_DESK}
@@ -290,6 +297,9 @@ services:
       XT_WORKER_MAX_ATTEMPTS: ${XT_WORKER_MAX_ATTEMPTS:-3}
       XT_WORKER_RETRY_SECONDS: ${XT_WORKER_RETRY_SECONDS:-30}
       XT_WORKER_HANDLERS: ${XT_WORKER_HANDLERS:-xt.entrypoints.composition.worker:handlers}
+      XT_WORKFLOW_RELAY_SECONDS: ${XT_WORKFLOW_RELAY_SECONDS:-60}   # chu kỳ relay hẹn giờ SLA + outbox model
+      # model.apply (đề xuất model đã duyệt): pha 1 DDL + pha 2 bằng role migrator
+      XT_DB_MIGRATOR_URL: postgresql://xt_migrator:${XT_DB_MIGRATOR_PASSWORD:?chạy make env}@postgres:5432/${POSTGRES_DB:-xt}
     volumes:
       - type: bind
         source: ${XT_SECRETS_DIR:-${HOME}/.config/xt}/app

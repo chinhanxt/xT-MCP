@@ -1,0 +1,14 @@
+{
+  "version": "1",
+  "tenant": "binhminh",
+  "statements": [
+    {
+      "id": "pii.reveal-sensitive",
+      "effect": "Allow",
+      "subjects": ["role:director", "role:hr", "role:accountant", "role:chief_accountant"],
+      "actions": ["pii.reveal"],
+      "resources": ["xrn:binhminh:*"],
+      "conditions": []
+    }
+  ]
+}

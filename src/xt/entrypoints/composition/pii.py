@@ -32,7 +32,6 @@ from xt.application.tools.ports import Args, Data, PiiMode, PiiProjection
 from xt.domain.model.spec import Catalog
 from xt.entrypoints.composition.runtime import Caller, Runtime
 
-
 # Thông tin liên hệ của người (xt_meta.person) trong find_people / org_person_details.
 PERSON_CONTACT = ("email", "phone")
 
@@ -58,7 +57,10 @@ class PostgresPiiLane:
         mac = hmac.new(self.key, raw, hashlib.sha256).digest()
         tok = base64.b32encode(mac).decode().rstrip("=").lower()[:16]
         out = f"[PII:{tok}]"
-        self.rt.store.pii_put(caller.actor, out, str(value), field=field, level=level)
+        if field is None and level is None:
+            self.rt.store.pii_put(caller.actor, out, str(value))
+        else:
+            self.rt.store.pii_put(caller.actor, out, str(value), field=field, level=level)
         return out
 
     # ---- vào --------------------------------------------------------------------------------

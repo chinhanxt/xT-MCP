@@ -276,3 +276,17 @@ API được hỗ trợ: `xt_audit.install_meta(tbl name, key_col name DEFAULT '
 - ~~Nối `install_meta_audit` vào bước superuser~~ **Đã làm**: `deploy/scripts/init_db.py` (xt-init) luôn gọi `install_meta_audit(su)` sau `bootstrap()`, trước `xt db migrate` (CSDL mới và cũ); `pgrst-db` cũng gọi qua `install_data_prerequisites`.
 
 Test: `tests/integration/model_audit/test_audit_meta_pg.py`, 6 test, PG17 thật, container `xt-audit-meta-pg`.
+
+### `/pii/reveal` + MCP Apps + `/workflow/v1` đã nối (16/10/2026, integrator)
+
+| Thay đổi | Ai cần biết |
+|---|---|
+| `ToolOutcome.result_meta` (tùy chọn) → `to_call_tool_result` gộp vào `CallToolResult._meta` (chỉ khi thành công) | Tác giả MCP: bổ sung tương thích ngược; dùng cho vé `_meta["xt/reveal"]`, không bao giờ vào envelope |
+| Contract app-only mới `PII_REVEAL_TICKET` (`pii_reveal_ticket(tokens, pubkey_jwk)`, gắn `ui://xt/record-table`) trong `xt.contracts.tools.apps.APP_TOOLS` | Do composition đăng ký (cần store vé Postgres), không qua `register_apps`; `tests/unit/mcp/test_mcp_apps.py` cập nhật tương ứng |
+| Token Desk: `desk/src/pii.ts` `PII_TOKEN_RE` nhận thêm `[PII:<16 base32>]` (định dạng thật của server, TCV1 §3.8) | Tác giả Desk: `⟨MÃ.trường⟩` của spike vẫn nhận; test mới trong `desk/test/pii.test.ts` |
+| Env bắt buộc của `xt serve`: `XT_PII_REVEAL_ORIGINS` (origin Desk, CORS của `/pii/reveal`), `XT_PII_REVEAL_CLIENTS` (client xin được vé, vd `xt-desk-agent`) | Deploy đã đặt trong `deploy/compose.yaml`; test tích hợp khác phải đặt hai biến này |
+| Migration `0006_pii_reveal.sql`: `pii_token.field/level` (mức chỉ nâng), bảng `pii_reveal_ticket` (sha256 vé, khóa P-256, TTL, `used_at`), `xt.pii_ticket_tenant(bytea)`, `pii_egress.person` | Mỗi lần xem ghi `pii_egress` tier `human` + người xem + `model.field:reveal_human`; không lưu giá trị |
+| Quyền xem: `basic` = nhân sự đang làm; `sensitive` (hoặc không rõ mức) = IAM `pii.reveal` trên `xrn:<tenant>:<model>:<field>`; gói `packages/kenh-pii` cấp cho `director/hr/accountant/chief_accountant` | Host thêm action `pii.reveal` (L0) vào catalog PEP của composition |
+| `Composition.mcp_apps(dispatcher)` → `register_apps(origin của XT_DESK_URL, dispatcher, PeopleDirectory)` + `pii_reveal_ticket`; mọi tool app-only chạy trong transaction tenant (`ScopedDispatcher.scoped`) | `serve.AppsProvider`; `PeopleDirectory.person_details` hiện thực `PersonDetails` (email từ `xt_meta.person`, làn PII che `email/phone` của node `person:*` theo tier) |
+| `Prepared.http_app()` gọi `with_workflow_api(self, env, app)` | REST `/workflow/v1` chạy cùng tiến trình `xt serve` |
+| Deploy: `xt-worker` thêm `XT_WORKFLOW_RELAY_SECONDS`, `XT_DB_MIGRATOR_URL`; `xt-init` thêm `XT_WORKFLOW_RELAY_SECONDS`, `XT_DB_OWNER_URL` (để `docker compose run --rm xt-init xt tenant bind-queue --tenant <alias>`); `xt-api` thêm `XT_PII_REVEAL_*`, `XT_MCP_CONFIDENTIAL_CLIENTS`. `deploy/.env` sinh sẵn: bỏ `XT_MCP_LOCAL_CLIENTS=xt-desk-agent` (bị `serve` từ chối) | E2E harness |

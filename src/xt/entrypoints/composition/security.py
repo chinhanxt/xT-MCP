@@ -29,6 +29,8 @@ from xt.entrypoints.composition.runtime import Caller, Runtime, iam_person
 from xt.entrypoints.composition.util import parse_person_ref, parse_record_ref, signed_page
 
 _PEP_CATALOG = {name: RiskLevel.L0 for name in DEFAULT_ACTION_LEVELS}
+# Action của host ngoài catalog mặc định: kênh người xem PII `sensitive` (/pii/reveal).
+_PEP_CATALOG["pii.reveal"] = RiskLevel.L0
 
 
 class _People:

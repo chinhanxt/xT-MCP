@@ -1,0 +1,17 @@
+{
+  "format": "xt-pack/1",
+  "pack": "kenh-pii",
+  "version": "0.1.0",
+  "title": "Kênh người xem dữ liệu cá nhân (PII) trên xT Desk",
+  "depends_on": [],
+  "models": [],
+  "processes": [],
+  "policies": ["iam"],
+  "notes": {
+    "levels": {
+      "basic": "Mọi nhân sự đang làm trong tổ chức xem được qua /pii/reveal (token chỉ có khi đã được thấy bản ghi)",
+      "sensitive": "Chỉ vai trò được cấp `pii.reveal` trên model tương ứng (statement dưới đây)"
+    },
+    "channel": "Giá trị thật chỉ trả qua POST /pii/reveal (vé dùng một lần, khóa của khung Desk), không bao giờ qua kết quả tool MCP"
+  }
+}
