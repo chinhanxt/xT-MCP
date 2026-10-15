@@ -41,12 +41,12 @@ class NotificationService:
         confirm_url: str | None = None,
     ) -> list[Notification]:
         if not 1 <= len(recipients) <= 50 or not 1 <= len(message) <= 1000:
-            raise invalid_request("Notification requires 1–50 recipients and 1–1000 characters.")
+            raise invalid_request("Notification requires 1-50 recipients and 1-1000 characters.")
         if not re.fullmatch(r"[A-Za-z0-9_.:-]{8,128}", idempotency_key):
             raise invalid_request("Invalid notification idempotency key.")
         if kind not in {"notification", "assignment", "escalation", "confirmation_required"}:
             raise invalid_request("Invalid notification kind.")
-        if confirmation_code and not re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", confirmation_code):
+        if confirmation_code and not re.fullmatch(r"[A-Za-z0-9_.:#-]{1,128}", confirmation_code):
             raise invalid_request("Invalid comparison code.")
         if confirm_url:
             parsed = urlsplit(confirm_url)
@@ -54,7 +54,8 @@ class NotificationService:
             if (
                 not base.netloc
                 or (parsed.scheme, parsed.netloc) != (base.scheme, base.netloc)
-                or parsed.scheme not in {"https", "http"}
+                or parsed.scheme != "https"
+                or any(ord(c) <= 32 or c == "\\" for c in confirm_url)
                 or parsed.username
                 or parsed.password
                 or parsed.query
@@ -65,11 +66,30 @@ class NotificationService:
         # Recipients are canonicalized before hashing: duplicate aliases cannot duplicate delivery.
         unique = {p.id: p for p in recipients}
         people = sorted(unique.values(), key=lambda p: str(p.id))
-        payload = [str(actor_id), [str(p.id) for p in people], message, subject_ref, kind,
-                   confirmation_code, confirm_url]
+        payload = [
+            str(actor_id),
+            [str(p.id) for p in people],
+            message,
+            subject_ref,
+            kind,
+            confirmation_code,
+            confirm_url,
+        ]
         digest = hashlib.sha256(json.dumps(payload, ensure_ascii=False).encode()).hexdigest()
-        rows = [Notification(uuid4(), p.id, p.ref, p.name, message, subject_ref, kind,
-                             confirmation_code, confirm_url) for p in people]
+        rows = [
+            Notification(
+                uuid4(),
+                p.id,
+                p.ref,
+                p.name,
+                message,
+                subject_ref,
+                kind,
+                confirmation_code,
+                confirm_url,
+            )
+            for p in people
+        ]
         return self.repository.enqueue(actor_id, idempotency_key, digest, rows)
 
     def deliver_pending(self, limit: int = 50) -> int:
@@ -82,8 +102,10 @@ class NotificationService:
             self.repository.egress(row, "attempted")
             try:
                 external_id = self.sender.send(
-                    chat_id, summary=SAFE_SUMMARY,
-                    reference=row.confirmation_code or str(row.id), confirm_url=row.confirm_url,
+                    chat_id,
+                    summary=SAFE_SUMMARY,
+                    reference=row.confirmation_code or str(row.id),
+                    confirm_url=row.confirm_url,
                 )
             except Exception:
                 self.repository.failed(row.id)

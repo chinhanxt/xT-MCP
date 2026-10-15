@@ -23,6 +23,8 @@ Quy ước dữ liệu: `owner_id` của `task` là **người thực hiện**, 
 ## Quy trình
 `task_normal` (SLA 4 giờ nhận, 72 giờ làm, 48 giờ nghiệm thu) và `task_urgent` (1 / 8 / 4 giờ). Chọn theo `task.sla_class`; rule model bắt việc ưu tiên Khẩn phải đi lớp Khẩn.
 
+Từ 0.3.2 (quy trình v3) mỗi bước người hoàn thành bằng `transition_record` trên chính `task` (`complete_via`): `accepted` = nhận việc, `awaiting_acceptance` (kèm `values.result`) = nộp kết quả — agent làm được ở L1; nghiệm thu `done` / `in_progress` (trả làm lại, cần `reason`) / `not_accepted` là chỉ-người (người giao xác nhận). IAM: `tsk.step-transition`.
+
 | Bước | Lane | Quá hạn thì |
 |---|---|---|
 | `accept` | `assignee` | chuyển cho `assigner` (kèm thông báo) |

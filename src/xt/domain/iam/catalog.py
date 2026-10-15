@@ -57,5 +57,6 @@ DEFAULT_ACTION_LEVELS: ActionCatalog = MappingProxyType(
         "process.start": _L.L3,
         "process.propose": _L.L1,
         "notification.send": _L.L2,
+        "notify.send": _L.L2,
     }
 )

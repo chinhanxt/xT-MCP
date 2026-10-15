@@ -3402,7 +3402,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
   "human_only": false,
   "effects_true": ["mutates_records", "notifies_internal", "idempotent"],
   "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
-  "iam": ["notification.send"],
+  "iam": ["notify.send"],
   "errors": [
     "invalid_request",
     "not_found",

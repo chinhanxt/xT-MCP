@@ -13,7 +13,14 @@ NOTIFY = ToolContract(
     max_autonomy="L2",
     effects=Effects(mutates_records=True, notifies_internal=True, idempotent=True),
     iam=("notify.send",),
-    errors=("invalid_request", "not_found", "access_denied", "confirmation_required", "rate_limited", "idempotency_conflict"),
+    errors=(
+        "invalid_request",
+        "not_found",
+        "access_denied",
+        "confirmation_required",
+        "rate_limited",
+        "idempotency_conflict",
+    ),
     input_schema=inp(
         {
             "recipients": {

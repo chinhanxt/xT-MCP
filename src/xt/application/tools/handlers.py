@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from xt.application.tools.context import CallContext
 from xt.application.tools.errors import (
@@ -44,6 +44,9 @@ from xt.application.tools.ports import (
 )
 from xt.contracts.tools import BY_NAME, ToolContract
 
+if TYPE_CHECKING:
+    from xt.application.notify_tool import NotificationToolPort
+
 _NOT_ATTRIBUTES = frozenset({"idempotency_key", "cursor", "text_cursor"})
 
 
@@ -65,6 +68,7 @@ class ToolServices:
     operations: OperationStore
     transactions: TransactionRunner
     ids: IdGenerator
+    notifications: NotificationToolPort | None = None
 
 
 class Handler:
@@ -414,6 +418,23 @@ class ProposeModelChange(WriteHandler):
         return s.model_changes.commit(ctx, plan)
 
 
+class Notify(WriteHandler):
+    name = "notify"
+
+    def access(self, s: ToolServices, ctx: CallContext, args: Args) -> AccessCheck:
+        return AccessCheck(self.name, "notify.send", None, {"model_id": "notification"})
+
+    def plan(self, s: ToolServices, ctx: CallContext, args: Args) -> MutationPlan:
+        from xt.application.notify_tool import plan_notify
+
+        return plan_notify(s, ctx, args)
+
+    def commit(self, s: ToolServices, ctx: CallContext, plan: MutationPlan) -> CommitResult:
+        from xt.application.notify_tool import commit_notify
+
+        return commit_notify(s, ctx, plan)
+
+
 HANDLERS: Mapping[str, Handler] = {
     h.name: h
     for h in (
@@ -435,5 +456,6 @@ HANDLERS: Mapping[str, Handler] = {
         CreateTask(),
         ProposeModelChange(),
         StartProcess(),
+        Notify(),
     )
 }

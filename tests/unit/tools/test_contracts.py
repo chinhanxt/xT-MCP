@@ -102,7 +102,7 @@ def test_catalog_has_the_17_tools_of_section_4_1_in_order_then_v1_0() -> None:
     # v1.0 đã hiện thực: nằm sau v0.1, theo thứ tự §4.2 (thêm tool là minor, không breaking).
     v10 = re.findall(r"^\| \d+ \| `(\w+)` \|", _section(r"4\.2\."), re.M)
     assert [c.name for c in V10] == [n for n in v10 if n in BY_NAME]
-    assert [c.name for c in V10] == ["start_process"]
+    assert [c.name for c in V10] == ["start_process", "notify"]
     assert list(CATALOG) == V01 + V10
 
 

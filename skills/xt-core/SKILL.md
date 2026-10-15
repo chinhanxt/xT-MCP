@@ -3,7 +3,7 @@ name: xt-core
 description: Operate any business through the xT MCP server (17 tools) - find data, read inboxes, create and submit requests, assign work, ask "why", and hand human decisions to the confirm_url page. Use for any xT task in any domain (HR, finance, sales, support, documents), in Vietnamese or English - "tạo đề xuất", "ai duyệt", "tôi có việc gì", "giao việc", "tổng theo tháng", "tìm", "vì sao bị chặn", create/submit/approve/find/report. Handles error codes, confirmation_required, PII tokens. Skip for ordinary source-code questions.
 metadata:
   version: "1"
-  tool_count: 18
+  tool_count: 19
 ---
 
 <!-- SPDX-License-Identifier: Apache-2.0 -->

@@ -60,6 +60,7 @@ from xt.application.tools.handlers import HANDLERS
 from xt.contracts.tools.apps import PII_REVEAL_TICKET
 from xt.entrypoints.composition.confirm_web import ConfirmPages, ConfirmSettings
 from xt.entrypoints.composition.model_changes import ModelChangeDecisions
+from xt.entrypoints.composition.notify import NotificationToolAdapter
 from xt.entrypoints.composition.pii import PostgresPiiLane
 from xt.entrypoints.composition.pii_reveal import PiiReveal, RevealSettings
 from xt.entrypoints.composition.process import ProcessToolAdapter
@@ -264,6 +265,7 @@ class Composition:
             operations=rt.operations,
             transactions=rt.uow,
             ids=_Ids(),
+            notifications=NotificationToolAdapter(rt),
         )
 
     def dispatcher(self, settings: ToolSettings) -> ToolDispatcher:

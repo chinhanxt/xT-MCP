@@ -2,12 +2,16 @@
 # SPDX-FileCopyrightText: 2026 xT contributors
 """MCP notification handler; the dispatcher owns IAM, autonomy, receipts and transactions."""
 
-from typing import Protocol
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Protocol
 
 from xt.application.tools.context import CallContext
 from xt.application.tools.errors import capability_unavailable
-from xt.application.tools.handlers import ToolServices, WriteHandler
 from xt.application.tools.ports import Args, CommitResult, MutationPlan
+
+if TYPE_CHECKING:
+    from xt.application.tools.handlers import ToolServices
 
 
 class NotificationToolPort(Protocol):
@@ -27,11 +31,9 @@ def _port(services: ToolServices) -> NotificationToolPort:
     return port
 
 
-class Notify(WriteHandler):
-    name = "notify"
+def plan_notify(s: ToolServices, ctx: CallContext, args: Args) -> MutationPlan:
+    return _port(s).plan_notify(ctx, args)
 
-    def plan(self, s: ToolServices, ctx: CallContext, args: Args) -> MutationPlan:
-        return _port(s).plan_notify(ctx, args)
 
-    def commit(self, s: ToolServices, ctx: CallContext, plan: MutationPlan) -> CommitResult:
-        return _port(s).commit_notify(ctx, plan)
+def commit_notify(s: ToolServices, ctx: CallContext, plan: MutationPlan) -> CommitResult:
+    return _port(s).commit_notify(ctx, plan)

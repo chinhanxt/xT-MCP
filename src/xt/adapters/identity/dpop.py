@@ -347,9 +347,7 @@ class DpopVerifier:
         try:
             first = self._replay.consume(f"dpop|{jkt}|{jti}", expires)
         except Exception as exc:  # store chung lỗi: fail-closed 503, không lùi về bộ nhớ
-            raise IdentityProviderUnavailableError(
-                "dpop_replay_store", type(exc).__name__
-            ) from exc
+            raise IdentityProviderUnavailableError("dpop_replay_store", type(exc).__name__) from exc
         if not first:
             raise self._err("dpop_replay")
         return jkt

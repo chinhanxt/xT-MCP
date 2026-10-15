@@ -182,6 +182,11 @@ services:
       XT_WORKFLOW_PUBLIC_URL: https://${XT_DOMAIN_API}
       # Dữ liệu phi cấu trúc /files/v1 + tool upload_file (docs/files-api.md): SeaweedFS S3 nội bộ
       XT_MCP_CAPABILITIES: ${XT_MCP_CAPABILITIES:-upload_file}
+      # Telegram display channel runs inside xt-api; delivery relay in xt-worker.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      TELEGRAM_LINK_CLIENTS: ${TELEGRAM_LINK_CLIENTS:-xt-cli,xt-desk-agent}
+      TELEGRAM_API_BASE_URL: ${TELEGRAM_API_BASE_URL:-https://api.telegram.org}
       XT_FILES_S3_ENDPOINT: http://seaweedfs:8333
       XT_FILES_S3_BUCKET: ${XT_FILES_S3_BUCKET:-xt-files}
       XT_FILES_S3_ACCESS_KEY: ${XT_FILES_S3_ACCESS_KEY:?chạy make env}
@@ -333,6 +338,11 @@ services:
       # model.apply (đề xuất model đã duyệt): pha 1 DDL + pha 2 bằng role migrator
       XT_DB_MIGRATOR_URL: postgresql://xt_migrator:${XT_DB_MIGRATOR_PASSWORD:?chạy make env}@postgres:5432/${POSTGRES_DB:-xt}
       # Dịch vụ tệp: job files.maintain (dọn ý định hết hạn/quarantine, quét lại) — docs/files-api.md
+      # Telegram display channel runs inside xt-api; delivery relay in xt-worker.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      TELEGRAM_LINK_CLIENTS: ${TELEGRAM_LINK_CLIENTS:-xt-cli,xt-desk-agent}
+      TELEGRAM_API_BASE_URL: ${TELEGRAM_API_BASE_URL:-https://api.telegram.org}
       XT_FILES_S3_ENDPOINT: http://seaweedfs:8333
       XT_FILES_S3_BUCKET: ${XT_FILES_S3_BUCKET:-xt-files}
       XT_FILES_S3_ACCESS_KEY: ${XT_FILES_S3_ACCESS_KEY:?chạy make env}

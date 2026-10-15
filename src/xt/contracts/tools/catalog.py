@@ -15,6 +15,7 @@ from types import MappingProxyType
 from typing import Any
 
 from xt.contracts.tools.contract import Effects, ToolContract
+from xt.contracts.tools.notify import NOTIFY
 from xt.contracts.tools.schema_parts import (
     CURSOR,
     DATE_OR_DT,
@@ -1983,7 +1984,7 @@ _tool(
 )
 
 
-CATALOG: tuple[ToolContract, ...] = tuple(_T)
+CATALOG: tuple[ToolContract, ...] = (*_T, NOTIFY)
 """17 tool v0.1 đúng thứ tự §4.1, rồi tool v1.0 đã hiện thực (§4.2: `start_process`)."""
 
 BY_NAME: Mapping[str, ToolContract] = MappingProxyType({c.name: c for c in CATALOG})

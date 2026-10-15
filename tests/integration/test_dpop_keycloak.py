@@ -64,6 +64,7 @@ def desk(request: pytest.FixtureRequest, realm: Realm, kc_admin: Admin) -> tuple
     uid = kc_admin.client_uuid(realm.name, client_id)
     got = kc_admin.ok(kc_admin.c.get(f"{a}/clients/{uid}")).json()
     assert got["attributes"]["dpop.bound.access.tokens"] == str(required).lower()  # KC nhận attr
+    assert got["attributes"]["post.logout.redirect.uris"] == f"{DESK}/"  # DPA-03
     scopes = kc_admin.ok(kc_admin.c.get(f"{a}/client-scopes")).json()
     mcp = next(s["id"] for s in scopes if s["name"] == "mcp-xt")
     kc_admin.ok(kc_admin.c.put(f"{a}/clients/{uid}/default-client-scopes/{mcp}"))
@@ -177,3 +178,32 @@ def test_keycloak_rejects_bad_token_endpoint_proofs(realm: Realm, desk: tuple[st
     replay = holder.proof("POST", token_url)
     assert token_request(realm, password(client), replay).status_code == 200
     assert token_request(realm, password(client), replay).status_code == 400  # jti dùng một lần
+
+
+def test_rp_initiated_logout_accepts_registered_redirect(
+    realm: Realm, desk: tuple[str, bool]
+) -> None:
+    """DPA-03: Desk gọi end_session với id_token_hint + post_logout_redirect_uri đã đăng ký."""
+    client, _ = desk
+    holder = DpopKey()
+    tok = token_request(realm, password(client), holder.proof("POST", f"{realm.oidc}/token")).json()
+    q = {
+        "id_token_hint": tok["id_token"],
+        "client_id": client,
+        "post_logout_redirect_uri": f"{DESK}/",
+    }
+    r = httpx.get(f"{realm.oidc}/logout", params=q, follow_redirects=False, timeout=30)
+    assert r.status_code == 302 and r.headers["location"].startswith(f"{DESK}/"), r.text
+    bad = httpx.get(
+        f"{realm.oidc}/logout",
+        params={**q, "post_logout_redirect_uri": "https://evil.example/"},
+        follow_redirects=False,
+        timeout=30,
+    )
+    assert bad.status_code == 400
+    refreshed = token_request(
+        realm,
+        {"grant_type": "refresh_token", "client_id": client, "refresh_token": tok["refresh_token"]},
+        holder.proof("POST", f"{realm.oidc}/token"),
+    )
+    assert refreshed.status_code == 400  # phiên SSO đã kết thúc: refresh token chết

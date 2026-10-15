@@ -9,6 +9,7 @@ Các thay đổi đáng chú ý của xT được ghi trong tệp này.
 
 ### Added
 
+- Bước người của quy trình không gắn đề nghị (giao việc `task_normal`/`task_urgent`, tiếp nhận/nghỉ việc) hoàn thành bằng `transition_record` trên bản ghi chủ thể (`complete_via` trong ProcessSpec: người được giao + IAM + SoD + mức tự chủ của bước), hiện trong `get_inbox`, đi cùng service qua REST `POST /workflow/v1/tasks/{ref}/decision`; `GET /workflow/v1/instances/{id}` cho instance không gắn bản ghi (người tham gia). Gói `giao-viec-sla`, `nhan-su-vong-doi` 0.3.2 (D-STEP).
 - Audit cho bảng metadata `xt_meta.*` (I-AUD-META): `xt_audit.install_meta` (thuộc `xt_audit_owner`) đưa chính sách IAM, định nghĩa quy trình, gói đã cài, PII egress, receipt (redact sha256) vào hash-chain của tenant (TRUNCATE vào chuỗi nền tảng), được checkpoint Ed25519 phủ; event trigger bảo vệ; migration `0006_audit_meta.sql` + `install_meta_audit()` cho CSDL cũ.
 - Model engine vòng 2: audit thuộc `xt_audit_owner` (cài trigger qua `xt_audit.install`, event trigger chặn tắt/xóa/giả trigger audit và RULE, TRUNCATE có event); khóa HMAC không bao giờ vào Postgres (app tính HMAC, chỉ transaction ghi field sensitive nhận chuỗi HMAC); neo đầu chuỗi audit ra ngoài DB bằng checkpoint ký Ed25519 và lệnh `xt audit checkpoint|verify --against-checkpoint`; apply chặn khi còn job pha 2 chưa xong ở mọi version; worker pha 2 claim theo tenant; regex thu hẹp thêm; hướng dẫn cấu hình log Postgres khi triển khai.
 **Lõi và MCP**

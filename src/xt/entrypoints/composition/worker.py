@@ -79,6 +79,7 @@ class WorkflowJobs:
         self.files: Any = files  # CompositionFilesBackend khi bật dịch vụ tệp
         self.files_maintenance: Any = None  # FilesMaintenance (job files.maintain)
         self.engine = SpiffProcessEngine()
+        self.notifications: Any = None
 
     def tick_sync(self, tenant_id: UUID, instance_id: str) -> dict[str, Any]:
         tenant = tenant_by_id(self.rt.app_db, tenant_id)
@@ -241,6 +242,8 @@ class WorkflowJobs:
         await anyio.to_thread.run_sync(self.purge_dpop_jti)
         if self.files is not None and self.files_maintenance is None:  # quét lại `scanning`
             await anyio.to_thread.run_sync(self.rescan_files, tenant)
+        if self.notifications is not None:
+            await anyio.to_thread.run_sync(self.notifications.run, job.tenant_id)
         await self._schedule_timer_starts(connection, job.tenant_id)
         await self._schedule_relay(connection, job.tenant_id, after=self.relay_interval_s)
 
@@ -336,6 +339,9 @@ def build_jobs(env: Mapping[str, str]) -> WorkflowJobs:
         )
         maintenance = FilesMaintenance(files, enq.queue, tenant_dsn)
     jobs = WorkflowJobs(rt, enq.queue, tenant_dsn, relay_interval_s=int(interval), files=files)
+    from xt.entrypoints.notify_runtime import NotificationRelay
+
+    jobs.notifications = NotificationRelay(rt, jobs.engine, env)
     jobs.files_maintenance = maintenance
     holder["jobs"] = jobs
     return jobs

@@ -91,6 +91,39 @@ routes:
       timeout: {connect: 5, send: 3600, read: 3600}
 
   # ---------- xt-api.freepro.online : Tầng 1 headless ----------
+  - id: api-telegram-webhook
+    hosts: ["@@XT_DOMAIN_API@@"]
+    uri: "/telegram/webhook"
+    methods: ["POST"]
+    plugins:
+      client-control:
+        max_body_size: 65536
+      limit-req:
+        rate: 10
+        burst: 20
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+    upstream:
+      type: roundrobin
+      nodes: {"xt-api:8000": 1}
+  - id: telegram-link-code
+    hosts: ["@@XT_DOMAIN_API@@", "@@XT_DOMAIN_DESK@@"]
+    uri: "/telegram/link-code"
+    methods: ["POST"]
+    priority: 10
+    plugins:
+      client-control:
+        max_body_size: 1024
+      limit-req:
+        rate: 1
+        burst: 3
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+    upstream:
+      type: roundrobin
+      nodes: {"xt-api:8000": 1}
   - id: api-data                # PostgREST: bỏ tiền tố /data, giữ nguyên Authorization + Accept-Profile (JWT/profile kiểm ở PostgREST + xt.pgrst_pre)
     hosts: ["@@XT_DOMAIN_API@@"]
     uris: ["/data", "/data/*"]

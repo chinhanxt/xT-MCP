@@ -51,3 +51,7 @@ Các bước IT, Kế toán và Quản lý có thể chạy song song về nghi�
 
 ## Giới hạn đã biết
 Không có song song; leo thang IT đi lên giám đốc vì spec không có "trưởng phòng IT" theo từng instance; không có nhãn PII trong model spec nên tách model là cách duy nhất hiện tại. Xem `../REPORT.md`.
+
+## Hoàn thành bước (0.3.2)
+
+Mỗi bước người có một dòng checklist `lifecycle_task` (trường `step` = id bước, sinh lúc `init`, kể cả bước có điều kiện). Người được giao bước hoàn thành bằng `transition_record` trên dòng đó (`done`, hoặc `skipped` kèm `values.note`); mọi bước là chỉ-người (`human_only`): agent nhận `confirmation_required`, chính người được giao xác nhận. Bước có điều kiện không chạy -> `skipped` khi đóng hồ sơ. IAM: `hr.step-transition`.

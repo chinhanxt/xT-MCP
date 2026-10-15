@@ -372,12 +372,17 @@ class Prepared:
         if not isinstance(self.services, ComposedServices):
             return app
         from xt.entrypoints.files_http import with_files_api
+        from xt.entrypoints.notify_http import with_notifications
         from xt.entrypoints.workflow_http import with_workflow_api
 
         extra = self.services.http_routes(self.dispatcher)
         merged = Starlette(routes=[*extra, *app.routes], lifespan=app.router.lifespan_context)
         # /files/v1 chỉ mount khi XT_FILES_S3_ENDPOINT đã đặt (with_files_api tự kiểm).
-        return with_files_api(self, self.cfg.env, with_workflow_api(self, self.cfg.env, merged))
+        return with_notifications(
+            self,
+            self.cfg.env,
+            with_files_api(self, self.cfg.env, with_workflow_api(self, self.cfg.env, merged)),
+        )
 
     def close(self) -> None:
         if isinstance(self.services, ComposedServices):

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 
 from xt.adapters.db.notify import PgNotificationRepository
@@ -13,7 +14,7 @@ from xt.application.tools.errors import not_found
 from xt.application.tools.ports import Args, CommitResult, MutationPlan
 from xt.domain.autonomy import RiskLevel
 from xt.entrypoints.composition.runtime import Runtime
-from xt.entrypoints.composition.util import parse_record_ref
+from xt.entrypoints.composition.util import engine_call, parse_record_ref
 
 
 class NotificationToolAdapter:
@@ -29,7 +30,14 @@ class NotificationToolAdapter:
         recipients = []
         seen = set()
         for value in args["recipients"]:
-            ref = f"person:{caller.person.id}" if value == "me" else str(value)
+            ref = str(value)
+            if ref == "me":
+                ref = f"person:{caller.person.id}"
+            elif ref.startswith("xrn:"):
+                parts = ref.split(":")
+                if len(parts) != 4 or parts[1] != caller.alias:
+                    raise not_found(ref)
+                ref = ":".join(parts[2:])
             person = repo.resolve_person(ref)
             if person is None:
                 raise not_found(str(value))
@@ -40,7 +48,7 @@ class NotificationToolAdapter:
         if subject_ref:
             # An inaccessible subject cannot become a side channel to another tenant/record.
             model, rid = parse_record_ref(ctx, str(subject_ref))
-            if self.rt.records.get(caller.actor, model, rid) is None:
+            if engine_call(lambda: self.rt.records.get(caller.actor, model, rid)) is None:
                 raise not_found(str(subject_ref))
         return MutationPlan(
             level=RiskLevel.L2,
@@ -63,7 +71,7 @@ class NotificationToolAdapter:
         recipients = []
         for previous in payload["recipients"]:
             current = repo.resolve_person(previous.ref)
-            if current is None:
+            if current is None or current.id != previous.id:
                 raise not_found(previous.ref)
             recipients.append(current)
         service = NotificationService(repo, confirm_base_url=self.confirm_base_url)
@@ -71,7 +79,8 @@ class NotificationToolAdapter:
             actor_id=caller.person.id,
             recipients=recipients,
             message=str(args["message"]),
-            idempotency_key=f"tool:{ctx.actor.key}:{args['idempotency_key']}",
+            idempotency_key="tool:"
+            + hashlib.sha256(f"{ctx.actor.key}\0{args['idempotency_key']}".encode()).hexdigest(),
             subject_ref=args.get("subject_ref"),
         )
         return CommitResult(
