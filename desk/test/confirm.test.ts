@@ -20,4 +20,19 @@ describe("confirmInfo (TCV1 §3.6)", () => {
     expect(confirmInfo(env({}), XT)).toBeNull();
     expect(confirmInfo(undefined)).toBeNull();
   });
+  const text = (o: unknown, isError = true) => ({ isError, content: [{ type: "text", text: typeof o === "string" ? o : JSON.stringify(o) }] });
+  const body = (details: unknown, code = "confirmation_required") => ({ ok: false, untrusted: true, error: { code, details } });
+  it("xT thật: envelope lỗi JSON trong content[0].text, không có structuredContent", () => {
+    const d = { confirmation_id: "cf_1", confirm_url: "https://xt.freepro.online/desk/confirm/cf_1", plan_summary: "Duyệt 5 laptop" };
+    expect(confirmInfo(text(body(d)), XT)).toEqual({ url: d.confirm_url, summary: "Duyệt 5 laptop" });
+  });
+  it("content text: từ chối JSON hỏng, mã khác, origin lạ, id lệch URL", () => {
+    expect(confirmInfo(text("không phải json"), XT)).toBeNull();
+    expect(confirmInfo(text("null"), XT)).toBeNull();
+    expect(confirmInfo(text("[1]"), XT)).toBeNull();
+    expect(confirmInfo(text(body({ confirm_url: "https://xt.freepro.online/desk/confirm/a" }, "access_denied")), XT)).toBeNull();
+    expect(confirmInfo(text(body({ confirm_url: "https://evil.example/desk/confirm/a" })), XT)).toBeNull();
+    expect(confirmInfo(text(body({ confirmation_id: "b", confirm_url: "https://xt.freepro.online/desk/confirm/a" })), XT)).toBeNull();
+    expect(confirmInfo({ isError: true, content: [{ type: "image" }] }, XT)).toBeNull();
+  });
 });

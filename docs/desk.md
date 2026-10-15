@@ -14,7 +14,7 @@ Ngoài phạm vi: route `/desk/confirm/{id}` (do backend `xt-desk` render), đă
 | `src/mcp.ts` | MCP client Streamable HTTP; `AuthHeaders` là seam cho Keycloak |
 | `src/profiles.ts` | Hồ sơ tool: `core-10` (TCV1 §10), `all`, hoặc danh sách tên; luôn bỏ tool `visibility:["app"]` |
 | `src/markdown.ts` | `marked` + `DOMPurify`: chỉ whitelist thẻ, không ảnh/form/script/style, chỉ `http(s)/mailto`, link `noopener`; token `[PII:...]` hiện thành nhãn "đã che" |
-| `src/ToolItem.tsx` | Chip tool-call (mở xem tham số/kết quả), `AppRenderer` cho tool có `_meta.ui.resourceUri`, thẻ `confirmation_required` mở `confirm_url` |
+| `src/ToolItem.tsx` | Chip tool-call (mở xem tham số/kết quả), `AppRenderer` cho tool có `_meta.ui.resourceUri`, thẻ `confirmation_required` mở `confirm_url` (`src/confirm.ts` đọc `structuredContent`, nếu không có thì parse JSON an toàn từ `content[0].text` như lỗi xT thật `isError`; `confirm_url` phải đúng `DESK_XT_ORIGIN`, và khớp `confirmation_id` nếu có) |
 | `public/sandbox.html` | Sandbox proxy của MCP Apps (xem "Sandbox") |
 | `vite.config.ts` | Đọc cấu hình từ env, báo lỗi rõ nếu thiếu, proxy `/mcp` và `/llm` (không gắn bearer) |
 
@@ -101,6 +101,6 @@ Giảm thiểu: (1) không đưa PII thô hay bí mật vào kết quả tool g�
 ## Chưa làm / hạn chế
 
 - Chưa thử với catalog xT thật (chưa có server): hồ sơ `core-10` đã có test đơn vị nhưng e2e dùng server spike nên đặt `DESK_TOOL_PROFILE=show_org_chart,show_approval_card`.
-- Chưa có lịch sử hội thoại, đăng xuất phía Keycloak (nút Đăng xuất chỉ xóa token trong bộ nhớ), chưa chạy với Keycloak thật (e2e dùng `e2e/mock-oidc.mjs`), route `/desk/confirm/{id}`; thẻ `confirmation_required` chỉ có test đơn vị (`test/confirm.test.ts`, `tests/regression-bridge.test.ts`), chưa có e2e.
+- Chưa có lịch sử hội thoại, đăng xuất phía Keycloak (nút Đăng xuất chỉ xóa token trong bộ nhớ), chưa chạy với Keycloak thật (e2e dùng `e2e/mock-oidc.mjs`), route `/desk/confirm/{id}`; thẻ `confirmation_required` có test đơn vị (`test/confirm.test.ts`, `tests/regression-bridge.test.ts`) và e2e trên server xT thật (`e2e/apps.spec.ts`, test approval-card).
 - Bundle 896 kB (251 kB gzip), chưa tách chunk.
 - Tool `show_approval_card`/`act_on_task` của server spike chưa có e2e riêng.

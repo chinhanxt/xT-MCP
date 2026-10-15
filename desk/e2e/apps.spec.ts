@@ -100,6 +100,10 @@ test("approval-card: chỉ mở confirm_url đúng origin xT; không có nút du
   await page.screenshot({ path: `${IMG}/app-approval-card.png` });
 
   // confirm_url thật mà server cấp (lỗi xT không có structuredContent nên lấy từ chi tiết chip)
+  // Thẻ xác nhận của Desk (ToolItem) phải hiện từ envelope lỗi thật (content[0].text)
+  const card = page.locator("[data-testid=confirm-card]").first();
+  await expect(card).toBeVisible();
+  await expect(card.locator("a")).toHaveAttribute("href", new RegExp(`^${XT}/desk/confirm/`));
   await page.locator(".chip", { hasText: "decide_request" }).first().click();
   const detailText = await page.locator(".tool-detail").first().innerText();
   const confirmUrl = /"confirm_url\\?":\s*\\?"([^"\\]+)/.exec(detailText)?.[1] ?? "";
@@ -123,6 +127,7 @@ test("approval-card: chỉ mở confirm_url đúng origin xT; không có nút du
     await expect.poll(async () => (await appFrame(page, "#open")).locator("#open").isDisabled()).toBe(true);
     const evil = await appFrame(page, "#open");
     await expect(evil.locator("#msg")).toContainText("không thuộc xT");
+    await expect(page.locator("[data-testid=confirm-card]")).toHaveCount(0); // origin lạ: Desk không dựng thẻ xác nhận
     const pages = context.pages().length;
     await evil.locator("#open").click({ force: true, timeout: 1500 }).catch(() => {});
     await page.waitForTimeout(500);

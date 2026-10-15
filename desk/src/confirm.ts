@@ -20,11 +20,32 @@ export function isXtConfirmUrl(url: unknown, xtOrigin: string | undefined): url 
   }
 }
 
+interface ErrEnvelope {
+  error?: { code?: string; details?: { confirm_url?: unknown; confirmation_id?: unknown; plan_summary?: unknown } };
+}
+
+/** Envelope lỗi: ưu tiên structuredContent; không có (xT thật: isError, JSON ở content[0].text) thì parse an toàn. */
+function errorEnvelope(r: ToolResult | undefined): ErrEnvelope | null {
+  const sc = r?.structuredContent as ErrEnvelope | undefined;
+  if (sc && typeof sc === "object" && sc.error) return sc;
+  const t = r?.content?.[0];
+  if (!t || t.type !== "text" || typeof t.text !== "string") return null;
+  try {
+    const v: unknown = JSON.parse(t.text);
+    return v && typeof v === "object" && !Array.isArray(v) ? (v as ErrEnvelope) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function confirmInfo(r: ToolResult | undefined, xtOrigin?: string): ConfirmInfo | null {
-  const sc = r?.structuredContent as { error?: { code?: string; details?: { confirm_url?: unknown; plan_summary?: unknown } } } | undefined;
-  if (sc?.error?.code !== "confirmation_required") return null;
-  const url = sc.error.details?.confirm_url;
+  const err = errorEnvelope(r)?.error;
+  if (!err || typeof err !== "object" || err.code !== "confirmation_required") return null;
+  const d = err.details && typeof err.details === "object" ? err.details : undefined;
+  const url = d?.confirm_url;
   if (!isXtConfirmUrl(url, xtOrigin)) return null;
-  const s = sc.error.details?.plan_summary;
+  const id = d?.confirmation_id;
+  if (typeof id === "string" && new URL(url).pathname !== `/desk/confirm/${id}`) return null;
+  const s = d?.plan_summary;
   return { url, summary: typeof s === "string" ? s : undefined };
 }
