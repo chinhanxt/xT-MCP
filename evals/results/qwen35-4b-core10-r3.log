@@ -83,3 +83,6 @@
 [83/384] FAIL onboarding.status_done skills=auto rep=0 8.74s calls=0
 [84/384] FAIL onboarding.who_issues_laptop skills=auto rep=0 11.39s calls=0
 [85/384] FAIL onboarding.my_assets skills=auto rep=0 17.99s calls=1
+[86/384] FAIL onboarding.my_access skills=auto rep=0 14.73s calls=2
+[87/384] FAIL onboarding.offboard_confirm skills=auto rep=0 9.68s calls=0
+[88/384] PASS onboarding.offboard_unspecified skills=auto rep=0 6.46s calls=0

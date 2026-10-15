@@ -213,6 +213,10 @@ tests/integration/test_headless_data.py ...............................  [100%]
 
 `make check-data` cũng xanh: lint/format, mypy, import boundaries, SPDX, **173 unit test** (gồm 13 test cấu hình data/deploy) và **18 kiểm thử deploy offline**.
 
+`make check` toàn repo trong phiên này cũng thoát mã 0: **1.265 test Python**, **118 test Desk**, **15 test Playwright headless**, cùng kiểm tra lint/type/import/REUSE/SPDX. Các test Desk dùng fixture của Desk; kết quả này không thay cho kiểm chứng bốn dịch vụ công khai.
+
+Giới hạn review: lượt gọi bổ sung `claude --model claude-opus-5-5` chỉ đọc đã hết timeout 100 giây (mã 124, output rỗng). Không tính lượt đó là review hoàn tất; phản biện SQL/deploy và test được thực hiện bởi các agent hiện có, với kết quả chạy thật nêu trên.
+
 Chạy lúc 01:03:38 ngày 16/10/2026 (+07). Bao gồm khôi phục role/membership bị cấp thừa khi cài lại, nâng cấp DB trước PostgREST, BI có từ trước, giữ source/OID/ACL, install lặp, rollback NOTIFY, tenant/model tạo và xóa lúc server đang chạy, chống GUC/role spoof, GET/HEAD READ ONLY, own-scope, token sai aud/iss/azp, workflow-managed không ghi được và sensitive chỉ có HMAC trong audit (không nằm trong view).
 
 Các khối sau là stdout của **curl thật** trong `test_real_curl_transcript`, gọi trực tiếp PostgREST của fixture. `$XT_DATA_URL` là URL loopback của fixture (không có prefix `/data`); khi đi APISIX dùng `https://xt-api.freepro.online/data`. Mỗi khối dùng tệp header mới quyền 0600 và truyền bằng `-H @file`; token được thay bằng tên biến trong transcript, không ghi bí mật. Không ghép các lệnh `echo >>` từ nhiều khối vào cùng tệp.

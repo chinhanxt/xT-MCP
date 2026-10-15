@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Postgres 17 thật cho test ghép (composition): docker `postgres:17-alpine` có sẵn, cổng 20400.
+"""Postgres 17 thật cho test ghép (composition): docker `postgres:17-alpine` có sẵn, cổng ngẫu nhiên.
 
 Không pull image (đĩa `/` gần đầy): thiếu image thì lỗi rõ. Mật khẩu/pepper sinh ngẫu nhiên mỗi lần
 chạy; container `--rm` và được xóa khi xong.
@@ -18,8 +18,19 @@ from typing import Any
 import psycopg
 
 IMAGE = "postgres:17-alpine"
-CONTAINER = "xt-it-composition-pg"
-PORT = 20400
+# Tên + cổng riêng mỗi tiến trình test: nhiều session/agent chạy song song không dọn nhầm của nhau.
+CONTAINER = f"xt-it-composition-pg-{secrets.token_hex(4)}"
+
+
+def _free_port() -> int:
+    import socket
+
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+PORT = _free_port()
 DSN = f"host=127.0.0.1 port={PORT} dbname=xt"
 MIN_FREE_BYTES = 512 * 1024 * 1024
 
