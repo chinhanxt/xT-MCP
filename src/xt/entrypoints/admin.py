@@ -125,7 +125,9 @@ def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
             mapping = json.loads(args.mapping.read_text(encoding="utf-8")) if args.mapping else None
             data = org_from_hr(data, links=links, base_roles=base, mapping=mapping)
         elif args.links or args.base_roles or args.mapping:
-            raise AdminError("--links/--base-roles/--mapping chỉ dùng với tệp HR (departments/employees)")
+            raise AdminError(
+                "--links/--base-roles/--mapping chỉ dùng với tệp HR (departments/employees)"
+            )
         with connect(dsn) as conn:
             ref = tenant_of_alias(conn, args.tenant)
             counts = import_org(conn, ref, data)

@@ -210,3 +210,9 @@ Bối cảnh: W9 / E10 yêu cầu DB tự chặn `decider = requester`, dưới 
   4. mọi UPDATE/DELETE.
   - Ứng dụng dịch `CheckViolation` -> `SodViolation` -> `access_denied` reason `sod`.
 - **D-SOD-3. Idempotent:** `CREATE TABLE IF NOT EXISTS`, `CREATE OR REPLACE FUNCTION`, `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER`, policy kiểm `pg_policies`; chạy lại thân migration trên CSDL đã có không lỗi (có test). CSDL cũ nhận bảng qua `xt db migrate` như mọi migration.
+
+## Từ vựng vai trò/phòng: seed ánh xạ vào từ vựng gói (16/10/2026, chủ dự án – Opus 5.5)
+- **D-MAP-1. Từ vựng chuẩn = của gói** (`it_admin`, `payment_accountant`, `chief_accountant`, `hr`, `director`; mã phòng `NS`, `IT`, `KT`...), vì quy trình/chính sách của gói là sản phẩm; dữ liệu tổ chức của từng công ty ánh xạ vào đó, không đổi gói và không viết cứng trong code. Giải việc còn mở (1) của D-OPS-3.
+- **D-MAP-2. `seed/<công ty>/mapping.json`** `{departments: {id: mã phòng}, roles: {vai trò tệp: [vai trò gói]}}`; khóa `role@ID` cộng thêm vai trò cho người giữ vai trò đó trong đúng phòng (vd `dept_head@D02` -> `chief_accountant`). `xt org import --mapping` nạp tệp này (chỉ với tệp HR); phòng/vai trò của tệp không có trong mapping, mapping sai kiểu, hoặc `role@ID` trỏ phòng không tồn tại -> `AdminError` liệt kê hết. `--base-roles` vẫn cộng nguyên văn sau ánh xạ.
+- **D-MAP-3. `org.json` giữ nguyên** (dữ liệu thô từ HR). `make demo-seed` (`e2e/xte2e/seed.py`) truyền `--mapping` (tệp `mapping.json` cạnh `org.json`) và tính vai trò Keycloak/TOTP từ cùng mapping, thay bảng alias cứng cũ.
+- Test: `tests/unit/composition/test_org_mapping.py`; `tests/integration/composition/test_seed_mapping.py` (nạp seed/binh-minh, onboarding: hr/it/accounting giao đúng người của seed, không có giám đốc).

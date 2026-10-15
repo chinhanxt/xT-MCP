@@ -48,15 +48,18 @@ def apply_mapping(data: Mapping[str, Any], mapping: Mapping[str, Any]) -> dict[s
                 seen.add(r)
                 problems.append(f"mapping thiếu vai trò {r!r} (nhân sự {e['id']})")
     for key in rmap:
-        base, _, dept = key.partition("@")
+        _, _, dept = key.partition("@")
         if dept and not any(str(d["id"]) == dept for d in data.get("departments", ())):
             problems.append(f"mapping.roles[{key!r}]: phòng {dept!r} không có trong tệp")
     if problems:
         raise AdminError("; ".join(problems))
     out = dict(data)
     out["departments"] = [
-        {**d, "id": dmap[str(d["id"])], **({"parent_id": dmap[str(d["parent_id"])]}
-                                          if d.get("parent_id") is not None else {})}
+        {
+            **d,
+            "id": dmap[str(d["id"])],
+            **({"parent_id": dmap[str(d["parent_id"])]} if d.get("parent_id") is not None else {}),
+        }
         for d in data.get("departments", ())
     ]
     employees = []
@@ -66,8 +69,11 @@ def apply_mapping(data: Mapping[str, Any], mapping: Mapping[str, Any]) -> dict[s
         for r in e.get("roles", ()):
             roles += [*rmap[r], *rmap.get(f"{r}@{dept}", ())]
         employees.append(
-            {**e, "department_id": dmap.get(dept, e.get("department_id")),
-             "roles": list(dict.fromkeys(roles))}
+            {
+                **e,
+                "department_id": dmap.get(dept, e.get("department_id")),
+                "roles": list(dict.fromkeys(roles)),
+            }
         )
     out["employees"] = employees
     return out
