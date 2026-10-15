@@ -28,6 +28,7 @@ xT là MCP server đa năng cho mọi doanh nghiệp. Lõi headless (Tầng 1) g
   - `-m gpt-6-astra -c model_reasoning_effort=low` cho việc nhanh.
 - **agyxt CLI:** `agyxt -p "..." --model gemini-3.8-flash-high --dangerously-skip-permissions` (tự bật proxy cổng 8899).
   - **Hay bịa**, nên chỉ giao việc tìm repo hữu ích và các task nhỏ nhất, đơn giản nhất.
+  - Nếu mất kết nối (proxy 8899 báo `connection refused`), chạy lệnh `agyxt` trên terminal để mở lại kết nối rồi thử lại.
   - Kết quả luôn phải được kiểm chứng.
 - **Khi agyxt hoặc codex không kết nối được** (lỗi auth, mạng, hết quota, treo quá timeout, output rỗng/hỏng): lập tức giao lại đúng task đó cho model Claude tương ứng, không chờ, không dừng tiến trình.
   - Thay codex sol → Opus 5.5.
