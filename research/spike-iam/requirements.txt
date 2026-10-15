@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
+pycasbin==2.8.0
+vakt==1.6.0
+pytest==9.1.1

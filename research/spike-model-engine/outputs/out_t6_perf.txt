@@ -1,0 +1,36 @@
+50 model x 30 trường (+2 model cũ): validate 22 ms | compile 2503 câu DDL 62 ms | plan(diff, đếm) 54 ms | apply 1 transaction 2448 câu 2294 ms | DDL 283 KiB
+COPY FROM dưới RLS -> FeatureNotSupported COPY FROM not supported with row-level security
+nạp 100k dòng qua xt_app (RLS + audit hash-chain): 23.8s = 4201 dòng/s; tổng dòng 100004, audit 100037
+  staff own, mặc định (created_at desc)            total=  2000 items=20 median=  25.5 ms (count + page)
+  manager department, trạng thái + tiền >= 10tr    total=  3962 items=20 median=  38.9 ms (count + page)
+  accountant all tenant A, contains 'đà nẵng'      total= 13238 items=20 median= 139.1 ms (count + page)
+  accountant all tenant A, khoảng ngày + OR        total=  2212 items=20 median=  30.6 ms (count + page)
+  accountant all tenant B, không lọc               total= 20001 items=20 median=  21.8 ms (count + page)
+EXPLAIN manager/department count:
+    Finalize Aggregate (actual rows=1 loops=1)
+      ->  Gather (actual rows=2 loops=1)
+            Workers Planned: 1
+            Workers Launched: 1
+            ->  Partial Aggregate (actual rows=1 loops=2)
+                  ->  Parallel Bitmap Heap Scan on de_xuat_chi (actual rows=1981 loops=2)
+                        Recheck Cond: ((tenant_id = (NULLIF(current_setting('xt.tenant_id'::text, true), ''::text))::uuid) AND (trang_thai = 'cho_duyet'::text))
+                        Filter: ((so_tien >= 10000000) AND (COALESCE(('accountant'::text = ANY (string_to_array(NULLIF(current_setting('xt.roles'::text, true), ''::text), ','::text))), false) OR (COALESCE(('manager'::text = ANY (string_to_array(NULLIF(current_setting('xt.roles'::text, true), ''::text), ','::text))), false) AND ((owner_id = (NULLIF(current_setting('xt.actor_id'::text, true), ''::text))::uuid) OR COALESCE((department_id = ANY ((string_to_array(NULLIF(current_setting('xt.department_ids'::text, true), ''::text), ','::text))::uuid[])), false))) OR (COALESCE(('staff'::text = ANY (string_to_array(NULLIF(current_setting('xt.roles'::text, true), ''::text), ','::text))), false) AND (owner_id = (NULLIF(current_setting('xt.actor_id'::text, true), ''::text))::uuid))))
+                        Rows Removed by Filter: 11206
+                        Heap Blocks: exact=1295
+                        ->  Bitmap Index Scan on ix_m2_i1 (actual rows=26376 loops=1)
+                              Index Cond: ((tenant_id = (NULLIF(current_setting('xt.tenant_id'::text, true), ''::text))::uuid) AND (trang_thai = 'cho_duyet'::text))
+    Planning Time: 0.289 ms
+    Execution Time: 39.877 ms
+EXPLAIN staff own page:
+    Limit (actual rows=20 loops=1)
+      ->  Incremental Sort (actual rows=20 loops=1)
+            Sort Key: created_at DESC, id
+            Presorted Key: created_at
+            Full-sort Groups: 1  Sort Method: quicksort  Average Memory: 30kB  Peak Memory: 30kB
+            ->  Index Scan using ix_m2_created on de_xuat_chi (actual rows=21 loops=1)
+                  Index Cond: (tenant_id = (NULLIF(current_setting('xt.tenant_id'::text, true), ''::text))::uuid)
+                  Filter: (COALESCE(('accountant'::text = ANY (string_to_array(NULLIF(current_setting('xt.roles'::text, true), ''::text), ','::text))), false) OR (COALESCE(('manager'::text = ANY (string_to_array(NULLIF(current_setting('xt.roles'::text, true), ''::text), ','::text))), false) AND ((owner_id = (NULLIF(current_setting('xt.actor_id'::text, true), ''::text))::uuid) OR COALESCE((department_id = ANY ((string_to_array(NULLIF(current_setting('xt.department_ids'::text, true), ''::text), ','::text))::uuid[])), false))) OR (COALESCE(('staff'::text = ANY (string_to_array(NULLIF(current_setting('xt.roles'::text, true), ''::text), ','::text))), false) AND (owner_id = (NULLIF(current_setting('xt.actor_id'::text, true), ''::text))::uuid)))
+                  Rows Removed by Filter: 78000
+    Planning Time: 0.437 ms
+    Execution Time: 103.610 ms
+verify chuỗi audit tenant A: (80035, 3) trong 658 ms

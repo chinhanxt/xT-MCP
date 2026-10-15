@@ -1,0 +1,87 @@
+KẾ HOẠCH THAY ĐỔI MODEL v0 → v1  (mã kế hoạch 85a15cd55f5cebde)
+Tổng: 2 AN TOÀN, 0 RỦI RO, 0 PHÁ HỦY, 0 BỊ CHẶN
+  [AN TOÀN] Tạo model mới 'Khách hàng' (khach_hang) với 5 trường, RLS theo tenant + quyền ['manager', 'sales']
+  [AN TOÀN] Tạo model mới 'Đề xuất tạm ứng' (de_xuat_tam_ung) với 12 trường, RLS theo tenant + quyền ['accountant', 'manager', 'staff']
+APPLY: {'version': 1, 'plan_hash': '85a15cd55f5cebde', 'tx_steps': 52} post: 0
+
+### CRUD + poka-yoke
+--- tạo khách hàng (tenant A)
+{"ok": true, "record": {"id": "d6964311-f13b-48fe-b8b2-a0577236ae46", "revision": 1, "owner_id": "00000000-0000-0000-0000-0000000000a3", "team_id": null, "department_id": null, "created_at": "2026-10-15 03:23:02.443414+00:00", "updated_at": "2026-10-15 03:23:02.443414+00:00", "ma_kh": "KH0001", "ten": "Công ty Minh Phát", "email": null, "hang": "vang", "ghi_chu": null}}
+--- cùng mã KH0001 ở tenant B (unique theo tenant)
+{"ok": true}
+--- trùng mã trong tenant A
+{"ok": false, "error": {"code": "DUPLICATE", "message": "'Mã khách hàng' đã tồn tại, phải là duy nhất", "fields": [{"field": "ma_kh", "label": "Mã khách hàng", "code": "unique", "message": "'Mã khách hàng' đã tồn tại, phải là duy nhất"}]}}
+--- sai định dạng + thiếu trường + enum sai
+{"ok": false, "error": {"code": "VALIDATION_FAILED", "message": "Dữ liệu 'Khách hàng' chưa hợp lệ (3 lỗi)", "fields": [{"field": "ma_kh", "label": "Mã khách hàng", "code": "string_pattern_mismatch", "message": "'Mã khách hàng' không đúng định dạng (mẫu ^KH[0-9]{4}$)"}, {"field": "ten", "label": "Tên khách hàng", "code": "missing", "message": "'Tên khách hàng' là trường bắt buộc, chưa có giá trị"}, {"field": "hang", "label": "Hạng", "code": "literal_error", "message": "'Hạng' chỉ nhận một trong: thuong (Thường), vang (Vàng)"}], "hint": "Sửa các trường nêu trên rồi gọi lại; không đoán giá trị thay người dùng."}}
+--- staff1 tạo đề xuất
+{"ok": true, "record": {"id": "6fcb7f88-a231-489e-b30e-2b4b820a26df", "revision": 1, "owner_id": "00000000-0000-0000-0000-0000000000a1", "team_id": null, "department_id": "b63730d5-2cea-4825-ae16-bf2ff517c8bf", "created_at": "2026-10-15 03:23:02.472103+00:00", "updated_at": "2026-10-15 03:23:02.472103+00:00", "noi_dung": "Công tác Đà Nẵng 3 ngày", "so_tien": 8000000, "tu_ngay": "2026-10-20", "den_ngay": "2026-10-22", "khach_hang": "d6964311-f13b-48fe-b8b2-a0577236ae46", "trang_thai": "nhap", "nguoi_duyet": null, "chung_tu": null, "khan": false, "thoi_diem_gui": null, "chi_tiet": null, "ty_le_vat": null}}
+--- gõ sai tên trường
+{"ok": false, "error": {"code": "VALIDATION_FAILED", "message": "Dữ liệu 'Đề xuất tạm ứng' chưa hợp lệ (2 lỗi)", "fields": [{"field": "so_tien", "label": "Số tiền (VND)", "code": "int_type", "message": "'Số tiền (VND)' không được để trống (trường bắt buộc)"}, {"field": "so_tien_vnd", "label": "so_tien_vnd", "code": "extra_forbidden", "message": "Trường 'so_tien_vnd' không tồn tại trong 'Đề xuất tạm ứng' — có phải ý bạn là 'so_tien'?", "valid_fields": ["noi_dung", "so_tien", "tu_ngay", "den_ngay", "khach_hang", "trang_thai", "nguoi_duyet", "chung_tu", "khan", "thoi_diem_gui", "chi_tiet", "ty_le_vat"]}], "hint": "Sửa các trường nêu trên rồi gọi lại; không đoán giá trị thay người dùng."}}
+--- đến ngày < từ ngày (rule DSL, kiểm ở app)
+{"ok": false, "error": {"code": "RULE_VIOLATION", "message": "'Đến ngày' phải sau hoặc bằng 'Từ ngày'", "fields": [{"field": "den_ngay", "label": "Đến ngày", "code": "rule:r1", "message": "'Đến ngày' phải sau hoặc bằng 'Từ ngày'"}, {"field": "tu_ngay", "label": "Từ ngày", "code": "rule:r1", "message": "'Đến ngày' phải sau hoặc bằng 'Từ ngày'"}]}}
+--- tiền lẻ + dưới min + ngày sai
+{"ok": false, "error": {"code": "VALIDATION_FAILED", "message": "Dữ liệu 'Đề xuất tạm ứng' chưa hợp lệ (2 lỗi)", "fields": [{"field": "so_tien", "label": "Số tiền (VND)", "code": "int_from_float", "message": "'Số tiền (VND)' phải là số nguyên (VND không có phần lẻ)"}, {"field": "tu_ngay", "label": "Từ ngày", "code": "date_from_datetime_parsing", "message": "'Từ ngày' phải là ngày dạng YYYY-MM-DD"}], "hint": "Sửa các trường nêu trên rồi gọi lại; không đoán giá trị thay người dùng."}}
+--- ref sang khách hàng của tenant B
+{"ok": false, "error": {"code": "BAD_REFERENCE", "message": "'Khách hàng' tham chiếu tới bản ghi không tồn tại hoặc không thuộc đơn vị của bạn", "fields": [{"field": "khach_hang", "label": "Khách hàng", "code": "fk", "message": "'Khách hàng' tham chiếu tới bản ghi không tồn tại hoặc không thuộc đơn vị của bạn"}]}}
+--- kế toán (chỉ read) thử tạo
+{"ok": false, "error": {"code": "FORBIDDEN", "message": "Vai trò ['accountant'] không có quyền 'create' trên 'Đề xuất tạm ứng'", "fields": [], "hint": "Vai trò được phép: ['staff']"}}
+--- staff1 tạo hộ người khác (owner_id lạ) -> RLS WITH CHECK
+{"ok": false, "error": {"code": "FORBIDDEN", "message": "Bạn không có quyền create bản ghi này trên 'Đề xuất tạm ứng' (ngoài phạm vi được cấp)", "fields": [], "hint": "Kiểm tra owner/team/department của bản ghi hoặc nhờ người có quyền."}}
+
+### Phạm vi dòng (RLS)
+staff1(own)                  total=1 owners=['a1']
+staff2(own)                  total=1 owners=['a2']
+mgrA(department D1)          total=2 owners=['a1', 'a2']
+acct(all trong tenant)       total=3 owners=['a1', 'a2', 'a9']
+staffB(tenant B)             total=1 owners=['b1']
+--- mgrB tìm KH0001 -> chỉ thấy bản của B
+{"total": 1, "la_ban_ghi_cua_B": true}
+--- tenant B sửa bản ghi tenant A theo id
+{"ok": false, "error": {"code": "NOT_FOUND", "message": "Không tìm thấy bản ghi 6fcb7f88-a231-489e-b30e-2b4b820a26df trong 'Đề xuất tạm ứng' (hoặc ngoài phạm vi bạn được xem)", "fields": []}}
+--- staff2 sửa đề xuất của staff1
+{"ok": false, "error": {"code": "NOT_FOUND", "message": "Không tìm thấy bản ghi 6fcb7f88-a231-489e-b30e-2b4b820a26df trong 'Đề xuất tạm ứng' (hoặc ngoài phạm vi bạn được xem)", "fields": []}}
+--- kế toán sửa (không có quyền update)
+{"ok": false, "error": {"code": "FORBIDDEN", "message": "Vai trò ['accountant'] không có quyền 'update' trên 'Đề xuất tạm ứng'", "fields": [], "hint": "Vai trò được phép: ['manager', 'staff']"}}
+xt_app không đặt tenant -> thấy 0 dòng; current_setting sau commit = ''
+SQL thô chèn tenant_id=B khi ngữ cảnh là A -> InsufficientPrivilege new row violates row-level security policy "p_m2_tenant" for table "de_xuat_tam_ung"
+xt_app tắt RLS -> InsufficientPrivilege must be owner of table de_xuat_tam_ung
+
+### Optimistic concurrency + rule ở DB
+--- mgrA cập nhật rev1 -> ok
+{"ok": true, "revision": 2}
+--- staff2 cập nhật cùng rev1 (đã cũ)
+{"ok": false, "error": {"code": "CONFLICT", "message": "Bản ghi đã bị sửa bởi người khác (revision hiện tại 2, bạn gửi 1)", "fields": [], "hint": "Đọc lại bản ghi, hỏi người dùng có giữ thay đổi không, rồi gửi lại với revision mới."}}
+--- duyệt 80tr thiếu người duyệt (CHECK r2 ở DB)
+{"ok": false, "error": {"code": "CONSTRAINT_VIOLATION", "message": "Đề xuất trên 50 triệu phải có người duyệt khi đã duyệt", "fields": [{"field": "nguoi_duyet", "label": "Người duyệt", "code": "rule", "message": "Đề xuất trên 50 triệu phải có người duyệt khi đã duyệt"}, {"field": "so_tien", "label": "Số tiền (VND)", "code": "rule", "message": "Đề xuất trên 50 triệu phải có người duyệt khi đã duyệt"}, {"field": "trang_thai", "label": "Trạng thái", "code": "rule", "message": "Đề xuất trên 50 triệu phải có người duyệt khi đã duyệt"}]}}
+--- duyệt có người duyệt
+{"ok": true, "revision": 3, "trang_thai": "da_duyet"}
+--- gán null cho trường bắt buộc
+{"ok": false, "error": {"code": "VALIDATION_FAILED", "message": "Dữ liệu 'Đề xuất tạm ứng' chưa hợp lệ (1 lỗi)", "fields": [{"field": "noi_dung", "label": "Nội dung", "code": "string_type", "message": "'Nội dung' không được để trống (trường bắt buộc)"}], "hint": "Sửa các trường nêu trên rồi gọi lại; không đoán giá trị thay người dùng."}}
+--- xóa khách hàng đang được tham chiếu
+{"ok": false, "error": {"code": "IN_USE", "message": "Không xóa được 'Khách hàng': đang được 'Khách hàng' của 'Đề xuất tạm ứng' tham chiếu", "fields": [], "hint": "Gỡ tham chiếu ở các bản ghi kia trước."}}
+
+### Search DSL
+--- tìm 'hà nội' AND (vàng OR mã in [...]) trang 1
+{"total": 7, "has_more": true, "ma": ["KH0027", "KH0021", "KH0015"]}
+--- bộ lọc tên trường lạ
+{"ok": false, "error": {"code": "BAD_FILTER", "message": "Bộ lọc không hợp lệ: tên định danh phải là snake_case ASCII: chữ thường đầu tiên, chỉ a-z 0-9 _ , tối đa 40 ký tự", "fields": [], "hint": "Dạng: {\"and\":[{\"field\":\"so_tien\",\"op\":\">=\",\"value\":1000000}, ...]}; trường hợp lệ: ma_kh, ten, email, hang, ghi_chu, created_at, updated_at, owner_id, team_id, department_id"}}
+--- bộ lọc giá trị chứa SQL (được bind)
+0
+--- contains với % và _ được escape
+0
+--- toán tử sai kiểu
+{"ok": false, "error": {"code": "BAD_FILTER", "message": "Bộ lọc không hợp lệ: hang: '5' không thuộc enum", "fields": [], "hint": "Dạng: {\"and\":[{\"field\":\"so_tien\",\"op\":\">=\",\"value\":1000000}, ...]}; trường hợp lệ: ma_kh, ten, email, hang, ghi_chu, created_at, updated_at, owner_id, team_id, department_id"}}
+--- model không tồn tại
+{"ok": false, "error": {"code": "UNKNOWN_MODEL", "message": "Không có model 'khach_hangg' — có phải 'khach_hang'?", "fields": [], "hint": "Các model: ['de_xuat_tam_ung', 'khach_hang']"}}
+
+### Audit hash-chain
+xt_app verify tenant A: (31, None) | thấy event tenant B: 0
+ví dụ event UPDATE: 7 UPDATE de_xuat_tam_ung {'new': {'trang_thai': 'cho_duyet'}, 'old': {'trang_thai': 'nhap'}}
+xt_app      UPDATE xt_audit.event  -> InsufficientPrivilege: permission denied for table event
+xt_app      DELETE FROM xt_audit.e -> InsufficientPrivilege: permission denied for table event
+xt_app      INSERT INTO xt_audit.e -> InsufficientPrivilege: permission denied for table event
+xt_migrator UPDATE xt_audit.event  -> InsufficientPrivilege: permission denied for table event
+xt_migrator DELETE FROM xt_audit.e -> InsufficientPrivilege: permission denied for table event
+xt_migrator INSERT INTO xt_audit.e -> InsufficientPrivilege: permission denied for table event
+superuser UPDATE (trigger) -> xt_audit.event là append-only (UPDATE bị cấm)
+superuser tắt trigger rồi sửa số tiền -> verify: (31, 3) | tenant B vẫn: (2, None)

@@ -16,11 +16,21 @@ Xem toàn văn [LICENSE](LICENSE) và [NOTICE](NOTICE). Phụ thuộc phải có
 
 ## Yêu cầu hệ thống
 
-Chưa chốt phiên bản Python, hệ điều hành hỗ trợ hoặc cấu hình CPU/RAM/dung lượng. Yêu cầu cụ thể sẽ cập nhật cùng mã nguồn và được kiểm chứng bằng cài đặt thực tế.
+Python >= 3.12 (đã chạy thử trên Linux, Python 3.13). Chưa chốt hệ điều hành hỗ trợ hoặc cấu hình CPU/RAM/dung lượng. Yêu cầu cụ thể sẽ cập nhật cùng mã nguồn và được kiểm chứng bằng cài đặt thực tế.
 
 ## Build/cài đặt từ mã nguồn
 
-Sẽ cập nhật khi có mã nguồn triển khai.
+Cần Python >= 3.12, [uv](https://docs.astral.sh/uv/) và GNU make (đều mã nguồn mở).
+
+```sh
+make setup            # uv sync
+uv run xt --version   # xt 0.1.0.dev0
+uv run xt doctor      # kiểm tra môi trường; đặt XT_DATABASE_URL để kiểm tra Postgres
+make check            # lint, mypy, import-linter, reuse lint, pytest
+make release          # dist/*.whl, sdist và dist/xt-<version>.tar.gz
+```
+
+Chi tiết và kết quả chạy thật: [docs/dev-setup.md](docs/dev-setup.md).
 
 ## Báo lỗi
 

@@ -1,0 +1,43 @@
+52 câu lệnh DDL
+CREATE TABLE "xt_data"."de_xuat_tam_ung" (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  tenant_id uuid NOT NULL DEFAULT xt.tenant(),
+  owner_id uuid DEFAULT xt.actor(),
+  team_id uuid,
+  department_id uuid,
+  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  created_by uuid,
+  updated_by uuid,
+  revision integer NOT NULL DEFAULT 1,
+  "noi_dung" text NOT NULL,
+  "so_tien" bigint NOT NULL,
+  "tu_ngay" date NOT NULL,
+  "den_ngay" date NOT NULL,
+  "khach_hang" uuid,
+  "trang_thai" text DEFAULT 'nhap' NOT NULL,
+  "nguoi_duyet" uuid,
+  "chung_tu" uuid,
+  "khan" boolean DEFAULT false,
+  "thoi_diem_gui" timestamptz,
+  "chi_tiet" jsonb,
+  "ty_le_vat" numeric,
+  CONSTRAINT "pk_m2" PRIMARY KEY (id),
+  CONSTRAINT "uq_m2_tid" UNIQUE (tenant_id, id),
+  CONSTRAINT "ck_m2_f1_min" CHECK (char_length("noi_dung") >= 5),
+  CONSTRAINT "ck_m2_f2_min" CHECK ("so_tien" >= 100000),
+  CONSTRAINT "ck_m2_f2_max" CHECK ("so_tien" <= 500000000),
+  CONSTRAINT "ck_m2_f6_enum" CHECK ("trang_thai" IN ('nhap', 'cho_duyet', 'da_duyet', 'tu_choi')),
+  CONSTRAINT "ck_m2_f11_json" CHECK (octet_length("chi_tiet"::text) <= 65536),
+  CONSTRAINT "ck_m2_f12_min" CHECK ("ty_le_vat" >= 0),
+  CONSTRAINT "ck_m2_f12_max" CHECK ("ty_le_vat" <= 1),
+  CONSTRAINT "ck_m2_r_r1" CHECK (("den_ngay" >= "tu_ngay")),
+  CONSTRAINT "ck_m2_r_r2" CHECK ((("so_tien" <= 50000000) OR (NOT ("trang_thai" = 'da_duyet')) OR ("nguoi_duyet" IS NOT NULL)))
+)
+CREATE POLICY "p_m2_tenant" ON "xt_data"."de_xuat_tam_ung" AS RESTRICTIVE FOR ALL TO "xt_app" USING (tenant_id = xt.tenant()) WITH CHECK (tenant_id = xt.tenant())
+CREATE POLICY "p_m2_read" ON "xt_data"."de_xuat_tam_ung" AS PERMISSIVE FOR SELECT TO "xt_app" USING ((xt.has_role('accountant') AND true) OR (xt.has_role('manager') AND (owner_id = xt.actor() OR xt.in_departments(department_id))) OR (xt.has_role('staff') AND owner_id = xt.actor()))
+CREATE POLICY "p_m2_create" ON "xt_data"."de_xuat_tam_ung" AS PERMISSIVE FOR INSERT TO "xt_app" WITH CHECK ((xt.has_role('staff') AND owner_id = xt.actor()))
+CREATE POLICY "p_m2_update" ON "xt_data"."de_xuat_tam_ung" AS PERMISSIVE FOR UPDATE TO "xt_app" USING ((xt.has_role('manager') AND (owner_id = xt.actor() OR xt.in_departments(department_id))) OR (xt.has_role('staff') AND owner_id = xt.actor())) WITH CHECK ((xt.has_role('manager') AND (owner_id = xt.actor() OR xt.in_departments(department_id))) OR (xt.has_role('staff') AND owner_id = xt.actor()))
+JSON Schema bytes: 9662
+YAML round-trip hợp lệ: True | dòng YAML: 169
+YAML 'value: no' -> (0, 'value') Input should be a valid string

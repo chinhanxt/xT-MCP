@@ -1,0 +1,4 @@
+1) DB khớp spec hiện tại -> khác biệt cột/kiểu/nullable/comment: []
+2) Sau khi superuser sửa tay -> drift: [('modify_nullable', 'khach_hang', 'ten', False), ('remove_column', 'khach_hang', 'cot_la')]
+3) Rename ghi_chu_noi_bo -> ghi_chu_rieng theo autogenerate: [('add_column', 'khach_hang', 'ghi_chu_rieng'), ('remove_column', 'khach_hang', 'ghi_chu_noi_bo')]
+4) Policy RLS / trigger / CHECK đặt tên ổn định: compare_metadata không so sánh policy/trigger; CHECK constraint không được autogenerate so sánh.

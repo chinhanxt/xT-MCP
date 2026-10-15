@@ -1,0 +1,16 @@
+SELECT count(*) FROM xt_data.de_xuat_chi WHERE true AND (owner_id = %s)
+    Aggregate (actual rows=1 loops=1)
+      ->  Index Scan using ix_m2_owner on de_xuat_chi (actual rows=2000 loops=1)
+            Index Cond: ((tenant_id = (NULLIF(current_setting('xt.tenant_id'::text, true), ''::text))::uuid) AND (owner_id = '00000000-0000-0000-0000-000000005000'::uuid))
+    Planning Time: 0.981 ms
+    Execution Time: 3.655 ms
+SELECT * FROM xt_data.de_xuat_chi WHERE true AND (owner_id = %s) ORDER BY created_at DESC, id LIMIT 20 OFFSET 40
+    Limit (actual rows=20 loops=1)
+      ->  Incremental Sort (actual rows=60 loops=1)
+            Sort Key: created_at DESC, id
+            Presorted Key: created_at
+            Full-sort Groups: 2  Sort Method: quicksort  Average Memory: 33kB  Peak Memory: 33kB
+            ->  Index Scan using ix_m2_created on de_xuat_chi (actual rows=61 loops=1)
+                  Index Cond: (tenant_id = (NULLIF(current_setting('xt.tenant_id'::text, true), ''::text))::uuid)
+    Planning Time: 0.504 ms
+    Execution Time: 26.784 ms

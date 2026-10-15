@@ -1,0 +1,38 @@
+### A. Tên độc hại trong spec -> bị từ chối khi validate
+  model.name: từ chối 18/18
+  'x"; drop table xt_meta.catalog_version; --'       -> fields.1.name: Value error, tên định danh phải là snake_case ASCII: chữ thường đầu tiên, chỉ a-z 0-9 _ , tối đ
+  'khách_hàng'                                       -> fields.1.name: Value error, tên định danh phải là snake_case ASCII: chữ thường đầu tiên, chỉ a-z 0-9 _ , tối đ
+  'select'                                           -> fields.1.name: Value error, 'select' là từ khóa SQL dành riêng
+  'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'        -> fields.1.name: Value error, tên định danh phải là snake_case ASCII: chữ thường đầu tiên, chỉ a-z 0-9 _ , tối đ
+  'tenant_id'                                        -> models.0: Value error, tên trường trùng cột hệ thống: ['tenant_id']
+  field.name: từ chối 18/18
+  role độc hại                       -> permissions.admin') OR true OR ('.[key]: Value error, tên định danh phải là snake_case ASCII: chữ thường đầu tiên, chỉ a-z 0-9 _ , tối đ
+  ref tới model không tồn tại        -> : Value error, de_xuat_tam_ung.khach_hang: model đích 'pg_authid' không tồn tại
+  rule tham chiếu cột hệ thống       -> models.1: Value error, rule r9 tham chiếu trường không tồn tại: ['tenant_id']
+  rule kiểu sai (date so với money)  -> models.1: Value error, không so sánh tu_ngay(date) với so_tien(money)
+  rule là SQL tự do                  -> check.function-after[_shape(), Cmp].field: Field required
+  regex backreference (ReDoS)        -> 0.fields.0: Value error, regex không hợp lệ/không được hỗ trợ: error: backreferences are not supported
+  id ổn định độc hại                 -> models.0.id: Value error, id ổn định phải khớp [a-z0-9][a-z0-9_]{0,23}
+  enum trên trường số                -> 1.fields.1: Value error, options chỉ dùng cho enum
+
+### B. Giá trị độc hại hợp lệ về cú pháp -> được quote thành literal
+  CHECK enum: CONSTRAINT "ck_m9_f4_enum" CHECK ("hang" IN ('thuong', 'vang', 'x''); DROP TABLE xt_meta.catalog_version; --'))
+  sqlglot đếm câu lệnh trong CREATE TABLE: 1
+  bảng tạo được, enum độc hại lưu nguyên văn: ("x'); DROP TABLE xt_meta.catalog_version; --", "'); DELETE FROM xt_audit.event; --")
+  comment: Khách'); DROP TABLE xt_meta.catalog_version; --
+  catalog_version còn nguyên: 3 phiên bản
+
+### C. Bỏ qua validator (model_construct) -> Identifier vẫn quote an toàn
+   CREATE TABLE "xt_data"."x""; DROP TABLE xt_meta.catalog_version; --" (
+   relname trong pg_class: x"; DROP TABLE xt_meta.catalog_version; -- | sqlglot: 1 câu lệnh
+   catalog_version còn nguyên: 3
+
+### D. Runtime
+  role 'staff,accountant' -> role không hợp lệ: 'staff,accountant'
+  filter lồng 10 cấp      -> Bộ lọc không hợp lệ: biểu thức lồng quá 8 cấp
+  filter in 1000 phần tử  -> Bộ lọc không hợp lệ: toán tử in cần value là danh sách 1..100 phần tử
+  filter op lạ            -> Bộ lọc không hợp lệ: toán tử không hỗ trợ; hợp lệ: '=', '!=', '<', '<=', '>', '>=', 'is_null', 'not_null', 'in
+  filter key lạ           -> Bộ lọc không hợp lệ: khóa 'sql' không hợp lệ (chỉ field/op/value/other_field/and/or/not)
+  sort injection -> BAD_SORT
+  limit 1e6 -> limit 1..200, offset 0..10000
+  json 100KB -> 'Chi tiết' vượt 65536 byte

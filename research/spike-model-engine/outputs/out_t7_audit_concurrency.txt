@@ -1,0 +1,4 @@
+1 tenant x 8 luồng: 1200 bản ghi trong 1.06s = 1129 ghi/s, lỗi=0
+2 tenant x 8 luồng: 2400 bản ghi trong 1.54s = 1560 ghi/s, lỗi=0
+verify 629c40f1 (2400, None)
+verify ba9c5ce1 (1200, None)

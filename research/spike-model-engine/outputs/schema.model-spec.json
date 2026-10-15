@@ -1,0 +1,609 @@
+{
+ "$defs": {
+  "And": {
+   "additionalProperties": false,
+   "properties": {
+    "and": {
+     "items": {
+      "anyOf": [
+       {
+        "$ref": "#/$defs/Cmp"
+       },
+       {
+        "$ref": "#/$defs/And"
+       },
+       {
+        "$ref": "#/$defs/Or"
+       },
+       {
+        "$ref": "#/$defs/Not"
+       }
+      ]
+     },
+     "maxItems": 50,
+     "minItems": 1,
+     "title": "And",
+     "type": "array"
+    }
+   },
+   "required": [
+    "and"
+   ],
+   "title": "And",
+   "type": "object"
+  },
+  "Cmp": {
+   "additionalProperties": false,
+   "description": "field <op> value | field <op> other_field | field is_null.",
+   "properties": {
+    "field": {
+     "title": "Field",
+     "type": "string"
+    },
+    "op": {
+     "enum": [
+      "=",
+      "!=",
+      "<",
+      "<=",
+      ">",
+      ">=",
+      "is_null",
+      "not_null",
+      "in",
+      "contains",
+      "startswith"
+     ],
+     "title": "Op",
+     "type": "string"
+    },
+    "value": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "integer"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "string"
+      },
+      {
+       "format": "date",
+       "type": "string"
+      },
+      {
+       "format": "date-time",
+       "type": "string"
+      },
+      {
+       "items": {
+        "anyOf": [
+         {
+          "type": "boolean"
+         },
+         {
+          "type": "integer"
+         },
+         {
+          "type": "number"
+         },
+         {
+          "type": "string"
+         },
+         {
+          "format": "date",
+          "type": "string"
+         },
+         {
+          "format": "date-time",
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Value"
+    },
+    "other_field": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Other Field"
+    }
+   },
+   "required": [
+    "field",
+    "op"
+   ],
+   "title": "Cmp",
+   "type": "object"
+  },
+  "EnumOption": {
+   "additionalProperties": false,
+   "properties": {
+    "value": {
+     "maxLength": 64,
+     "minLength": 1,
+     "title": "Value",
+     "type": "string"
+    },
+    "label": {
+     "maxLength": 120,
+     "minLength": 1,
+     "title": "Label",
+     "type": "string"
+    }
+   },
+   "required": [
+    "value",
+    "label"
+   ],
+   "title": "EnumOption",
+   "type": "object"
+  },
+  "FieldSpec": {
+   "additionalProperties": false,
+   "properties": {
+    "id": {
+     "title": "Id",
+     "type": "string"
+    },
+    "name": {
+     "title": "Name",
+     "type": "string"
+    },
+    "type": {
+     "enum": [
+      "text",
+      "number",
+      "money",
+      "date",
+      "datetime",
+      "bool",
+      "enum",
+      "ref",
+      "user",
+      "file",
+      "json"
+     ],
+     "title": "Type",
+     "type": "string"
+    },
+    "label": {
+     "maxLength": 120,
+     "minLength": 1,
+     "title": "Label",
+     "type": "string"
+    },
+    "description": {
+     "anyOf": [
+      {
+       "maxLength": 500,
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Description"
+    },
+    "required": {
+     "default": false,
+     "title": "Required",
+     "type": "boolean"
+    },
+    "unique": {
+     "default": false,
+     "title": "Unique",
+     "type": "boolean"
+    },
+    "min": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "string"
+      },
+      {
+       "format": "date",
+       "type": "string"
+      },
+      {
+       "format": "date-time",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Min"
+    },
+    "max": {
+     "anyOf": [
+      {
+       "type": "integer"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "string"
+      },
+      {
+       "format": "date",
+       "type": "string"
+      },
+      {
+       "format": "date-time",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Max"
+    },
+    "regex": {
+     "anyOf": [
+      {
+       "maxLength": 200,
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Regex"
+    },
+    "options": {
+     "anyOf": [
+      {
+       "items": {
+        "$ref": "#/$defs/EnumOption"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Options"
+    },
+    "ref": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Ref"
+    },
+    "default": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "integer"
+      },
+      {
+       "type": "number"
+      },
+      {
+       "type": "string"
+      },
+      {
+       "format": "date",
+       "type": "string"
+      },
+      {
+       "format": "date-time",
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Default"
+    }
+   },
+   "required": [
+    "id",
+    "name",
+    "type",
+    "label"
+   ],
+   "title": "FieldSpec",
+   "type": "object"
+  },
+  "IndexSpec": {
+   "additionalProperties": false,
+   "properties": {
+    "id": {
+     "title": "Id",
+     "type": "string"
+    },
+    "fields": {
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 5,
+     "minItems": 1,
+     "title": "Fields",
+     "type": "array"
+    },
+    "unique": {
+     "default": false,
+     "title": "Unique",
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "id",
+    "fields"
+   ],
+   "title": "IndexSpec",
+   "type": "object"
+  },
+  "ModelSpec": {
+   "additionalProperties": false,
+   "properties": {
+    "id": {
+     "title": "Id",
+     "type": "string"
+    },
+    "name": {
+     "title": "Name",
+     "type": "string"
+    },
+    "label": {
+     "maxLength": 120,
+     "minLength": 1,
+     "title": "Label",
+     "type": "string"
+    },
+    "title_field": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Title Field"
+    },
+    "fields": {
+     "items": {
+      "$ref": "#/$defs/FieldSpec"
+     },
+     "maxItems": 200,
+     "minItems": 1,
+     "title": "Fields",
+     "type": "array"
+    },
+    "indexes": {
+     "default": [],
+     "items": {
+      "$ref": "#/$defs/IndexSpec"
+     },
+     "title": "Indexes",
+     "type": "array"
+    },
+    "rules": {
+     "default": [],
+     "items": {
+      "$ref": "#/$defs/RuleSpec"
+     },
+     "maxItems": 50,
+     "title": "Rules",
+     "type": "array"
+    },
+    "permissions": {
+     "additionalProperties": {
+      "$ref": "#/$defs/PermSpec"
+     },
+     "default": {},
+     "title": "Permissions",
+     "type": "object"
+    }
+   },
+   "required": [
+    "id",
+    "name",
+    "label",
+    "fields"
+   ],
+   "title": "ModelSpec",
+   "type": "object"
+  },
+  "Not": {
+   "additionalProperties": false,
+   "properties": {
+    "not": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/Cmp"
+      },
+      {
+       "$ref": "#/$defs/And"
+      },
+      {
+       "$ref": "#/$defs/Or"
+      },
+      {
+       "$ref": "#/$defs/Not"
+      }
+     ],
+     "title": "Not"
+    }
+   },
+   "required": [
+    "not"
+   ],
+   "title": "Not",
+   "type": "object"
+  },
+  "Or": {
+   "additionalProperties": false,
+   "properties": {
+    "or": {
+     "items": {
+      "anyOf": [
+       {
+        "$ref": "#/$defs/Cmp"
+       },
+       {
+        "$ref": "#/$defs/And"
+       },
+       {
+        "$ref": "#/$defs/Or"
+       },
+       {
+        "$ref": "#/$defs/Not"
+       }
+      ]
+     },
+     "maxItems": 50,
+     "minItems": 1,
+     "title": "Or",
+     "type": "array"
+    }
+   },
+   "required": [
+    "or"
+   ],
+   "title": "Or",
+   "type": "object"
+  },
+  "PermSpec": {
+   "additionalProperties": false,
+   "properties": {
+    "actions": {
+     "items": {
+      "enum": [
+       "create",
+       "read",
+       "update",
+       "delete"
+      ],
+      "type": "string"
+     },
+     "minItems": 1,
+     "title": "Actions",
+     "type": "array"
+    },
+    "scope": {
+     "default": "own",
+     "enum": [
+      "own",
+      "team",
+      "department",
+      "all"
+     ],
+     "title": "Scope",
+     "type": "string"
+    }
+   },
+   "required": [
+    "actions"
+   ],
+   "title": "PermSpec",
+   "type": "object"
+  },
+  "RuleSpec": {
+   "additionalProperties": false,
+   "properties": {
+    "id": {
+     "title": "Id",
+     "type": "string"
+    },
+    "check": {
+     "anyOf": [
+      {
+       "$ref": "#/$defs/Cmp"
+      },
+      {
+       "$ref": "#/$defs/And"
+      },
+      {
+       "$ref": "#/$defs/Or"
+      },
+      {
+       "$ref": "#/$defs/Not"
+      }
+     ],
+     "title": "Check"
+    },
+    "message": {
+     "maxLength": 120,
+     "minLength": 1,
+     "title": "Message",
+     "type": "string"
+    }
+   },
+   "required": [
+    "id",
+    "check",
+    "message"
+   ],
+   "title": "RuleSpec",
+   "type": "object"
+  }
+ },
+ "additionalProperties": false,
+ "description": "Toàn bộ model của một deployment (một phiên bản).",
+ "properties": {
+  "version": {
+   "minimum": 1,
+   "title": "Version",
+   "type": "integer"
+  },
+  "models": {
+   "items": {
+    "$ref": "#/$defs/ModelSpec"
+   },
+   "maxItems": 500,
+   "title": "Models",
+   "type": "array"
+  }
+ },
+ "required": [
+  "version",
+  "models"
+ ],
+ "title": "Catalog",
+ "type": "object"
+}

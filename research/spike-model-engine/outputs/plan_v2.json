@@ -1,0 +1,464 @@
+{
+ "base_version": 1,
+ "target_version": 2,
+ "plan_hash": "c5c0c8f4d2c7bf4a",
+ "summary": {
+  "SAFE": 7,
+  "RISKY": 5,
+  "DESTRUCTIVE": 3,
+  "BLOCKED": 0
+ },
+ "destructive_op_ids": [
+  "drop_field:m2:f12",
+  "rename_field:m1:f3",
+  "rename_field:m1:f5"
+ ],
+ "ops": [
+  {
+   "id": "add_model:m3",
+   "class": "SAFE",
+   "kind": "add_model",
+   "model": "hop_dong",
+   "field": null,
+   "message_vi": "Tạo model mới 'Hợp đồng' (hop_dong) với 3 trường, RLS theo tenant + quyền ['manager']",
+   "violations": null,
+   "sample_ids": [],
+   "requires_confirmation": false,
+   "rehearsal_error": null,
+   "sql": [
+    {
+     "phase": "tx",
+     "sql": "CREATE TABLE \"xt_data\".\"hop_dong\" (\n  id uuid NOT NULL DEFAULT gen_random_uuid(),\n  tenant_id uuid NOT NULL DEFAULT xt.tenant(),\n  owner_id uuid DEFAULT xt.actor(),\n  team_id uuid,\n  department_id uuid,\n  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),\n  updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),\n  created_by uuid,\n  updated_by uuid,\n  revision integer NOT NULL DEFAULT 1,\n  \"so_hd\" text NOT NULL,\n  \"khach_hang\" uuid NOT NULL,\n  \"gia_tri\" bigint,\n  CONSTRAINT \"pk_m3\" PRIMARY KEY (id),\n  CONSTRAINT \"uq_m3_tid\" UNIQUE (tenant_id, id)\n)"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE INDEX \"ix_m3_owner\" ON \"xt_data\".\"hop_dong\" (tenant_id, owner_id)"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE INDEX \"ix_m3_created\" ON \"xt_data\".\"hop_dong\" (tenant_id, created_at DESC)"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE INDEX \"ix_m3_dept\" ON \"xt_data\".\"hop_dong\" (tenant_id, department_id)"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE INDEX \"ix_m3_team\" ON \"xt_data\".\"hop_dong\" (tenant_id, team_id)"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE UNIQUE INDEX \"ux_m3_f1\" ON \"xt_data\".\"hop_dong\" (tenant_id, \"so_hd\")"
+    },
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"hop_dong\" ADD CONSTRAINT \"fk_m3_f2\" FOREIGN KEY (tenant_id, \"khach_hang\") REFERENCES \"xt_data\".\"khach_hang\" (tenant_id, id) ON DELETE RESTRICT"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE INDEX \"ixr_m3_f2\" ON \"xt_data\".\"hop_dong\" (tenant_id, \"khach_hang\")"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE TRIGGER xt_touch BEFORE INSERT OR UPDATE ON \"xt_data\".\"hop_dong\" FOR EACH ROW EXECUTE FUNCTION xt.row_touch()"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE TRIGGER xt_audit AFTER INSERT OR UPDATE OR DELETE ON \"xt_data\".\"hop_dong\" FOR EACH ROW EXECUTE FUNCTION xt_audit.log()"
+    },
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"hop_dong\" ENABLE ROW LEVEL SECURITY"
+    },
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"hop_dong\" FORCE ROW LEVEL SECURITY"
+    },
+    {
+     "phase": "tx",
+     "sql": "GRANT SELECT, INSERT, UPDATE, DELETE ON \"xt_data\".\"hop_dong\" TO \"xt_app\""
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE POLICY \"p_m3_tenant\" ON \"xt_data\".\"hop_dong\" AS RESTRICTIVE FOR ALL TO \"xt_app\" USING (tenant_id = xt.tenant()) WITH CHECK (tenant_id = xt.tenant())"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE POLICY \"p_m3_read\" ON \"xt_data\".\"hop_dong\" AS PERMISSIVE FOR SELECT TO \"xt_app\" USING ((xt.has_role('manager') AND true))"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE POLICY \"p_m3_create\" ON \"xt_data\".\"hop_dong\" AS PERMISSIVE FOR INSERT TO \"xt_app\" WITH CHECK ((xt.has_role('manager') AND true))"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE POLICY \"p_m3_update\" ON \"xt_data\".\"hop_dong\" AS PERMISSIVE FOR UPDATE TO \"xt_app\" USING ((xt.has_role('manager') AND true)) WITH CHECK ((xt.has_role('manager') AND true))"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE POLICY \"p_m3_delete\" ON \"xt_data\".\"hop_dong\" AS PERMISSIVE FOR DELETE TO \"xt_app\" USING ((xt.has_role('manager') AND true))"
+    },
+    {
+     "phase": "tx",
+     "sql": "COMMENT ON TABLE \"xt_data\".\"hop_dong\" IS 'Hợp đồng'"
+    },
+    {
+     "phase": "tx",
+     "sql": "COMMENT ON COLUMN \"xt_data\".\"hop_dong\".\"so_hd\" IS 'Số hợp đồng'"
+    },
+    {
+     "phase": "tx",
+     "sql": "COMMENT ON COLUMN \"xt_data\".\"hop_dong\".\"khach_hang\" IS 'Khách hàng'"
+    },
+    {
+     "phase": "tx",
+     "sql": "COMMENT ON COLUMN \"xt_data\".\"hop_dong\".\"gia_tri\" IS 'Giá trị'"
+    }
+   ]
+  },
+  {
+   "id": "drop_field:m2:f12",
+   "class": "DESTRUCTIVE",
+   "kind": "drop_field",
+   "model": "de_xuat_tam_ung",
+   "field": "ty_le_vat",
+   "message_vi": "Xóa trường 'Tỷ lệ VAT' (ty_le_vat) khỏi 'Đề xuất tạm ứng' — mất dữ liệu cột này của 4 bản ghi",
+   "violations": null,
+   "sample_ids": [],
+   "requires_confirmation": true,
+   "rehearsal_error": null,
+   "sql": [
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"de_xuat_tam_ung\" DROP COLUMN \"ty_le_vat\""
+    }
+   ]
+  },
+  {
+   "id": "rename_field:m1:f3",
+   "class": "DESTRUCTIVE",
+   "kind": "rename_field",
+   "model": "khach_hang",
+   "field": "email_lien_he",
+   "message_vi": "Đổi tên trường 'email' → 'email_lien_he' trong 'Khách hàng' (RENAME COLUMN, giữ dữ liệu)",
+   "violations": null,
+   "sample_ids": [],
+   "requires_confirmation": true,
+   "rehearsal_error": null,
+   "sql": [
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"khach_hang\" RENAME COLUMN \"email\" TO \"email_lien_he\""
+    }
+   ]
+  },
+  {
+   "id": "rename_field:m1:f5",
+   "class": "DESTRUCTIVE",
+   "kind": "rename_field",
+   "model": "khach_hang",
+   "field": "ghi_chu_noi_bo",
+   "message_vi": "Đổi tên trường 'ghi_chu' → 'ghi_chu_noi_bo' trong 'Khách hàng' (RENAME COLUMN, giữ dữ liệu)",
+   "violations": null,
+   "sample_ids": [],
+   "requires_confirmation": true,
+   "rehearsal_error": null,
+   "sql": [
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"khach_hang\" RENAME COLUMN \"ghi_chu\" TO \"ghi_chu_noi_bo\""
+    }
+   ]
+  },
+  {
+   "id": "add_field:m1:f6",
+   "class": "SAFE",
+   "kind": "add_field",
+   "model": "khach_hang",
+   "field": "so_dien_thoai",
+   "message_vi": "Thêm trường 'Số điện thoại' (so_dien_thoai, text) vào 'Khách hàng' — cho phép trống",
+   "violations": null,
+   "sample_ids": [],
+   "requires_confirmation": false,
+   "rehearsal_error": null,
+   "sql": [
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"khach_hang\" ADD COLUMN \"so_dien_thoai\" text"
+    },
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"khach_hang\" ADD CONSTRAINT \"ck_m1_f6_re\" CHECK (\"so_dien_thoai\" ~ '^0[0-9]{9}$') NOT VALID"
+    },
+    {
+     "phase": "post",
+     "sql": "ALTER TABLE \"xt_data\".\"khach_hang\" VALIDATE CONSTRAINT \"ck_m1_f6_re\""
+    },
+    {
+     "phase": "tx",
+     "sql": "COMMENT ON COLUMN \"xt_data\".\"khach_hang\".\"so_dien_thoai\" IS 'Số điện thoại'"
+    }
+   ]
+  },
+  {
+   "id": "add_field:m1:f7",
+   "class": "RISKY",
+   "kind": "add_field",
+   "model": "khach_hang",
+   "field": "khu_vuc",
+   "message_vi": "Thêm trường BẮT BUỘC 'Khu vực' (khu_vuc) với giá trị mặc định 'mien_bac' — 27 bản ghi hiện có sẽ nhận giá trị này (PG11+: không rewrite bảng)",
+   "violations": null,
+   "sample_ids": [],
+   "requires_confirmation": false,
+   "rehearsal_error": null,
+   "sql": [
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"khach_hang\" ADD COLUMN \"khu_vuc\" text DEFAULT 'mien_bac' NOT NULL"
+    },
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"khach_hang\" ADD CONSTRAINT \"ck_m1_f7_enum\" CHECK (\"khu_vuc\" IN ('mien_bac', 'mien_nam')) NOT VALID"
+    },
+    {
+     "phase": "post",
+     "sql": "ALTER TABLE \"xt_data\".\"khach_hang\" VALIDATE CONSTRAINT \"ck_m1_f7_enum\""
+    },
+    {
+     "phase": "tx",
+     "sql": "COMMENT ON COLUMN \"xt_data\".\"khach_hang\".\"khu_vuc\" IS 'Khu vực'"
+    }
+   ]
+  },
+  {
+   "id": "add_field:m1:f8",
+   "class": "SAFE",
+   "kind": "add_field",
+   "model": "khach_hang",
+   "field": "ma_so_thue",
+   "message_vi": "Thêm trường 'Mã số thuế' (ma_so_thue, text) vào 'Khách hàng' — cho phép trống",
+   "violations": null,
+   "sample_ids": [],
+   "requires_confirmation": false,
+   "rehearsal_error": null,
+   "sql": [
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"khach_hang\" ADD COLUMN \"ma_so_thue\" text"
+    },
+    {
+     "phase": "tx",
+     "sql": "COMMENT ON COLUMN \"xt_data\".\"khach_hang\".\"ma_so_thue\" IS 'Mã số thuế'"
+    }
+   ]
+  },
+  {
+   "id": "check:m1:ck_m1_f2_max",
+   "class": "RISKY",
+   "kind": "tighten",
+   "model": "khach_hang",
+   "field": "ten",
+   "message_vi": "Siết ràng buộc: 'Tên khách hàng' tối đa 100 ký tự (đã kiểm dữ liệu hiện có)",
+   "violations": 0,
+   "sample_ids": [],
+   "requires_confirmation": false,
+   "rehearsal_error": null,
+   "sql": [
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"khach_hang\" DROP CONSTRAINT \"ck_m1_f2_max\""
+    },
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"khach_hang\" ADD CONSTRAINT \"ck_m1_f2_max\" CHECK (char_length(\"ten\") <= 100) NOT VALID"
+    },
+    {
+     "phase": "post",
+     "sql": "ALTER TABLE \"xt_data\".\"khach_hang\" VALIDATE CONSTRAINT \"ck_m1_f2_max\""
+    }
+   ]
+  },
+  {
+   "id": "check:m2:ck_m2_f1_min",
+   "class": "SAFE",
+   "kind": "loosen",
+   "model": "de_xuat_tam_ung",
+   "field": "noi_dung",
+   "message_vi": "Nới ràng buộc: 'Nội dung' phải có ít nhất 3 ký tự",
+   "violations": null,
+   "sample_ids": [],
+   "requires_confirmation": false,
+   "rehearsal_error": null,
+   "sql": [
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"de_xuat_tam_ung\" DROP CONSTRAINT \"ck_m2_f1_min\""
+    },
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"de_xuat_tam_ung\" ADD CONSTRAINT \"ck_m2_f1_min\" CHECK (char_length(\"noi_dung\") >= 3) NOT VALID"
+    },
+    {
+     "phase": "post",
+     "sql": "ALTER TABLE \"xt_data\".\"de_xuat_tam_ung\" VALIDATE CONSTRAINT \"ck_m2_f1_min\""
+    }
+   ]
+  },
+  {
+   "id": "check:m2:ck_m2_f6_enum",
+   "class": "RISKY",
+   "kind": "tighten",
+   "model": "de_xuat_tam_ung",
+   "field": "trang_thai",
+   "message_vi": "Siết ràng buộc: 'Trạng thái' chỉ nhận: nhap, cho_duyet, da_duyet (đã kiểm dữ liệu hiện có)",
+   "violations": 0,
+   "sample_ids": [],
+   "requires_confirmation": false,
+   "rehearsal_error": null,
+   "sql": [
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"de_xuat_tam_ung\" DROP CONSTRAINT \"ck_m2_f6_enum\""
+    },
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"de_xuat_tam_ung\" ADD CONSTRAINT \"ck_m2_f6_enum\" CHECK (\"trang_thai\" IN ('nhap', 'cho_duyet', 'da_duyet')) NOT VALID"
+    },
+    {
+     "phase": "post",
+     "sql": "ALTER TABLE \"xt_data\".\"de_xuat_tam_ung\" VALIDATE CONSTRAINT \"ck_m2_f6_enum\""
+    }
+   ]
+  },
+  {
+   "id": "check:m2:ck_m2_r_r3",
+   "class": "RISKY",
+   "kind": "tighten",
+   "model": "de_xuat_tam_ung",
+   "field": null,
+   "message_vi": "Thêm ràng buộc: Đề xuất khẩn tối đa 5 triệu (đã kiểm dữ liệu hiện có)",
+   "violations": 0,
+   "sample_ids": [],
+   "requires_confirmation": false,
+   "rehearsal_error": null,
+   "sql": [
+    {
+     "phase": "tx",
+     "sql": "ALTER TABLE \"xt_data\".\"de_xuat_tam_ung\" ADD CONSTRAINT \"ck_m2_r_r3\" CHECK (((\"khan\" <> true) OR (\"so_tien\" <= 5000000))) NOT VALID"
+    },
+    {
+     "phase": "post",
+     "sql": "ALTER TABLE \"xt_data\".\"de_xuat_tam_ung\" VALIDATE CONSTRAINT \"ck_m2_r_r3\""
+    }
+   ]
+  },
+  {
+   "id": "index:m1:i1",
+   "class": "SAFE",
+   "kind": "index",
+   "model": "khach_hang",
+   "field": null,
+   "message_vi": "Tạo index i1 trên 'Khách hàng' (CONCURRENTLY, không khóa ghi)",
+   "violations": null,
+   "sample_ids": [],
+   "requires_confirmation": false,
+   "rehearsal_error": null,
+   "sql": [
+    {
+     "phase": "concurrent",
+     "sql": "CREATE INDEX CONCURRENTLY IF NOT EXISTS \"ix_m1_i1\" ON \"xt_data\".\"khach_hang\" (tenant_id, \"ten\")"
+    }
+   ]
+  },
+  {
+   "id": "perm:m1",
+   "class": "RISKY",
+   "kind": "permission",
+   "model": "khach_hang",
+   "field": null,
+   "message_vi": "MỞ RỘNG quyền trên 'Khách hàng': sales:create own→team, sales:read own→team, sales:update own→team",
+   "violations": null,
+   "sample_ids": [],
+   "requires_confirmation": false,
+   "rehearsal_error": null,
+   "sql": [
+    {
+     "phase": "tx",
+     "sql": "DROP POLICY IF EXISTS \"p_m1_tenant\" ON \"xt_data\".\"khach_hang\""
+    },
+    {
+     "phase": "tx",
+     "sql": "DROP POLICY IF EXISTS \"p_m1_read\" ON \"xt_data\".\"khach_hang\""
+    },
+    {
+     "phase": "tx",
+     "sql": "DROP POLICY IF EXISTS \"p_m1_create\" ON \"xt_data\".\"khach_hang\""
+    },
+    {
+     "phase": "tx",
+     "sql": "DROP POLICY IF EXISTS \"p_m1_update\" ON \"xt_data\".\"khach_hang\""
+    },
+    {
+     "phase": "tx",
+     "sql": "DROP POLICY IF EXISTS \"p_m1_delete\" ON \"xt_data\".\"khach_hang\""
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE POLICY \"p_m1_tenant\" ON \"xt_data\".\"khach_hang\" AS RESTRICTIVE FOR ALL TO \"xt_app\" USING (tenant_id = xt.tenant()) WITH CHECK (tenant_id = xt.tenant())"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE POLICY \"p_m1_read\" ON \"xt_data\".\"khach_hang\" AS PERMISSIVE FOR SELECT TO \"xt_app\" USING ((xt.has_role('manager') AND true) OR (xt.has_role('sales') AND (owner_id = xt.actor() OR xt.in_teams(team_id))))"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE POLICY \"p_m1_create\" ON \"xt_data\".\"khach_hang\" AS PERMISSIVE FOR INSERT TO \"xt_app\" WITH CHECK ((xt.has_role('manager') AND true) OR (xt.has_role('sales') AND (owner_id = xt.actor() OR xt.in_teams(team_id))))"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE POLICY \"p_m1_update\" ON \"xt_data\".\"khach_hang\" AS PERMISSIVE FOR UPDATE TO \"xt_app\" USING ((xt.has_role('manager') AND true) OR (xt.has_role('sales') AND (owner_id = xt.actor() OR xt.in_teams(team_id)))) WITH CHECK ((xt.has_role('manager') AND true) OR (xt.has_role('sales') AND (owner_id = xt.actor() OR xt.in_teams(team_id))))"
+    },
+    {
+     "phase": "tx",
+     "sql": "CREATE POLICY \"p_m1_delete\" ON \"xt_data\".\"khach_hang\" AS PERMISSIVE FOR DELETE TO \"xt_app\" USING ((xt.has_role('manager') AND true))"
+    }
+   ]
+  },
+  {
+   "id": "label_field:m1:f3",
+   "class": "SAFE",
+   "kind": "label",
+   "model": "khach_hang",
+   "field": "email_lien_he",
+   "message_vi": "Đổi nhãn trường email_lien_he thành 'Email liên hệ'",
+   "violations": null,
+   "sample_ids": [],
+   "requires_confirmation": false,
+   "rehearsal_error": null,
+   "sql": [
+    {
+     "phase": "tx",
+     "sql": "COMMENT ON COLUMN \"xt_data\".\"khach_hang\".\"email_lien_he\" IS 'Email liên hệ'"
+    }
+   ]
+  },
+  {
+   "id": "label_field:m1:f5",
+   "class": "SAFE",
+   "kind": "label",
+   "model": "khach_hang",
+   "field": "ghi_chu_noi_bo",
+   "message_vi": "Đổi nhãn trường ghi_chu_noi_bo thành 'Ghi chú nội bộ'",
+   "violations": null,
+   "sample_ids": [],
+   "requires_confirmation": false,
+   "rehearsal_error": null,
+   "sql": [
+    {
+     "phase": "tx",
+     "sql": "COMMENT ON COLUMN \"xt_data\".\"khach_hang\".\"ghi_chu_noi_bo\" IS 'Ghi chú nội bộ'"
+    }
+   ]
+  }
+ ]
+}

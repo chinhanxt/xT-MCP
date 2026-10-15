@@ -1,0 +1,79 @@
+### Lần 1: spec v2 do agent đề xuất
+KẾ HOẠCH THAY ĐỔI MODEL v1 → v2  (mã kế hoạch c06ffdd99af413cb)
+Tổng: 6 AN TOÀN, 4 RỦI RO, 3 PHÁ HỦY, 3 BỊ CHẶN
+  [AN TOÀN] Tạo model mới 'Hợp đồng' (hop_dong) với 3 trường, RLS theo tenant + quyền ['manager']
+  [PHÁ HỦY – cần xác nhận lần 2 [drop_field:m2:f12]] Xóa trường 'Tỷ lệ VAT' (ty_le_vat) khỏi 'Đề xuất tạm ứng' — mất dữ liệu cột này của 4 bản ghi
+  [PHÁ HỦY – cần xác nhận lần 2 [rename_field:m1:f3]] Đổi tên trường 'email' → 'email_lien_he' trong 'Khách hàng' (RENAME COLUMN, giữ dữ liệu)
+  [PHÁ HỦY – cần xác nhận lần 2 [rename_field:m1:f5]] Đổi tên trường 'ghi_chu' → 'ghi_chu_noi_bo' trong 'Khách hàng' (RENAME COLUMN, giữ dữ liệu)
+  [AN TOÀN] Thêm trường 'Số điện thoại' (so_dien_thoai, text) vào 'Khách hàng' — cho phép trống
+  [RỦI RO] Thêm trường BẮT BUỘC 'Khu vực' (khu_vuc) với giá trị mặc định 'mien_bac' — 27 bản ghi hiện có sẽ nhận giá trị này (PG11+: không rewrite bảng)
+  [BỊ CHẶN] Thêm trường BẮT BUỘC 'Mã số thuế' (ma_so_thue) không có default nhưng bảng đã có 27 bản ghi — hãy khai báo 'default' (backfill) hoặc để không bắt buộc — 27 bản ghi vi phạm — DIỄN TẬP LỖI: column "ma_so_thue" of relation "khach_hang" contains null values
+  [BỊ CHẶN] Siết ràng buộc: 'Tên khách hàng' tối đa 50 ký tự — dữ liệu hiện có vi phạm, sửa trước khi áp dụng — 2 bản ghi vi phạm (vd: 3f6c3f51-8fdf-46e8-9805-e489164985f4, 65c9ea84-55f2-4165-b261-81c9df0d6530)
+  [AN TOÀN] Nới ràng buộc: 'Nội dung' phải có ít nhất 3 ký tự
+  [RỦI RO] Siết ràng buộc: 'Trạng thái' chỉ nhận: nhap, cho_duyet, da_duyet (đã kiểm dữ liệu hiện có) — 0 bản ghi vi phạm
+  [RỦI RO] Thêm ràng buộc: Đề xuất khẩn tối đa 5 triệu (đã kiểm dữ liệu hiện có) — 0 bản ghi vi phạm
+  [AN TOÀN] Tạo index i1 trên 'Khách hàng' (CONCURRENTLY, không khóa ghi)
+  [BỊ CHẶN] Đặt 'Email liên hệ' là duy nhất (CREATE UNIQUE INDEX CONCURRENTLY) — có giá trị trùng, xử lý trước — 2 bản ghi vi phạm (vd: 1d10b99d-c302-4618-8773-629ef0391e48, bccb8e1f-2ff0-4774-b7df-fb1b5740c279)
+  [RỦI RO] MỞ RỘNG quyền trên 'Khách hàng': sales:create own→team, sales:read own→team, sales:update own→team
+  [AN TOÀN] Đổi nhãn trường email_lien_he thành 'Email liên hệ'
+  [AN TOÀN] Đổi nhãn trường ghi_chu_noi_bo thành 'Ghi chú nội bộ'
+→ Không thể áp dụng: xử lý các mục BỊ CHẶN trước.
+APPLY -> Còn thao tác BỊ CHẶN: ['add_field:m1:f8', 'check:m1:ck_m1_f2_max', 'unique_field:m1:f3']
+
+### Lần 2: agent sửa theo phản hồi (MST không bắt buộc, bỏ unique email, ten max 100)
+KẾ HOẠCH THAY ĐỔI MODEL v1 → v2  (mã kế hoạch c5c0c8f4d2c7bf4a)
+Tổng: 7 AN TOÀN, 5 RỦI RO, 3 PHÁ HỦY, 0 BỊ CHẶN
+  [AN TOÀN] Tạo model mới 'Hợp đồng' (hop_dong) với 3 trường, RLS theo tenant + quyền ['manager']
+  [PHÁ HỦY – cần xác nhận lần 2 [drop_field:m2:f12]] Xóa trường 'Tỷ lệ VAT' (ty_le_vat) khỏi 'Đề xuất tạm ứng' — mất dữ liệu cột này của 4 bản ghi
+  [PHÁ HỦY – cần xác nhận lần 2 [rename_field:m1:f3]] Đổi tên trường 'email' → 'email_lien_he' trong 'Khách hàng' (RENAME COLUMN, giữ dữ liệu)
+  [PHÁ HỦY – cần xác nhận lần 2 [rename_field:m1:f5]] Đổi tên trường 'ghi_chu' → 'ghi_chu_noi_bo' trong 'Khách hàng' (RENAME COLUMN, giữ dữ liệu)
+  [AN TOÀN] Thêm trường 'Số điện thoại' (so_dien_thoai, text) vào 'Khách hàng' — cho phép trống
+  [RỦI RO] Thêm trường BẮT BUỘC 'Khu vực' (khu_vuc) với giá trị mặc định 'mien_bac' — 27 bản ghi hiện có sẽ nhận giá trị này (PG11+: không rewrite bảng)
+  [AN TOÀN] Thêm trường 'Mã số thuế' (ma_so_thue, text) vào 'Khách hàng' — cho phép trống
+  [RỦI RO] Siết ràng buộc: 'Tên khách hàng' tối đa 100 ký tự (đã kiểm dữ liệu hiện có) — 0 bản ghi vi phạm
+  [AN TOÀN] Nới ràng buộc: 'Nội dung' phải có ít nhất 3 ký tự
+  [RỦI RO] Siết ràng buộc: 'Trạng thái' chỉ nhận: nhap, cho_duyet, da_duyet (đã kiểm dữ liệu hiện có) — 0 bản ghi vi phạm
+  [RỦI RO] Thêm ràng buộc: Đề xuất khẩn tối đa 5 triệu (đã kiểm dữ liệu hiện có) — 0 bản ghi vi phạm
+  [AN TOÀN] Tạo index i1 trên 'Khách hàng' (CONCURRENTLY, không khóa ghi)
+  [RỦI RO] MỞ RỘNG quyền trên 'Khách hàng': sales:create own→team, sales:read own→team, sales:update own→team
+  [AN TOÀN] Đổi nhãn trường email_lien_he thành 'Email liên hệ'
+  [AN TOÀN] Đổi nhãn trường ghi_chu_noi_bo thành 'Ghi chú nội bộ'
+→ Có thao tác PHÁ HỦY: người duyệt phải xác nhận lại đúng từng mã thao tác.
+JSON (rút gọn): {"base_version": 1, "target_version": 2, "plan_hash": "c5c0c8f4d2c7bf4a", "summary": {"SAFE": 7, "RISKY": 5, "DESTRUCTIVE": 3, "BLOCKED": 0}, "destructive_op_ids": ["drop_field:m2:f12", "rename_field:m1:f3", "rename_field:m1:f5"]}
+1 op đầy đủ: {"id": "rename_field:m1:f3", "class": "DESTRUCTIVE", "kind": "rename_field", "model": "khach_hang", "field": "email_lien_he", "message_vi": "Đổi tên trường 'email' → 'email_lien_he' trong 'Khách hàng' (RENAME COLUMN, giữ dữ liệu)", "violations": null, "sample_ids": [], "requires_confirmation": true, "rehearsal_error": null, "sql": [{"phase": "tx", "sql": "ALTER TABLE \"xt_data\".\"khach_hang\" RENAME COLUMN \"email\" TO \"email_lien_he\""}]}
+APPLY (thiếu xác nhận phá hủy) -> Thiếu xác nhận lần 2 cho thao tác PHÁ HỦY: ['drop_field:m2:f12', 'rename_field:m1:f3', 'rename_field:m1:f5']
+APPLY (mã kế hoạch cũ/khác) -> Kế hoạch đã thay đổi kể từ lúc duyệt (duyệt deadbeefdeadbeef, hiện c5c0c8f4d2c7bf4a) — cần duyệt lại
+
+### lock_timeout: một giao dịch khác đang giữ khóa bảng khach_hang
+APPLY -> LockNotAvailable: canceling statement due to lock timeout sau 2.0s; version hiện tại = 1
+
+### Áp dụng với xác nhận lần 2
+OK v2 tx_steps=52 trong 0.08s; post:
+    OK  ALTER TABLE "xt_data"."khach_hang" VALIDATE CONSTRAINT "ck_m1_f6_re" 
+    OK  ALTER TABLE "xt_data"."khach_hang" VALIDATE CONSTRAINT "ck_m1_f7_enum" 
+    OK  ALTER TABLE "xt_data"."khach_hang" VALIDATE CONSTRAINT "ck_m1_f2_max" 
+    OK  ALTER TABLE "xt_data"."de_xuat_tam_ung" VALIDATE CONSTRAINT "ck_m2_f1_min" 
+    OK  ALTER TABLE "xt_data"."de_xuat_tam_ung" VALIDATE CONSTRAINT "ck_m2_f6_enum" 
+    OK  ALTER TABLE "xt_data"."de_xuat_tam_ung" VALIDATE CONSTRAINT "ck_m2_r_r3" 
+    OK  CREATE INDEX CONCURRENTLY IF NOT EXISTS "ix_m1_i1" ON "xt_data"."khach_hang" (tenant_id, "ten") 
+dữ liệu sau rename: [('KH0001', None, 'mien_bac', None), ('KH0001', None, 'mien_bac', None), ('KH0005', 'a@b.vn', 'mien_bac', None)]
+cột còn lại: ['ma_kh', 'ten', 'email_lien_he', 'hang', 'ghi_chu_noi_bo', 'so_dien_thoai', 'khu_vuc', 'ma_so_thue']
+constraint NOT VALID còn lại: 0 | index invalid: 0
+versions: [(1, '85a15cd55f5cebde', 'agent:claude', 'user:giam_doc', {'SAFE': 2, 'RISKY': 0, 'BLOCKED': 0, 'DESTRUCTIVE': 0}), (2, 'c5c0c8f4d2c7bf4a', 'agent:claude', 'user:gd', {'SAFE': 7, 'RISKY': 5, 'BLOCKED': 0, 'DESTRUCTIVE': 3})]
+
+### v3: đổi tên model + xóa model + đổi kiểu (bị chặn)
+KẾ HOẠCH THAY ĐỔI MODEL v2 → v3  (mã kế hoạch 4751fd55dc747b3f)
+Tổng: 2 AN TOÀN, 0 RỦI RO, 2 PHÁ HỦY, 1 BỊ CHẶN
+  [PHÁ HỦY – cần xác nhận lần 2 [drop_model:m3]] XÓA model 'Hợp đồng' (hop_dong) cùng 0 bản ghi
+  [PHÁ HỦY – cần xác nhận lần 2 [rename_model:m2]] Đổi tên model 'de_xuat_tam_ung' → 'de_xuat_chi' (giữ dữ liệu; client/agent dùng tên cũ sẽ lỗi)
+  [AN TOÀN] Bỏ ràng buộc: 'Mã khách hàng' không đúng định dạng (mẫu ^KH[0-9]{4}$)
+  [AN TOÀN] Đổi nhãn model thành 'Đề xuất chi'
+  [BỊ CHẶN] Đổi kiểu 'Mã khách hàng' text→number: chưa hỗ trợ — tạo trường mới, chuyển dữ liệu, rồi xóa trường cũ
+→ Không thể áp dụng: xử lý các mục BỊ CHẶN trước.
+KẾ HOẠCH THAY ĐỔI MODEL v2 → v3  (mã kế hoạch bbaf20b3e411eaec)
+Tổng: 1 AN TOÀN, 0 RỦI RO, 2 PHÁ HỦY, 0 BỊ CHẶN
+  [PHÁ HỦY – cần xác nhận lần 2 [drop_model:m3]] XÓA model 'Hợp đồng' (hop_dong) cùng 0 bản ghi
+  [PHÁ HỦY – cần xác nhận lần 2 [rename_model:m2]] Đổi tên model 'de_xuat_tam_ung' → 'de_xuat_chi' (giữ dữ liệu; client/agent dùng tên cũ sẽ lỗi)
+  [AN TOÀN] Đổi nhãn model thành 'Đề xuất chi'
+→ Có thao tác PHÁ HỦY: người duyệt phải xác nhận lại đúng từng mã thao tác.
+OK v3; bảng: ['de_xuat_chi', 'khach_hang'] | số dòng de_xuat_chi: 4 | policy: 4
