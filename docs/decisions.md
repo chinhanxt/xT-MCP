@@ -222,3 +222,12 @@ Bối cảnh: W9 / E10 yêu cầu DB tự chặn `decider = requester`, dưới 
   - Tên tệp trong audit: HMAC có khóa qua cơ chế GUC sẵn có, không bỏ hẳn tên. Lý do: giữ khả năng đối chiếu khi điều tra mà không lộ tên.
   - `file.read` của người duyệt theo phòng ban (director toàn tổ chức). Quyền theo người được giao duyệt cần liên kết tệp ↔ bản ghi, để sau.
   - Multipart có `Transfer-Encoding` bị từ chối (411); PUT vẫn đếm bằng Spool.
+
+## Quyền đọc tệp đính kèm (16/10/2026, chủ dự án – Opus 5.5)
+
+- **Câu hỏi:** audit `/files` vòng 2 nêu: `file.read` theo phòng làm kế toán/HR không đọc được chứng từ của phòng khác, dù họ phải xử lý đề nghị thanh toán và hồ sơ nhân sự.
+- **Quyết định:**
+  - Quyền đọc tệp **đi theo quyền đọc bản ghi mà tệp được gắn vào**: ai đọc được bản ghi (IAM + RLS) thì đọc được tệp đính kèm của bản ghi đó.
+  - Tệp chưa gắn bản ghi nào: chỉ người tải lên và phòng của họ (theo policy) đọc được.
+  - Xóa mềm vẫn tính vào quota cho tới khi bị dọn hẳn.
+- **Lý do:** không phải duy trì một ma trận quyền riêng cho tệp, tránh lệch giữa quyền đọc bản ghi và quyền đọc tệp, và khớp nghiệp vụ thực tế (chứng từ đi kèm đề nghị).
