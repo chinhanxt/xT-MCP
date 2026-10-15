@@ -37,6 +37,13 @@ xT là MCP server đa năng cho mọi doanh nghiệp. Lõi headless (Tầng 1) g
   - Ghi lại sự cố, sau đó thử lại CLI ở task kế tiếp.
 - **Cấm chụp màn hình hoặc điều khiển display thật của user** (`:0`, `:1`). Test GUI chỉ được chạy headless hoặc trong Xvfb riêng.
 - **Ổ đĩa `/` gần đầy:** trước mỗi lần pull image > 1 GB phải kiểm tra `df -h /`. Xong việc thì xóa image/artifact do chính mình tạo ra.
+- **Chế độ tự vận hành (từ 16/10/2026):** làm liên tục, chỉ bàn giao cho user khi **toàn bộ e2e đã xanh**.
+  - Câu hỏi cần chủ dự án quyết: giao một agent **Opus 5.5 "decision"** chọn phương án, ghi quyết định và lý do vào `docs/decisions.md`. Không chờ user.
+- **Nhường tài nguyên cho session khác của user:**
+  - Mỗi lúc chỉ chạy **1 stack nặng** (docker compose nhiều container, Keycloak, Ollama/LLM).
+  - Trước khi chạy, kiểm `free -g`. Cột available phải ≥ 4 GB; nếu thiếu thì chờ rồi kiểm lại.
+  - Agent chỉ đọc/viết code (không chạy docker/LLM) thì vẫn chạy song song nhiều.
+  - Container dùng tên duy nhất, xong việc phải dọn ngay.
 - **Bắt buộc có 1 agent Opus chuyên kiểm tra + test.** Các agent phải debate/phản biện nhau trước khi chốt.
 - **Không xây từ đầu:** thu thập repo nguồn mở (giấy phép OSI) rồi phát triển trên đó.
 - **Luôn học từ hai nguồn để làm MCP tốt:**
