@@ -138,6 +138,24 @@ test("approval-card: chỉ mở confirm_url đúng origin xT; không có nút du
   }
 });
 
+test("lịch sử: hai câu hỏi confirmation_required liên tiếp giữ cả hai thẻ xác nhận, iframe lượt trước không remount", async ({ page }) => {
+  await ask(page, DECIDE("e2e-hist-1"));
+  const f1 = await appFrame(page, "#open");
+  await expect(page.locator("[data-testid=confirm-card]")).toHaveCount(1);
+  await f1.evaluate(() => ((window as unknown as { __keep: number }).__keep = 42));
+  await expect(page.locator("#send")).toBeEnabled();
+  await ask(page, DECIDE("e2e-hist-2"));
+  await expect(page.locator("[data-testid=tool-item]")).toHaveCount(2);
+  const cards = page.locator("[data-testid=confirm-card] a");
+  await expect(cards).toHaveCount(2);
+  const hrefs = await cards.evaluateAll((as) => as.map((a) => a.getAttribute("href")));
+  for (const h of hrefs) expect(h).toMatch(new RegExp(`^${XT}/desk/confirm/[\\w-]+$`));
+  expect(new Set(hrefs).size).toBe(2);
+  // iframe lượt 1 vẫn là chính nó (state còn nguyên)
+  const kept = await Promise.all(page.frames().map((fr) => fr.evaluate(() => (window as unknown as { __keep?: number }).__keep).catch(() => undefined)));
+  expect(kept).toContain(42);
+});
+
 test("record-table: phân trang, lọc theo trạng thái và từ khóa qua tool app-only", async ({ page }) => {
   await ask(page, 'chạy search_records {"model_id":"advance_request","limit":5}');
   const f = await appFrame(page, "#b tr");

@@ -170,11 +170,12 @@ def app_tool_definition(tool: AppTool) -> types.Tool:
 def to_call_tool_result(outcome: ToolOutcome) -> types.CallToolResult:
     text = json.dumps(outcome.envelope, ensure_ascii=False, separators=(",", ":"))
     content: list[types.ContentBlock] = [types.TextContent(type="text", text=text)]
+    meta = {**PROVENANCE, **dict(outcome.result_meta or {})}
     if outcome.is_error:
         # Lỗi: không structuredContent (outputSchema chỉ mô tả thành công, §3.6).
         return types.CallToolResult(content=content, is_error=True, _meta=PROVENANCE)
     return types.CallToolResult(
-        content=content, structured_content=outcome.envelope, is_error=False, _meta=PROVENANCE
+        content=content, structured_content=outcome.envelope, is_error=False, _meta=meta
     )
 
 

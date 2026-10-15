@@ -36,6 +36,21 @@ def bootstrap_sql() -> str:
     return _sql_file("bootstrap.sql") + "\n" + postgrest_sql()
 
 
+def audit_meta_sql() -> str:
+    return files("xt.adapters.db").joinpath("sql/audit_meta.sql").read_text(encoding="utf-8")
+
+
+def install_meta_audit(superuser: psycopg.Connection[Any]) -> None:
+    """Cài/cập nhật API audit cho bảng `xt_meta.*` (I-AUD-META) và event trigger bảo vệ audit.
+    Idempotent; cần superuser. CSDL mới: `bootstrap()` đã gọi. CSDL bootstrap trước 16/10/2026:
+    chạy hàm này một lần rồi `xt db migrate` (migration 0006 gắn trigger cho bảng xt_meta)."""
+    row = superuser.execute("SELECT rolsuper FROM pg_roles WHERE rolname = current_user").fetchone()
+    if row is None or not row[0]:
+        raise ValueError("install_meta_audit cần superuser")
+    with superuser.transaction():
+        superuser.execute(audit_meta_sql().encode())
+
+
 def bootstrap(
     superuser: psycopg.Connection[Any],
     *,
@@ -54,6 +69,7 @@ def bootstrap(
         return False
     with superuser.transaction():
         superuser.execute(bootstrap_sql().encode())
+        superuser.execute(audit_meta_sql().encode())
         superuser.execute(
             sql.SQL("ALTER ROLE xt_migrator PASSWORD {}").format(sql.Literal(migrator_password))
         )

@@ -166,6 +166,8 @@ class ToolOutcome:
     is_error: bool
     envelope: dict[str, Any]
     tool: str | None = None
+    # `_meta` riêng của kết quả (vd vé `xt/reveal` của tool app-only): KHÔNG vào content/envelope.
+    result_meta: Mapping[str, Any] | None = None
 
 
 class NotJsonNative(TypeError):

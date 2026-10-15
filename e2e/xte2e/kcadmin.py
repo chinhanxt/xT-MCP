@@ -63,9 +63,16 @@ class Admin:
         found = self.get(f"/users?username={quote(username)}&exact=true") or []
         return found[0] if found else None
 
-    def upsert_user(self, rep: dict[str, Any], password: str, totp_raw: str | None) -> str:
-        """Tạo user (mật khẩu + OTP seed đã biết) hoặc đặt lại cho khớp tệp bí mật cục bộ."""
+    def upsert_user(self, rep: dict[str, Any], password: str, totp_raw: str | None, *, recreate: bool = False) -> str:
+        """Tạo user (mật khẩu + OTP seed đã biết) hoặc đặt lại cho khớp tệp bí mật cục bộ.
+
+        `recreate`: bí mật cục bộ vừa được sinh mới (không còn bản cũ) -> seed OTP trong Keycloak không
+        đối chiếu được, nên xóa và tạo lại user với seed mới.
+        """
         u = self.find_user(rep["username"])
+        if u is not None and recreate:
+            self.call("DELETE", f"/users/{u['id']}")
+            u = None
         if u is None:
             creds: list[dict[str, Any]] = [{"type": "password", "value": password, "temporary": False}]
             if totp_raw:

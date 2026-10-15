@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import secrets
 import uuid
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
@@ -294,3 +296,54 @@ def test_w1_advance_over_rest_without_mcp(wstack: Stack) -> None:
     with http(s, wf_token(s, A, REQUESTER)) as c:
         after = c.get(f"{WF}/instances/{iid}").json()["data"]
     assert [t["step"] for t in after["instance"]["tasks"]] == ["director"]
+
+
+def test_headless_demo_script_workflow_section(
+    wstack: Stack, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """`docs/headless-demo.sh` chạy curl thật vào stack: bước 4 (Workflow) phải OK."""
+    import shutil
+    import subprocess
+
+    if shutil.which("curl") is None:
+        pytest.skip("thiếu curl")
+    s = wstack
+    d = tmp_path_factory.mktemp("xt-wf-demo")
+    start = d / "start.json"
+    start.write_text(
+        json.dumps({"definition_id": "proposal_approval", "values": advance(6_000_000)}),
+        encoding="utf-8",
+    )
+    env = {
+        "PATH": os.environ["PATH"],
+        "XT_AUTH_BASE": s.idp.base,
+        "XT_API_BASE": s.app.base,
+        "XT_WORKFLOW_TOKEN_FILE": _write(d / "wf.tok", wf_token(s, A, REQUESTER).encode()),
+        "XT_WORKFLOW_APPROVER_TOKEN_FILE": _write(
+            d / "wfa.tok", wf_token(s, A, DEPT_HEAD).encode()
+        ),
+        "XT_WORKFLOW_START_FILE": str(start),
+        "XT_WORKFLOW_BPMN_OUT": str(d / "out.bpmn"),
+        "XT_DEMO_MAX_BODY": "300",
+    }
+    script = Path(__file__).resolve().parents[3] / "docs" / "headless-demo.sh"
+    run = subprocess.run(
+        ["bash", str(script)], env=env, capture_output=True, text=True, timeout=120, check=False
+    )
+    out = run.stdout
+    s.outputs["wf-demo"] = out
+    report = os.environ.get("XT_IT_WF_DEMO")
+    if report:  # docs/workflow-api.md lấy transcript thật từ đây
+        Path(report).write_text(out, encoding="utf-8")
+    assert "4a không token: 401 (đúng)" in out, out + run.stderr
+    assert "4b definitions: 200, có proposal_approval" in out, out
+    assert "4c BPMN: 200" in out and (d / "out.bpmn").read_bytes().startswith(b"<?xml"), out
+    assert re.search(
+        r"4d POST /instances \(Idempotency-Key [^)]+\): 201, instance [0-9a-f-]{36}", out
+    )
+    assert "4e GET /instances/" in out and "trạng thái running, bước dept_head" in out, out
+    assert "4g quyết định qua REST: 428 confirmation_required" in out, out
+    assert f"người duyệt mở: {s.app.base}/desk/confirm/cf_" in out, out
+    assert re.search(r"4 Workflow\s+OK", out), out
+    for secret in (env["XT_WORKFLOW_TOKEN_FILE"], env["XT_WORKFLOW_APPROVER_TOKEN_FILE"]):
+        assert Path(secret).read_text() not in out + run.stderr

@@ -469,56 +469,5 @@ GRANT USAGE ON SCHEMA xt_audit TO xt_migrator;
 GRANT SELECT ON xt_meta.tenant TO xt_audit_owner;
 CREATE POLICY tenant_audit ON xt_meta.tenant FOR SELECT TO xt_audit_owner USING (true);
 
--- (superuser) Event trigger bảo vệ trigger audit trên bảng xt_t<seq>.* (R2-04): chỉ được có
--- xt_touch (xt.row_touch) và xt_audit/xt_audit_truncate (xt_audit.*), luôn bật; không ai ngoài
--- xt_audit_owner được DROP trigger audit; cấm RULE (viết lại câu lệnh để né trigger).
-CREATE FUNCTION xt_audit.ddl_guard() RETURNS event_trigger LANGUAGE plpgsql
-SET search_path = pg_catalog, pg_temp AS $$
-DECLARE r record; rel oid; bad text;
-BEGIN
-  FOR r IN SELECT * FROM pg_event_trigger_ddl_commands() LOOP
-    IF r.command_tag = 'CREATE RULE' AND EXISTS (
-         SELECT 1 FROM pg_rewrite w JOIN pg_class c ON c.oid = w.ev_class
-           JOIN pg_namespace n ON n.oid = c.relnamespace
-          WHERE w.oid = r.objid AND n.nspname ~ '^xt_t[0-9]+$') THEN
-      RAISE EXCEPTION 'cấm RULE trên bảng model tenant (né audit)' USING ERRCODE = 'insufficient_privilege';
-    END IF;
-    rel := NULL;
-    IF r.classid = 'pg_class'::regclass THEN
-      SELECT c.oid INTO rel FROM pg_class c WHERE c.oid = r.objid AND c.relkind IN ('r', 'p');
-    ELSIF r.classid = 'pg_trigger'::regclass THEN  -- schema_name của trigger là NULL
-      SELECT g.tgrelid INTO rel FROM pg_trigger g WHERE g.oid = r.objid;
-    END IF;
-    IF rel IS NULL OR NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-                                   WHERE c.oid = rel AND n.nspname ~ '^xt_t[0-9]+$') THEN
-      CONTINUE;
-    END IF;
-    SELECT string_agg(g.tgname || ':' || g.tgenabled::text || ':' || p.oid::regprocedure::text, ', ') INTO bad
-      FROM pg_trigger g JOIN pg_proc p ON p.oid = g.tgfoid
-     WHERE g.tgrelid = rel AND NOT g.tgisinternal
-       AND NOT (g.tgenabled = 'O' AND (
-             (g.tgname = 'xt_touch' AND p.oid = 'xt.row_touch()'::regprocedure)
-          OR (g.tgname = 'xt_audit' AND p.oid = 'xt_audit.log()'::regprocedure)
-          OR (g.tgname = 'xt_audit_truncate' AND p.oid = 'xt_audit.log_truncate()'::regprocedure)));
-    IF bad IS NOT NULL THEN
-      RAISE EXCEPTION 'trigger không được phép/bị tắt trên %: %', rel::regclass, bad
-        USING ERRCODE = 'insufficient_privilege';
-    END IF;
-  END LOOP;
-END $$;
-CREATE FUNCTION xt_audit.drop_guard() RETURNS event_trigger LANGUAGE plpgsql
-SET search_path = pg_catalog, pg_temp AS $$
-DECLARE r record;
-BEGIN
-  FOR r IN SELECT * FROM pg_event_trigger_dropped_objects() LOOP
-    IF r.original AND r.object_type = 'trigger' AND r.schema_name ~ '^xt_t[0-9]+$'
-       AND (r.object_identity LIKE 'xt_audit on %' OR r.object_identity LIKE 'xt_audit_truncate on %')
-       AND current_user <> 'xt_audit_owner' THEN
-      RAISE EXCEPTION 'không được xóa trigger audit %', r.object_identity
-        USING ERRCODE = 'insufficient_privilege';
-    END IF;
-  END LOOP;
-END $$;
-REVOKE ALL ON FUNCTION xt_audit.ddl_guard(), xt_audit.drop_guard() FROM PUBLIC;
-CREATE EVENT TRIGGER xt_audit_ddl_guard ON ddl_command_end EXECUTE FUNCTION xt_audit.ddl_guard();
-CREATE EVENT TRIGGER xt_audit_drop_guard ON sql_drop EXECUTE FUNCTION xt_audit.drop_guard();
+-- Event trigger bảo vệ trigger audit + audit bảng xt_meta.*: sql/audit_meta.sql (bootstrap() chạy
+-- ngay sau file này; CSDL cũ: install_meta_audit()).

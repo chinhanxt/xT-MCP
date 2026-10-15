@@ -153,6 +153,7 @@ class Browser:
                     stop: str, consent: bool = True) -> Step:
         """Đi qua các trang Keycloak (login, OTP, consent) tới redirect `stop`."""
         tried_password = False
+        otp_tries = 0
         for _ in range(8):
             if step.kind == "redirect":
                 return step
@@ -172,6 +173,9 @@ class Browser:
             elif 'id="kc-otp-login-form"' in page:
                 if not totp_raw:
                     raise LoginError(f"{user}: Keycloak đòi OTP nhưng không có TOTP seed")
+                otp_tries += 1
+                if otp_tries > 2:
+                    raise LoginError(f"{user}: OTP bị từ chối: {kc_error(page)!r}")
                 step = self.submit(page, "kc-otp-login-form", {"otp": fresh_totp(user, totp_raw)}, stop)
             elif "login-actions/consent" in page and consent:
                 step = self.submit(page, None, {"accept": "Yes"}, stop, match="login-actions/consent")

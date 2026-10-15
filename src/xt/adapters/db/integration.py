@@ -55,6 +55,7 @@ class Person:
     title: str | None
     active: bool
     limit_amount: float | None
+    email: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +107,14 @@ def tenant_by_id(db: Database, tenant_id: UUID) -> TenantRef | None:
     return TenantRef(int(row[0]), row[1]) if row else None
 
 
+def pii_ticket_tenant(db: Database, ticket_hash: bytes) -> TenantRef | None:
+    with db.connection() as conn:
+        row = conn.execute(
+            "SELECT seq, id FROM xt.pii_ticket_tenant(%s)", (ticket_hash,)
+        ).fetchone()
+    return TenantRef(int(row[0]), row[1]) if row else None
+
+
 def confirmation_tenant(db: Database, confirmation_id: str) -> TenantRef | None:
     with db.connection() as conn:
         row = conn.execute(
@@ -135,6 +144,7 @@ def _person(row: Mapping[str, Any]) -> Person:
         title=row["title"],
         active=bool(row["active"]),
         limit_amount=float(lim) if lim is not None else None,
+        email=row.get("email"),
     )
 
 
@@ -405,14 +415,73 @@ class PgIntegrationStore:
             )
 
     # ---- làn PII
-    def pii_put(self, actor: ModelActor, token: str, value: str) -> None:
+    def pii_put(
+        self,
+        actor: ModelActor,
+        token: str,
+        value: str,
+        *,
+        field: str | None = None,
+        level: str | None = None,
+    ) -> None:
+        """Ghi token vào vault; mức chỉ nâng (basic -> sensitive), không bao giờ hạ."""
         with self.uow.tenant_tx(actor) as cur:
             cur.execute(
-                "INSERT INTO xt_meta.pii_token (tenant_id, token, value)"
-                " VALUES (xt.tenant(), %s, %s)"
-                " ON CONFLICT (tenant_id, token) DO NOTHING",
-                (token, value),
+                "INSERT INTO xt_meta.pii_token (tenant_id, token, value, field, level)"
+                " VALUES (xt.tenant(), %s, %s, %s, %s)"
+                " ON CONFLICT (tenant_id, token) DO UPDATE SET"
+                " field = coalesce(xt_meta.pii_token.field, EXCLUDED.field),"
+                " level = CASE WHEN EXCLUDED.level = 'sensitive' THEN 'sensitive'"
+                "  ELSE coalesce(xt_meta.pii_token.level, EXCLUDED.level) END"
+                " WHERE EXCLUDED.level IS NOT NULL OR EXCLUDED.field IS NOT NULL",
+                (token, value, field, level),
             )
+
+    def pii_lookup(self, actor: ModelActor, tokens: Sequence[str]) -> dict[str, dict[str, Any]]:
+        with self.uow.tenant_tx(actor) as cur:
+            rows = cur.execute(
+                "SELECT token, value, field, level FROM xt_meta.pii_token WHERE token = ANY(%s)",
+                (list(tokens),),
+            ).fetchall()
+        return {r["token"]: dict(r) for r in rows}
+
+    def pii_ticket_put(
+        self,
+        actor: ModelActor,
+        *,
+        ticket_hash: bytes,
+        person: UUID,
+        client_id: str,
+        tokens: Sequence[str],
+        pubkey: Mapping[str, Any],
+        ttl_s: int,
+    ) -> None:
+        with self.uow.tenant_tx(actor) as cur:
+            cur.execute(
+                "INSERT INTO xt_meta.pii_reveal_ticket (tenant_id, ticket_hash, person, client_id,"
+                " tokens, pubkey, expires_at) VALUES (xt.tenant(), %s, %s, %s, %s, %s,"
+                " clock_timestamp() + make_interval(secs => %s))",
+                (ticket_hash, person, client_id, list(tokens), Jsonb(dict(pubkey)), ttl_s),
+            )
+
+    def pii_ticket_lock(self, actor: ModelActor, ticket_hash: bytes) -> dict[str, Any] | None:
+        """Khóa vé còn hạn, chưa dùng (cùng transaction với lúc đánh dấu đã dùng)."""
+        with self.uow.tenant_tx(actor) as cur:
+            row = cur.execute(
+                "SELECT * FROM xt_meta.pii_reveal_ticket WHERE ticket_hash = %s"
+                " AND used_at IS NULL AND expires_at > clock_timestamp() FOR UPDATE",
+                (ticket_hash,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def pii_ticket_use(self, actor: ModelActor, ticket_hash: bytes) -> bool:
+        with self.uow.tenant_tx(actor) as cur:
+            row = cur.execute(
+                "UPDATE xt_meta.pii_reveal_ticket SET used_at = clock_timestamp()"
+                " WHERE ticket_hash = %s AND used_at IS NULL RETURNING ticket_hash",
+                (ticket_hash,),
+            ).fetchone()
+        return row is not None
 
     def pii_resolve(self, actor: ModelActor, token: str) -> str | None:
         with self.uow.tenant_tx(actor) as cur:
@@ -430,12 +499,13 @@ class PgIntegrationStore:
         client_class: str,
         mode: str,
         fields: Sequence[str],
+        person: UUID | None = None,
     ) -> None:
         with self.uow.tenant_tx(actor) as cur:
             cur.execute(
                 "INSERT INTO xt_meta.pii_egress (tenant_id, trace_id, tool, client_class, mode,"
-                " fields) VALUES (xt.tenant(), %s, %s, %s, %s, %s)",
-                (trace_id, tool, client_class, mode, sorted(set(fields))),
+                " fields, person) VALUES (xt.tenant(), %s, %s, %s, %s, %s, %s)",
+                (trace_id, tool, client_class, mode, sorted(set(fields)), person),
             )
 
 

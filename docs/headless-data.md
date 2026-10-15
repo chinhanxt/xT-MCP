@@ -186,6 +186,7 @@ Biến môi trường (script không chứa bí mật):
 | `XT_DATA_MODEL`, `XT_DATA_PROFILE` | Model cần đọc và schema `api_t<seq>`; thiếu thì bỏ qua bước 3 |
 | `XT_DATA_FOREIGN_PROFILE` | Tùy chọn: schema tenant khác. Chỉ `401`/`403`/`406` tính là từ chối; `2xx` là lỗi cô lập; 5xx/timeout/404 là `không kết luận` (lỗi), không phải bằng chứng bảo mật |
 | `XT_DATA_PREFIX`, `XT_WORKFLOW_PATH` | Mặc định `/data`, `/workflow/v1/definitions` |
+| `XT_WORKFLOW_START_FILE`, `XT_WORKFLOW_APPROVER_TOKEN_FILE`, `XT_WORKFLOW_DEFINITION` | Bước 4 chạy W1 qua REST `/workflow/v1` (khởi động, instance, inbox, quyết định → 428 + `confirm_url`). Chi tiết: `docs/workflow-api.md` |
 | `XT_CURL_OPTS` | Tùy chọn curl thêm (ví dụ `--resolve` khi chạy cục bộ qua APISIX `127.0.0.1:9080`) |
 
 Mỗi loại token đi vào curl bằng tệp header tạm riêng (quyền 600, xóa khi thoát), không nằm trên dòng lệnh (`ps`) và không bị in. Tệp token rỗng được coi là thiếu; token lấy trực tiếp từ môi trường chứa khoảng trắng/xuống dòng bị từ chối. Script tắt `set -x`. Phân loại `chưa triển khai` gồm HTTP `000`, `404`, `502`, `503`, `504`, `530`, thân `error code: 1033` và `chua_trien_khai`.

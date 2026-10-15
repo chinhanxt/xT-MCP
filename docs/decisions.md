@@ -94,3 +94,17 @@ Sau phản biện bằng Codex gpt-6-astra: dùng API cộng thêm `install_data
 - **Lý do:** đề thuộc VFOSSA, không có giấy phép phân phối lại; phát hành sẽ vi phạm chính tiêu chí PoF về gói/tài liệu đính kèm.
 
 | 16/10/2026 | D-INT-6. Đề xuất thay đổi model: ai duyệt, và với thay đổi PHÁ HỦY thì người thứ hai là ai? (`PendingOperation.confirmers` phải nêu tên trước) | Ai được `request.decide` trên `xrn:<t>:model_proposal:*` theo policy (gói `packages/quan-tri-mo-hinh`: `director`, `it`; người đề xuất bị loại). Người thứ nhất = người gọi `decide_request`. PHÁ HỦY: người thứ hai = quản lý trực tiếp nếu đủ quyền, nếu không thì người đủ quyền đầu tiên theo mã nhân sự, khác người thứ nhất và người đề xuất; không có ai -> `precondition_failed no_second_approver`. Áp dụng do worker (`model.apply`) sau khi duyệt, revalidate kế hoạch lúc plan và lúc xác nhận | Quyền theo dữ liệu (policy), không cài cứng vai trò; người thứ hai xác định được, hiện trên trang xác nhận; theo chuỗi báo cáo trước (bốn mắt theo cấp). |
+
+## REST /workflow/v1 (16/10/2026, chủ dự án – Opus 5.5)
+
+- **Câu hỏi 1 – audience:** API workflow dùng chung resource MCP (`aud` = URL `/mcp`) hay audience riêng `xt-workflow`?
+- **Quyết định:** audience **riêng `xt-workflow`** + scope bắt buộc `xt-workflow` (client scope *optional* của Keycloak, như `xt-data`). `XT_WORKFLOW_AUDIENCE` bắt buộc khác `XT_MCP_RESOURCE` (kiểm lúc khởi động). `azp` cho phép = `XT_WORKFLOW_ALLOWED_CLIENTS` (mặc định = `XT_MCP_ALLOWED_CLIENTS` tĩnh); connector DCR không gọi được REST.
+- **Lý do:** cùng mô hình với `/data` (aud `xt-data`); RFC 8707/9068: token bị lộ ở một bề mặt không phát lại được sang bề mặt kia (token MCP của connector chat không mở được REST, token curl không mở được `/mcp`). Đã kiểm trong test tích hợp ở cả hai chiều.
+- **Câu hỏi 2 – HTTP status của `confirmation_required`:** 202 hay 4xx?
+- **Quyết định:** **428 Precondition Required** + envelope lỗi chung (`ok:false`, `details.confirm_url`) + header `Link: <confirm_url>; rel="confirm"`. Gửi lại đúng request với cùng `Idempotency-Key` sau khi người xác nhận → 200 (receipt `replayed:true`).
+- **Lý do:** hành động **chưa** chạy. 2xx dễ bị `curl -f`/SDK hiểu là đã duyệt, trái với quy tắc "không bao giờ tuyên bố đã duyệt khi người chưa bấm". 428 đúng nghĩa "thiếu điều kiện tiên quyết", thử lại được.
+- **Câu hỏi 3 – `request_info`:** engine có outcome này nhưng `decide_request` v0.1 (ToolContract + composition `DECISIONS`) chưa có.
+- **Quyết định:** REST nhận 5 tên outcome của engine; `return_for_revision` → `return`; `request_info` trả **400 `decision_not_supported`** cho tới khi contract `decide_request` thêm giá trị này (cần người được hỏi `ask`, sửa composition: việc của lớp tích hợp). Không đi đường tắt vào `ProcessService.act`.
+- **Câu hỏi 4 – `task_id`:** id task Spiff (UUID nội bộ) hay ref đề nghị?
+- **Quyết định:** `task_id` = `ref` của mục inbox (`<model>:<uuid>`); bước đang chờ của người gọi do server xác định, như `decide_request`. Không lộ id nội bộ của engine ra làm khóa thao tác.
+- **Người không gọi REST:** token client người (`XT_MCP_HUMAN_CLIENTS`) bị 401 như ở MCP (M6); người chỉ quyết định trên `/desk/confirm/{id}` có step-up.

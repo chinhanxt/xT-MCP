@@ -33,6 +33,10 @@ from xt.domain.model.spec import Catalog
 from xt.entrypoints.composition.runtime import Caller, Runtime
 
 
+# Thông tin liên hệ của người (xt_meta.person) trong find_people / org_person_details.
+PERSON_CONTACT = ("email", "phone")
+
+
 def effective_mode(llm_egress: str, client: ClientClass) -> PiiMode:
     if client is not ClientClass.CLOUD:
         return "full"
@@ -45,12 +49,16 @@ class PostgresPiiLane:
             raise ValueError("PII token key must contain at least 32 bytes")
         self.rt, self.key = rt, key
 
-    def token(self, caller: Caller, value: Any) -> str:
+    def token(
+        self, caller: Caller, value: Any, *, field: str | None = None, level: str | None = None
+    ) -> str:
+        """Token ổn định; vault nhớ nguồn (`model.field`) + mức để `/pii/reveal` kiểm quyền.
+        Không rõ mức (giá trị bắt được trong lỗi) thì kênh xem coi là `sensitive`."""
         raw = f"{caller.tenant.id}|{caller.profile.pii_epoch}|{value}".encode()
         mac = hmac.new(self.key, raw, hashlib.sha256).digest()
         tok = base64.b32encode(mac).decode().rstrip("=").lower()[:16]
         out = f"[PII:{tok}]"
-        self.rt.store.pii_put(caller.actor, out, str(value))
+        self.rt.store.pii_put(caller.actor, out, str(value), field=field, level=level)
         return out
 
     # ---- vào --------------------------------------------------------------------------------
@@ -156,6 +164,16 @@ class PostgresPiiLane:
         if not isinstance(node, Mapping):
             return node
         out = {k: self._walk(caller, cat, v, mode, touched) for k, v in node.items()}
+        ref = out.get("ref")
+        if isinstance(ref, str) and ref.startswith("person:"):
+            for key in PERSON_CONTACT:
+                if out.get(key) is None:
+                    continue
+                touched.add(f"person.{key}")
+                if mode == "masked":
+                    out[key] = self.token(caller, out[key], field=f"person.{key}", level="basic")
+                elif mode == "omitted":
+                    out.pop(key)
         model_id, values = out.get("model_id"), out.get("values")
         if cat is None or not isinstance(model_id, str) or not isinstance(values, Mapping):
             return out
@@ -170,12 +188,18 @@ class PostgresPiiLane:
             name = f"{model_id}.{f.name}"
             touched.add(name)
             if mode == "masked":
-                projected[f.name] = self.token(caller, projected[f.name])
+                projected[f.name] = self.token(caller, projected[f.name], field=name, level=f.pii)
             elif mode == "omitted":
                 projected.pop(f.name)
         out["values"] = projected
         if m.title_field and mode != "full":
             tf = m.field(m.title_field)
             if tf.pii != "none":
-                out["title"] = self.token(caller, out.get("title")) if mode == "masked" else m.label
+                out["title"] = (
+                    self.token(
+                        caller, out.get("title"), field=f"{model_id}.{tf.name}", level=tf.pii
+                    )
+                    if mode == "masked"
+                    else m.label
+                )
         return out

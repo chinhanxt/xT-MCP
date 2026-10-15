@@ -151,7 +151,8 @@ def kc_username(email: str) -> str:
     return email.split("@", 1)[0]
 
 
-def seed_users(kc: Admin, t: dict[str, Any], hr: dict[str, Any], secrets_db: dict[str, Any], org_id: str) -> dict[str, str]:
+def seed_users(kc: Admin, t: dict[str, Any], hr: dict[str, Any], state_ref: dict[str, Any], org_id: str) -> dict[str, str]:
+    secrets_db: dict[str, Any] = state_ref.setdefault("users", {})
     by_id = {e["id"]: e for e in hr["employees"]}
     subjects: dict[str, str] = {}
     for key in t["people"]:
@@ -160,15 +161,17 @@ def seed_users(kc: Admin, t: dict[str, Any], hr: dict[str, Any], secrets_db: dic
         kc_roles = sorted({KC_ROLE_ALIAS.get(r, r) for r in [*roles, "employee"]} & KC_ROLES)
         approver = bool(set(roles) & TOTP_ROLES)
         uname = kc_username(e["email"])
+        fresh = "password" not in secrets_db.get(uname, {}) or (approver and "totp" not in secrets_db[uname])
         ent = ensure_secret(secrets_db.setdefault(uname, {}), totp=approver)
         family, _, given = e["full_name"].partition(" ")
         uid = kc.upsert_user({"username": uname, "email": e["email"], "firstName": given or family,
-                              "lastName": family}, ent["password"], ent.get("totp"))
+                              "lastName": family}, ent["password"], ent.get("totp"), recreate=fresh)
         kc.set_realm_roles(uid, kc_roles)
         kc.add_member(org_id, uid)
         ent.update({"username": uname, "sub": uid, "tenant": t["alias"], "key": key, "name": e["full_name"],
                     "roles": roles, "kc_roles": kc_roles, "approver": approver, "department": e["department_id"]})
         subjects[key] = uid
+        save_users(state_ref)  # lưu ngay: seed bị ngắt giữa chừng vẫn giữ đúng bí mật đã nạp vào Keycloak
     return subjects
 
 
@@ -245,7 +248,7 @@ def main() -> int:
                                                "--timezone", "Asia/Ho_Chi_Minh", "--llm-egress", "masked"]).strip()
         org_id = kc.upsert_org(alias, t["name"], t["domain"])
         hr = json.loads(Path(t["org"]).read_text(encoding="utf-8"))
-        subjects = seed_users(kc, t, hr, secrets_db, org_id)
+        subjects = seed_users(kc, t, hr, state, org_id)
         links = links_for(subjects)
         log(f"tenant {alias}: xt org import ({len(subjects)} người có đăng nhập)")
         report[f"org-{alias}"] = import_org(alias, Path(t["org"]), links).strip().splitlines()[-1]

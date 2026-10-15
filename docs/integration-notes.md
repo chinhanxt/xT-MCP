@@ -235,3 +235,44 @@ XtMcpServer(..., ui_resources=apps.ui_resources, app_tools=apps.app_tools)
 4. Tool app-only (`org_person_details`, `records_table_page`) không nằm trong `CATALOG` và không đổi số 17 tool; chúng được liệt kê trong `tools/list` chỉ khi view tương ứng đã đăng ký. Ngân sách token của core-10 không đổi khi chưa gọi `register_apps`.
 5. IAM: thêm quyền `person.read` cho `org_person_details` (đã dùng action đầu của contract) và `record.search` cho `records_table_page`; `AccessGuard.check` nhận tên tool app-only.
 6. Desk: `confirmInfo` (`desk/src/confirm.ts`) chưa đọc `content[0].text` khi lỗi không có `structuredContent`; thẻ `approval-card` đã tự đọc nên không phụ thuộc.
+
+## REST `/workflow/v1` (16/10/2026)
+
+Mã: `src/xt/adapters/http/workflow_api.py` (Starlette, chỉ phụ thuộc application/contracts/domain), nối ở `src/xt/entrypoints/workflow_http.py` (ngoài `composition/`, chỉ dùng API public của composition). Tài liệu: `docs/workflow-api.md`; quyết định: `docs/decisions.md` "REST /workflow/v1".
+
+| Thay đổi | Ai cần làm gì |
+|---|---|
+| **Lớp tích hợp phải nối 1 dòng** trong `serve.Prepared.http_app()` (chưa nối, file của integrator): `from xt.entrypoints.workflow_http import with_workflow_api` rồi `return with_workflow_api(self, self.cfg.env, Starlette(routes=[*extra, *app.routes], lifespan=app.router.lifespan_context))`. Hoặc tự ghép `workflow_mount(prepared, env)` (một `Mount("/workflow/v1")`) vào đầu danh sách route | Integrator. Test tích hợp `tests/integration/composition/test_workflow_api.py` ghép đúng như vậy |
+| API mount cấp thấp: `workflow_routes(dispatcher, auth, backend, *, classify, ensure_active, clock, max_body_bytes, server_url) -> Mount` | Port: `WorkflowAuth` (bearer/verify/challenge), `WorkflowBackend` (`bpmn`, `instance`), dispatcher = **cùng** `ScopedDispatcher` của MCP (`Prepared.dispatcher`) |
+| Biến mới: `XT_WORKFLOW_AUDIENCE` (mặc định `xt-workflow`, phải khác `XT_MCP_RESOURCE`), `XT_WORKFLOW_REQUIRED_SCOPES` (mặc định `xt-workflow`), `XT_WORKFLOW_ALLOWED_CLIENTS` (mặc định = `XT_MCP_ALLOWED_CLIENTS`), `XT_WORKFLOW_PUBLIC_URL` (tùy chọn, `servers` của OpenAPI) | Deploy: thêm vào `deploy/.env`/compose của `xt-api` |
+| Keycloak: client scope optional `xt-workflow` có audience mapper `xt-workflow` (giống `provision_data.py` cho `xt-data`), gán cho client headless (vd `xt-cli`) | Agent Keycloak (chưa làm trong phiên này) |
+| APISIX `api-workflow`: chỉ `/workflow/v1/*`, `GET`/`POST`, body ≤ 64 KiB, `real-ip` + `limit-req` theo IP; không chèn/bỏ header (JWT kiểm ở xt-api) | Cần render lại `deploy/apisix/rendered/apisix.yaml` khi triển khai (chưa render để không đụng stack đang chạy) |
+| Idempotency: `POST /instances` dùng khóa con `<Idempotency-Key>.create` / `.submit`; `POST /tasks/{ref}/decision` dùng nguyên khóa. Cùng namespace actor+tool với MCP | Gửi cùng khóa qua MCP và REST cho hai hành động khác nhau → `idempotency_conflict` (đúng thiết kế) |
+| `request_info` chưa có trong `decide_request` → REST trả 400 `decision_not_supported` | Khi mở rộng contract: thêm vào enum + `DECISIONS` của composition, REST tự hết chặn (bỏ `None` trong `workflow_api.DECISIONS`) |
+| Chưa có: JWT ở gateway (W7), rate-limit theo `azp`, `ToolContract.rest` | Theo `docs/gap-review.md` mục 8 |
+
+### I-AUD-META: audit cho bảng `xt_meta.*` (16/10/2026, model engine)
+
+API được hỗ trợ: `xt_audit.install_meta(tbl name, key_col name DEFAULT 'id', redact text[] DEFAULT '{}')`. Hàm là SECURITY DEFINER, thuộc `xt_audit_owner`; `xt_migrator` được EXECUTE.
+
+**Cách hoạt động**
+- Trigger `xt_audit_meta` (`AFTER INSERT/UPDATE/DELETE`) và `xt_audit_meta_truncate` thuộc `xt_audit_owner`.
+- Event nối vào **chuỗi của tenant** theo cột `tenant_id`, `model = 'xt_meta.<bảng>'`. Vì vậy `xt_audit.verify`, `xt_audit.heads()` và checkpoint Ed25519 (`xt audit checkpoint|verify`) phủ luôn metadata.
+- `TRUNCATE` không biết tenant nên nối vào chuỗi nền tảng `tenant_id = 00000000-0000-0000-0000-000000000000`.
+- Không dùng HMAC. Cột trong `redact` chỉ lưu `redacted:sha256:<hex>`; chỉ dùng cho blob entropy cao. PII entropy thấp phải nằm ở bảng model (HMAC).
+- `UPDATE` không đổi giá trị nào thì không sinh event. `drop_tenant` vẫn ghi DELETE vào chuỗi.
+- Event trigger chặn `DISABLE`/`DROP` trigger `xt_audit_meta*` và `CREATE RULE` trên bảng đã gắn. Các trigger nghiệp vụ khác của bảng không bị đụng.
+
+**Cài đặt**
+
+| Trường hợp | Làm gì |
+|---|---|
+| CSDL mới | `bootstrap()` chạy `sql/bootstrap.sql` rồi `sql/audit_meta.sql`. Sau đó `xt db migrate` áp `0006_audit_meta.sql`, file này `GRANT TRIGGER … TO xt_audit_owner` và gắn audit cho `iam_policy`, `process_definition`, `pack_install`, `model_binding`, `process_event`, `pii_egress`, `model_change_request` (khóa `proposal_id`), `tool_operation` (redact `pending`, `receipt`). Bảng chưa có thì bỏ qua |
+| CSDL đã bootstrap trước đó | Superuser gọi `xt.adapters.db.tenancy.install_meta_audit(conn)` (idempotent, cũng cập nhật event trigger bảo vệ) rồi `xt db migrate`. Nếu migrate trước khi cài thì `0006` dừng với thông báo rõ và không ghi vào ledger |
+| Bảng `xt_meta` mới (migration của module khác) | Trong chính migration đó: `GRANT TRIGGER ON xt_meta.<bảng> TO xt_audit_owner; SELECT xt_audit.install_meta('<bảng>', 'id', '{}');`. Bảng phải có `tenant_id uuid` và một cột khóa uuid |
+
+**Việc cho integrator**
+- Bỏ đoạn `data_setup.install_data_prerequisites` cấp tạm `EXECUTE xt_audit.log()` cho `xt_migrator`: không còn cần, và đoạn này mở lại R2-04.
+- Nối `install_meta_audit` vào bước superuser của `xt db migrate` hoặc của deploy.
+
+Test: `tests/integration/model_audit/test_audit_meta_pg.py`, 6 test, PG17 thật, container `xt-audit-meta-pg`.

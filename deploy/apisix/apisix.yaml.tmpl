@@ -94,15 +94,26 @@ routes:
       type: roundrobin
       nodes: {"postgrest:3000": 1}
       timeout: {connect: 5, send: 30, read: 30}
-  - id: api-workflow
+  - id: api-workflow            # REST /workflow/v1 (docs/workflow-api.md): xt-api kiểm JWT aud=xt-workflow + IAM; gateway giữ nguyên Authorization/Idempotency-Key
     hosts: ["@@XT_DOMAIN_API@@"]
-    uris: ["/workflow", "/workflow/*"]
+    uris: ["/workflow/v1/*"]
+    methods: ["GET", "POST"]
     plugins:
+      real-ip:
+        source: http_cf_connecting_ip
+        trusted_addresses: ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
       client-control:
-        max_body_size: 1048576
+        max_body_size: 65536      # = DEFAULT_MAX_BODY_BYTES của workflow_api
+      limit-req:
+        rate: 20
+        burst: 40
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
     upstream:
       type: roundrobin
       nodes: {"xt-api:8000": 1}
+      timeout: {connect: 5, send: 30, read: 30}
   - id: api-files
     hosts: ["@@XT_DOMAIN_API@@"]
     uris: ["/files", "/files/*"]

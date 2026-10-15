@@ -95,5 +95,50 @@ RECORDS_TABLE_PAGE = AppToolContract(
     delegates_to="search_records",
 )
 
-APP_TOOLS: tuple[AppToolContract, ...] = (ORG_PERSON_DETAILS, RECORDS_TABLE_PAGE)
+# Kênh NGƯỜI xem giá trị thật (research/spike-pii-lane.md §3.7, integration-notes "Desk ↔
+# /pii/reveal"): vé dùng một lần CHỈ nằm ở `result._meta["xt/reveal"]`, không trong
+# content/structuredContent; giá trị thật chỉ trả qua POST /pii/reveal (không qua MCP).
+PII_TOKEN_PATTERN = r"^\[PII:[a-z2-7]{16}\]$"
+_B64U_32 = {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"}
+PII_REVEAL_TICKET = AppToolContract(
+    name="pii_reveal_ticket",
+    description=(
+        "App-only, human channel: mint a one-time ticket (60 s) bound to the frame's P-256 key "
+        "for revealing masked [PII:…] tokens on the xT page. The ticket is returned only in "
+        "_meta; real values never pass through MCP."
+    ),
+    ui_resource=RECORD_TABLE_URI,
+    iam=("pii.reveal",),
+    input_schema=inp(
+        {
+            "tokens": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 50,
+                "uniqueItems": True,
+                "items": {"type": "string", "pattern": PII_TOKEN_PATTERN},
+            },
+            "pubkey_jwk": {
+                "type": "object",
+                "properties": {
+                    "kty": {"const": "EC"},
+                    "crv": {"const": "P-256"},
+                    "x": _B64U_32,
+                    "y": _B64U_32,
+                    "ext": {"type": "boolean"},
+                    "key_ops": {"type": "array", "items": {"const": "verify"}},
+                },
+                "required": ["kty", "crv", "x", "y"],
+                "additionalProperties": False,
+            },
+        },
+        ["tokens", "pubkey_jwk"],
+    ),
+    output_schema=out(
+        {"tokens": {"type": "integer"}, "expires_in_seconds": {"type": "integer"}},
+        ["tokens", "expires_in_seconds"],
+    ),
+)
+
+APP_TOOLS: tuple[AppToolContract, ...] = (ORG_PERSON_DETAILS, RECORDS_TABLE_PAGE, PII_REVEAL_TICKET)
 APP_TOOLS_BY_NAME: Mapping[str, AppToolContract] = {t.name: t for t in APP_TOOLS}

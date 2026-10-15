@@ -217,6 +217,24 @@ class PeopleDirectory:
             row["manager"] = None
         return row
 
+    def person_details(self, ctx: CallContext, ref: str) -> Data | None:
+        """`PersonDetails` cho MCP App sơ đồ tổ chức: như một phần tử `people[]` + liên hệ +
+        cấp dưới trực tiếp; email là giá trị thật, làn PII che theo tier của client."""
+        caller = self.rt.caller(ctx)
+        try:
+            pid = parse_person_ref(caller, ref)
+        except ToolError:
+            return None
+        p = self.rt.store.person(caller.actor, pid)
+        if p is None:
+            return None
+        row = self._row(caller, p)
+        if p.email:
+            row["email"] = p.email
+        _, reports = self.rt.store.people(caller.actor, manager=p.id, limit=200)
+        row["direct_reports"] = [_named(r) for r in reports]
+        return row
+
     def find_people(self, ctx: CallContext, args: Args) -> Data:
         caller = self.rt.caller(ctx)
         store, actor = self.rt.store, caller.actor
