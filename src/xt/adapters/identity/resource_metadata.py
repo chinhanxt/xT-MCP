@@ -16,6 +16,7 @@ from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from xt.adapters.identity.config import ResourceServerSettings
+from xt.adapters.identity.dpop import DpopError
 from xt.domain.identity import IdentityError, InsufficientScopeError, InvalidTokenError
 
 WELL_KNOWN = "/.well-known/oauth-protected-resource"
@@ -27,6 +28,11 @@ _DESCRIPTIONS = {
     "audience": "The access token was not issued for this resource",
     "client_not_allowed": "The client is not allowed to access this resource",
     "token_revoked": "The access token is no longer active",
+    "dpop_missing": "A DPoP proof is required for this access token",
+    "dpop_bearer_scheme": "This access token is DPoP-bound; use the DPoP authorization scheme",
+    "dpop_unbound_token": "The DPoP scheme requires a DPoP-bound access token",
+    "dpop_required": "This client must use DPoP-bound access tokens",
+    "dpop_unsupported": "DPoP-bound access tokens are not accepted on this resource",
 }
 
 
@@ -98,8 +104,38 @@ class AuthChallenge:
     body: dict[str, str] = field(default_factory=dict)
 
 
+def www_authenticate_dpop(settings: ResourceServerSettings, error: DpopError) -> str:
+    """RFC 9449 §7.1: challenge `DPoP` mang `error` + `algs`, kèm challenge Bearer có PRM (RFC 9728)
+    để client MCP vẫn tìm được authorization server."""
+    desc = _DESCRIPTIONS.get(error.reason, "The DPoP proof is invalid")
+    dpop = "DPoP " + ", ".join(
+        f"{k}={_quote(v)}"
+        for k, v in (
+            ("error", error.error),
+            ("error_description", desc),
+            ("algs", " ".join(error.algs)),
+        )
+    )
+    bearer = _header(
+        [
+            ("resource_metadata", protected_resource_metadata_url(settings.resource)),
+            ("scope", _scope_value(settings.required_scopes)),
+        ]
+    )
+    return f"{dpop}, {bearer}"
+
+
 def challenge_for(settings: ResourceServerSettings, exc: IdentityError | None) -> AuthChallenge:
     """None = không có token. Lỗi khác ngoài 401/403 (vd IdP không tới được) không thuộc hàm này."""
+    if isinstance(exc, DpopError):
+        return AuthChallenge(
+            401,
+            {"WWW-Authenticate": www_authenticate_dpop(settings, exc)},
+            {
+                "error": exc.error,
+                "error_description": _DESCRIPTIONS.get(exc.reason, "The DPoP proof is invalid"),
+            },
+        )
     if isinstance(exc, InsufficientScopeError):
         return AuthChallenge(
             403,
@@ -122,6 +158,17 @@ def challenge_for(settings: ResourceServerSettings, exc: IdentityError | None) -
             },
         )
     raise TypeError(f"không ánh xạ {type(exc).__name__} sang challenge 401/403")
+
+
+def extract_credentials(authorization: str | None) -> tuple[str, str] | None:
+    """(scheme chữ thường `bearer`|`dpop`, token); None nếu thiếu header. Scheme khác -> lỗi."""
+    if authorization is None or not authorization.strip():
+        return None
+    scheme, _, value = authorization.strip().partition(" ")
+    low = scheme.lower()
+    if low not in ("bearer", "dpop") or not value.strip() or " " in value.strip():
+        raise InvalidTokenError("malformed_authorization")
+    return low, value.strip()
 
 
 def extract_bearer(authorization: str | None) -> str | None:

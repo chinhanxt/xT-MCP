@@ -43,6 +43,9 @@ META_TABLES = (
     "pii_egress",
     "model_change_request",
     "tool_operation",
+    "file_object",  # 0009_files: metadata tệp (tên redact) cũng vào hash-chain
+    "file_event",
+    "decision",  # 0010_decision_sod
 )
 
 

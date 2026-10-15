@@ -64,7 +64,14 @@ def start() -> Seaweed:
         ]
     }
     (cfg_dir / "s3.json").write_text(json.dumps(cfg), encoding="utf-8")
-    (cfg_dir / "s3.json").chmod(0o644)
+    # Như deploy/compose.yaml (FB-03): JWT cho volume + filer, chỉ S3 (SigV4) đọc/ghi được byte.
+    sec = "".join(
+        f'[{s}]\nkey = "{secrets.token_urlsafe(32)}"\nexpires_after_seconds = 10\n'
+        for s in ("jwt.signing", "jwt.signing.read", "jwt.filer_signing", "jwt.filer_signing.read")
+    )
+    (cfg_dir / "security.toml").write_text(sec, encoding="utf-8")
+    for f in ("s3.json", "security.toml"):
+        (cfg_dir / f).chmod(0o644)
     cfg_dir.chmod(0o755)
     subprocess.run(
         [
@@ -74,10 +81,10 @@ def start() -> Seaweed:
             "--memory", "512m", "--pids-limit", "256",
             "--tmpfs", "/data:uid=1000,gid=1000,size=256m",
             "--tmpfs", "/tmp:uid=1000,gid=1000,size=16m",
-            "-v", f"{cfg_dir}:/etc/xt-s3:ro",
+            "-v", f"{cfg_dir}:/etc/seaweedfs:ro",
             "-p", f"127.0.0.1:{port}:8333",
             IMAGE,
-            "server", "-dir=/data", "-s3", "-s3.port=8333", "-s3.config=/etc/xt-s3/s3.json",
+            "server", "-dir=/data", "-s3", "-s3.port=8333", "-s3.config=/etc/seaweedfs/s3.json",
             "-master.volumeSizeLimitMB=64", "-volume.max=8", "-ip=127.0.0.1", "-ip.bind=0.0.0.0",
         ],
         check=True,

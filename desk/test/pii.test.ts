@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
 import { describe, expect, it } from "vitest";
-import { webcrypto } from "node:crypto";
+import { createHash, webcrypto } from "node:crypto";
+import { DpopSigner, memoryKeyStore } from "../src/dpop";
 import { runAgent } from "../src/agent";
 import { createRevealStore, extractTokens, isRevealTool, revealTokens, RevealError, REVEAL_TOOLTIP } from "../src/pii";
 import { selectTools } from "../src/profiles";
@@ -90,6 +91,72 @@ describe("luồng reveal", () => {
     const xt = mockXt();
     const f: typeof fetch = async () => new Response(JSON.stringify({ error: "TICKET_INVALID" }), { status: 403 });
     await expect(revealTokens([TOKEN], { callTool: xt.callTool, fetch: f, xtOrigin: XT, subtle: webcrypto.subtle as SubtleCrypto })).rejects.toMatchObject({ code: "TICKET_INVALID" });
+  });
+});
+
+describe("luồng reveal DPoP-bound", () => {
+  /** xT giả kiểu DPoP: vé ràng với jkt của access token; đổi vé cần proof khớp jkt, htm/htu và ath = SHA-256(vé). */
+  async function dpopXt() {
+    const signer = new DpopSigner({ store: memoryKeyStore(), subtle: webcrypto.subtle as SubtleCrypto });
+    const jkt = await signer.thumbprint();
+    const calls: Record<string, unknown>[] = [];
+    const reqs: { url: string; init: RequestInit }[] = [];
+    const tickets = new Map<string, boolean>();
+    const callTool = async (p: { name: string; arguments: Record<string, unknown> }): Promise<ToolResult> => {
+      calls.push(p.arguments);
+      const ticket = `tk-${tickets.size}`;
+      tickets.set(ticket, false);
+      return { content: [{ type: "text", text: "ok" }], _meta: { "xt/reveal": { ticket, url: `${XT}/pii/reveal` } } };
+    };
+    const fetchImpl: typeof fetch = async (url, init) => {
+      reqs.push({ url: String(url), init: init! });
+      const b = JSON.parse(String(init!.body));
+      const proof = (init!.headers as Record<string, string>).DPoP;
+      const [h, pl, sig] = proof.split(".");
+      const hdr = JSON.parse(Buffer.from(h, "base64url").toString());
+      const pay = JSON.parse(Buffer.from(pl, "base64url").toString());
+      const key = await webcrypto.subtle.importKey("jwk", hdr.jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+      const okSig = await webcrypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, b64uDec(sig), new TextEncoder().encode(`${h}.${pl}`));
+      const thumb = createHash("sha256").update(JSON.stringify({ crv: hdr.jwk.crv, kty: hdr.jwk.kty, x: hdr.jwk.x, y: hdr.jwk.y })).digest("base64url");
+      const ath = createHash("sha256").update(b.ticket).digest("base64url");
+      if (!okSig || thumb !== jkt || pay.htm !== "POST" || pay.htu !== `${XT}/pii/reveal` || pay.ath !== ath || tickets.get(b.ticket) !== false) {
+        return new Response(JSON.stringify({ error: "TICKET_INVALID" }), { status: 403 });
+      }
+      tickets.set(b.ticket, true);
+      return new Response(JSON.stringify({ values: { [TOKEN]: SECRET }, denied: [] }));
+    };
+    return { signer, calls, reqs, callTool, fetchImpl };
+  }
+
+  it("tool chỉ nhận {tokens}; POST chỉ {ticket} + proof DPoP (ath của vé, htu = URL reveal)", async () => {
+    const xt = await dpopXt();
+    const out = await revealTokens([TOKEN], { callTool: xt.callTool, fetch: xt.fetchImpl, xtOrigin: XT, subtle: webcrypto.subtle as SubtleCrypto, dpop: { signer: xt.signer, bound: true } });
+    expect(out.values[TOKEN]).toBe(SECRET);
+    expect(xt.calls).toEqual([{ tokens: [TOKEN] }]);
+    expect(xt.reqs).toHaveLength(1);
+    const { url, init } = xt.reqs[0];
+    expect(url).toBe(`${XT}/pii/reveal`);
+    expect(JSON.parse(String(init.body))).toEqual({ ticket: "tk-0" });
+    expect(init).toMatchObject({ method: "POST", credentials: "omit", cache: "no-store", referrerPolicy: "no-referrer" });
+    expect((init.headers as Record<string, string>)["content-type"]).toBe("application/json");
+    const pay = JSON.parse(Buffer.from((init.headers as Record<string, string>).DPoP.split(".")[1], "base64url").toString());
+    expect(pay).toMatchObject({ htm: "POST", htu: `${XT}/pii/reveal`, ath: createHash("sha256").update("tk-0").digest("base64url") });
+  });
+
+  it("dpop có nhưng chưa bound => giữ luồng khóa riêng của khung (pubkey_jwk + ts/sig)", async () => {
+    const xt = mockXt();
+    const signer = new DpopSigner({ store: memoryKeyStore(), subtle: webcrypto.subtle as SubtleCrypto });
+    let body: Record<string, unknown> = {};
+    let headers: Record<string, string> = {};
+    const f: typeof fetch = async (u, init) => {
+      body = JSON.parse(String(init!.body));
+      headers = init!.headers as Record<string, string>;
+      return xt.fetchImpl(u, init);
+    };
+    const out = await revealTokens([TOKEN], { callTool: xt.callTool, fetch: f, xtOrigin: XT, subtle: webcrypto.subtle as SubtleCrypto, dpop: { signer, bound: false } });
+    expect(out.values[TOKEN]).toBe(SECRET);
+    expect(Object.keys(body).sort()).toEqual(["sig", "ticket", "ts"]);
+    expect(headers.DPoP).toBeUndefined();
   });
 });
 

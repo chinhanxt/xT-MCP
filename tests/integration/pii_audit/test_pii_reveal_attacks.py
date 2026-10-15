@@ -46,7 +46,9 @@ pytestmark = pytest.mark.integration
 
 HR = "NV-0026"  # vai trò hr: có pii.reveal (gói kenh-pii) nhưng không phải người duyệt/đọc đề nghị
 OUTSIDER = "NV-0003"  # nhân viên phòng D01, không liên quan đề nghị của REQUESTER (D03)
-EXTRA = (HR, OUTSIDER)
+# Người riêng cho test quota (quota theo người, cửa sổ 60 s): không dùng ở module/suite nào khác.
+RATE_PERSON = "NV-0005"
+EXTRA = (HR, OUTSIDER, RATE_PERSON)
 TOKEN_RE = re.compile(r"\[PII:[a-z2-7]{16}\]")
 ACCOUNT = "9704221100223344"
 
@@ -496,12 +498,14 @@ async def test_vault_field_follows_sensitive_source(s: Stack, pg: pgfixture.Pg) 
 # --------------------------------------------------------- 7. giới hạn tần suất ----
 @pytest.mark.anyio
 async def test_mint_and_reveal_are_rate_limited(s: Stack) -> None:
-    tok = await see_email(s, OUTSIDER)  # người riêng: quota theo người, không ảnh hưởng test khác
+    tok = await see_email(
+        s, RATE_PERSON
+    )  # người riêng: quota theo người, không ảnh hưởng test khác
     throttled = 0
     limit = int(s.env["XT_PII_REVEAL_TICKETS_PER_MINUTE"])
     for _ in range(limit + 10):  # quota theo người của stack test
         f = DeskFrame()
-        r = await mint(s, OUTSIDER, [tok], f)
+        r = await mint(s, RATE_PERSON, [tok], f)
         if r.is_error:
             throttled += 1
             continue

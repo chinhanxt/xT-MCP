@@ -62,8 +62,17 @@ KC_ROLES = {
     "it_admin",
     "admin",
 }
-# Vai trò KC cho vai trò HR không có trong realm (kế toán viên -> kế toán thanh toán).
-KC_ROLE_ALIAS = {"accountant": "payment_accountant"}
+
+
+def mapped_roles(t: dict[str, Any], e: dict[str, Any]) -> list[str]:
+    """Vai trò gói của nhân sự theo `mapping.json` của seed (cùng quy tắc `xt org import --mapping`)."""
+    m = json.loads(Path(t["mapping"]).read_text(encoding="utf-8"))["roles"]
+    dept = e.get("department_id")
+    out: list[str] = []
+    for r in e.get("roles", []):
+        out += [*m[r], *m.get(f"{r}@{dept}", [])]
+    return list(dict.fromkeys(out))
+
 
 TENANTS: list[dict[str, Any]] = [
     {
@@ -71,6 +80,7 @@ TENANTS: list[dict[str, Any]] = [
         "name": "Công ty TNHH Bình Minh",
         "domain": "binhminh.example",
         "org": ROOT / "seed" / "binh-minh" / "org.json",
+        "mapping": ROOT / "seed" / "binh-minh" / "mapping.json",
         # 3 gói nghiệp vụ lõi trước, sau đó mọi gói khác có trong packages/ (vd. quản trị mô hình, kênh PII).
         "packs": [
             "de-xuat-phe-duyet",
@@ -90,6 +100,7 @@ TENANTS: list[dict[str, Any]] = [
         "name": "Cửa hàng Hoa Mai",
         "domain": "hoamai.example",
         "org": ROOT / "seed" / "hoa-mai" / "org.json",
+        "mapping": ROOT / "seed" / "hoa-mai" / "mapping.json",
         "packs": ["de-xuat-phe-duyet", "giao-viec-sla"],
         # chủ cửa hàng (giám đốc), trưởng nhóm Bán hàng, 1 nhân viên Bán hàng
         "people": ["NV-0001", "NV-0004", "NV-0007"],
@@ -235,8 +246,8 @@ def seed_users(
     subjects: dict[str, str] = {}
     for key in t["people"]:
         e = by_id[key]
-        roles = list(e.get("roles", []))
-        kc_roles = sorted({KC_ROLE_ALIAS.get(r, r) for r in [*roles, "employee"]} & KC_ROLES)
+        roles = mapped_roles(t, e)
+        kc_roles = sorted({*roles, "employee"} & KC_ROLES)
         approver = bool(set(roles) & TOTP_ROLES)
         uname = kc_username(e["email"])
         fresh = "password" not in secrets_db.get(uname, {}) or (
@@ -303,6 +314,7 @@ def import_org(
         lk = {**links, "agent_grants": [*links["agent_grants"], *(extra_grants or [])]}
         (d / "links.json").write_text(json.dumps(lk, ensure_ascii=False), encoding="utf-8")
         shutil.copyfile(org_file, d / "org.json")
+        shutil.copyfile(org_file.with_name("mapping.json"), d / "mapping.json")  # cạnh org.json
         for f in d.iterdir():
             f.chmod(0o644)
         return xt_ok(
@@ -314,6 +326,8 @@ def import_org(
                 "/seed/org.json",
                 "--links",
                 "/seed/links.json",
+                "--mapping",
+                "/seed/mapping.json",
                 "--base-roles",
                 "employee",
             ],

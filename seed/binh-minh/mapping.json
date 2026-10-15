@@ -1,0 +1,34 @@
+{
+  "departments": {
+    "D01": "BGD",
+    "D02": "KT",
+    "D03": "KD",
+    "D04": "NS",
+    "D05": "IT",
+    "D06": "MKT",
+    "D07": "VH"
+  },
+  "roles": {
+    "director": [
+      "director"
+    ],
+    "dept_head": [
+      "dept_head"
+    ],
+    "employee": [
+      "employee"
+    ],
+    "hr": [
+      "hr"
+    ],
+    "it": [
+      "it_admin"
+    ],
+    "accountant": [
+      "payment_accountant"
+    ],
+    "dept_head@D02": [
+      "chief_accountant"
+    ]
+  }
+}

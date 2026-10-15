@@ -12,6 +12,7 @@ from xt.adapters.mcp.http_app import (
     Challenge,
     DuplicateKeyGuard,
     HttpAuth,
+    RequestFacts,
     build_http_app,
     http_caller,
 )
@@ -39,6 +40,7 @@ __all__ = [
     "ClientClassifier",
     "DuplicateKeyGuard",
     "HttpAuth",
+    "RequestFacts",
     "UiResource",
     "XtMcpServer",
     "build_http_app",

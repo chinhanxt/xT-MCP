@@ -43,6 +43,8 @@ export function App() {
   }, []);
   const [authState, setAuthState] = useState<AuthState>({ status: "unauthenticated" });
   const auth = useMemo(() => session?.authHeaders ?? (async () => Promise.reject(new AuthRequiredError())), [session]);
+  // phiên DPoP-bound => PII reveal dùng proof DPoP thay cho khóa riêng của khung
+  const revealDpop = useMemo(() => () => (session?.dpop ? { signer: session.dpop, bound: session.dpopBound() } : undefined), [session]);
   const llm = useMemo(() => createLlm({ baseUrl: LLM_PATH, model: config.model, reasoningEffort: config.reasoningEffort, authHeaders: auth }), [auth]);
 
   // callback OIDC (/auth/callback) hoặc đăng nhập sẵn có
@@ -166,7 +168,7 @@ export function App() {
         {authState.status === "authenticated" && items.length === 0 && <p className="hint">{mcp ? "Hỏi gì đó, ví dụ: “Cho tôi xem sơ đồ tổ chức”." : "Đang kết nối MCP..."}</p>}
         {items.map((it) =>
           it.kind === "tool" ? (
-            <ToolItem key={it.id} entry={it.entry} client={mcp!.client} allTools={mcp!.tools} sandboxUrl={sandboxUrl} onOpenLink={openLink} />
+            <ToolItem key={it.id} entry={it.entry} client={mcp!.client} allTools={mcp!.tools} sandboxUrl={sandboxUrl} onOpenLink={openLink} dpop={revealDpop} />
           ) : it.kind === "note" ? (
             <div key={it.id} className="note" role="status">
               {it.text}

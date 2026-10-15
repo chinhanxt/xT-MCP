@@ -63,7 +63,7 @@ IDEM: Schema = {
 EXPECTED_REV: Schema = {
     "type": "integer",
     "minimum": 1,
-    "description": "`revision` of the record from get_record (not model_revision). Never guess. revision_conflict -> get_record again, retry with that revision and the same idempotency_key.",
+    "description": "The record's current `revision` exactly as get_record shows it (revision 2 -> send 2; not +1, not model_revision). revision_conflict -> retry with details.current_revision and the same idempotency_key.",
 }
 LIMIT: Schema = {
     "type": "integer",

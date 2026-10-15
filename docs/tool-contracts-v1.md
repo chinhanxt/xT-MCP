@@ -1232,7 +1232,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 {
   "name": "get_record",
   "since": "0.1",
-  "description": "Read one item by ref: any record, request (with route and current step), task, process instance (steps and status), document or file (with extracted text). Shows the revision and allowed transitions you need before changing it. VD: 'Đề xuất TU-2026-0042 đang ở bước nào?'",
+  "description": "Read one item by ref: any record, request (with route and current step), task, process instance (steps and status), document or file (with extracted text). Shows the revision and allowed transitions you need before changing it; the step with state 'active' is the current one. VD: 'Đề xuất TU-2026-0042 đang ở bước nào?'",
   "max_autonomy": "L0",
   "human_only": false,
   "effects_true": ["idempotent"],
@@ -1777,7 +1777,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 5.11. `update_record`
 
 - Mức: **L2** · effects: `mutates_records, enqueues_work, notifies_internal, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 1300 B, data 1527 B, outputSchema (envelope) 2594 B.
+- Kích thước: input 1332 B, data 1527 B, outputSchema (envelope) 2594 B.
 - Ghi chú: Field `state` → `precondition_failed` reason `state_field` + continuation sang `transition_record`. Field `impact: high` (vd `assignee` của task giao ngoài tuyến) → L2.
 
 ```json
@@ -1826,7 +1826,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "expected_revision": {
         "type": "integer",
         "minimum": 1,
-        "description": "`revision` of the record from get_record (not model_revision). Never guess. revision_conflict -> get_record again, retry with that revision and the same idempotency_key."
+        "description": "The record's current `revision` exactly as get_record shows it (revision 2 -> send 2; not +1, not model_revision). revision_conflict -> retry with details.current_revision and the same idempotency_key."
       },
       "reason": {
         "type": "string",
@@ -1931,7 +1931,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 5.12. `transition_record`
 
 - Mức: **L3** · effects: `mutates_records, enqueues_work, notifies_internal, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 1389 B, data 1898 B, outputSchema (envelope) 2965 B.
+- Kích thước: input 1421 B, data 1898 B, outputSchema (envelope) 2965 B.
 - Ghi chú: `(current_state, to_state)` xác định duy nhất transition. Level do transition khai báo. Request: chỉ `withdrawn`; state khác → `precondition_failed` + continuation `submit_request`/`decide_request`. `depends_on` chưa xong → `precondition_failed` reason `dependency_open`.
 
 ```json
@@ -1984,7 +1984,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "expected_revision": {
         "type": "integer",
         "minimum": 1,
-        "description": "`revision` of the record from get_record (not model_revision). Never guess. revision_conflict -> get_record again, retry with that revision and the same idempotency_key."
+        "description": "The record's current `revision` exactly as get_record shows it (revision 2 -> send 2; not +1, not model_revision). revision_conflict -> retry with details.current_revision and the same idempotency_key."
       },
       "reason": {
         "type": "string",
@@ -2298,7 +2298,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 5.15. `decide_request`
 
 - Mức: **human-only** · effects: `mutates_records, mutates_definitions, enqueues_work, notifies_internal, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 1276 B, data 991 B, outputSchema (envelope) 2058 B.
+- Kích thước: input 1308 B, data 991 B, outputSchema (envelope) 2058 B.
 - Ghi chú: `human_only`: kể cả agent ở trần L3 cũng nhận `confirmation_required`; người xác nhận phải là người được giao bước. Người đề nghị/không được giao → `access_denied` (sod/not_assigned_approver) trước mọi xác nhận. `reason` bắt buộc với reject/return; `delegate_to` bắt buộc với delegate, phải là human khác người đề nghị (kiểm ở server). Request quản trị (proposal) duyệt xong → worker kích hoạt có revalidate.
 
 ```json
@@ -2349,7 +2349,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "expected_revision": {
         "type": "integer",
         "minimum": 1,
-        "description": "`revision` of the record from get_record (not model_revision). Never guess. revision_conflict -> get_record again, retry with that revision and the same idempotency_key."
+        "description": "The record's current `revision` exactly as get_record shows it (revision 2 -> send 2; not +1, not model_revision). revision_conflict -> retry with details.current_revision and the same idempotency_key."
       },
       "idempotency_key": {
         "type": "string",
@@ -3004,7 +3004,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 6.1. `start_process`
 
 - Mức: **L3** · effects: `mutates_records, enqueues_work, notifies_internal, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 1002 B, data 401 B, outputSchema (envelope) 1468 B.
+- Kích thước: input 1035 B, data 401 B, outputSchema (envelope) 1468 B.
 - Ghi chú: Hầu hết quy trình vòng đời khởi động qua `transition_record` (`starts_process`) hoặc trigger timer/event; tool này cho trigger `manual`.
 
 ```json
@@ -3103,7 +3103,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 6.2. `propose_process_change`
 
 - Mức: **L1** · effects: `mutates_records, enqueues_work, notifies_internal, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 2280 B, data 505 B, outputSchema (envelope) 1572 B.
+- Kích thước: input 2313 B, data 505 B, outputSchema (envelope) 1572 B.
 - Ghi chú: Bounded operations trước, chưa mở graph đầy đủ (12 KB của bản nháp). Instance đang chạy giữ revision cũ.
 
 ```json
@@ -3252,7 +3252,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 6.3. `delete_record`
 
 - Mức: **L3** · effects: `mutates_records, enqueues_work, may_discard_data, idempotent` · annotations: readOnly=False, destructive=True, idempotent=True, openWorld=False
-- Kích thước: input 815 B, data 160 B, outputSchema (envelope) 1227 B.
+- Kích thước: input 947 B, data 160 B, outputSchema (envelope) 1227 B.
 - Ghi chú: Tool destructive duy nhất. Xóa/ẩn danh PII theo Luật 91/2025 chạy qua process (`transition_record(person,'erasure_requested')`), có human gate và tombstone hash.
 
 ```json
@@ -3287,7 +3287,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "expected_revision": {
         "type": "integer",
         "minimum": 1,
-        "description": "`revision` of the record from get_record (not model_revision). Never guess. revision_conflict -> get_record again, retry with that revision and the same idempotency_key."
+        "description": "The record's current `revision` exactly as get_record shows it (revision 2 -> send 2; not +1, not model_revision). revision_conflict -> retry with details.current_revision and the same idempotency_key."
       },
       "reason": {
         "type": "string",
@@ -3315,7 +3315,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 6.4. `notify`
 
 - Mức: **L2** · effects: `mutates_records, notifies_internal, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 860 B, data 364 B, outputSchema (envelope) 1431 B.
+- Kích thước: input 893 B, data 364 B, outputSchema (envelope) 1431 B.
 - Ghi chú: Closed-world theo bất biến §2; rate-limit theo người nhận.
 
 ```json
@@ -3634,29 +3634,29 @@ Ngân sách REA là ≤ 13.312 B mỗi input.
 | `find_people` | 0.1 | L0 | 1095 | 1009 | 1491 | 2558 | 1452 | 3969 | 258 | 8/0 | T | F | T | F |
 | `search_records` | 0.1 | L0 | 2243 | 2173 | 744 | 1811 | 2662 | 4432 | 285 | 8/0 | T | F | T | F |
 | `aggregate_records` | 0.1 | L0 | 2972 | 2879 | 1000 | 2067 | 3319 | 5345 | 240 | 12/1 | T | F | T | F |
-| `get_record` | 0.1 | L0 | 813 | 756 | 2615 | 3682 | 1217 | 4858 | 271 | 4/1 | T | F | T | F |
+| `get_record` | 0.1 | L0 | 813 | 756 | 2615 | 3682 | 1266 | 4907 | 320 | 4/1 | T | F | T | F |
 | `get_inbox` | 0.1 | L0 | 815 | 728 | 980 | 2047 | 1232 | 3238 | 314 | 5/0 | T | F | T | F |
 | `get_history` | 0.1 | L0 | 859 | 768 | 1617 | 2684 | 1199 | 3842 | 238 | 4/1 | T | F | T | F |
 | `create_record` | 0.1 | L2 | 1020 | 963 | 1704 | 2771 | 1459 | 4189 | 293 | 4/3 | F | F | T | F |
-| `update_record` | 0.1 | L2 | 1300 | 1243 | 1527 | 2594 | 1700 | 4253 | 257 | 5/4 | F | F | T | F |
-| `transition_record` | 0.1 | L3 | 1389 | 1332 | 1898 | 2965 | 1891 | 4815 | 357 | 6/4 | F | F | T | F |
+| `update_record` | 0.1 | L2 | 1332 | 1275 | 1527 | 2594 | 1732 | 4285 | 257 | 5/4 | F | F | T | F |
+| `transition_record` | 0.1 | L3 | 1421 | 1364 | 1898 | 2965 | 1923 | 4847 | 357 | 6/4 | F | F | T | F |
 | `upload_file` | 0.1 | L1 | 1046 | 989 | 751 | 1818 | 1520 | 3297 | 341 | 6/3 | F | F | T | F |
 | `submit_request` | 0.1 | L2 | 767 | 710 | 896 | 1963 | 1126 | 3048 | 219 | 4/2 | F | F | T | F |
-| `decide_request` | 0.1 | human-only | 1276 | 1219 | 991 | 2058 | 1983 | 4000 | 566 | 6/4 | F | F | T | F |
+| `decide_request` | 0.1 | human-only | 1308 | 1251 | 991 | 2058 | 2015 | 4032 | 566 | 6/4 | F | F | T | F |
 | `create_task` | 0.1 | L2 | 2592 | 2499 | 703 | 1770 | 2996 | 4725 | 307 | 13/3 | F | F | T | F |
 | `propose_model_change` | 0.1 | L1 | 8899 | 8827 | 988 | 2055 | 9338 | 11352 | 299 | 6/4 | F | F | T | F |
 | `start_process` | 1.0 | L3 | 1035 | 978 | 401 | 1468 | 1400 | 2827 | 227 | 4/2 | F | F | T | F |
 | `propose_process_change` | 1.0 | L1 | 2313 | 2241 | 505 | 1572 | 2713 | 4244 | 252 | 6/4 | F | F | T | F |
-| `delete_record` | 1.0 | L3 | 915 | 858 | 160 | 1227 | 1238 | 2424 | 191 | 4/3 | F | T | T | F |
+| `delete_record` | 1.0 | L3 | 947 | 890 | 160 | 1227 | 1270 | 2456 | 191 | 4/3 | F | T | T | F |
 | `notify` | 1.0 | L2 | 893 | 836 | 364 | 1431 | 1193 | 2583 | 179 | 4/3 | F | F | T | F |
 
 | Tập | Số tool | Σ input (B) | Σ compact (B) | Σ data (B) | Σ outputSchema (B) | tools/list (B) | tools/list + outputSchema (B) | Token tool thật trên qwen3.5:4b |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| v0.1 | 17 | 28553 | 27375 | 25473 | 43612 | 35688 | 78603 | 8155 |
-| v1.0 (tất cả) | 21 | 33709 | 32288 | 26903 | 49310 | 42232 | 90681 | 9635 |
-| core-10 (model nhỏ) | 10 | 14982 | 14268 | 13022 | 23692 | 19337 | 42619 | 3916 |
+| v0.1 | 17 | 28649 | 27471 | 25473 | 43612 | 35833 | 78748 | 8155 |
+| v1.0 (tất cả) | 21 | 33837 | 32416 | 26903 | 49310 | 42409 | 90858 | 9635 |
+| core-10 (model nhỏ) | 10 | 15046 | 14332 | 13022 | 23692 | 19450 | 42732 | 3916 |
 
-Input lớn nhất: 8866 B (`propose_model_change`) = 66% ngân sách REA 13.312 B. Token tool đo bằng `prompt_eval_count` của ollama (`/api/chat`, template tool của qwen3.5) trừ baseline không có tool (71 token); chỉ gồm name/description/parameters, không gồm outputSchema (ollama không gửi).
+Input lớn nhất: 8899 B (`propose_model_change`) = 66% ngân sách REA 13.312 B. Token tool đo bằng `prompt_eval_count` của ollama (`/api/chat`, template tool của qwen3.5) trừ baseline không có tool (71 token); chỉ gồm name/description/parameters, không gồm outputSchema (ollama không gửi).
 
 **Nhận xét:**
 - Input lớn nhất là `propose_model_change`, vẫn dưới ngân sách REA. Lý do là nó nhúng FieldSpec, StateSpec, TransitionSpec, RuleSpec và MetricSpec có description đầy đủ. Tool này **không** nằm trong hồ sơ cho model nhỏ.

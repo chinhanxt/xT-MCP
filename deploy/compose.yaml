@@ -153,6 +153,7 @@ services:
       context: ..
       dockerfile: deploy/docker/xt.Dockerfile
     profiles: [minimal, full, public]
+    networks: [default, files]   # files: chỉ để gọi S3 nội bộ (FB-03)
     command: ["serve", "--transport", "http", "--host", "0.0.0.0", "--port", "8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status == 200 else 1)"]
@@ -190,6 +191,9 @@ services:
       XT_FILES_MAX_BYTES: ${XT_FILES_MAX_BYTES:-26214400}
       XT_FILES_UPLOAD_TTL_SECONDS: ${XT_FILES_UPLOAD_TTL_SECONDS:-900}
       XT_FILES_UNSCANNED_DOWNLOAD: ${XT_FILES_UNSCANNED_DOWNLOAD:-uploader}
+      XT_FILES_MAX_PENDING_PER_USER: ${XT_FILES_MAX_PENDING_PER_USER:-20}
+      XT_FILES_USER_QUOTA_BYTES: ${XT_FILES_USER_QUOTA_BYTES:-268435456}
+      XT_FILES_TENANT_QUOTA_BYTES: ${XT_FILES_TENANT_QUOTA_BYTES:-1073741824}
       XT_FILES_CLAMD: ${XT_FILES_CLAMD:-}   # profile full: clamav:3310 (tệp ở trạng thái scanning tới khi ClamAV trả lời)
       XT_IDP_ADMIN_API_URL: http://keycloak:8080/admin/realms/${XT_REALM:-xt}
       XT_IDP_ADMIN_TOKEN_URL: http://keycloak:8080/realms/${XT_REALM:-xt}/protocol/openid-connect/token
@@ -217,6 +221,7 @@ services:
       XT_PII_REVEAL_ORIGINS: https://${XT_DOMAIN_DESK}
       XT_PII_REVEAL_CLIENTS: ${XT_DESK_AGENT_CLIENT_ID:-xt-desk-agent}
       XT_PII_REVEAL_TICKETS_PER_MINUTE: ${XT_PII_REVEAL_TICKETS_PER_MINUTE:-10}
+      XT_DPOP_REQUIRED: ${XT_DPOP_REQUIRED:-false}   # RFC 9449 cho xt-desk-agent; bật sau cổng e2e (provision.py dùng cùng cờ)
       XT_MCP_CONFIDENTIAL_CLIENTS: ${XT_MCP_CONFIDENTIAL_CLIENTS:-}
       # Desk gọi /mcp cùng origin qua host Desk (route desk-mcp): thêm host + origin Desk
       XT_MCP_ALLOWED_HOSTS: ${XT_DOMAIN_MCP},${XT_DOMAIN_DESK}
@@ -310,6 +315,7 @@ services:
     cpus: 1.0
     image: xt/xt:dev
     profiles: [minimal, full, public]
+    networks: [default, files]   # files: dọn/quét lại tệp (job files.maintain)
     command: ["worker"]
     environment:
       <<: *xt-db-env
@@ -324,6 +330,14 @@ services:
       XT_WORKFLOW_RELAY_SECONDS: ${XT_WORKFLOW_RELAY_SECONDS:-15}   # chu kỳ relay hẹn giờ SLA + outbox model
       # model.apply (đề xuất model đã duyệt): pha 1 DDL + pha 2 bằng role migrator
       XT_DB_MIGRATOR_URL: postgresql://xt_migrator:${XT_DB_MIGRATOR_PASSWORD:?chạy make env}@postgres:5432/${POSTGRES_DB:-xt}
+      # Dịch vụ tệp: job files.maintain (dọn ý định hết hạn/quarantine, quét lại) — docs/files-api.md
+      XT_FILES_S3_ENDPOINT: http://seaweedfs:8333
+      XT_FILES_S3_BUCKET: ${XT_FILES_S3_BUCKET:-xt-files}
+      XT_FILES_S3_ACCESS_KEY: ${XT_FILES_S3_ACCESS_KEY:?chạy make env}
+      XT_FILES_S3_SECRET_KEY: ${XT_FILES_S3_SECRET_KEY:?chạy make env}
+      XT_FILES_PUBLIC_URL: https://${XT_DOMAIN_API}
+      XT_FILES_CLAMD: ${XT_FILES_CLAMD:-}
+      XT_CURSOR_KEY_FILE: /run/secrets/xt/cursor.key
     volumes:
       - type: bind
         source: ${XT_SECRETS_DIR:-${HOME}/.config/xt}/app
@@ -398,11 +412,19 @@ services:
     image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d       # Apache-2.0
     profiles: [minimal, full, public]
     # research/footprint.md: volume 64 MB, tối đa 8 volume; đo 86-233 MiB RSS (sau PUT 20 MB).
+    # Dung lượng = volume.max x 64 MB = 2 GiB (quota mặc định: 256 MiB/người, 1 GiB/tenant).
     command: ["server", "-dir=/data", "-s3", "-s3.port=8333", "-s3.config=/etc/xt-s3/s3.json",
-              "-master.volumeSizeLimitMB=64", "-volume.max=8", "-ip=127.0.0.1", "-ip.bind=0.0.0.0"]
+              "-master.volumeSizeLimitMB=64", "-volume.max=32", "-ip=127.0.0.1", "-ip.bind=0.0.0.0"]
+    # FB-03: chỉ mạng nội bộ `files` (internal, không ra Internet, không chung mạng default với
+    # keycloak/postgrest/desk/apisix); không `ports`. security.toml bật JWT cho volume + filer: chỉ
+    # S3 (SigV4, khóa trong .env) đọc/ghi được byte; master/volume/filer trả 401 cho truy cập trực tiếp.
+    networks: [files]
     configs:
       - source: seaweed-s3
         target: /etc/xt-s3/s3.json
+        mode: 0444
+      - source: seaweed-security
+        target: /etc/seaweedfs/security.toml
         mode: 0444
     volumes: [seaweed:/data]
     mem_limit: 512m
@@ -416,6 +438,7 @@ services:
     cpus: 2.0
     image: clamav/clamav:1.4@sha256:b5b910ce43d595bf8a2fe401e34db56434602b2c755b7c2b07f00c917d04d469              # GPL-2.0, tiến trình riêng
     profiles: [full]
+    networks: [files]   # chỉ xt-api/xt-worker gọi clamd
     volumes: [clamav:/var/lib/clamav]
     mem_limit: 2g
 
@@ -454,8 +477,29 @@ volumes:
   seaweed:
   clamav:
 
+networks:
+  default: {}
+  # FB-03: SeaweedFS (+ clamd) chỉ nối mạng này; internal = không có route ra ngoài, không publish.
+  files:
+    internal: true
+
 # Danh tính S3 duy nhất của SeaweedFS (xt-api); giá trị từ deploy/.env (envfile.py tự sinh).
 configs:
   seaweed-s3:
     content: |
       {"identities": [{"name": "xt-api", "credentials": [{"accessKey": "${XT_FILES_S3_ACCESS_KEY:?chạy make env}", "secretKey": "${XT_FILES_S3_SECRET_KEY:?chạy make env}"}], "actions": ["Admin", "Read", "Write", "List", "Tagging"]}]}
+  # JWT nội bộ của SeaweedFS (volume ghi/đọc, filer ghi/đọc): truy cập thẳng :8080/:8888 bị 401.
+  seaweed-security:
+    content: |
+      [jwt.signing]
+      key = "${XT_SEAWEED_JWT_WRITE_KEY:?chạy make env}"
+      expires_after_seconds = 10
+      [jwt.signing.read]
+      key = "${XT_SEAWEED_JWT_READ_KEY:?chạy make env}"
+      expires_after_seconds = 10
+      [jwt.filer_signing]
+      key = "${XT_SEAWEED_FILER_JWT_WRITE_KEY:?chạy make env}"
+      expires_after_seconds = 10
+      [jwt.filer_signing.read]
+      key = "${XT_SEAWEED_FILER_JWT_READ_KEY:?chạy make env}"
+      expires_after_seconds = 10

@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { config } from "./config";
-import { createRevealStore, REVEAL_TOOLTIP, REVEAL_TTL_MS, revealTokens, type RevealOutcome } from "./pii";
+import { createRevealStore, REVEAL_TOOLTIP, REVEAL_TTL_MS, revealTokens, type RevealDeps, type RevealOutcome } from "./pii";
 import type { ToolResult } from "./types";
 
 /** Nút "Hiện" cho token PII trong kết quả tool. Giá trị thật chỉ ở state của component này (không vào history LLM/log). */
-export function PiiReveal({ tokens, client }: { tokens: string[]; client: Client }) {
+export function PiiReveal({ tokens, client, dpop }: { tokens: string[]; client: Client; dpop?: () => RevealDeps["dpop"] }) {
   const store = useMemo(() => createRevealStore(), []);
   const [shown, setShown] = useState<RevealOutcome | null>(null);
   const [busy, setBusy] = useState(false);
@@ -38,6 +38,7 @@ export function PiiReveal({ tokens, client }: { tokens: string[]; client: Client
           callTool: (p) => client.callTool(p) as Promise<ToolResult>,
           fetch: (...a) => fetch(...a),
           xtOrigin: config.xtOrigin,
+          dpop: dpop?.(),
         }),
       );
     } catch (e) {

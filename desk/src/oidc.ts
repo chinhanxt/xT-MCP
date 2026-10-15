@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: 2026 xT contributors
 // OIDC authorization-code + PKCE (S256) cho client public `xt-desk-agent`. Token CHỈ nằm trong bộ nhớ.
 // sessionStorage chỉ giữ {state, verifier, nonce} tạm thời qua lần chuyển hướng đăng nhập (không phải token).
+// Có signer DPoP => mọi request token gửi proof (RFC 9449); Keycloak trả token_type DPoP + cnf.jkt => phiên bị ràng khóa.
+import type { DpopProver } from "./dpop";
 
 export interface OidcConfig {
   issuer: string;
@@ -22,6 +24,13 @@ export interface OidcDeps {
   navigate: (url: string) => void;
   now: () => number; // ms
   skewSeconds?: number; // làm mới trước khi hết hạn
+  dpop?: DpopProver;
+}
+
+/** Request mà header được gắn vào (cho proof DPoP: htm/htu). */
+export interface AuthRequest {
+  method: string;
+  url: string;
 }
 
 export type AuthStatus = "unauthenticated" | "authenticating" | "authenticated" | "error";
@@ -46,6 +55,14 @@ interface Tokens {
   access: string;
   refresh?: string;
   expiresAt: number; // ms
+  bound: boolean; // DPoP-bound
+}
+interface TokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+  id_token?: string;
+  token_type?: string;
 }
 const PKCE_KEY = "xt.desk.oidc.pending";
 
@@ -166,7 +183,7 @@ export class OidcSession {
         if (!aud.includes(this.cfg.clientId)) throw new Error("id_token: aud sai");
         if (c.nonce !== pending.nonce) throw new Error("id_token: nonce sai");
       }
-      this.store(tok);
+      this.store(tok, await this.bindingOf(tok));
       this.set({ status: "authenticated" });
       return true;
     } catch (e) {
@@ -176,19 +193,35 @@ export class OidcSession {
     }
   }
 
-  private async tokenRequest(disc: Discovery, body: URLSearchParams): Promise<{ access_token: string; refresh_token?: string; expires_in?: number; id_token?: string }> {
-    const r = await this.d.fetch(disc.token_endpoint, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body,
-    });
+  private async tokenRequest(disc: Discovery, body: URLSearchParams): Promise<TokenResponse> {
+    const headers: Record<string, string> = { "content-type": "application/x-www-form-urlencoded" };
+    if (this.d.dpop) headers.DPoP = await this.d.dpop.proof("POST", disc.token_endpoint);
+    const r = await this.d.fetch(disc.token_endpoint, { method: "POST", headers, body });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.access_token) throw new Error(`Đổi token thất bại (${j.error ?? r.status})`);
     return j;
   }
 
-  private store(t: { access_token: string; refresh_token?: string; expires_in?: number }) {
-    this.tokens = { access: t.access_token, refresh: t.refresh_token, expiresAt: this.d.now() + (t.expires_in ?? 60) * 1000 };
+  /** Bound khi token_type = DPoP hoặc cnf.jkt = thumbprint của ta; token_type DPoP mà jkt khác (hoặc không có signer) => lỗi. */
+  private async bindingOf(t: TokenResponse): Promise<boolean> {
+    const isDpop = typeof t.token_type === "string" && t.token_type.toLowerCase() === "dpop";
+    let jkt: unknown;
+    try {
+      jkt = (jwtClaims(t.access_token).cnf as { jkt?: unknown } | undefined)?.jkt;
+    } catch {
+      jkt = undefined; // access token không phải JWT
+    }
+    if (!this.d.dpop) {
+      if (isDpop) throw new Error("Token DPoP nhưng Desk không có khóa DPoP");
+      return false;
+    }
+    const mine = await this.d.dpop.thumbprint();
+    if (isDpop && jkt !== undefined && jkt !== mine) throw new Error("Token DPoP ràng với khóa khác (cnf.jkt không khớp)");
+    return isDpop || jkt === mine;
+  }
+
+  private store(t: TokenResponse, bound: boolean) {
+    this.tokens = { access: t.access_token, refresh: t.refresh_token, expiresAt: this.d.now() + (t.expires_in ?? 60) * 1000, bound };
   }
 
   /** Access token hợp lệ; làm mới (refresh token rotation, single-flight) khi sắp hết hạn. Null nếu chưa đăng nhập. */
@@ -209,7 +242,7 @@ export class OidcSession {
         disc,
         new URLSearchParams({ grant_type: "refresh_token", refresh_token: t.refresh, client_id: this.cfg.clientId }),
       );
-      this.store(tok); // refresh token mới thay thế cái cũ (rotation); cái cũ không dùng lại
+      this.store(tok, await this.bindingOf(tok)); // refresh token mới thay thế cái cũ (rotation); cái cũ không dùng lại
       return this.tokens!.access;
     } catch (e) {
       this.tokens = null;
@@ -223,10 +256,26 @@ export class OidcSession {
     this.set({ status: "unauthenticated" });
   }
 
-  /** Header Authorization cho MCP/LLM. Chưa đăng nhập => ném AuthRequiredError (fail closed). */
-  authHeaders = async (): Promise<Record<string, string>> => {
+  /** Phiên hiện tại có token ràng khóa DPoP. */
+  dpopBound(): boolean {
+    return this.tokens?.bound ?? false;
+  }
+
+  /** Signer DPoP của phiên (luồng PII reveal dùng chung khóa). */
+  get dpop(): DpopProver | undefined {
+    return this.d.dpop;
+  }
+
+  /**
+   * Header cho MCP/LLM. Chưa đăng nhập => ném AuthRequiredError (fail closed).
+   * Bound + có request => `Authorization: DPoP` + proof mới (jti mới, ath của token); không có request (LLM gateway) => Bearer.
+   */
+  authHeaders = async (req?: AuthRequest): Promise<Record<string, string>> => {
     const t = await this.getAccessToken();
     if (!t) throw new AuthRequiredError();
+    if (req && this.d.dpop && this.tokens?.bound) {
+      return { Authorization: `DPoP ${t}`, DPoP: await this.d.dpop.proof(req.method, req.url, { accessToken: t }) };
+    }
     return { Authorization: `Bearer ${t}` };
   };
 }

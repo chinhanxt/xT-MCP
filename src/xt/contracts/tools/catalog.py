@@ -724,7 +724,8 @@ _tool(
     ui_resource="ui://xt/record-card",
     description=(
         "Read one item by ref: any record, request (with route and current step), task, process instance (steps and status), "
-        "document or file (with extracted text). Shows the revision and allowed transitions you need before changing it. "
+        "document or file (with extracted text). Shows the revision and allowed transitions you need before changing it; "
+        "the step with state 'active' is the current one. "
         "VD: 'Đề xuất TU-2026-0042 đang ở bước nào?'"
     ),
     errors=["not_found", "invalid_request"],

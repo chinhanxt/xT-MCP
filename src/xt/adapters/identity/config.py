@@ -260,6 +260,7 @@ def load_resource_server_settings(env: Mapping[str, str] | None = None) -> Resou
         {
             e.optional("XT_WORKFLOW_AUDIENCE") or "xt-workflow",
             e.optional("XT_DATA_AUDIENCE") or "xt-data",
+            e.optional("XT_FILES_AUDIENCE") or "xt-files",  # FB-08
         }
     ) - {resource}
     banned = (set(supported) | required) & FORBIDDEN_ADVERTISED_SCOPES

@@ -1,0 +1,21 @@
+{
+  "departments": {
+    "D01": "BGD",
+    "D02": "KD",
+    "D03": "KHO"
+  },
+  "roles": {
+    "director": [
+      "director"
+    ],
+    "dept_head": [
+      "dept_head"
+    ],
+    "employee": [
+      "employee"
+    ],
+    "accountant": [
+      "payment_accountant"
+    ]
+  }
+}

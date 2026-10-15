@@ -47,6 +47,17 @@ class Challenge:
     body: Mapping[str, str] = field(default_factory=dict)
 
 
+@dataclass(frozen=True, slots=True)
+class RequestFacts:
+    """Dữ kiện HTTP cho proof-of-possession (DPoP, RFC 9449): method, path, Authorization thô,
+    mọi giá trị header `DPoP`."""
+
+    method: str
+    path: str
+    authorization: str
+    dpop: tuple[str, ...] = ()
+
+
 class HttpAuth(Protocol):
     """Cầu nối tới lớp danh tính (`AccessTokenVerifier`, `challenge_for`, PRM)."""
 
@@ -56,10 +67,10 @@ class HttpAuth(Protocol):
     def prm_document(self) -> Mapping[str, Any]: ...
 
     def bearer(self, authorization: str | None) -> str | None:
-        """None nếu thiếu header; header sai -> `InvalidTokenError`."""
+        """Token từ `Bearer`/`DPoP`; None nếu thiếu header; header sai -> `InvalidTokenError`."""
         ...
 
-    def verify(self, token: str) -> Principal:
+    def verify(self, token: str, request: RequestFacts) -> Principal:
         """Ném `InvalidTokenError` (401), `InsufficientScopeError` (403),
         `IdentityProviderUnavailableError` (503)."""
         ...
@@ -91,12 +102,20 @@ class AuthGate:
             return
         auth = self.auth
         try:
-            token = auth.bearer(Headers(scope=scope).get("authorization"))
+            headers = Headers(scope=scope)
+            authorization = headers.get("authorization")
+            token = auth.bearer(authorization)
             if token is None:
                 c = auth.challenge(None)
                 await _send_json(send, c.status, c.body, c.headers)
                 return
-            principal = await anyio.to_thread.run_sync(auth.verify, token)
+            facts = RequestFacts(
+                str(scope.get("method", "")),
+                str(scope.get("path", "")),
+                authorization or "",
+                tuple(headers.getlist("dpop")),
+            )
+            principal = await anyio.to_thread.run_sync(auth.verify, token, facts)
         except IdentityProviderUnavailableError:
             await _send_json(
                 send,

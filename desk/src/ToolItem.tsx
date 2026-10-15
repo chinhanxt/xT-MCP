@@ -7,7 +7,7 @@ import { createAppBridgeHandlers, createGlobalToolLimiter, createRateLimiter, sa
 import { config } from "./config";
 import { confirmInfo } from "./confirm";
 import { PiiReveal } from "./PiiReveal";
-import { extractTokens } from "./pii";
+import { extractTokens, type RevealDeps } from "./pii";
 import type { McpTool, ToolResult } from "./types";
 
 export interface ToolEntry {
@@ -25,6 +25,7 @@ interface Props {
   allTools: McpTool[];
   sandboxUrl: URL;
   onOpenLink: (url: string, frame: Element | null) => boolean;
+  dpop?: () => RevealDeps["dpop"]; // trạng thái DPoP của phiên, đọc lúc bấm "Hiện"
 }
 
 // Hằng số cố định: AppRenderer tạo lại bridge nếu identity của prop này đổi giữa các lần render.
@@ -118,7 +119,7 @@ export function ToolItem(props: Props) {
           {JSON.stringify({ arguments: entry.args, result: entry.result?.structuredContent ?? entry.result?.content }, null, 2)}
         </pre>
       )}
-      {piiTokens.length > 0 && <PiiReveal tokens={piiTokens} client={props.client} />}
+      {piiTokens.length > 0 && <PiiReveal tokens={piiTokens} client={props.client} dpop={props.dpop} />}
       {confirm && (
         <div className="confirm-card" data-testid="confirm-card">
           <div>Cần người dùng xác nhận{confirm.summary ? `: ${confirm.summary}` : "."}</div>

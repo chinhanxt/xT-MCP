@@ -2,7 +2,10 @@
 // SPDX-FileCopyrightText: 2026 xT contributors
 // Máy trạng thái đăng nhập OIDC (auth-code + PKCE) của Desk.
 import { describe, expect, it, vi } from "vitest";
+import { createHash, webcrypto } from "node:crypto";
 import { AuthRequiredError, OidcSession, pkceChallenge, validateConfig, type KvStorage } from "../src/oidc";
+import { DpopSigner, memoryKeyStore } from "../src/dpop";
+import { connectMcp } from "../src/mcp";
 
 const ISS = "https://kc.example/realms/xt";
 const CFG = { issuer: ISS, clientId: "xt-desk-agent", scope: "openid mcp-xt", redirectUri: "https://desk.example/auth/callback" };
@@ -14,11 +17,12 @@ function mem(): KvStorage & { data: Map<string, string> } {
   return { data, getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v), removeItem: (k) => void data.delete(k) };
 }
 
-function setup(over: { token?: (form: URLSearchParams, n: number) => { status?: number; body: unknown }; issuer?: string; endpointOrigin?: string } = {}) {
+function setup(over: { token?: (form: URLSearchParams, n: number) => { status?: number; body: unknown }; issuer?: string; endpointOrigin?: string; dpop?: DpopSigner } = {}) {
   const session = mem();
   let t = 1_000_000;
   const nav: string[] = [];
   const forms: URLSearchParams[] = [];
+  const tokenHeaders: Record<string, string>[] = [];
   let issued = 0;
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     if (url.endsWith("/.well-known/openid-configuration")) {
@@ -27,11 +31,12 @@ function setup(over: { token?: (form: URLSearchParams, n: number) => { status?: 
     }
     const form = new URLSearchParams(String(init!.body));
     forms.push(form);
+    tokenHeaders.push({ ...(init!.headers as Record<string, string>) });
     const r = over.token?.(form, forms.length) ?? { body: { access_token: `at${++issued}`, refresh_token: `rt${issued}`, expires_in: 300 } };
     return new Response(JSON.stringify(r.body), { status: r.status ?? 200 });
   });
-  const s = new OidcSession(CFG, { fetch: fetchMock as never, session, navigate: (u) => nav.push(u), now: () => t });
-  return { s, session, nav, forms, fetchMock, advance: (ms: number) => (t += ms) };
+  const s = new OidcSession(CFG, { fetch: fetchMock as never, session, navigate: (u) => nav.push(u), now: () => t, dpop: over.dpop });
+  return { s, session, nav, forms, tokenHeaders, fetchMock, advance: (ms: number) => (t += ms) };
 }
 
 /** Chạy startLogin rồi trả URL callback hợp lệ (mô phỏng Keycloak) */
@@ -197,5 +202,123 @@ describe("không rò token", () => {
     const { cb } = await loginUrl(h);
     await h.s.handleCallback(cb);
     expect(seen).toEqual(["authenticating", "authenticating", "authenticated"]);
+  });
+});
+
+describe("DPoP (RFC 9449)", () => {
+  const TOKEN_EP = "https://kc.example/realms/xt/token";
+  const dec = (x: string) => JSON.parse(Buffer.from(x, "base64url").toString("utf8"));
+  const proofOf = (jws: string) => {
+    const [h, p] = jws.split(".");
+    return { h: dec(h), p: dec(p) };
+  };
+  const signer = () => new DpopSigner({ store: memoryKeyStore(), subtle: webcrypto.subtle as SubtleCrypto });
+  const at = (claims: Record<string, unknown>) => `${b64({ alg: "RS256", typ: "at+jwt" })}.${b64(claims)}.c2ln`;
+
+  async function boundLogin(tokenType: string | undefined, jkt?: (mine: string) => string | undefined) {
+    const dpop = signer();
+    const mine = await dpop.thumbprint();
+    let n = 0;
+    const h = setup({
+      dpop,
+      token: () => {
+        n++;
+        const k = jkt?.(mine);
+        return { body: { access_token: at({ sub: "u1", n, ...(k ? { cnf: { jkt: k } } : {}) }), refresh_token: `rt${n}`, expires_in: 300, ...(tokenType ? { token_type: tokenType } : {}) } };
+      },
+    });
+    const { cb } = await loginUrl(h);
+    const ok = await h.s.handleCallback(cb);
+    return { h, dpop, mine, ok };
+  }
+
+  it("đổi code và refresh đều gửi header DPoP (POST, htu = token endpoint, không ath)", async () => {
+    const { h, dpop, ok } = await boundLogin("DPoP", (m) => m);
+    expect(ok).toBe(true);
+    h.advance(290_000);
+    await h.s.getAccessToken();
+    expect(h.forms.map((f) => f.get("grant_type"))).toEqual(["authorization_code", "refresh_token"]);
+    for (const hd of h.tokenHeaders) {
+      const { h: hdr, p } = proofOf(hd.DPoP);
+      expect(hdr.typ).toBe("dpop+jwt");
+      expect(p.htm).toBe("POST");
+      expect(p.htu).toBe(TOKEN_EP);
+      expect(p.ath).toBeUndefined();
+    }
+    expect(proofOf(h.tokenHeaders[0].DPoP).p.jti).not.toBe(proofOf(h.tokenHeaders[1].DPoP).p.jti);
+    expect(h.s.dpopBound()).toBe(true);
+    expect(h.s.dpop).toBe(dpop);
+  });
+
+  it("bound nhận từ token_type (không phân biệt hoa thường) hoặc cnf.jkt khớp thumbprint", async () => {
+    expect((await boundLogin("dpop")).h.s.dpopBound()).toBe(true);
+    expect((await boundLogin("Bearer", (m) => m)).h.s.dpopBound()).toBe(true);
+    expect((await boundLogin("Bearer")).h.s.dpopBound()).toBe(false);
+    expect((await boundLogin(undefined, () => "khac")).h.s.dpopBound()).toBe(false);
+  });
+
+  it("token_type DPoP nhưng cnf.jkt khác khóa của ta => đăng nhập thất bại", async () => {
+    const { h, ok } = await boundLogin("DPoP", () => "jkt-cua-nguoi-khac");
+    expect(ok).toBe(false);
+    expect(h.s.state.status).toBe("error");
+    await expect(h.s.authHeaders()).rejects.toBeInstanceOf(AuthRequiredError);
+  });
+
+  it("token_type DPoP mà Desk không có signer => lỗi", async () => {
+    const h = setup({ token: () => ({ body: { access_token: "AT", expires_in: 300, token_type: "DPoP" } }) });
+    const { cb } = await loginUrl(h);
+    expect(await h.s.handleCallback(cb)).toBe(false);
+    expect(h.tokenHeaders[0].DPoP).toBeUndefined();
+  });
+
+  it("bound + request => Authorization: DPoP + proof (htm, htu, ath); không có request (LLM) => Bearer", async () => {
+    const { h } = await boundLogin("DPoP", (m) => m);
+    const tok = (await h.s.getAccessToken())!;
+    const hd = await h.s.authHeaders({ method: "post", url: "https://xt-mcp.example/mcp?x=1" });
+    expect(hd.Authorization).toBe(`DPoP ${tok}`);
+    const { p } = proofOf(hd.DPoP);
+    expect(p).toMatchObject({ htm: "POST", htu: "https://xt-mcp.example/mcp", ath: createHash("sha256").update(tok).digest("base64url") });
+    expect(await h.s.authHeaders()).toEqual({ Authorization: `Bearer ${tok}` });
+  });
+
+  it("chưa bound => Bearer kể cả khi có request", async () => {
+    const { h } = await boundLogin("Bearer");
+    const hd = await h.s.authHeaders({ method: "POST", url: "https://xt-mcp.example/mcp" });
+    expect(hd).toEqual({ Authorization: `Bearer ${await h.s.getAccessToken()}` });
+  });
+
+  it("MCP: mỗi request HTTP có proof mới (jti mới) với htm/htu của chính request", async () => {
+    const { h } = await boundLogin("DPoP", (m) => m);
+    const tok = (await h.s.getAccessToken())!;
+    const seen: { method: string; url: string; headers: Headers }[] = [];
+    vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      seen.push({ method: init?.method ?? "GET", url: String(input), headers });
+      if ((init?.method ?? "GET") !== "POST") return new Response(null, { status: 405 });
+      const msg = JSON.parse(String(init!.body));
+      if (!("id" in msg)) return new Response(null, { status: 202 });
+      const result =
+        msg.method === "initialize"
+          ? { protocolVersion: msg.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "xt", version: "1" } }
+          : { tools: [] };
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }), { headers: { "content-type": "application/json" } });
+    });
+    try {
+      await connectMcp(new URL("https://xt-mcp.example/mcp?q=1"), h.s.authHeaders);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    const posts = seen.filter((r) => r.method === "POST");
+    expect(posts.length).toBeGreaterThanOrEqual(3);
+    const jtis = new Set<string>();
+    for (const r of seen) {
+      expect(r.headers.get("authorization")).toBe(`DPoP ${tok}`);
+      const { p } = proofOf(r.headers.get("dpop")!);
+      expect(p.htm).toBe(r.method);
+      expect(p.htu).toBe("https://xt-mcp.example/mcp");
+      expect(p.ath).toBe(createHash("sha256").update(tok).digest("base64url"));
+      jtis.add(p.jti);
+    }
+    expect(jtis.size).toBe(seen.length);
   });
 });

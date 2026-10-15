@@ -818,10 +818,34 @@ class FilesApi:
 
     async def _create_multipart(self, request: Request, ctx: CallContext) -> Response:
         limit = self.backend.max_bytes
+        if "transfer-encoding" in request.headers:
+            # FB-06: CL + TE -> h11 đọc chunked, CL không còn là trần. Không nhận thân kiểu này.
+            raise _invalid(
+                "Multipart uploads must not use Transfer-Encoding.",
+                "length_required",
+                "Send the form with a plain Content-Length (curl -F does this).",
+            )
         self._length(request, limit + MULTIPART_OVERHEAD)
         key = self._idempotency_key(request)
+        cap = limit + MULTIPART_OVERHEAD
+        seen = 0
+        receive = request.receive
+
+        async def capped() -> Any:
+            # Trần tổng số byte thân TRƯỚC khi Starlette spool phần `file` ra đĩa tạm.
+            nonlocal seen
+            message = await receive()
+            if message.get("type") == "http.request":
+                seen += len(message.get("body", b""))
+                if seen > cap:
+                    raise self._too_large(limit)
+            return message
+
+        request = Request(request.scope, capped)
         try:
             form = await request.form(max_files=1, max_fields=4, max_part_size=4096)
+        except ApiError:
+            raise
         except Exception:
             raise _invalid(
                 "The multipart body could not be parsed.",

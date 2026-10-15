@@ -103,7 +103,10 @@ def workflow_resource_settings(
         scopes_supported=tuple(sorted(scopes)),
         dynamic_connectors=False,
         # Token mang thêm aud MCP (hoặc data) bị 401 ở workflow, và ngược lại (WA-08).
-        foreign_audiences=frozenset({rs.resource, "xt-data"}) - {audience},
+        foreign_audiences=frozenset(
+            {rs.resource, "xt-data", env.get("XT_FILES_AUDIENCE", "").strip() or "xt-files"}
+        )
+        - {audience},
     )
 
 

@@ -21,13 +21,16 @@ from typing import Any, Protocol, runtime_checkable
 from urllib.parse import urlsplit
 
 from xt.adapters.identity import (
+    DpopContext,
+    DpopVerifier,
     IdentityConfigError,
     build_client_allowlist,
+    build_dpop_verifier,
     build_jwks_cache,
     build_protected_resource_metadata,
     build_revocation_guard,
     challenge_for,
-    extract_bearer,
+    extract_credentials,
     load_connector_registry_settings,
     load_introspection_settings,
     load_resource_server_settings,
@@ -40,6 +43,7 @@ from xt.adapters.mcp import (
     AppsBundle,
     Challenge,
     ClientClassifier,
+    RequestFacts,
     XtMcpServer,
     build_http_app,
     http_caller,
@@ -83,15 +87,23 @@ class AppsProvider(Protocol):
 class TokenVerifier(Protocol):
     """Hình dạng public của `AccessTokenVerifier` (test thay bằng bản giả)."""
 
-    def verify(self, token: str, required_scopes: frozenset[str] = ...) -> Principal: ...
+    def verify(
+        self,
+        token: str,
+        required_scopes: frozenset[str] = ...,
+        *,
+        dpop: DpopContext | None = ...,
+    ) -> Principal: ...
 
 
 @dataclass(frozen=True, slots=True)
 class IdentityHttpAuth:
-    """`HttpAuth` dựng hoàn toàn từ API public của lớp danh tính."""
+    """`HttpAuth` dựng hoàn toàn từ API public của lớp danh tính. `dpop` cho biết các origin công
+    khai (htu) của server; None = không có origin nào, token gắn DPoP bị từ chối."""
 
     settings: ResourceServerSettings
     verifier: TokenVerifier
+    dpop: DpopVerifier | None = None
 
     @property
     def prm_path(self) -> str:
@@ -101,10 +113,18 @@ class IdentityHttpAuth:
         return build_protected_resource_metadata(self.settings)
 
     def bearer(self, authorization: str | None) -> str | None:
-        return extract_bearer(authorization)
+        cred = extract_credentials(authorization)
+        return None if cred is None else cred[1]
 
-    def verify(self, token: str) -> Principal:
-        return self.verifier.verify(token)
+    def verify(self, token: str, request: RequestFacts) -> Principal:
+        cred = extract_credentials(request.authorization)
+        ctx = DpopContext(
+            scheme=cred[0] if cred else "bearer",
+            proofs=request.dpop,
+            method=request.method,
+            htu=self.dpop.candidates(request.path) if self.dpop else frozenset(),
+        )
+        return self.verifier.verify(token, dpop=ctx)
 
     def challenge(self, error: IdentityError | None) -> Challenge:
         c = challenge_for(self.settings, error)
@@ -332,6 +352,7 @@ class Prepared:
     rs: ResourceServerSettings
     verifier: AccessTokenVerifier
     dispatcher: ToolDispatcher
+    dpop: DpopVerifier | None = None
 
     def http_app(self) -> Any:
         """App Starlette: `/mcp` + PRM + `/healthz` và route phụ của composition (trang
@@ -342,7 +363,7 @@ class Prepared:
         assert cfg.host is not None and cfg.port is not None
         app = build_http_app(
             self.server,
-            IdentityHttpAuth(self.rs, self.verifier),
+            IdentityHttpAuth(self.rs, self.verifier, self.dpop),
             mcp_path=urlsplit(self.rs.resource).path or "/mcp",
             allowed_hosts=allowed_hosts_for(self.rs, cfg.allowed_hosts, cfg.host, cfg.port),
             allowed_origins=list(cfg.allowed_origins),
@@ -370,8 +391,9 @@ def prepare(env: Mapping[str, str], args: argparse.Namespace) -> Prepared:
     default_prompts()  # prompt lỗi -> dừng trước khi mở cổng
     registry = load_connector_registry_settings(env) if rs.dynamic_connectors else None
     services = load_services(cfg.services_factory, env)
+    dpop = build_dpop_verifier(env)
     verifier = AccessTokenVerifier(
-        rs, build_jwks_cache(rs.idp), clients=build_client_allowlist(rs, registry)
+        rs, build_jwks_cache(rs.idp), clients=build_client_allowlist(rs, registry), dpop=dpop
     )
     dispatcher = (
         services.dispatcher(cfg.tool_settings)
@@ -379,7 +401,7 @@ def prepare(env: Mapping[str, str], args: argparse.Namespace) -> Prepared:
         else ToolDispatcher(services, cfg.tool_settings)
     )
     server = build_server(cfg, services, rs, verifier, revocation, dispatcher)
-    return Prepared(cfg, server, services, rs, verifier, dispatcher)
+    return Prepared(cfg, server, services, rs, verifier, dispatcher, dpop)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

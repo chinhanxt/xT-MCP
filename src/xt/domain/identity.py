@@ -49,6 +49,8 @@ class Principal:
     token_id: str | None
     issued_at: int
     expires_at: int
+    # RFC 7638 thumbprint của khóa DPoP đã kiểm (`cnf.jkt` + proof đúng khóa); None = token Bearer.
+    dpop_jkt: str | None = None
 
     @property
     def tenant(self) -> str | None:

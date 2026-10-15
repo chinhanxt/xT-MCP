@@ -37,18 +37,21 @@ import hmac
 import json
 import threading
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
 
+import anyio.to_thread
 from starlette.applications import Starlette
 from starlette.routing import Mount
 
 from xt.adapters.blob import ClamdScanner, S3FileStore
 from xt.adapters.db.files import PgFileRepository
+from xt.adapters.db.integration import tenant_by_id
+from xt.adapters.db.workflow_bridge import tenant_async_tx
 from xt.adapters.http.files_api import Download, UploadInfo, files_routes
 from xt.adapters.http.workflow_api import AuthChallenge
 from xt.adapters.identity import (
@@ -72,9 +75,10 @@ from xt.application.files import (
     tool_view,
     view,
 )
-from xt.application.files.service import too_large
+from xt.application.files.service import is_text, too_large
 from xt.application.files.sniff import ALLOWED_TYPES, SNIFF_BYTES
 from xt.application.iam.guard import AccessGuard as IamGuard
+from xt.application.jobs import JobRequest
 from xt.application.tools.context import CallContext, iso
 from xt.application.tools.errors import (
     access_denied,
@@ -88,7 +92,7 @@ from xt.domain.autonomy import RiskLevel
 from xt.domain.iam import AccessRequest, PolicyDocument, PolicyEvaluator
 from xt.domain.iam import Principal as IamPrincipal
 from xt.domain.identity import IdentityError, InsufficientScopeError, InvalidTokenError, Principal
-from xt.domain.model.context import ModelActor
+from xt.domain.model.context import ModelActor, TenantRef
 from xt.entrypoints.composition import Composition
 from xt.entrypoints.composition.pii import effective_mode
 from xt.entrypoints.composition.runtime import Caller, CallerError, Runtime, iam_person
@@ -196,6 +200,17 @@ class FilesConfig:
             )
         max_bytes = _int(env, "XT_FILES_MAX_BYTES", 25 * 1024 * 1024, 1024, 1 << 30, p)
         ttl = _int(env, "XT_FILES_UPLOAD_TTL_SECONDS", 900, 10, 86400, p)
+        gib = 1 << 30
+        pend_user = _int(env, "XT_FILES_MAX_PENDING_PER_USER", 20, 1, 10_000, p)
+        pend_tenant = _int(env, "XT_FILES_MAX_PENDING_PER_TENANT", 500, 1, 1_000_000, p)
+        user_q = _int(env, "XT_FILES_USER_QUOTA_BYTES", 256 << 20, 1024, 1024 * gib, p)
+        tenant_q = _int(env, "XT_FILES_TENANT_QUOTA_BYTES", gib, 1024, 1024 * gib, p)
+        attempts = _int(env, "XT_FILES_SCAN_MAX_ATTEMPTS", 5, 1, 100, p)
+        retention = _int(env, "XT_FILES_RETENTION_SECONDS", 30 * 86400, 0, 3650 * 86400, p)
+        if not p and not max_bytes <= user_q <= tenant_q:
+            p.append(
+                "cần XT_FILES_MAX_BYTES ≤ XT_FILES_USER_QUOTA_BYTES ≤ XT_FILES_TENANT_QUOTA_BYTES"
+            )
         if p:
             raise FilesConfigError(p)
         policy = FilePolicy(
@@ -205,6 +220,12 @@ class FilesConfig:
             scanning=clamd is not None,
             unscanned_download=cast(Any, unscanned),
             allowed_types=allowed,
+            max_pending_per_user=pend_user,
+            max_pending_per_tenant=pend_tenant,
+            user_quota_bytes=user_q,
+            tenant_quota_bytes=tenant_q,
+            scan_max_attempts=attempts,
+            retention=timedelta(seconds=retention),
         )
         return cls(
             endpoint,
@@ -320,6 +341,37 @@ class FileToolService:
 
     def __init__(self, rt: Runtime, stack: FilesStack) -> None:
         self.rt, self.stack = rt, stack
+        self.pep = FilesPep(rt)
+
+    def check_attachable(self, ctx: CallContext, refs: Sequence[str]) -> None:
+        """`AttachmentPolicy` (FB-09): field `file` của bản ghi chỉ nhận tệp người ghi ĐỌC được
+        (IAM `file.read`, như tải về) và đã sẵn sàng (`clean`/`not_scanned`). Không thấy / không
+        được đọc: cùng một câu trả lời."""
+        caller = self.rt.caller(ctx)
+        repo = PgFileRepository(self.rt.uow, caller.actor)
+        now = int(ctx.now.timestamp())
+        for ref in refs:
+            raw = ref.split(":", 1)[1] if ref.startswith("file:") else ref
+            try:
+                fid = UUID(raw)
+            except ValueError:
+                continue  # sai định dạng: lớp records báo bad_reference
+            row = repo.get(fid)
+            if row is None or not self.pep.allowed(caller, "file.read", row, now):
+                raise invalid_request(
+                    "The attached file does not exist or you are not allowed to read it.",
+                    "file_not_attachable",
+                    remediation="Upload the file yourself with upload_file and use its ref.",
+                    ref=f"file:{fid}",
+                )
+            if row.status not in ("clean", "not_scanned"):
+                raise invalid_request(
+                    "The attached file is not ready (upload not finished, scanning or blocked).",
+                    "file_not_ready",
+                    remediation="Finish the upload (or wait for the scan), then try again.",
+                    ref=f"file:{fid}",
+                    status=row.status,
+                )
 
     def plan_upload(self, ctx: CallContext, args: Args) -> MutationPlan:
         mgr = self.stack.manager
@@ -339,7 +391,7 @@ class FileToolService:
         if data is not None:
             if len(data) > mgr.policy.max_inline_bytes:
                 raise too_large(mgr.policy.max_inline_bytes)
-            mgr.check_bytes(declared, data[:SNIFF_BYTES], len(data))
+            mgr.check_bytes(declared, data[:SNIFF_BYTES], len(data), is_text(data))
             sha = hashlib.sha256(data).hexdigest()
         return MutationPlan(
             level=RiskLevel.L1,
@@ -495,6 +547,8 @@ class CompositionFilesBackend:
             return out
 
         row = self._raise(self._grant_tx(actor, body))
+        if row.status == "scanning":
+            row = self._scan_outside_tx(actor, row)
         return view(row)  # người cầm link chính là người đặt tên tệp
 
     # ---- có Bearer ---------------------------------------------------------------------------
@@ -515,7 +569,25 @@ class CompositionFilesBackend:
             return self.mgr.finalize(repo, row, sha256, ctx.now)
 
         out: Outcome = self.rt.run_as(caller, ctx.actor, body)
-        return self._view(caller, ctx, self._raise(out))
+        row = self._raise(out)
+        if row.status == "scanning":
+            row = self._scan_outside_tx(caller.actor, row)
+        return self._view(caller, ctx, row)
+
+    def _scan_outside_tx(self, actor: ModelActor, row: FileRow) -> FileRow:
+        """FB-01: stream S3 -> clamd KHÔNG giữ transaction; ghi kết quả trong transaction ngắn,
+        khóa dòng và chỉ áp khi vẫn `scanning` (worker có thể đã quét song song)."""
+        verdict = self.mgr.scan_bytes(actor.tenant.id, row)
+
+        def body() -> FileRow:
+            repo = PgFileRepository(self.rt.uow, actor)
+            cur = repo.get(row.id, lock=True)
+            if cur is None:
+                return row
+            return self.mgr.apply_scan(repo, cur, verdict)
+
+        out: FileRow = self._grant_tx(actor, body)
+        return out
 
     def metadata(self, ctx: CallContext, file_id: UUID) -> dict[str, Any]:
         caller = self._caller(ctx)
@@ -580,18 +652,70 @@ class CompositionFilesBackend:
         return {**self._view(caller, ctx, row), "deleted": True}
 
     def rescan(self, tenant_alias: str, limit: int = 20) -> int:
-        """Quét lại tệp `scanning` của một tenant (clamd từng lỗi). Cho worker/cron gọi."""
+        """Quét lại tệp `scanning` của một tenant (clamd từng lỗi), mỗi tệp ngoài transaction;
+        lỗi lặp lại tới `XT_FILES_SCAN_MAX_ATTEMPTS` -> `scan_failed`. Trả số tệp đã có kết luận."""
         tenant = self.rt.tenant(tenant_alias)
-        if tenant is None or self.mgr.scanner is None:
+        if tenant is None:
+            return 0
+        return self.rescan_tenant(tenant, limit)
+
+    def rescan_tenant(self, tenant: TenantRef, limit: int = 20) -> int:
+        if self.mgr.scanner is None:
             return 0
         actor = Runtime.lookup_actor(tenant)
+        rows: list[FileRow] = self._grant_tx(
+            actor, lambda: PgFileRepository(self.rt.uow, actor).scanning(limit)
+        )
+        return sum(1 for r in rows if self._scan_outside_tx(actor, r).status != "scanning")
+
+    def maintain(self, tenant: TenantRef) -> dict[str, int]:
+        """Job `files.maintain` (FB-02 + FB-01): hết hạn ý định + xóa byte quarantine bỏ dở, dọn
+        object của tệp xóa mềm quá hạn lưu, quét lại tệp `scanning`."""
+        actor = Runtime.lookup_actor(tenant)
+        now = datetime.now(UTC)
 
         def body() -> int:
-            repo = PgFileRepository(self.rt.uow, actor)
-            rows = repo.scanning(limit)
-            return sum(1 for r in rows if self.mgr.scan(repo, r).status != "scanning")
+            return self.mgr.expire_and_purge(PgFileRepository(self.rt.uow, actor), now)
 
-        return int(self._grant_tx(actor, body))
+        purged = int(self._grant_tx(actor, body))
+        return {"purged": purged, "scanned": self.rescan_tenant(tenant)}
+
+
+MAINTAIN_TASK = "files.maintain"
+
+
+class FilesMaintenance:
+    """Job định kỳ trên cổng hàng đợi (`JobQueue`): mỗi tenant một chuỗi `files.maintain` tự hẹn
+    lại sau `interval_s` (khóa theo mốc thời gian, như `workflow.relay_timers`). Nối vào
+    `xt worker`: xem docs/integration-notes.md "REST /files/v1 sau audit"."""
+
+    def __init__(
+        self, backend: CompositionFilesBackend, queue: Any, tenant_dsn: str, interval_s: int = 300
+    ) -> None:
+        if interval_s < 5:
+            raise ValueError("interval files.maintain phải ≥ 5 giây")
+        self.backend, self.queue, self.tenant_dsn = backend, queue, tenant_dsn
+        self.interval_s = interval_s
+
+    def handlers(self) -> dict[str, Any]:
+        return {MAINTAIN_TASK: self.maintain}
+
+    async def maintain(self, connection: Any, job: Any) -> None:
+        tenant = tenant_by_id(self.backend.rt.app_db, job.tenant_id)
+        if tenant is not None:
+            await anyio.to_thread.run_sync(self.backend.maintain, tenant)
+        await self._schedule(connection, job.tenant_id, after=self.interval_s)
+
+    async def _schedule(self, connection: Any, tenant_id: UUID, *, after: int) -> int:
+        slot = (int(time.time()) // self.interval_s + (1 if after else 0)) * self.interval_s
+        when = datetime.fromtimestamp(slot, UTC)
+        job = JobRequest(tenant_id, MAINTAIN_TASK, f"files.maintain:{slot}", {})
+        return int(await self.queue.schedule_at(connection, job, when))
+
+    async def register(self, tenant_id: UUID) -> int:
+        """Khởi động chuỗi của một tenant (idempotent theo mốc), gọi cùng `bind-queue`."""
+        async with tenant_async_tx(self.tenant_dsn, tenant_id) as conn:
+            return await self._schedule(conn, tenant_id, after=0)
 
 
 # ---- danh tính ----------------------------------------------------------------------------
@@ -624,6 +748,7 @@ def files_resource_settings(
         required_scopes=scopes,
         scopes_supported=tuple(sorted(scopes)),
         dynamic_connectors=False,
+        foreign_audiences=frozenset(others) - {audience},
     )
 
 

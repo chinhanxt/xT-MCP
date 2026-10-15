@@ -103,8 +103,9 @@ _B64U_32 = {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"}
 PII_REVEAL_TICKET = AppToolContract(
     name="pii_reveal_ticket",
     description=(
-        "App-only, human channel: mint a one-time ticket (60 s) bound to the frame's P-256 key "
-        "for revealing masked [PII:…] tokens on the xT page. The ticket is returned only in "
+        "App-only, human channel: mint a one-time ticket (60 s) for revealing masked [PII:…] "
+        "tokens on the xT page, bound to the session's DPoP key (DPoP-bound token; omit "
+        "pubkey_jwk) or, without DPoP, to the frame's P-256 key. The ticket is returned only in "
         "_meta; real values never pass through MCP."
     ),
     ui_resource=RECORD_TABLE_URI,
@@ -132,7 +133,7 @@ PII_REVEAL_TICKET = AppToolContract(
                 "additionalProperties": False,
             },
         },
-        ["tokens", "pubkey_jwk"],
+        ["tokens"],
     ),
     output_schema=out(
         {"tokens": {"type": "integer"}, "expires_in_seconds": {"type": "integer"}},

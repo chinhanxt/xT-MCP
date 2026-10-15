@@ -134,6 +134,26 @@ def cli_client_rep(env: dict[str, str]) -> dict[str, Any]:
         "attributes": {"pkce.code.challenge.method": "S256", "oauth2.device.authorization.grant.enabled": "false"}}
 
 
+def dpop_required(env: dict[str, str]) -> bool:
+    """`XT_DPOP_REQUIRED` (cùng cờ với xt-api, mặc định tắt): bật thì Keycloak từ chối token request của
+    xt-desk-agent không có DPoP proof. Tắt thì Desk gửi proof vẫn được token gắn khóa (`cnf.jkt`)."""
+    return env.get("XT_DPOP_REQUIRED", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def desk_agent_client_rep(env: dict[str, str], desk: str, mappers: list[dict[str, Any]]) -> dict[str, Any]:
+    """Client chat của Desk: public + PKCE S256, redirect không loopback ở production, DPoP (RFC 9449).
+    Attribute Keycloak 26: `dpop.bound.access.tokens` (OIDCConfigAttributes.DPOP_BOUND_ACCESS_TOKENS,
+    "Require DPoP bound tokens" trong Admin Console)."""
+    redirects = desk_agent_redirects(env, desk)
+    return {
+        "clientId": env.get("XT_DESK_AGENT_CLIENT_ID", "xt-desk-agent"), "name": "xT Desk agent (chat thay mặt người dùng)",
+        "publicClient": True, "standardFlowEnabled": True, "directAccessGrantsEnabled": False, "serviceAccountsEnabled": False,
+        "implicitFlowEnabled": False, "redirectUris": redirects, "webOrigins": desk_agent_web_origins(desk, redirects),
+        "attributes": {"pkce.code.challenge.method": "S256",
+                       "dpop.bound.access.tokens": "true" if dpop_required(env) else "false"},
+        "protocolMappers": mappers}
+
+
 def mcp_client_ids(env: dict[str, str]) -> list[str]:
     """Mọi client thuộc bề mặt MCP/Desk/IdP-nội-bộ: KHÔNG bao giờ được nhận scope xt-data/xt-workflow."""
     return [*env_list(env, "XT_MCP_HUMAN_CLIENTS", "xt-desk"), env.get("XT_DESK_AGENT_CLIENT_ID", "xt-desk-agent"),
@@ -414,14 +434,8 @@ def provision(kc: KC, env: dict[str, str]) -> None:
     # Chat của Desk là AGENT hành động thay người dùng: client riêng, public + PKCE S256, mcp-xt là scope OPTIONAL
     # (Desk chủ động xin scope=mcp-xt). Client public tối đa tier masked (docs/decisions.md, Tier PII); người xem giá trị thật qua /pii/reveal.
     # Redirect: production KHÔNG có loopback; dev (XT_PROFILE=dev hoặc --dev) thêm localhost/127.0.0.1.
-    agent_id = env.get("XT_DESK_AGENT_CLIENT_ID", "xt-desk-agent")
-    agent_redirects = desk_agent_redirects(env, desk)
-    agent = upsert_client(kc, realm, {
-        "clientId": agent_id, "name": "xT Desk agent (chat thay mặt người dùng)",
-        "publicClient": True, "standardFlowEnabled": True, "directAccessGrantsEnabled": False, "serviceAccountsEnabled": False,
-        "implicitFlowEnabled": False, "redirectUris": agent_redirects,
-        "webOrigins": desk_agent_web_origins(desk, agent_redirects),
-        "attributes": pkce, "protocolMappers": [amr]})
+    # DPoP: token gắn khóa non-extractable của trình duyệt (docs/decisions.md "DPoP cho Desk trước v1.0").
+    agent = upsert_client(kc, realm, desk_agent_client_rep(env, desk, [amr]))
     set_client_scope(kc, realm, agent, mcp_sid, "optional")
     confirm = upsert_client(kc, realm, {
         "clientId": env.get("XT_CONFIRM_CLIENT_ID", "xt-desk-confirm"), "name": "xT Desk confirm (step-up OTP)",

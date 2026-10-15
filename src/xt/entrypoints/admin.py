@@ -81,6 +81,11 @@ def _parser() -> argparse.ArgumentParser:
         default="",
         help="vai trò cộng cho mọi nhân sự của tệp HR, phân tách dấu phẩy (vd employee)",
     )
+    oi.add_argument(
+        "--mapping",
+        type=Path,
+        help="tệp JSON {departments: {id: mã phòng}, roles: {vai trò tệp: [vai trò gói]}} (tệp HR)",
+    )
     pack = sub.add_parser("pack").add_subparsers(dest="cmd", required=True)
     pi = pack.add_parser("install", help="cài gói nghiệp vụ (in kế hoạch; --confirm để áp)")
     pi.add_argument("--tenant", required=True)
@@ -117,9 +122,10 @@ def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
         if is_hr_format(data):
             links = json.loads(args.links.read_text(encoding="utf-8")) if args.links else None
             base = [r.strip() for r in args.base_roles.split(",") if r.strip()]
-            data = org_from_hr(data, links=links, base_roles=base)
-        elif args.links or args.base_roles:
-            raise AdminError("--links/--base-roles chỉ dùng với tệp HR (departments/employees)")
+            mapping = json.loads(args.mapping.read_text(encoding="utf-8")) if args.mapping else None
+            data = org_from_hr(data, links=links, base_roles=base, mapping=mapping)
+        elif args.links or args.base_roles or args.mapping:
+            raise AdminError("--links/--base-roles/--mapping chỉ dùng với tệp HR (departments/employees)")
         with connect(dsn) as conn:
             ref = tenant_of_alias(conn, args.tenant)
             counts = import_org(conn, ref, data)

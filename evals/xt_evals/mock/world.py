@@ -969,7 +969,7 @@ class World:
 
     def _cas(self, rec, a):
         if a["expected_revision"] != rec["revision"]:
-            raise ToolError("revision_conflict", f"Revision hiện tại là {rec['revision']}, bạn gửi {a['expected_revision']}.", "Đọc lại bằng get_record rồi gọi lại với revision đó và CÙNG idempotency_key.",
+            raise ToolError("revision_conflict", f"Revision hiện tại là {rec['revision']}, bạn gửi {a['expected_revision']}.", "Gọi lại với details.current_revision và CÙNG idempotency_key (đọc lại bằng get_record nếu cần cho người dùng xem thay đổi).",
                             {"current_revision": rec["revision"]})
 
     def t_update_record(self, a, actor):

@@ -336,6 +336,48 @@ class CliClient(unittest.TestCase):
         self.assertEqual(mod.cli_client_rep({"XT_CLI_CLIENT_ID": "x"})["clientId"], "x")
 
 
+class DeskAgentDpop(unittest.TestCase):
+    """RFC 9449: xt-desk-agent public + PKCE, `dpop.bound.access.tokens` theo XT_DPOP_REQUIRED (mặc định tắt)."""
+
+    DESK = "https://xt.example"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = load("provision_t", "keycloak/provision.py")
+
+    def setUp(self):
+        self._argv = sys.argv
+        sys.argv = ["provision.py"]
+
+    def tearDown(self):
+        sys.argv = self._argv
+
+    def test_default_off_and_flag_on(self):
+        for env, want in (({}, "false"), ({"XT_DPOP_REQUIRED": "false"}, "false"), ({"XT_DPOP_REQUIRED": "true"}, "true"),
+                          ({"XT_DPOP_REQUIRED": "1"}, "true"), ({"XT_DPOP_REQUIRED": "maybe"}, "false")):
+            rep = self.mod.desk_agent_client_rep(env, self.DESK, [])
+            self.assertEqual(rep["attributes"]["dpop.bound.access.tokens"], want, env)
+
+    def test_rep_stays_public_pkce_no_loopback(self):
+        amr = {"name": "amr"}
+        rep = self.mod.desk_agent_client_rep({"XT_DPOP_REQUIRED": "true"}, self.DESK, [amr])
+        self.assertEqual(rep["clientId"], "xt-desk-agent")
+        self.assertTrue(rep["publicClient"] and rep["standardFlowEnabled"])
+        for k in ("directAccessGrantsEnabled", "serviceAccountsEnabled", "implicitFlowEnabled"):
+            self.assertFalse(rep[k], k)
+        self.assertEqual(rep["attributes"]["pkce.code.challenge.method"], "S256")
+        self.assertEqual(rep["redirectUris"], [f"{self.DESK}/auth/callback"])
+        self.assertEqual(rep["webOrigins"], [self.DESK])
+        self.assertEqual(rep["protocolMappers"], [amr])
+        self.assertNotIn("secret", rep)
+        self.assertEqual(self.mod.desk_agent_client_rep({"XT_DESK_AGENT_CLIENT_ID": "x"}, self.DESK, [])["clientId"], "x")
+
+    def test_compose_and_env_example_carry_the_flag(self):
+        compose = (DEPLOY / "compose.yaml").read_text()
+        self.assertIn("XT_DPOP_REQUIRED: ${XT_DPOP_REQUIRED:-false}", compose)
+        self.assertIn("XT_DPOP_REQUIRED=false", (DEPLOY / ".env.example").read_text())
+
+
 class CliDropsMcpScope(unittest.TestCase):
     def test_drop_mcp_scope_removes_optional_and_default(self):
         mod = load("provision_t", "keycloak/provision.py")

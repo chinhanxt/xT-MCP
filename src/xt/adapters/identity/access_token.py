@@ -9,11 +9,13 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from xt.adapters.identity.client_registry import StaticClientAllowlist
 from xt.adapters.identity.config import ResourceServerSettings
+from xt.adapters.identity.dpop import DpopError, DpopVerifier
 from xt.adapters.identity.jwks import JwksCache
 from xt.adapters.identity.jwt_core import (
     check_standard_claims,
@@ -31,6 +33,28 @@ from xt.domain.identity import (
 )
 
 ACCESS_TOKEN_TYP = "Bearer"
+DPOP_TOKEN_TYP = "DPoP"  # Keycloak: token gắn DPoP có claim `typ=DPoP` + `cnf.jkt`
+
+
+@dataclass(frozen=True, slots=True)
+class DpopContext:
+    """Dữ kiện HTTP để kiểm DPoP (RFC 9449 §7): scheme của Authorization, mọi header `DPoP`,
+    method và các URI (đã gồm origin công khai) mà request này được coi là gửi tới."""
+
+    scheme: str  # "bearer" | "dpop" (chữ thường)
+    proofs: tuple[str, ...]
+    method: str
+    htu: frozenset[str]
+
+
+def _cnf_jkt(claims: Mapping[str, Any]) -> str | None:
+    cnf = claims.get("cnf")
+    if cnf is None:
+        return None
+    jkt = cnf.get("jkt") if isinstance(cnf, dict) else None
+    if not isinstance(jkt, str) or not jkt:
+        raise InvalidTokenError("bad_claim:cnf")
+    return jkt
 
 
 def _organizations(claims: Mapping[str, Any], claim: str) -> tuple[str, ...]:
@@ -64,6 +88,7 @@ class AccessTokenVerifier:
         jwks: JwksCache,
         clock: Callable[[], float] = time.time,
         clients: ClientAllowlist | None = None,
+        dpop: DpopVerifier | None = None,
     ) -> None:
         """`clients` mặc định là allowlist tĩnh từ settings; registry động thì truyền
         `build_client_allowlist(...)` (bắt buộc khi `dynamic_connectors`)."""
@@ -75,11 +100,46 @@ class AccessTokenVerifier:
         self._jwks = jwks
         self._clock = clock
         self._clients = clients
+        self._dpop = dpop
 
-    def verify(self, token: str, required_scopes: frozenset[str] = frozenset()) -> Principal:
-        """Ném `InvalidTokenError` (401) hoặc `InsufficientScopeError` (403).
+    def _check_dpop(
+        self, token: str, claims: Mapping[str, Any], azp: str, ctx: DpopContext | None
+    ) -> str | None:
+        """RFC 9449 §7.1: token có `cnf.jkt` CHỈ hợp lệ với scheme DPoP + proof đúng khóa đó;
+        scheme DPoP với token không gắn khóa bị từ chối; `XT_DPOP_REQUIRED` buộc client trong
+        `XT_DPOP_CLIENTS` phải có token gắn khóa. Không có `ctx` (bề mặt không hỗ trợ DPoP: REST
+        workflow/files) thì token gắn khóa luôn bị từ chối (fail-closed)."""
+        jkt = _cnf_jkt(claims)
+        typ_dpop = claims.get("typ") == DPOP_TOKEN_TYP
+        algs: Iterable[str] = self._dpop.settings.algorithms if self._dpop else ("ES256",)
+        if typ_dpop and jkt is None:
+            raise InvalidTokenError("bad_claim:cnf", "typ=DPoP without cnf.jkt")
+        if jkt is None:
+            if ctx is not None and ctx.scheme == "dpop":
+                raise DpopError("dpop_unbound_token", error="invalid_token", algs=algs)
+            if self._dpop is not None and self._dpop.required_for(azp):
+                raise DpopError("dpop_required", azp, error="invalid_token", algs=algs)
+            return None
+        if self._dpop is None or ctx is None:
+            raise DpopError("dpop_unsupported", error="invalid_token", algs=algs)
+        if ctx.scheme != "dpop":
+            raise DpopError("dpop_bearer_scheme", error="invalid_token", algs=algs)
+        return self._dpop.verify(
+            ctx.proofs, htm=ctx.method, htu=ctx.htu, bound_to=token, expected_jkt=jkt
+        )
+
+    def verify(
+        self,
+        token: str,
+        required_scopes: frozenset[str] = frozenset(),
+        *,
+        dpop: DpopContext | None = None,
+    ) -> Principal:
+        """Ném `InvalidTokenError` (401; `DpopError` -> challenge DPoP) hoặc
+        `InsufficientScopeError` (403).
 
         `required_scopes` cộng thêm vào scope chung (`XT_MCP_REQUIRED_SCOPES`) cho thao tác cụ thể.
+        `dpop`: dữ kiện request cho bề mặt hỗ trợ DPoP (/mcp).
         """
         s = self._s
         _, claims = verify_signed_jwt(token, self._jwks, s.idp.algorithms, s.idp.max_token_bytes)
@@ -87,7 +147,9 @@ class AccessTokenVerifier:
             claims,
             issuer=s.idp.issuer,
             audience=s.resource,
-            token_type=ACCESS_TOKEN_TYP,
+            token_type=(
+                DPOP_TOKEN_TYP if claims.get("typ") == DPOP_TOKEN_TYP else ACCESS_TOKEN_TYP
+            ),
             now=self._clock(),
             leeway_s=s.idp.leeway_s,
             max_lifetime_s=s.idp.max_token_lifetime_s,
@@ -97,6 +159,7 @@ class AccessTokenVerifier:
         azp = string(claims, "azp", required=True)
         assert azp is not None
         kind = self._clients.classify(azp)  # trước kiểm scope: client lạ luôn 401
+        jkt = self._check_dpop(token, claims, azp, dpop)
         scope = string(claims, "scope", required=False) or ""
         scopes = frozenset(scope.split())
         need = s.required_scopes | required_scopes
@@ -129,4 +192,5 @@ class AccessTokenVerifier:
             token_id=string(claims, "jti", required=False),
             issued_at=iat,
             expires_at=exp,
+            dpop_jkt=jkt,
         )

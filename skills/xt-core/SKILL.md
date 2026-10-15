@@ -34,7 +34,8 @@ chỉ nêu tool có ở mọi hồ sơ. Có thêm tool (hồ sơ đầy đủ): 
 | Việc của tôi, có gì cần tôi duyệt | `get_inbox` (chỉ hàng chờ của tôi) |
 | Tạo đề xuất / phiếu / hồ sơ | `create_record` -> `submit_request` |
 | Giao việc | `find_people` -> `create_task` |
-| Xong / bắt đầu / rút / nghỉ việc | `get_record` -> `transition_record` (`to_state` trong `available_transitions`) |
+| Xong / bắt đầu / rút | `get_record` -> `transition_record` (`to_state` trong `available_transitions`) |
+| Cho A nghỉ việc / đổi trạng thái hồ sơ nhân sự | `find_people` -> `search_records` (hồ sơ nhân viên của A) -> `get_record` -> `transition_record` |
 | Duyệt / từ chối / ủy quyền | `get_record` -> `decide_request` (skill `xt-approvals`) |
 
 Tiền gửi dạng chuỗi (`"8000000"`), ngày `YYYY-MM-DD`. Báo lại ref, trạng thái và việc người dùng cần làm tiếp.
