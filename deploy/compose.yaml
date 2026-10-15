@@ -1,0 +1,274 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 xT contributors
+# Ảnh pin theo digest (tag giữ để đọc). Profile: minimal (mặc định) | full (= minimal + ollama, nats, seaweedfs, clamav, openbao) | public (+ cloudflared).
+#   docker compose --env-file .env --profile minimal up -d
+#   docker compose --env-file .env --profile minimal --profile full --profile public up -d
+# `xt serve` chưa có: dùng service `xt-api-placeholder` (profile placeholder) thay `xt-api`; Makefile tự chọn.
+name: xt
+
+x-restart: &restart
+  restart: unless-stopped
+
+# Hardening chung. cap_drop ALL chỉ áp cho dịch vụ đã chạy thử (minimal); profile full: chỉ no-new-privileges + pids.
+x-nopriv: &nopriv
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 256
+x-hardened: &hardened
+  <<: *nopriv
+  cap_drop: [ALL]
+
+services:
+  postgres:
+    <<: [*restart, *hardened]
+    cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]   # entrypoint chown + gosu
+    read_only: true
+    tmpfs: [/tmp, /run/postgresql]
+    cpus: 1.0
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    profiles: [minimal, full, public, placeholder]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-xt}
+      POSTGRES_DB: ${POSTGRES_DB:-xt}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?chạy make env}
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=50"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init-keycloak.sql:/docker-entrypoint-initdb.d/10-keycloak.sql:ro
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      retries: 40
+
+  keycloak:
+    <<: [*restart, *hardened]
+    read_only: true
+    tmpfs: [/tmp, /opt/keycloak/data]
+    cpus: 2.0
+    image: xt/keycloak:26.6.3-optimized
+    build:
+      context: ./docker
+      dockerfile: keycloak.Dockerfile
+    profiles: [minimal, full, public, placeholder]
+    command: ["start", "--optimized"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: ${POSTGRES_USER:-xt}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:?chạy make env}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?chạy make env}
+      KC_HOSTNAME: https://${XT_DOMAIN_AUTH:?}
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      JAVA_OPTS_KC_HEAP: ${KC_HEAP:--Xms128m -Xmx384m -XX:MaxMetaspaceSize=192m}
+    ports:
+      - "127.0.0.1:${KC_HTTP_PORT:-18080}:8080"
+    mem_limit: 768m
+    depends_on:
+      postgres: {condition: service_healthy}
+    healthcheck:
+      # Ảnh Keycloak không có curl; health nằm ở cổng quản trị 9000
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '\"status\": \"UP\"' <&3"]
+      interval: 5s
+      retries: 40
+      start_period: 20s
+
+  apisix:
+    <<: [*restart, *hardened]
+    cpus: 1.0   # read_only chưa áp: nginx.conf sinh lúc khởi động trong conf/ (lẫn bind mount)
+    image: apache/apisix:3.19.0-debian@sha256:9a7e45dc943fbf10ec916d1232bae4cda9302ae28a4696cfb83c2da01d261141
+    profiles: [minimal, full, public, placeholder]
+    environment:
+      APISIX_STAND_ALONE: "true"
+    volumes:
+      - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      # Sinh bởi scripts/render_apisix.py từ apisix.yaml.tmpl + .env (hostname không hard-code)
+      - ./apisix/rendered/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+    ports:
+      - "127.0.0.1:${APISIX_HTTP_PORT:-9080}:9080"
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9080 && printf \"GET / HTTP/1.0\\r\\n\\r\\n\" >&3 && head -c 8 <&3 | grep -q HTTP'"]
+      interval: 5s
+      retries: 20
+
+  xt-api:
+    <<: [*restart, *hardened]
+    read_only: true
+    tmpfs: [/tmp]
+    cpus: 1.0
+    image: xt/xt:dev
+    build:
+      context: ..
+      dockerfile: deploy/docker/xt.Dockerfile
+    profiles: [minimal, full, public]
+    command: ["serve", "--transport", "http", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      XT_DATABASE_URL: postgresql://${POSTGRES_USER:-xt}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-xt}
+      XT_IDP_ISSUER: https://${XT_DOMAIN_AUTH}/realms/${XT_REALM:-xt}
+      XT_IDP_JWKS_URL: http://keycloak:8080/realms/${XT_REALM:-xt}/protocol/openid-connect/certs
+      XT_IDP_ALLOW_HTTP: "true"   # chỉ cho URL nội bộ docker (JWKS, introspection)
+      XT_IDP_TENANT_CLAIM: organization
+      XT_IDP_INTROSPECTION: ${XT_IDP_INTROSPECTION:-high_risk}
+      XT_IDP_INTROSPECTION_URL: http://keycloak:8080/realms/${XT_REALM:-xt}/protocol/openid-connect/token/introspect
+      XT_IDP_INTROSPECTION_CLIENT_ID: ${XT_IDP_INTROSPECTION_CLIENT_ID:-xt-api-introspect}
+      XT_IDP_INTROSPECTION_CLIENT_SECRET: ${XT_IDP_INTROSPECTION_CLIENT_SECRET}
+      XT_MCP_RESOURCE: https://${XT_DOMAIN_MCP}/mcp
+      XT_MCP_ALLOWED_CLIENTS: ${XT_MCP_ALLOWED_CLIENTS:-}
+      XT_MCP_CLIENT_REGISTRY: ${XT_MCP_CLIENT_REGISTRY:-keycloak}
+      XT_IDP_ADMIN_API_URL: http://keycloak:8080/admin/realms/${XT_REALM:-xt}
+      XT_IDP_ADMIN_TOKEN_URL: http://keycloak:8080/realms/${XT_REALM:-xt}/protocol/openid-connect/token
+      XT_IDP_ADMIN_CLIENT_ID: ${XT_IDP_ADMIN_CLIENT_ID:-xt-client-registry}
+      XT_IDP_ADMIN_CLIENT_SECRET: ${XT_IDP_ADMIN_CLIENT_SECRET}
+      XT_MCP_CONNECTOR_REDIRECT_HOSTS: ${XT_MCP_CONNECTOR_REDIRECT_HOSTS}
+      XT_MCP_HUMAN_CLIENTS: ${XT_MCP_HUMAN_CLIENTS}
+      XT_MCP_REQUIRED_SCOPES: ${XT_MCP_REQUIRED_SCOPES:-mcp-xt}
+      XT_MCP_SCOPES_SUPPORTED: ${XT_MCP_SCOPES_SUPPORTED:-mcp-xt openid profile email}
+      XT_CONFIRM_CLIENT_ID: ${XT_CONFIRM_CLIENT_ID:-xt-desk-confirm}
+      XT_CONFIRM_ACR: ${XT_CONFIRM_ACR:-urn:xt:acr:otp}
+      XT_CONFIRM_REQUIRED_AMR: ${XT_CONFIRM_REQUIRED_AMR:-otp}
+      XT_MCP_SERVICES: ${XT_MCP_SERVICES:-}          # module:factory trả ToolServices (bắt buộc, không có mặc định)
+      XT_DESK_URL: https://${XT_DOMAIN_DESK}
+      XT_MCP_ALLOWED_HOSTS: ${XT_DOMAIN_MCP}
+    mem_limit: 512m
+    depends_on:
+      postgres: {condition: service_healthy}
+      keycloak: {condition: service_healthy}
+
+  # Chỉ dùng khi `xt serve` chưa tồn tại: trả 503 + thông báo rõ ràng, KHÔNG giả lập API.
+  xt-api-placeholder:
+    image: alpine:latest@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+    profiles: [placeholder]
+    <<: *hardened
+    user: "65534:65534"
+    read_only: true
+    cpus: 0.1
+    networks:
+      default:
+        aliases: [xt-api]
+    command:
+      - sh
+      - -c
+      - |
+        body='{"error":"chua_trien_khai","message":"xt-api chưa triển khai: lệnh `xt serve` chưa tồn tại. Đây là container tạm (deploy/compose.yaml, service xt-api-placeholder)."}'
+        while true; do
+          printf 'HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: %s\r\nConnection: close\r\n\r\n%s' "$${#body}" "$$body" | nc -l -p 8000 >/dev/null
+        done
+    mem_limit: 16m
+
+  xt-worker:
+    <<: [*restart, *hardened]
+    read_only: true
+    tmpfs: [/tmp]
+    cpus: 1.0
+    image: xt/xt:dev
+    profiles: [minimal, full, public]
+    command: ["worker"]
+    environment:
+      XT_WORKER_DATABASE_URL: postgresql://${POSTGRES_USER:-xt}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-xt}
+      XT_WORKER_HANDLERS: ${XT_WORKER_HANDLERS:-}
+    mem_limit: 512m
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  xt-desk:
+    <<: [*restart, *hardened]
+    read_only: true
+    tmpfs: [/tmp]
+    cpus: 0.5
+    image: xt/desk:dev
+    build:
+      context: ../desk
+      dockerfile: ../deploy/docker/desk.Dockerfile
+      args:
+        DESK_MCP_URL: https://${XT_DOMAIN_MCP}/mcp
+        DESK_LLM_URL: ${DESK_LLM_URL}
+        DESK_LLM_MODEL: ${DESK_LLM_MODEL}
+        DESK_LLM_REASONING_EFFORT: ${DESK_LLM_REASONING_EFFORT:-}
+        DESK_TOOL_PROFILE: ${DESK_TOOL_PROFILE}
+        DESK_MAX_STEPS: ${DESK_MAX_STEPS}
+        DESK_SANDBOX_URL: https://${XT_DOMAIN_API}/sandbox.html
+        DESK_XT_ORIGIN: https://${XT_DOMAIN_DESK}
+        DESK_AUTH_MODE: ${DESK_AUTH_MODE}
+        DESK_APP_CALLS_PER_SEC: ${DESK_APP_CALLS_PER_SEC}
+        DESK_APP_CALL_BURST: ${DESK_APP_CALL_BURST}
+        DESK_APP_MAX_INFLIGHT: ${DESK_APP_MAX_INFLIGHT}
+        DESK_APP_MAX_ARGS_BYTES: ${DESK_APP_MAX_ARGS_BYTES}
+        DESK_APP_GLOBAL_CALLS_PER_SEC: ${DESK_APP_GLOBAL_CALLS_PER_SEC}
+        DESK_APP_GLOBAL_BURST: ${DESK_APP_GLOBAL_BURST}
+    profiles: [minimal, full, public]
+    mem_limit: 64m
+
+  # ---------------- profile full (ảnh OSI, pin phiên bản) ----------------
+  ollama:
+    <<: [*restart, *nopriv]
+    cpus: 4.0
+    image: ollama/ollama:0.13.0@sha256:d4188c1dfa870386a14e299976aed96daeb83876b69e1a852c9d09ea76463b9f           # MIT
+    profiles: [full]
+    environment:
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-16384}
+    volumes: [ollama:/root/.ollama]
+    mem_limit: 8g
+
+  nats:
+    <<: [*restart, *nopriv]
+    cpus: 0.5
+    image: nats:2.11-alpine@sha256:e4bf19f15fd3218814a4e3c9e0064e1334bd8aa20d5984b9f1a0afd084f8cc00               # Apache-2.0
+    profiles: [full]
+    command: ["-js", "-sd", "/data"]
+    volumes: [nats:/data]
+    mem_limit: 128m
+
+  seaweedfs:
+    <<: [*restart, *nopriv]
+    cpus: 1.0
+    image: chrislusf/seaweedfs:4.00@sha256:dcbccdc9f33689d43ca3d1fb73d2baa319f8307c59d7923191b993ddc85ba6f8       # Apache-2.0
+    profiles: [full]
+    command: ["server", "-dir=/data", "-s3", "-s3.port=8333", "-master.volumeSizeLimitMB=64", "-volume.max=8"]
+    volumes: [seaweed:/data]
+    mem_limit: 512m
+
+  clamav:
+    <<: [*restart, *nopriv]
+    cpus: 2.0
+    image: clamav/clamav:1.4@sha256:b5b910ce43d595bf8a2fe401e34db56434602b2c755b7c2b07f00c917d04d469              # GPL-2.0, tiến trình riêng
+    profiles: [full]
+    volumes: [clamav:/var/lib/clamav]
+    mem_limit: 2g
+
+  openbao:
+    <<: [*restart, *nopriv]
+    cpus: 0.5
+    image: openbao/openbao:2.4.1@sha256:597f62847dd382382056a1d6704d50465908c2040038c4611832a23269a67112          # MPL-2.0
+    profiles: [full]
+    # Dev mode (bộ nhớ, tự unseal): chỉ cho demo. Sản xuất cần cấu hình storage + unseal riêng.
+    command: ["server", "-dev", "-dev-listen-address=0.0.0.0:8200"]
+    environment:
+      BAO_DEV_ROOT_TOKEN_ID: ${OPENBAO_DEV_TOKEN:-}
+    cap_add: [IPC_LOCK]
+    mem_limit: 256m
+
+  # ---------------- profile public ----------------
+  cloudflared:
+    <<: [*restart, *hardened]
+    cpus: 0.5
+    read_only: true
+    image: cloudflare/cloudflared:2025.9.1@sha256:4604b477520dc8322af5427da68b44f0bf814938e9d2e4814f2249ee4b03ffdf  # Apache-2.0
+    profiles: [public]
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}   # rỗng thì cloudflared tự báo lỗi
+    # Ingress (4 hostname -> http://127.0.0.1:9080) cấu hình từ xa trên Cloudflare; connector chạy cùng
+    # netns với APISIX để 127.0.0.1:9080 đúng như tài liệu.
+    network_mode: "service:apisix"
+    depends_on: [apisix]
+    mem_limit: 128m
+
+volumes:
+  pgdata:
+  ollama:
+  nats:
+  seaweed:
+  clamav:

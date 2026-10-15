@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 xT contributors
+# APISIX standalone: không etcd, không Admin API; route nằm trong conf/apisix.yaml (research/footprint.md).
+deployment:
+  role: data_plane
+  role_data_plane:
+    config_provider: yaml
