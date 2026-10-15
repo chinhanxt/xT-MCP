@@ -129,3 +129,10 @@ Theo `docs/model-engine.md` §8 và `docs/integration-notes.md`: câu lệnh và
 - `deploy/scripts/init_db.py` (idempotent): kết nối superuser `SET log_statement='none'` trước `bootstrap()`, sau đó `ALTER ROLE xt_app` và `xt_migrator` `SET` 4 tham số `log_statement`, `log_parameter_max_length`, `log_parameter_max_length_on_error`, `log_error_verbosity`.
 - Test offline: `deploy/tests/offline/test_postgres_logging.py`.
 - Smoke sau triển khai: `SHOW log_statement;` (none), `SHOW log_parameter_max_length;` (0), `SHOW log_error_verbosity;` (terse), `SELECT current_setting('shared_preload_libraries') NOT LIKE '%auto_explain%';` (t).
+
+## Scope headless `xt-workflow` / `xt-data` và client `xt-cli`
+
+`provision.py` tạo client `xt-cli` (public, auth-code + PKCE S256, loopback); `provision_data.py` tạo hai scope optional (audience đúng `xt-data` / `xt-workflow`), gán cho `XT_DATA_CLIENTS` / `XT_WORKFLOW_CLIENTS` (mặc định `xt-cli`), thu hồi ở client khác và kiểm `mcp-xt` không mang aud này. Quyết định: `docs/decisions.md`. Chạy: `make -C deploy provision-realm provision-data` rồi `deploy/tests/security_smoke.sh` (mục "Scope headless").
+
+- Offline (đã chạy 16/10/2026): `python3 -I -m unittest discover -s tests/offline -t tests/offline` -> 33 test OK (builder `xt-cli`, scope workflow/data, allowlist, thu hồi, MCP sạch).
+- **E2E trên Keycloak thật: CHỜ harness E2E.** Khe nặng đang bận (`xt-e2e-*` đang chạy, `free -g` available 7 GB nhưng đã có stack nặng), nên chưa chạy provision + smoke trên stack tối thiểu mới; chưa có output để ghi ở đây.

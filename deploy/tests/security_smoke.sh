@@ -130,6 +130,47 @@ done
 c=$(code -X POST "$TOK" -H "Host: $AUTH" -H "CF-Connecting-IP: 198.51.100.80" -H 'Content-Type: application/json' --data-binary "$(head -c 40000 /dev/zero | tr '\0' a)")
 [ "$c" = 413 ] && ok "body quá lớn bị 413" || ko "body 40 KB tới token endpoint không bị 413 ($c)"
 
+echo "== Scope headless xt-workflow / xt-data: tồn tại, không mặc định, audience đúng, MCP sạch =="
+# Cần make provision-realm + provision-data (XT_DATA_CLIENTS, XT_WORKFLOW_CLIENTS). Đọc bằng admin master (loopback).
+AU=$(envv KC_BOOTSTRAP_ADMIN_USERNAME); AP=$(envv KC_BOOTSTRAP_ADMIN_PASSWORD); R="${XT_REALM:-xt}"
+at=$(curl -s -X POST "$KCDIRECT/realms/master/protocol/openid-connect/token" -d grant_type=password -d client_id=admin-cli -d "username=${AU:-admin}" --data-urlencode "password=$AP" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("access_token",""))' 2>/dev/null)
+if [ -z "$at" ]; then ko "không lấy được token admin Keycloak (loopback) cho check scope headless"; else
+  res=$(python3 - "$KCDIRECT" "$R" "$at" <<'PY' 2>&1
+import sys,json,urllib.request
+base,realm,tok=sys.argv[1:4]
+def g(p): return json.load(urllib.request.urlopen(urllib.request.Request(base+"/admin/realms/"+realm+p,headers={"Authorization":"Bearer "+tok})))
+sc={s["name"]:s for s in g("/client-scopes")}
+dflt={x["id"] for k in ("default","optional") for x in g("/default-%s-client-scopes"%k)}
+out=[]
+for name,aud in (("xt-workflow","xt-workflow"),("xt-data","xt-data")):
+    s=sc.get(name)
+    if not s: out.append("FAIL scope %s không tồn tại"%name); continue
+    out.append(("PASS" if s["id"] not in dflt else "FAIL")+" %s không phải scope mặc định/optional của realm"%name)
+    auds=[m["config"].get("included.custom.audience") for m in g("/client-scopes/%s/protocol-mappers/models"%s["id"]) if m["protocolMapper"]=="oidc-audience-mapper"]
+    out.append(("PASS" if auds==[aud] else "FAIL")+" %s: audience mapper phát đúng [%s] (có %s)"%(name,aud,auds))
+    holders=[]
+    for c in g("/clients?max=500"):
+        for k in ("default","optional"):
+            if any(x["id"]==s["id"] for x in g("/clients/%s/%s-client-scopes"%(c["id"],k))): holders.append((c["clientId"],k))
+    bad=[h for h in holders if h[1]!="optional" or h[0].startswith("xt-desk") or h[0] in("xt-api-introspect","xt-client-registry")]
+    out.append(("PASS" if not bad else "FAIL")+" %s chỉ optional cho client headless %s%s"%(name,[h[0] for h in holders]," LỆCH %s"%bad if bad else ""))
+m=sc.get("mcp-xt")
+if m:
+    a=[x["config"].get("included.custom.audience") for x in g("/client-scopes/%s/protocol-mappers/models"%m["id"])]
+    leak=[x for x in a if x in("xt-workflow","xt-data")]
+    out.append(("PASS" if not leak else "FAIL")+" token MCP (mcp-xt) không mang aud xt-workflow/xt-data (aud %s)"%a)
+cl=g("/clients?clientId=xt-cli")
+if cl:
+    c=cl[0]; ok=c["publicClient"] and not c.get("serviceAccountsEnabled") and not c["directAccessGrantsEnabled"] and c["attributes"].get("pkce.code.challenge.method")=="S256"
+    mcp=[k for k in("default","optional") if any(x["name"]=="mcp-xt" for x in g("/clients/%s/%s-client-scopes"%(c["id"],k)))]
+    out.append(("PASS" if ok and not mcp else "FAIL")+" xt-cli: public, PKCE S256, không service account/ROPC, không mcp-xt")
+else: out.append("FAIL client xt-cli chưa có (make provision-realm)")
+print("\n".join(out))
+PY
+)
+  while IFS= read -r l; do case "$l" in PASS*) ok "${l#PASS }";; *) ko "${l#FAIL }";; esac; done <<< "$res"
+fi
+
 echo
 echo "PASS=$pass FAIL=$fail"
 [ "$fail" -eq 0 ]

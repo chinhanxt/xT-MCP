@@ -50,7 +50,7 @@ Cài lại chuẩn hóa thuộc tính của cả `xt_authenticator` và `xt_web`
 | Yêu cầu | Giá trị | Ghi chú |
 |---|---|---|
 | Issuer (`iss`) | `https://<XT_DOMAIN_AUTH>/realms/<XT_REALM>` (mặc định `https://xt-auth.freepro.online/realms/xt`); in bằng `make -C deploy pgrst-issuer` | PostgREST **không** kiểm `iss`; `xt.pgrst_gate` so với `xt_meta.platform['pgrst_issuer']` (ghi bởi `install_postgrest_role`). Thiếu cấu hình thì từ chối (`hint=issuer`) |
-| Audience (`aud`) | `xt-data` | PostgREST kiểm `jwt-aud`, gate kiểm lại. Token MCP không dùng được. Scope **optional** `xt-data` (không mặc định cho realm, không gán DCR), tạo bằng `provision_data.py` cho đúng các client trong `XT_DATA_CLIENTS` |
+| Audience (`aud`) | `xt-data` | PostgREST kiểm `jwt-aud`, gate kiểm lại. Token MCP không dùng được. Scope **optional** `xt-data` (không mặc định cho realm, không gán DCR), tạo bằng `provision_data.py` cho đúng các client trong `XT_DATA_CLIENTS` (không được chứa client MCP/Desk/IdP). Client headless chuẩn: `xt-cli` (public, auth-code + PKCE S256, loopback `127.0.0.1`; không secret, không client_credentials; xem `docs/decisions.md`). Xin token: `scope=openid xt-data`; token MCP (`mcp-xt`) không mang aud này |
 | Client (`azp`) | Thuộc allowlist `xt_meta.pgrst_client` | Danh sách này **phải trùng** `XT_DATA_CLIENTS`; lệch thì `hint=client_not_allowed` |
 | Loại token | `typ=Bearer` | Refresh/ID token bị từ chối (`hint=token_type`) |
 | Tenant | claim `organization` (alias; list, chuỗi, hoặc object `{alias: {...}}`) | Đúng một alias, đã đăng ký trong `xt_meta.tenant_profile`. 0 alias: `missing_tenant`; nhiều: `tenant_ambiguous`; lạ: `unknown_tenant` |
@@ -191,7 +191,14 @@ Biến môi trường (script không chứa bí mật):
 
 Mỗi loại token đi vào curl bằng tệp header tạm riêng (quyền 600, xóa khi thoát), không nằm trên dòng lệnh (`ps`) và không bị in. Tệp token rỗng được coi là thiếu; token lấy trực tiếp từ môi trường chứa khoảng trắng/xuống dòng bị từ chối. Script tắt `set -x`. Phân loại `chưa triển khai` gồm HTTP `000`, `404`, `502`, `503`, `504`, `530`, thân `error code: 1033` và `chua_trien_khai`.
 
-Ví dụ (token lấy bằng quy trình riêng, lưu vào tệp quyền 600):
+Lấy token bằng client `xt-cli` (public, auth-code + PKCE, scope optional; mỗi loại một token):
+
+```bash
+bash docs/headless-demo.sh --get-token data       # scope xt-data     -> ~/.config/xt/data_token
+bash docs/headless-demo.sh --get-token workflow   # scope xt-workflow -> ~/.config/xt/workflow_token
+```
+
+Ví dụ (token lưu trong tệp quyền 600):
 
 ```bash
 export XT_ACCESS_TOKEN_FILE=~/.config/xt/data_token

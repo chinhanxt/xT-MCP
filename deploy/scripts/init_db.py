@@ -2,7 +2,8 @@
 # SPDX-FileCopyrightText: 2026 xT contributors
 """Khởi tạo DB cho xT, idempotent. Chạy bằng service `xt-init` (ảnh xt, mount tệp này).
 
-1. `bootstrap()` (role xt_migrator/xt_app, schema nền, dấu vân tay khóa audit) nếu DB chưa có.
+1. `bootstrap()` (role xt_migrator/xt_app, schema nền, dấu vân tay khóa audit) nếu DB chưa có;
+   luôn chạy `install_meta_audit()` (superuser, idempotent) để CSDL cũ cũng có audit `xt_meta.*`.
 2. Đặt lại mật khẩu xt_migrator/xt_app/xt_control, `ALTER ROLE xt_app/xt_migrator SET` 4 tham số log an toàn theo .env; tạo xt_control (queue) và nhóm xt_job nếu thiếu.
 3. `xt db migrate` (role xt_migrator) và `xt worker --install-schema` (schema hàng đợi) nếu chưa có.
 Thiếu biến thì thoát mã 2 với danh sách lỗi.
@@ -17,7 +18,7 @@ from pathlib import Path
 import psycopg
 from psycopg import sql
 
-from xt.adapters.db.tenancy import bootstrap
+from xt.adapters.db.tenancy import bootstrap, install_meta_audit
 
 # docs/model-engine.md §8: không để câu lệnh/tham số (mật khẩu, PII) vào log Postgres.
 ROLE_LOG_SETTINGS = (
@@ -58,6 +59,10 @@ def main() -> int:
             pepper_kid=int(env["XT_AUDIT_KEY_ID"]),
         )
         print("xt-init: bootstrap", "đã chạy" if made else "đã có từ trước")
+        # I-AUD-META: API audit xt_meta.* + event trigger bảo vệ (idempotent). CSDL cũ cần trước
+        # `xt db migrate` (0006); CSDL mới cập nhật lại guard. Không cấp quyền audit cho migrator.
+        install_meta_audit(su)
+        print("xt-init: audit metadata đã cài")
         for role, pw in (("xt_migrator", "XT_DB_MIGRATOR_PASSWORD"), ("xt_app", "XT_DB_APP_PASSWORD")):
             su.execute(sql.SQL("ALTER ROLE {} PASSWORD {}").format(sql.Identifier(role), sql.Literal(env[pw])))
         for role in LOG_ROLES:

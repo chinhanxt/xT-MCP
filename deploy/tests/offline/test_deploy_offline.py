@@ -102,6 +102,9 @@ class FakeKC(BaseHTTPRequestHandler):
                 return self._send(204)
             if method == "DELETE":
                 return self._send(204 if maps.pop(m.group(2), None) else 404)
+        m = re.fullmatch(r"/realms/xt/default-(default|optional)-client-scopes", p)
+        if m and method == "GET":
+            return self._send(200, [{"id": i} for i in st["realm_" + m.group(1)]])
         m = re.fullmatch(r"/realms/xt/default-(default|optional)-client-scopes/([^/]+)", p)
         if m and method == "DELETE":
             ok = m.group(2) in st["realm_" + m.group(1)]
@@ -259,6 +262,78 @@ def b64(n: int) -> str:
 
 def rsa_key(kid, bits=2048):
     return {"kty": "RSA", "kid": kid, "use": "sig", "alg": "RS256", "n": b64((1 << (bits - 1)) | 1), "e": b64(65537)}
+
+
+class HeadlessScopes(ProvisionData):
+    """xt-workflow / xt-cli / không lọt aud headless vào MCP (cùng FakeKC)."""
+
+    def test_workflow_scope_exact_audience_optional_not_default(self):
+        FakeKC.state["realm_default"].add("sc-new")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.mod.provision_workflow(self.kc(), "xt", ["xt-integrator"])
+        sc = FakeKC.state["scopes"]["sc-new"]
+        self.assertEqual(sc["name"], "xt-workflow")
+        got = {m["name"]: m for m in sc["mappers"].values()}
+        self.assertEqual(set(got), {"workflow-audience", "organization"})
+        self.assertEqual(got["workflow-audience"]["config"]["included.custom.audience"], "xt-workflow")
+        self.assertEqual(got["workflow-audience"]["protocolMapper"], "oidc-audience-mapper")
+        self.assertNotIn("data_role", json.dumps(sc))
+        self.assertEqual(FakeKC.state["realm_default"], set())
+        cs = FakeKC.state["client_scopes"]
+        self.assertEqual(cs[("id-xt-integrator", "optional")], {"sc-new"})
+        self.assertFalse(cs.get(("id-xt-desk", "optional")))
+
+    def test_both_scopes_never_share_audience(self):
+        FakeKC.state["scopes"]["sc-x"]["name"] = "other"
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.mod.provision_data(self.kc(), "xt", ["xt-desk"])
+            # scope thứ hai: POST luôn đặt id sc-new -> đổi tên scope đầu để mô phỏng 2 scope tách biệt
+            FakeKC.state["scopes"]["sc-data"] = FakeKC.state["scopes"].pop("sc-new")
+            self.mod.provision_workflow(self.kc(), "xt", ["xt-integrator"])
+        auds = {s["name"]: {m["config"]["included.custom.audience"] for m in s["mappers"].values()
+                            if "included.custom.audience" in m.get("config", {})}
+                for s in FakeKC.state["scopes"].values() if s["name"].startswith("xt-")}
+        self.assertEqual(auds, {"xt-data": {"xt-data"}, "xt-workflow": {"xt-workflow"}})
+
+    def test_forbidden_mcp_clients_rejected(self):
+        env = {"XT_MCP_HUMAN_CLIENTS": "xt-desk,xt-desk2"}
+        forb = self.mod.mcp_client_ids(env)
+        self.assertEqual(set(forb), {"xt-desk", "xt-desk2", "xt-desk-agent", "xt-desk-confirm", "xt-api-introspect", "xt-client-registry"})
+        for bad in ("xt-desk", "xt-cli,xt-desk-agent", "xt-client-registry"):
+            with self.assertRaises(SystemExit):
+                self.mod.parse_clients(bad, forb, "XT_WORKFLOW_CLIENTS")
+        self.assertEqual(self.mod.parse_clients("xt-cli", forb), ["xt-cli"])
+
+    def test_assert_mcp_clean(self):
+        st = FakeKC.state["scopes"]
+        st["sc-mcp"] = {"name": "mcp-xt", "mappers": {"a": {"id": "a", "name": "aud", "config": {"included.custom.audience": "https://x/mcp"}}}}
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.mod.assert_mcp_clean(self.kc(), "xt")
+        for aud in ("xt-workflow", "xt-data"):
+            st["sc-mcp"]["mappers"]["a"]["config"]["included.custom.audience"] = aud
+            with self.assertRaises(SystemExit):
+                self.mod.assert_mcp_clean(self.kc(), "xt")
+        st["sc-mcp"]["mappers"]["a"]["config"]["included.custom.audience"] = "https://x/mcp"
+        st["sc-wf"] = {"name": "xt-workflow", "mappers": {}}
+        FakeKC.state["realm_default"].add("sc-wf")
+        with self.assertRaises(SystemExit):
+            self.mod.assert_mcp_clean(self.kc(), "xt")
+
+
+class CliClient(unittest.TestCase):
+    def test_cli_client_rep_public_pkce_no_secret_no_cc(self):
+        mod = load("provision_t", "keycloak/provision.py")
+        rep = mod.cli_client_rep({})
+        self.assertEqual(rep["clientId"], "xt-cli")
+        self.assertTrue(rep["publicClient"])
+        self.assertTrue(rep["standardFlowEnabled"])
+        for k in ("serviceAccountsEnabled", "directAccessGrantsEnabled", "implicitFlowEnabled", "fullScopeAllowed"):
+            self.assertFalse(rep[k], k)
+        self.assertNotIn("secret", rep)
+        self.assertEqual(rep["attributes"]["pkce.code.challenge.method"], "S256")
+        self.assertTrue(all(u.startswith(("http://127.0.0.1/", "http://[::1]/")) and "*" not in u for u in rep["redirectUris"]))
+        self.assertEqual(mod.cli_client_rep({"XT_CLI_CLIENT_ID": "x"})["clientId"], "x")
 
 
 class Realm(BaseHTTPRequestHandler):

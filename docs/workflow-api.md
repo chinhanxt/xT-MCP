@@ -34,6 +34,7 @@ Mọi đường dẫn bắt đầu bằng `/workflow/v1`. Cột "Tool" là tool 
 ## Xác thực
 
 - `Authorization: Bearer <access token Keycloak>`, **`aud` = `xt-workflow`**, scope `xt-workflow`, `azp` thuộc `XT_WORKFLOW_ALLOWED_CLIENTS` (mặc định = `XT_MCP_ALLOWED_CLIENTS`). Token MCP (aud là URL `/mcp`) hay token `/data` (aud `xt-data`) đều bị 401; token workflow cũng bị `/mcp` từ chối.
+- Lấy token: client `xt-cli` (public, auth-code + PKCE), `scope=openid xt-workflow` (scope optional do `provision_data.py` cấp cho `XT_WORKFLOW_CLIENTS`, mặc định `xt-cli`; mapper phát đúng `aud=xt-workflow`). `bash docs/headless-demo.sh --get-token workflow`. Token `xt-data` và token MCP không chứa aud này; `make -C deploy provision-data` tự kiểm `mcp-xt` sạch.
 - Token phải là của **agent đại diện một người** (auth-code, `sub` liên kết với `xt_meta.person`). Service account không đại diện ai bị `access_denied invalid_behalf` (như MCP).
 - **Phiên người (client Desk xác nhận) bị 401**: người chỉ quyết định trên trang `/desk/confirm/{id}` có step-up OTP (M6).
 - Thiếu/sai token: 401 + `WWW-Authenticate: Bearer realm="xt-workflow", error="invalid_token", error_description="…", scope="xt-workflow"`. Thiếu scope: 403 `error="insufficient_scope"`. IdP không tới được: 503 + `Retry-After: 5`.

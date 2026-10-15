@@ -34,6 +34,10 @@
 #   XT_WORKFLOW_BPMN_OUT (tùy chọn) đường dẫn lưu BPMN tải về
 #   XT_DEMO_MAX_BODY  số ký tự thân phản hồi được in, mặc định 600
 #   XT_CURL_OPTS      tùy chọn curl thêm, ví dụ "--resolve xt-api.freepro.online:443:127.0.0.1"
+#   XT_CLI_CLIENT_ID mặc định xt-cli (client public auth-code + PKCE, scope optional xt-data/xt-workflow)
+# Lấy token (một lần, trước khi chạy demo): `bash docs/headless-demo.sh --get-token data|workflow [tệp]`
+#   in URL đăng nhập, người dùng mở bằng trình duyệt, script nhận code ở 127.0.0.1 và ghi token (quyền 600) vào tệp
+#   (mặc định ~/.config/xt/<loại>_token); không in token. Token mỗi loại có scope/aud riêng, không dùng chéo.
 # Mã thoát: 0 = cả 4 bước thật sự thành công; 2 = chỉ có bước chưa triển khai (không có lỗi); 1 = có bước lỗi/thiếu token/không kết luận.
 set -u
 set +x
@@ -50,6 +54,41 @@ WF_DEF="${XT_WORKFLOW_DEFINITION:-proposal_approval}"
 MAX_BODY="${XT_DEMO_MAX_BODY:-600}"
 # shellcheck disable=SC2206
 CURL_EXTRA=(${XT_CURL_OPTS:-})
+
+if [[ "${1:-}" == "--get-token" ]]; then
+  kind="${2:-}"; [[ "$kind" == data || "$kind" == workflow ]] || { echo "dùng: $0 --get-token data|workflow [tệp]" >&2; exit 1; }
+  out="${3:-$HOME/.config/xt/${kind}_token}"; mkdir -p "$(dirname "$out")"
+  exec python3 -I - "$AUTH_BASE" "$REALM" "${XT_CLI_CLIENT_ID:-xt-cli}" "xt-$kind" "$out" <<'PY'
+import base64, hashlib, http.server, json, secrets, sys, urllib.parse, urllib.request
+base, realm, client, scope, out = sys.argv[1:6]
+oidc = f"{base}/realms/{realm}/protocol/openid-connect"
+ver = secrets.token_urlsafe(64); state = secrets.token_urlsafe(16)
+chal = base64.urlsafe_b64encode(hashlib.sha256(ver.encode()).digest()).rstrip(b"=").decode()
+got = {}
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        got.update({k: v[0] for k, v in q.items()})
+        self.send_response(200); self.end_headers(); self.wfile.write(b"OK, quay lai terminal.")
+    def log_message(self, *a): pass
+srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+redir = f"http://127.0.0.1:{srv.server_address[1]}/callback"
+print("Mo URL nay bang trinh duyet:\n" + oidc + "/auth?" + urllib.parse.urlencode({
+    "client_id": client, "response_type": "code", "scope": f"openid {scope}", "redirect_uri": redir,
+    "state": state, "code_challenge": chal, "code_challenge_method": "S256"}))
+srv.handle_request()
+if got.get("state") != state or "code" not in got:
+    sys.exit("dang nhap that bai: " + got.get("error", "state/code khong hop le"))
+req = urllib.request.Request(oidc + "/token", urllib.parse.urlencode({
+    "grant_type": "authorization_code", "client_id": client, "code": got["code"],
+    "redirect_uri": redir, "code_verifier": ver}).encode())
+tok = json.load(urllib.request.urlopen(req))["access_token"]
+import os
+fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+with os.fdopen(fd, "w") as f: f.write(tok)
+print(f"da ghi token {scope} vao {out} (khong in)")
+PY
+fi
 
 command -v curl >/dev/null || { echo "thiếu curl" >&2; exit 1; }
 

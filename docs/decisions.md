@@ -108,3 +108,10 @@ Sau phản biện bằng Codex gpt-6-astra: dùng API cộng thêm `install_data
 - **Câu hỏi 4 – `task_id`:** id task Spiff (UUID nội bộ) hay ref đề nghị?
 - **Quyết định:** `task_id` = `ref` của mục inbox (`<model>:<uuid>`); bước đang chờ của người gọi do server xác định, như `decide_request`. Không lộ id nội bộ của engine ra làm khóa thao tác.
 - **Người không gọi REST:** token client người (`XT_MCP_HUMAN_CLIENTS`) bị 401 như ở MCP (M6); người chỉ quyết định trên `/desk/confirm/{id}` có step-up.
+
+## Token headless xt-workflow / xt-data (16/10/2026, chủ dự án – Opus 5.5)
+
+- **Câu hỏi:** client nào được xin scope `xt-workflow` / `xt-data`: client confidential `xt-automation` (client_credentials) hay public `xt-cli` (auth-code + PKCE)?
+- **Quyết định:** **public client `xt-cli`, auth-code + PKCE S256, redirect loopback RFC 8252** (`http://127.0.0.1/callback`, `http://[::1]/callback`), không secret, không client_credentials/ROPC/implicit, `fullScopeAllowed=false`, không nhận `mcp-xt`. Hai scope là *optional*, tạo bởi `provision_data.py`, chỉ gán cho `XT_DATA_CLIENTS` / `XT_WORKFLOW_CLIENTS` (mặc định `xt-cli`); client khác đang giữ scope bị thu hồi; danh sách chứa client MCP/Desk/IdP (`xt-desk*`, introspect, registry) bị từ chối. Mapper audience phát đúng `xt-workflow` / `xt-data`; scope không bao giờ là realm default/optional; DCR không thấy được. `assert_mcp_clean` kiểm `mcp-xt` không có aud này.
+- **Không làm `xt-automation` confidential:** REST workflow và `/data` quyết định theo *người* (`sub` liên kết `xt_meta.person`; service account bị `invalid_behalf`), nên client_credentials chỉ cho token vô dụng và mở thêm bề mặt secret. Tự động hóa server-to-server thật (BI) cần mô hình quyền cho service principal: để sau, không thêm lúc này.
+- **Lý do:** demo OLP headless cần agent/curl đại diện một người thật; public + PKCE + loopback không giữ bí mật dài hạn, token ngắn hạn, bắt buộc người đăng nhập (OTP/step-up vẫn do Desk). Lấy token: `docs/headless-demo.sh --get-token data|workflow`.

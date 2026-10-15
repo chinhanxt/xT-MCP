@@ -121,6 +121,26 @@ def desk_agent_redirects(env: dict[str, str], desk: str) -> list[str]:
     return uris
 
 
+def cli_client_rep(env: dict[str, str]) -> dict[str, Any]:
+    """Client headless cho người/agent chạy curl (docs/decisions.md, Token headless): PUBLIC + auth-code + PKCE S256,
+    redirect loopback RFC 8252 (Keycloak bỏ qua cổng với 127.0.0.1/[::1]). Không secret, không client_credentials
+    (service account không đại diện người nào: REST từ chối invalid_behalf), không ROPC/implicit, không full scope.
+    KHÔNG nhận mcp-xt; chỉ nhận xt-data/xt-workflow (optional) qua provision_data.py."""
+    return {
+        "clientId": env.get("XT_CLI_CLIENT_ID", "xt-cli"), "name": "xT CLI (agent/curl headless, auth-code + PKCE)",
+        "publicClient": True, "standardFlowEnabled": True, "implicitFlowEnabled": False,
+        "directAccessGrantsEnabled": False, "serviceAccountsEnabled": False, "fullScopeAllowed": False,
+        "redirectUris": ["http://127.0.0.1/callback", "http://[::1]/callback"], "webOrigins": [],
+        "attributes": {"pkce.code.challenge.method": "S256", "oauth2.device.authorization.grant.enabled": "false"}}
+
+
+def mcp_client_ids(env: dict[str, str]) -> list[str]:
+    """Mọi client thuộc bề mặt MCP/Desk/IdP-nội-bộ: KHÔNG bao giờ được nhận scope xt-data/xt-workflow."""
+    return [*env_list(env, "XT_MCP_HUMAN_CLIENTS", "xt-desk"), env.get("XT_DESK_AGENT_CLIENT_ID", "xt-desk-agent"),
+            env.get("XT_CONFIRM_CLIENT_ID", "xt-desk-confirm"), env.get("XT_IDP_INTROSPECTION_CLIENT_ID", "xt-api-introspect"),
+            env.get("XT_IDP_ADMIN_CLIENT_ID", "xt-client-registry")]
+
+
 def desk_agent_web_origins(desk: str, redirects: list[str]) -> list[str]:
     return [desk, *dict.fromkeys(u.rsplit("/auth/callback", 1)[0] for u in redirects if not u.startswith(desk + "/"))]
 
@@ -418,6 +438,7 @@ def provision(kc: KC, env: dict[str, str]) -> None:
     mgmt = kc.get(f"/realms/{realm}/clients?clientId=realm-management")[0]["id"]
     vc = kc.get(f"/realms/{realm}/clients/{mgmt}/roles/view-clients")
     kc.call("POST", f"/realms/{realm}/users/{sa['id']}/role-mappings/clients/{mgmt}", [vc])   # chỉ view-clients
+    upsert_client(kc, realm, cli_client_rep(env))   # không gán mcp-xt; xt-data/xt-workflow cấp bởi provision_data.py
     ensure_dcr_policies(kc, realm, env_list(env, "XT_DCR_TRUSTED_HOSTS", "chatgpt.com,claude.ai"))
     hosts = env_list(env, "XT_DCR_TRUSTED_HOSTS", "chatgpt.com,claude.ai")
     ensure_dcr_client_policy(kc, realm, ["^" + h.replace(".", "\\.") + "$" for h in hosts if h not in ("localhost",)])
