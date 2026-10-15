@@ -209,3 +209,74 @@ Không thấy nới. `test_aq03_tenant_a_then_b_*` vẫn kiểm cùng pid (pool 
 ### Verdict vòng 2
 
 **ĐẠT.** Ba tính năng vòng 2 (recover từng job, backoff/công bằng lịch, `dlq requeue|purge`) đúng trên PG17 thật và không có hồi quy (185 / 22 / 43). Còn mở: R6 (trễ khởi phát trong tenant, có giới hạn, chấp nhận được), R10 (Low), R9 (chưa kiểm), và cổng fixture cố định gây nhiễu khi chạy song song.
+
+## Vòng 2b – GuardedCursor (tester Opus, 16/10/2026)
+
+Khép R9 từ Vòng 2. Tấn công `GuardedCursor` qua đúng đường handler thật trên PG17
+(`QueueRuntime._dispatch` → `handler_guard` → vai trò job NOLOGIN theo tenant). Mỗi
+case phân loại: *chặn bởi guard* (`SessionControlError`/`TransactionControlError`),
+*chặn bởi quyền* (PostgreSQL từ chối), hay *KHÔNG chặn* (đọc `current_user` /
+`current_setting('xt.tenant_id')` / `search_path` ngay trong handler để đo tác động).
+Test: `tests/integration/queue_audit/test_guarded_cursor_bypass.py` (49 pass, 5 `xfail(strict)`).
+
+| ID | Dạng tấn công | Kết quả | Ghi chú |
+|----|---------------|---------|---------|
+| B1 | `SET ROLE`/`SESSION AUTHORIZATION` biến thể: thường/hoa-thường, `/**/` và `--` tách từ khóa, newline/tab, `/*…*/` dẫn đầu, định danh nháy `"SET"`/`"xt_app"`, `SET SESSION ROLE` | **Chặn bởi guard** | 15 biến thể đều `SessionControlError`. Comment/khoảng trắng chuẩn hóa về space; literal nháy giữ tên định danh nên `"SET"` vẫn bị bắt |
+| B2 | `SET [LOCAL] xt.tenant_id = …` (kể cả `/**/` chèn, hoa-thường) | **Chặn bởi guard** | 4/4 `SessionControlError` |
+| B3 | `set_config()` obfuscate: `E'…'`, `U&'…'`, `"set_config"`, `pg_catalog.set_config`, trong CTE/subquery/`WHERE`, multi-statement, `xt.set_context(...)` | **Chặn bởi guard** | 13/13. Tên GUC không phải literal thường bị từ chối thẳng; quét `_SET_CONFIG` trên *toàn văn* nên vị trí nào cũng bắt |
+| B4 | Kết thúc transaction: `COMMIT/END/ABORT/ROLLBACK/ROLLBACK WORK/PREPARE TRANSACTION`, `COMMIT/**/`, `SELECT 1; COMMIT` | **Chặn bởi guard** | 10/10 `TransactionControlError` |
+| B5 | `SAVEPOINT` / `ROLLBACK TO SAVEPOINT` / `RELEASE`; `SET LOCAL ROLE xt_workflow` | **Cho phép (đúng thiết kế)** | Savepoint và nâng quyền workflow qua guard như chủ đích |
+| B6 | `set_config()` nằm trong thân `DO $$…$$` và `CREATE FUNCTION … $$ … $$` | **Chặn bởi guard** | Quét toàn văn thấy `set_config(` cả trong dollar-quote → chặn trước khi chạy |
+| B7 | `PREPARE p AS SELECT set_config(...)` | **Chặn bởi guard** | Văn bản PREPARE mang literal `set_config` nên bị bắt |
+| B8 | `CALL pg_temp.proc()` có `COMMIT` trong thân | **Chặn bởi quyền/runtime** | Vai trò job TẠO được procedure pg_temp, nhưng PG chặn `COMMIT` trong tx đang mở: `InvalidTransactionTermination` |
+| B9 | `DISCARD ALL` | **Chặn bởi PG** | `ActiveSqlTransaction` (không chạy trong block tx). `DISCARD` không nằm trong guard nhưng PG chặn |
+| B10 | `COPY (…) TO PROGRAM 'id'` | **Chặn bởi quyền** | `InsufficientPrivilege` (thiếu `pg_execute_server_program`) |
+| B11 | Tạo function pg_temp tầm thường | **Cho phép (quyền)** | TEMP được cấp cho vai trò job → tạo được routine pg_temp; đây là tiền đề cho B12–B13 |
+| **B12** | `DO $$ BEGIN SET ROLE xt_app; END $$` | **KHÔNG CHẶN – tác động cao** | `xfail(strict)`. Vai trò login của pool LÀ `xt_app`, nên `SET ROLE xt_app` luôn hợp lệ; thân DO mờ với guard → handler **leo từ vai trò job NOLOGIN về `xt_app`** tới khi dispatcher re-pin. `current_user`=`xt_app` sau handler |
+| **B13** | `DO $$ BEGIN SET xt.tenant_id = '<B>'; END $$` và function pg_temp dùng từ khóa `SET xt.tenant_id` rồi `SELECT fn()` | **KHÔNG CHẶN – tác động cao** | `xfail(strict)` ×2. Từ khóa `SET` (không phải `set_config()`) trong thân mờ với guard → GUC tenant RLS đổi sang TENANT_B trong suốt handler (xác minh `current_setting('xt.tenant_id')`=`<B>`) |
+| **B14** | `SET [LOCAL] search_path TO …` | **KHÔNG CHẶN – tác động vừa** | `xfail(strict)`. `_SESSION_CONTROL` không phủ `search_path` (chỉ phủ ROLE/AUTHORIZATION/`xt.`); chỉ `set_config('search_path',…)` bị bắt. Dispatcher re-pin sau handler |
+| B15 | `RESET search_path` | **KHÔNG CHẶN – tác động thấp** | `xfail(strict)`. `_SESSION_CONTROL` chỉ bắt `RESET ALL`. Chỉ trả về default kết nối, dispatcher re-pin |
+
+### Phân tích bypass (B12–B15)
+
+Guard là **phân tích câu lệnh tĩnh tầng ngoài**, không soi SQL động. Hai lỗ thật có
+tác động trong *phạm vi handler* (trước khi dispatcher re-pin role/tenant/search_path và
+pool `DISCARD ALL`):
+
+1. **Leo vai trò về `xt_app` (B12)** và **ghi đè GUC tenant RLS (B13)** qua từ khóa `SET`
+   bọc trong `DO`/function pg_temp. `set_config()` bị chặn triệt để (quét toàn văn), nhưng
+   *dạng từ khóa* `SET role/xt.tenant_id` lồng trong thân dollar-quote thì guard làm trắng
+   literal (cho kiểm tra per-statement) nên không thấy. Vai trò job tạo được routine pg_temp
+   (TEMP được cấp) nên đường này khả thi thật.
+2. **`SET/RESET search_path` (B14–B15)** nằm ngoài `_SESSION_CONTROL`.
+
+Đúng như docs (M2), guard là defense-in-depth chứ không phải sandbox, và handler là
+first-party; các bất biến thật (re-pin + `DISCARD ALL` khi trả pool) vẫn giữ qua test
+`test_r2_*` của Vòng 2. Nhưng nếu muốn guard làm đúng tuyên bố "chặn đổi role/context/
+search_path", cần vá: (a) chặn dạng từ khóa `SET ROLE`/`SET xt.*` *cả khi nằm trong thân
+`DO`/`CREATE FUNCTION`/`CREATE PROCEDURE`* (ví dụ: chặn mọi `DO`/`CREATE FUNCTION|PROCEDURE`
+chứa từ khóa đó, hoặc cấm handler tạo routine); (b) thêm `search_path` vào `_SESSION_CONTROL`
+cho cả `SET` lẫn `RESET`. Lưu ý B12 nghiêm trọng hơn B13 vì leo tới `xt_app` (vai trò app rộng).
+
+### R10 (Low) – đề xuất vá redaction
+
+`procrastinate/worker.py:505-512` (`poll_jobs_to_abort`) log `logger.exception(..., extra={"exception": repr(error)})`.
+`RedactJobPayload.filter` đã xóa `exc_info/exc_text` và scrub `job`/`jobs`, nhưng **không**
+đụng key extra `exception`. Lỗi này ở control-plane (không mang payload tenant) nên chỉ Low,
+nhưng để đồng bộ nên scrub luôn. Vá (không sửa trong lượt này, chỉ src — đề xuất):
+
+```python
+# trong RedactJobPayload.filter, cạnh vòng lặp ("job", "jobs"):
+if "exception" in record.__dict__:
+    record.__dict__["exception"] = "[redacted]"
+```
+
+### Verdict Vòng 2b
+
+**ĐẠT có điều kiện.** 24 lớp obfuscation (comment/whitespace/case/`E'`/`U&'`/quoted/
+schema-qualified/CTE/multi-statement/`PREPARE`/`set_config` trong `DO`/function) đều bị guard
+hoặc PG/quyền chặn. **Bốn bypass thật (xfail strict)**: B12 leo vai trò về `xt_app`, B13 đổi
+GUC tenant RLS (×2 đường DO + function), B14 `SET search_path` — qua *từ khóa `SET` lồng trong
+SQL động* mà guard không soi; B15 `RESET search_path` (Low). Tất cả chỉ trong phạm vi handler
+first-party, re-pin + `DISCARD ALL` vẫn là backstop. Khuyến nghị vá guard (a)(b) ở trên để
+khớp tuyên bố; R10 scrub key `exception`.
