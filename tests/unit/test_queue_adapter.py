@@ -253,6 +253,16 @@ def test_installed_redaction_covers_lazily_imported_worker_logger(
         ("SELECT set_config(lower('XT.TENANT_ID'), '1', true)", True),
         ("SELECT xt.set_context(%s, NULL, '{}', '{}', '{}', NULL, NULL, NULL)", True),
         ("SELECT pg_catalog.set_config('statement_timeout', '5s', true)", False),
+        ("SET search_path TO xt_t2", True),
+        ("SET LOCAL search_path = public", True),
+        ('set session "search_path" to x', True),
+        ("RESET search_path", True),
+        ("SET SCHEMA 'x'", True),
+        ("SET \"xt.tenant_id\" = 'b'", True),
+        ("SET U&\"\\0078t.tenant_id\" = 'b'", True),
+        # A comment opener inside a literal must not hide the next statement.
+        ("SELECT '/*'; SET ROLE xt_app; SELECT '*/'", True),
+        ("SELECT 1 /* ' */; SET ROLE xt_app; -- '", True),
         ("SELECT current_setting('xt.tenant_id')", False),
         ("SELECT 'SET ROLE xt_app'", False),
     ],
@@ -408,3 +418,38 @@ def test_xt_worker_dlq_is_wired_to_the_adapter(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(dlq, "main", lambda argv: seen.append(list(argv)) or 0)
     assert main(["dlq", "requeue", "5"]) == 0
     assert seen == [["requeue", "5"]]
+
+
+@pytest.mark.parametrize(
+    ("text", "dynamic"),
+    [
+        ("DO $$ BEGIN SET ROLE xt_app; END $$", True),
+        ("/**/ do $x$ begin perform 1; end $x$", True),
+        ("SELECT 1; DO 'BEGIN NULL; END'", True),
+        ("CREATE FUNCTION pg_temp.f() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$", True),
+        ("create or replace procedure p() language sql as 'select 1'", True),
+        ("ALTER FUNCTION f() SET search_path = x", True),
+        ("CREATE TABLE pg_temp.x(a int)", True),
+        ('CREATE VIEW "pg_temp".v AS SELECT 1', True),
+        ("CREATE TABLE pg_temp_3.x(a int)", True),
+        ("CREATE TEMP TABLE x(a int)", False),
+        ("INSERT INTO t VALUES (1) ON CONFLICT DO NOTHING", False),
+        ("SELECT 'DO $$'", False),
+        ("SELECT * FROM pg_temp.x", False),
+    ],
+)
+def test_dynamic_code_detection(text: str, dynamic: bool) -> None:
+    from xt.adapters.queue.guard import runs_dynamic_code
+
+    assert runs_dynamic_code(text) is dynamic
+
+
+def test_redaction_scrubs_procrastinate_exception_extra() -> None:
+    import logging
+
+    from xt.adapters.queue.runtime import RedactJobPayload
+
+    record = logging.LogRecord("procrastinate.worker", logging.ERROR, __file__, 1, "x", None, None)
+    record.exception = "OperationalError('DETAIL: PAYLOAD-MARKER')"
+    assert RedactJobPayload().filter(record)
+    assert record.exception == "[redacted]"

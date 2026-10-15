@@ -35,10 +35,16 @@ class SessionControlError(RuntimeError):
     """A handler tried to change the role/tenant context the dispatcher pinned."""
 
 
-_COMMENTS = re.compile(r"--[^\n]*|/\*.*?\*/", re.S)
-_LITERALS = re.compile(
-    r"(?<![\w$])[eE]'(?:[^'\\]|\\.|'')*'|'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\""
-    r"|(?<![\w$])\$\$.*?\$\$|(?<![\w$])\$([A-Za-z_][A-Za-z_0-9]*)\$.*?\$\1\$",
+# One left-to-right tokenizer: whichever of comment / literal / quoted
+# identifier starts first wins, so "/*" inside a string or "'" inside a comment
+# cannot hide code. Dollar quotes and E-strings only start where the previous
+# character is not part of a word or a dollar tag (L4).
+_TOKENS = re.compile(
+    r"(?P<comment>--[^\n]*|/\*.*?\*/)"
+    r"|(?P<literal>(?<![\w$])[eE]'(?:[^'\\]|\\.|'')*'|'(?:[^']|'')*'"
+    r"|(?<![\w$])\$\$.*?\$\$|(?<![\w$])\$([A-Za-z_][A-Za-z_0-9]*)\$.*?\$\3\$)"
+    r"|(?P<uident>[uU]&\"(?:[^\"]|\"\")*\")"
+    r"|(?P<ident>\"(?:[^\"]|\"\")*\")",
     re.S,
 )
 _ENDS_TRANSACTION = re.compile(
@@ -46,18 +52,32 @@ _ENDS_TRANSACTION = re.compile(
     r"|ROLLBACK(?!\s+(?:WORK\s+|TRANSACTION\s+)?TO\b))\b",
     re.I,
 )
-# SET [SESSION|LOCAL] ROLE / SESSION AUTHORIZATION / xt.* GUCs, RESET of the same.
-# The single allowed elevation is the workflow transition role.
+# SET [SESSION|LOCAL] ROLE / SESSION AUTHORIZATION / search_path (SCHEMA) /
+# xt.* GUCs, RESET of the same. The single allowed elevation is the workflow
+# transition role. An escaped unicode identifier (U&"...") cannot be judged.
 _SESSION_CONTROL = re.compile(
-    r"\s*(?:SET\s+(?:SESSION\s+|LOCAL\s+)?(?:ROLE|SESSION\s+AUTHORIZATION|XT\.)"
-    r"|RESET\s+(?:ROLE|ALL|SESSION\s+AUTHORIZATION|XT\.))",
-    re.I,
+    r"\s*(?:SET\s+(?:SESSION\s+|LOCAL\s+)?"
+    r"(?:ROLE|SESSION\s+AUTHORIZATION|SEARCH_PATH\b|SCHEMA\b|XT\.)"
+    r"|RESET\s+(?:ROLE|ALL|SESSION\s+AUTHORIZATION|SEARCH_PATH\b|XT\.))"
+    r"|.*\bU&\"",
+    re.I | re.S,
 )
-_WORKFLOW_ELEVATION = re.compile(r"\s*SET\s+LOCAL\s+ROLE\s+\"?xt_workflow\"?\s*$", re.I)
+_WORKFLOW_ELEVATION = re.compile(r"\s*SET\s+LOCAL\s+ROLE\s+xt_workflow\s*$", re.I)
+# Owner decision (Vòng 2b): handlers never need dynamic SQL or their own
+# routines. DO bodies and routine definitions are opaque to statement
+# inspection (B12/B13), so they are rejected outright, as is any CREATE that
+# names a temporary schema.
+_DYNAMIC_CODE = re.compile(
+    r"\s*(?:DO\b"
+    r"|(?:CREATE|ALTER)\s+(?:OR\s+REPLACE\s+)?(?:(?:TEMP|TEMPORARY)\s+)?"
+    r"(?:FUNCTION|PROCEDURE|ROUTINE|AGGREGATE|TRIGGER|EVENT\s+TRIGGER|RULE)\b"
+    r"|CREATE\b.*\bpg_(?:toast_)?temp(?:_\d+)?\s*\.)",
+    re.I | re.S,
+)
 # set_config() on the tenant GUCs, role/authorization or search_path, and the
 # model-engine context setter (AUD-13). A name that is not a plain literal
 # (parameter, E-/U&-string, dollar quote, expression) cannot be judged and is
-# rejected as well.
+# rejected as well. Matched on the text with comments removed but literals kept.
 _SET_CONFIG = re.compile(
     r"\bset_config\"?\s*\(\s*(?!'(?!\s*(?:xt\.|role'|session_authorization'|search_path'))"
     r"[^']*'\s*,)"
@@ -68,17 +88,23 @@ _SET_CONFIG = re.compile(
 _guarded: weakref.WeakSet[AsyncConnection[Any]] = weakref.WeakSet()
 
 
-def _literal(match: re.Match[str]) -> str:
-    # Keep a quoted identifier's name (minus quotes) so SET ROLE "x" is judged
-    # like SET ROLE x; literals are blanked so their ';' cannot split statements.
-    token = match.group(0)
-    if token.startswith('"'):
-        return re.sub(r"\W", "_", token[1:-1]) or "_"
+def _code(match: re.Match[str]) -> str:
+    # Literals are blanked so their ';' cannot split statements. A quoted
+    # identifier keeps its name (minus quotes) so SET ROLE "x" / SET "xt.t" are
+    # judged like the unquoted forms; separators inside it cannot split.
+    if match.group("ident"):
+        return re.sub(r"[\s;'\"$]", "_", match.group("ident")[1:-1]) or "_"
+    if match.group("uident"):
+        return ' U&" '
     return " "
 
 
+def _uncommented(match: re.Match[str]) -> str:
+    return " " if match.group("comment") else match.group(0)
+
+
 def _statements(text: str) -> list[str]:
-    return _LITERALS.sub(_literal, _COMMENTS.sub(" ", text)).split(";")
+    return _TOKENS.sub(_code, text).split(";")
 
 
 def ends_transaction(text: str) -> bool:
@@ -86,9 +112,14 @@ def ends_transaction(text: str) -> bool:
     return any(_ENDS_TRANSACTION.match(part) for part in _statements(text))
 
 
+def runs_dynamic_code(text: str) -> bool:
+    """True for ``DO``, routine definitions and CREATE in a temporary schema."""
+    return any(_DYNAMIC_CODE.match(part) for part in _statements(text))
+
+
 def changes_session_context(text: str) -> bool:
-    """True when ``text`` switches role/authorization or sets an ``xt.*`` GUC."""
-    if _SET_CONFIG.search(_COMMENTS.sub(" ", text)):
+    """True when ``text`` switches role/authorization/search_path or the tenant context."""
+    if _SET_CONFIG.search(_TOKENS.sub(_uncommented, text)):
         return True
     return any(
         _SESSION_CONTROL.match(part) and not _WORKFLOW_ELEVATION.match(part)
@@ -143,6 +174,8 @@ class GuardedCursor(AsyncCursor[Row]):
         text = _query_text(query, self.connection)
         if ends_transaction(text):
             raise TransactionControlError("job handlers must not end the worker transaction")
+        if runs_dynamic_code(text):
+            raise SessionControlError("job handlers must not run DO blocks or define routines")
         if changes_session_context(text):
             raise SessionControlError("job handlers must not change the pinned role/tenant")
 

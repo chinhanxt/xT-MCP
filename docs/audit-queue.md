@@ -280,3 +280,19 @@ GUC tenant RLS (×2 đường DO + function), B14 `SET search_path` — qua *t�
 SQL động* mà guard không soi; B15 `RESET search_path` (Low). Tất cả chỉ trong phạm vi handler
 first-party, re-pin + `DISCARD ALL` vẫn là backstop. Khuyến nghị vá guard (a)(b) ở trên để
 khớp tuyên bố; R10 scrub key `exception`.
+
+
+### Phản hồi tác giả – Vòng 2b
+
+Ngày 16/10/2026. Theo quyết định chủ dự án (handler không cần SQL động). Đã sửa hết, 5 `xfail(strict)` trong `test_guarded_cursor_bypass.py` đã gỡ và pass.
+
+| # | Cách sửa | Test |
+| --- | --- | --- |
+| B12, B13 | `GuardedCursor` từ chối thẳng `DO`, `CREATE/ALTER [OR REPLACE] FUNCTION/PROCEDURE/ROUTINE/AGGREGATE/TRIGGER/RULE` và `CREATE … pg_temp(_N).*` (`runs_dynamic_code`, kiểm trên câu lệnh đã tách, nên `DO` trong literal hay `ON CONFLICT DO NOTHING` không bị nhầm). Thêm lớp quyền: `xt_queue.job_binding` từ chối job role có `TEMPORARY` (PG không có quyền riêng cho routine pg_temp; quyền CREATE trên schema tạm suy ra từ TEMP) | 3 test B12/B13 hết xfail; `test_dynamic_code_and_tokenizer_evasions_blocked_by_guard` ×8; `test_handler_role_cannot_create_pg_temp_functions`; `test_job_role_with_temporary_privilege_fails_closed`; unit `test_dynamic_code_detection` ×13 |
+| B14, B15 | `search_path`/`SCHEMA` vào tập session-control cho `SET [SESSION|LOCAL]` và `RESET` | 2 test hết xfail; unit ×5 |
+| B16 (mới, tác giả tìm thấy) | Bản cũ bỏ comment trước rồi mới bỏ literal: `SELECT '/*'; SET ROLE xt_app; SELECT '*/'` lọt guard. Nay một tokenizer trái-sang-phải; định danh nháy giữ tên (`SET "xt.tenant_id"`), `U&"…"` bị từ chối | unit ×4, integration ×2 |
+| R10 | `RedactJobPayload` thay extra `exception` bằng `[redacted]` | unit `test_redaction_scrubs_procrastinate_exception_extra` |
+
+Test đổi theo: `test_call_procedure_commit_…` nay kỳ vọng `SessionControlError` (CREATE PROCEDURE bị chặn trước cả lỗi COMMIT của PG). Fixture audit chỉ cấp TEMP cho `xt_workflow`; test AQ-03 tạo temp table sau `SET LOCAL ROLE xt_workflow` và đặt `search_path` session qua `guard_suspended` (mô phỏng `pgconn`) để vẫn chứng minh `DISCARD ALL`; test L3 cũng vậy. Hai fixture PG dùng cổng loopback ngẫu nhiên.
+
+Kết quả: unit worker 208 passed; `tests/integration/queue_audit` **106 passed** (0 xfail); `make test-worker-integration` 22 passed; mỗi lúc một container, đã dọn.

@@ -109,6 +109,9 @@ class RedactJobPayload(logging.Filter):
             record.exc_info = None
         record.exc_text = None
         record.stack_info = None
+        # R10: procrastinate passes ``extra={"exception": repr(error)}`` too.
+        if "exception" in record.__dict__:
+            record.__dict__["exception"] = "[redacted]"
         for name in ("job", "jobs"):
             value = record.__dict__.get(name)
             if isinstance(value, dict):

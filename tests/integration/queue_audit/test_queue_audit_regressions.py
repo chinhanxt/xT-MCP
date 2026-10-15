@@ -103,8 +103,11 @@ def test_aq03_pooled_session_state_does_not_leak_between_tenants(
         pid = (await cursor.fetchone())[0]
         if job.tenant_id == TENANT_A:
             seen["pid_a"] = pid
-            # Non-LOCAL settings / temp tables made by a handler of tenant A.
-            await connection.execute("SET SESSION search_path TO xt_t1, public")
+            # Non-LOCAL settings / temp tables made by a handler of tenant A,
+            # past the statement guard (as connection.pgconn could).
+            with guard_suspended(connection):
+                await connection.execute("SET SESSION search_path TO xt_t1, public")
+            await connection.execute("SET LOCAL ROLE xt_workflow")  # holds TEMP here
             await connection.execute("CREATE TEMP TABLE audit_leak(v text) ON COMMIT PRESERVE ROWS")
             await connection.execute("INSERT INTO audit_leak VALUES ('secret-of-A')")
         elif pid == seen.get("pid_a"):
@@ -190,7 +193,7 @@ def test_aq03_tenant_a_then_b_on_one_connection_resets_all_session_state(
                     "SELECT set_config('xt.tenant_id',%s,false)", (str(TENANT_A),)
                 )
                 await connection.execute("SET SESSION ROLE xt_workflow")
-            await connection.execute("SET SESSION search_path TO xt_t1")
+                await connection.execute("SET SESSION search_path TO xt_t1")
             await connection.execute("SELECT pg_advisory_lock(424242)")
             await connection.execute("PREPARE leak_stmt AS SELECT 1")
             await connection.execute("CREATE TEMP TABLE leak_a(v text) ON COMMIT PRESERVE ROWS")
@@ -816,8 +819,10 @@ def test_l3_bookkeeping_runs_with_repinned_role_tenant_and_search_path(
     )
 
     async def handler(connection: AsyncConnection[Any], job: Any) -> None:
-        # Allowed for handlers; must not leak into the dispatcher's bookkeeping.
-        await connection.execute("SET LOCAL search_path TO xt_t1, public, pg_temp")
+        # Past the guard (as connection.pgconn could); must not leak into the
+        # dispatcher's bookkeeping.
+        with guard_suspended(connection):
+            await connection.execute("SET LOCAL search_path TO xt_t1, public, pg_temp")
         await connection.execute("SET LOCAL ROLE xt_workflow")
 
     runtime = db.runtime(handlers={"business.finish": handler})
@@ -843,3 +848,29 @@ def test_l3_bookkeeping_runs_with_repinned_role_tenant_and_search_path(
         db.execute("DROP FUNCTION public.l3_probe_trigger()")
         db.execute("DROP TABLE public.l3_probe")
     assert probe == [("xt_app", str(TENANT_A), "pg_catalog, public", TENANT_A)]
+
+
+def test_job_role_with_temporary_privilege_fails_closed(audit_db: AuditDatabase) -> None:
+    """Vòng 2b: TEMP would let a job role define pg_temp routines; job_binding refuses it."""
+    db = audit_db
+    runtime = db.runtime()
+    job = _request(db, TENANT_A, "xt_t1")
+
+    async def scenario() -> None:
+        async with db.tenant_transaction(TENANT_A) as connection:
+            await runtime.queue.enqueue(connection, job)
+        async with runtime.tenant_pool:
+            with pytest.raises(psycopg.errors.InsufficientPrivilege, match="TEMPORARY"):
+                await runtime.dispatch(
+                    None,
+                    tenant_id=str(TENANT_A),
+                    task_name=job.task_name,
+                    idempotency_key=job.idempotency_key,
+                    payload=job.payload,
+                )
+
+    db.execute("GRANT TEMPORARY ON DATABASE xt_worker_it TO xt_job")
+    try:
+        asyncio.run(scenario())
+    finally:
+        db.execute("REVOKE TEMPORARY ON DATABASE xt_worker_it FROM xt_job")

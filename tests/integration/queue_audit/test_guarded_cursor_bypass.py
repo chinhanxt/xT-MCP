@@ -16,9 +16,9 @@ inspection* itself reaches. Each case is classified as:
   ``current_setting('xt.tenant_id')`` / ``current_setting('search_path')``
   inside the same handler to prove whether context actually changed.
 
-Real bypasses *with impact* are marked ``xfail(strict=True)``: the assertion
-demands the guard block them, so the suite stays green while flagging that it
-does not; tightening the guard turns the strict xfail into a failure.
+The real bypasses B12-B15 were first recorded as ``xfail(strict=True)``; after
+the Vòng 2b guard fix (DO/routine definitions rejected, search_path in the
+session-control set, one-pass tokenizer) they pass and the markers are gone.
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ def _attack(
     error: BaseException | None = None
     try:
         asyncio.run(scenario())
-    except BaseException as exc:  # noqa: BLE001 - classification is the whole point
+    except BaseException as exc:
         error = exc
     return error, captured
 
@@ -154,7 +154,7 @@ def test_xt_guc_set_blocked_by_guard(audit_db: AuditDatabase, statement: str) ->
         "SELECT set_config(E'role', 'xt_app', false)",
         "SELECT set_config(E'r\\157le', 'xt_app', false)",
         "SELECT set_config(U&'r\\006fle', 'xt_app', false)",
-        'SELECT "set_config"(\'role\', \'xt_app\', false)',
+        "SELECT \"set_config\"('role', 'xt_app', false)",
         "SELECT pg_catalog.set_config('role', 'xt_app', false)",
         "SELECT set_config('xt.tenant_id', 'x', false) WHERE 1=1",
         "WITH c AS (SELECT set_config('xt.tenant_id','x',false) v) SELECT v FROM c",
@@ -190,9 +190,7 @@ def test_set_config_and_set_context_variants_blocked_by_guard(
         "SELECT 1; COMMIT",
     ],
 )
-def test_transaction_end_variants_blocked_by_guard(
-    audit_db: AuditDatabase, statement: str
-) -> None:
+def test_transaction_end_variants_blocked_by_guard(audit_db: AuditDatabase, statement: str) -> None:
     error, _ = _attack(audit_db, [statement])
     assert isinstance(error, TransactionControlError), f"not blocked: {statement!r} -> {error!r}"
 
@@ -239,24 +237,40 @@ def test_set_config_inside_do_and_function_bodies_still_caught(
         assert isinstance(error, SessionControlError), f"not blocked: {statement!r} -> {error!r}"
 
 
-def test_handler_role_can_create_pg_temp_functions(audit_db: AuditDatabase) -> None:
-    """Privilege reality: TEMP is granted, so the job role CAN create pg_temp routines.
-
-    This is what makes the keyword-SET wrapper bypasses below reachable; the
-    guard, not privilege, is the only thing between a handler and those bodies.
-    """
+def test_handler_role_cannot_create_pg_temp_functions(audit_db: AuditDatabase) -> None:
+    """After the Vòng 2b fix: routine definitions are rejected by the guard, and job
+    roles hold no TEMPORARY privilege (``xt_queue.job_binding`` fails closed otherwise),
+    so the pg_temp routine prerequisite of B12/B13 is gone on both layers."""
     name = f"pg_temp.ok_{uuid4().hex}"
-    error, _ = _attack(audit_db, [f"CREATE FUNCTION {name}() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$"])
-    assert error is None, f"expected creation to be allowed, got {error!r}"
+    error, _ = _attack(
+        audit_db, [f"CREATE FUNCTION {name}() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$"]
+    )
+    assert isinstance(error, SessionControlError), f"not blocked: {error!r}"
+    assert audit_db.execute(
+        "SELECT has_database_privilege(%s, current_database(), 'TEMPORARY')", (PINNED_ROLE,)
+    ) == [(False,)]
 
 
-@pytest.mark.xfail(
-    reason="R9 BYPASS (impact): the pool login role IS xt_app, so SET ROLE xt_app is "
-    "always permitted. Wrapped in an opaque DO body the keyword SET ROLE escapes the "
-    "guard and the handler escalates from its NOLOGIN tenant job role back to xt_app "
-    "(the broad app role) for the rest of the handler, until the dispatcher re-pins.",
-    strict=True,
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "DO $$ BEGIN PERFORM 1; END $$",
+        "/**/ do $x$ begin null; end $x$",
+        "SELECT 1; DO 'BEGIN NULL; END'",
+        "CREATE OR REPLACE PROCEDURE pg_temp.p() LANGUAGE sql AS 'SELECT 1'",
+        "CREATE TABLE pg_temp.t(a int)",
+        "SELECT '/*'; SET ROLE xt_app; SELECT '*/'",  # comment opener inside a literal
+        "SET \"xt.tenant_id\" = 'x'",
+        "SET SCHEMA 'pg_catalog'",
+    ],
 )
+def test_dynamic_code_and_tokenizer_evasions_blocked_by_guard(
+    audit_db: AuditDatabase, statement: str
+) -> None:
+    error, _ = _attack(audit_db, [statement])
+    assert isinstance(error, SessionControlError), f"not blocked: {statement!r} -> {error!r}"
+
+
 def test_do_keyword_set_role_escalates_to_app_role(audit_db: AuditDatabase) -> None:
     error, probe = _attack(audit_db, ["DO $$ BEGIN SET ROLE xt_app; END $$"], probe=True)
     assert isinstance(error, SessionControlError), (
@@ -264,14 +278,6 @@ def test_do_keyword_set_role_escalates_to_app_role(audit_db: AuditDatabase) -> N
     )
 
 
-@pytest.mark.xfail(
-    reason="R9 BYPASS (impact): a DO body using the SET keyword (not set_config) to "
-    "rewrite xt.tenant_id is opaque to the guard -- the dollar body is blanked for "
-    "the role/GUC check and _SET_CONFIG only matches the set_config() call form -- so "
-    "the handler flips its own RLS tenant GUC to another tenant until the dispatcher "
-    "re-pins it after the handler returns.",
-    strict=True,
-)
 def test_do_keyword_set_rewrites_tenant_context_guc(audit_db: AuditDatabase) -> None:
     other = str(TENANT_B)
     error, probe = _attack(
@@ -284,12 +290,6 @@ def test_do_keyword_set_rewrites_tenant_context_guc(audit_db: AuditDatabase) -> 
     )
 
 
-@pytest.mark.xfail(
-    reason="R9 BYPASS (impact): a pg_temp plpgsql function body using the SET keyword "
-    "to rewrite xt.tenant_id is never inspected (CREATE is allowed, the SELECT wrapper "
-    "is opaque), so calling it flips the RLS tenant GUC for the rest of the handler.",
-    strict=True,
-)
 def test_function_wrapper_keyword_set_rewrites_tenant_context_guc(
     audit_db: AuditDatabase,
 ) -> None:
@@ -309,12 +309,6 @@ def test_function_wrapper_keyword_set_rewrites_tenant_context_guc(
     )
 
 
-@pytest.mark.xfail(
-    reason="R9 bypass: plain SET [LOCAL] search_path is outside _SESSION_CONTROL "
-    "(only set_config('search_path',...) is caught), so the handler can repoint "
-    "unqualified name resolution until the dispatcher re-pins afterwards.",
-    strict=True,
-)
 def test_set_search_path_not_inspected(audit_db: AuditDatabase) -> None:
     error, probe = _attack(audit_db, ["SET LOCAL search_path TO pg_catalog"], probe=True)
     assert isinstance(error, SessionControlError), (
@@ -323,8 +317,8 @@ def test_set_search_path_not_inspected(audit_db: AuditDatabase) -> None:
 
 
 def test_call_procedure_commit_blocked_by_postgres_runtime(audit_db: AuditDatabase) -> None:
-    """CALL is opaque to the guard and the job role CAN create a pg_temp procedure, but
-    PostgreSQL itself refuses the COMMIT inside a procedure called in an active tx."""
+    """After the Vòng 2b fix the pg_temp procedure can no longer be defined at all: the
+    guard rejects CREATE PROCEDURE before PostgreSQL would refuse the inner COMMIT."""
     name = f"pg_temp.p_{uuid4().hex}"
     error, _ = _attack(
         audit_db,
@@ -333,8 +327,7 @@ def test_call_procedure_commit_blocked_by_postgres_runtime(audit_db: AuditDataba
             f"CALL {name}()",
         ],
     )
-    assert not isinstance(error, (SessionControlError, TransactionControlError))
-    assert isinstance(error, psycopg.errors.InvalidTransactionTermination), f"unexpected: {error!r}"
+    assert isinstance(error, SessionControlError), f"unexpected: {error!r}"
 
 
 def test_prepare_execute_of_set_config_blocked_by_guard(audit_db: AuditDatabase) -> None:
@@ -358,12 +351,6 @@ def test_discard_all_rejected_by_postgres_inside_transaction(audit_db: AuditData
     assert isinstance(error, psycopg.errors.ActiveSqlTransaction), f"unexpected: {error!r}"
 
 
-@pytest.mark.xfail(
-    reason="R9 observation: RESET search_path is not in _SESSION_CONTROL (only RESET "
-    "ALL is). Low impact -- it only reverts to the connection default, which the "
-    "dispatcher re-pins, but it is still an uninspected context statement.",
-    strict=True,
-)
 def test_reset_search_path_not_inspected(audit_db: AuditDatabase) -> None:
     error, _ = _attack(audit_db, ["RESET search_path"], probe=True)
     assert isinstance(error, SessionControlError), f"NOT blocked: {error!r}"

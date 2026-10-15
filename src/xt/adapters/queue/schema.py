@@ -91,6 +91,12 @@ BEGIN
         RAISE EXCEPTION 'tenant job role must be NOLOGIN NOSUPERUSER NOBYPASSRLS'
             USING ERRCODE = '42501';
     END IF;
+    -- Vòng 2b: TEMP lets a role create routines in pg_temp (opaque code the
+    -- statement guard cannot inspect); job roles must not have it.
+    IF has_database_privilege(tenant_role, current_database(), 'TEMPORARY') THEN
+        RAISE EXCEPTION 'tenant job role must not have TEMPORARY on the database'
+            USING ERRCODE = '42501';
+    END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_namespace n WHERE n.nspname = tenant_schema
                    AND has_schema_privilege(tenant_role, n.oid, 'USAGE')) THEN
         RAISE EXCEPTION 'tenant job role cannot use its tenant schema' USING ERRCODE = '42501';
