@@ -422,6 +422,35 @@ class ProcessToolAdapter:
             raise EngineError(f"instance {iid} không nạp được", reason="state_mismatch")
         return rt, dict(rt.load(rec.state).data())
 
+    def _require_clean_files(self, caller: Caller, model: str, row: Mapping[str, Any]) -> None:
+        """TCV1 §5.14: tệp đính kèm (field `file`) phải `clean` hoặc `not_scanned` mới gửi duyệt."""
+        current = self.rt.catalogs.current(caller.actor)
+        if current is None:
+            return
+        try:
+            spec = current[1].model(model)
+        except KeyError:
+            return
+        ids: list[UUID] = []
+        for f in spec.fields:
+            if f.type != "file" or row.get(f.name) is None:
+                continue
+            raw = row[f.name]
+            for v in raw if isinstance(raw, list) else [raw]:
+                try:
+                    ids.append(UUID(str(v).split(":", 1)[-1]))
+                except ValueError:
+                    continue
+        if not ids:
+            return
+        bad = self.rt.store.files_not_clean(caller.workflow(), ids)
+        if bad:
+            raise precondition_failed(
+                "Tệp đính kèm chưa được quét sạch (hoặc bị chặn); chưa gửi duyệt được.",
+                "file_not_clean",
+                details={"files": [f"file:{i}" for i in bad]},
+            )
+
     # ---- describe_process ---------------------------------------------------------------------
     def describe_process(self, ctx: CallContext, args: Args) -> Data | None:
         caller = self.rt.caller(ctx)
@@ -487,6 +516,7 @@ class ProcessToolAdapter:
                 details={"state": state},
             )
         revision = self._cas(row, args.get("expected_revision"))
+        self._require_clean_files(caller, model, row)
         pid = str(config["process"])
         inputs: dict[str, Any] = {}
         for name, src in dict(config.get("inputs", {})).items():

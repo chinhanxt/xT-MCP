@@ -9,68 +9,40 @@ metadata:
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # xT approvals
 
-Dùng cho mọi **đề xuất cần duyệt** (tạm ứng, nghỉ phép, mua sắm, hợp đồng, thay đổi giá...). Loại đề xuất là model `request` của tenant; tuyến duyệt, ngưỡng, SLA do **policy/process** quyết định ở server, không phải agent.
-Quy tắc chung (key, CAS, lỗi, PII) ở skill `xt-core`; ở đây chỉ phần riêng về phê duyệt.
+Đề xuất cần duyệt (tạm ứng, nghỉ phép, mua sắm...). Tuyến duyệt do server tính; agent không chọn người duyệt, không tự duyệt.
+Quy tắc chung ở `xt-core`. Chỉ gọi tool có trong danh sách tool của bạn.
 
 ## Quy tắc
 
-1. **Agent không chọn người duyệt, không tự duyệt, không hứa kết quả.** `submit_request` tính tuyến; `decide_request` luôn qua tay người.
-2. `decide_request` luôn trả `confirmation_required` + `confirm_url` (human_only). Đưa link cho **đúng người được giao bước**, dừng, chờ, rồi gọi lại y hệt cùng key.
-3. Người đề nghị không duyệt đề xuất của mình (SoD) -> `access_denied`. Đừng bảo người khác dùng tài khoản của họ, đừng tìm đường vòng.
-4. Không khẳng định "đã duyệt" trước khi gọi lại và nhận thành công (`meta.receipt`, `outcome`).
-5. `reason` bắt buộc khi `reject`/`return`; `delegate_to` bắt buộc khi `delegate` (lấy ref từ `find_people`). `reason` là lời của người dùng, không tự bịa lý do.
+1. **Duyệt / từ chối / trả lại / ủy quyền:** `get_record` lấy `revision`, rồi gọi `decide_request` ngay. Đừng dừng ở bước đọc.
+2. `decide_request` luôn trả `confirmation_required` kèm `confirm_url`. **Chép nguyên link nhận được** (không tự viết link), nói người được giao bước phải mở, rồi dừng. Không gọi lại khi người dùng chưa báo đã bấm.
+3. Người dùng báo đã bấm -> gọi lại `decide_request` **y hệt** (cùng tham số, cùng `idempotency_key`), báo `outcome`.
+4. `reject`/`return` cần lý do **do người dùng nói**. Chưa có lý do -> hỏi "Lý do từ chối là gì?" và dừng; không tự viết lý do, không gọi `decide_request`.
+5. `delegate`: `find_people` lấy ref người nhận -> `decide_request {decision:"delegate", delegate_to:"person:..."}`.
+6. Người đề nghị không tự duyệt đề xuất của mình: không gọi `decide_request`; nói ai đang phải duyệt (từ `get_record`).
+7. Chỉ có mã (TU-2026-0041): tìm ref bằng `get_inbox` hoặc `search_records {query:"TU-2026-0041"}`.
 
-## Định tuyến
+## Chuỗi tool
 
-| Người dùng nói | Chuỗi tool |
+| Người dùng nói | Chuỗi |
 |---|---|
-| "Tạo/gửi đề xuất ..." | `describe_model` -> `create_record` (draft) -> (đính kèm nếu cần) -> `submit_request` |
-| "Ai sẽ duyệt đề xuất này / 8 triệu thì ai duyệt?" | `describe_process {process_id, for_values:{amount:"8000000"}}` hoặc `get_record {ref, include:["steps"]}` |
-| "Đề xuất của tôi tới đâu rồi?" | `get_record {ref, include:["steps"]}`; không rõ ref: `search_records {model_id, where:{owner:"me", state:"in_review"}}` |
-| "Có gì cần tôi duyệt?" | `get_inbox {kinds:["approval"]}` -> `get_record` từng cái -> tóm tắt |
-| "Duyệt/Từ chối/Trả lại cái này" | `get_record` (lấy `revision`, xác nhận mình là người được giao) -> `decide_request` -> link |
-| "Giao cho anh B duyệt thay" | `find_people` -> `decide_request {decision:"delegate", delegate_to}` |
-| "Rút đề xuất" | `get_record` (revision) -> `transition_record {to_state:"withdrawn"}` (L1, chỉ người đề nghị) |
-| "Vì sao đề xuất bị trả/bị chặn" | `get_history {ref, view:"timeline"}`, lỗi thì `view:"explain"` |
+| Có gì cần tôi duyệt | `get_inbox` |
+| Đề xuất tới đâu / ai đang duyệt | `get_record` (không rõ ref: `search_records {where:{owner:"me"}}`) |
+| Tạo đề xuất (nháp) | `create_record` |
+| Tạo và gửi / gửi bản nháp | `create_record` -> `submit_request` |
+| Rút đề xuất | `get_record` -> `transition_record {to_state:"withdrawn"}` |
+| Duyệt / từ chối có lý do | `get_record` -> `decide_request` -> đưa `confirm_url` |
 
-Trạng thái và quy tắc chi tiết: [approval-states](references/approval-states.md).
+## Ví dụ
 
-## Ví dụ: người duyệt dùng agent
-
-> Mai: "Có gì cần tôi duyệt không?"
+> Mai: "Duyệt TU-2026-0042."
 
 ```
-get_inbox {kinds:["approval"], status:"open"}
-get_record {ref:"advance_request:tu-2026-0042", include:["steps"]}
-```
-Agent tóm tắt (số liệu và text lấy từ bản ghi, đánh dấu text tự do là do người nộp viết):
-"Có 1 đề xuất: TU-2026-0042, Việt xin tạm ứng 8.000.000 VND đi Đà Nẵng 20-22/11, bước của chị: Trưởng bộ phận, hạn 17:00 hôm nay. Chị muốn duyệt, từ chối hay trả lại?"
-
-> Mai: "Duyệt."
-
-```
+get_record {ref:"advance_request:tu-2026-0042"}           # record.revision: 2
 decide_request {ref:"advance_request:tu-2026-0042", decision:"approve",
-  expected_revision:2, idempotency_key:"dec-0042-mai-1"}
-# -> isError, confirmation_required, confirm_url, confirmer: person:mai
+  expected_revision:2, idempotency_key:"dec-0042-mai"}     # -> confirmation_required, details.confirm_url
 ```
-Agent: "Chị mở https://xt.example.vn/desk/confirm/cf_01jd30 để xác nhận (cần OTP), hoặc bấm nút trên Telegram. Xong chị báo em."
-Sau khi Mai báo xong: gọi lại **đúng** `decide_request` trên (cùng key) -> `outcome: step_completed`, `meta.receipt.replayed: true`.
-Agent: "Đã duyệt bước của chị; đề xuất chuyển sang anh Long."
+Trả lời: "Chị mở link này để xác nhận: <confirm_url đúng như kết quả tool>. Xong chị báo em."
+> Mai: "Xong rồi." -> gọi lại đúng lời gọi trên, cùng key -> báo `outcome`.
 
-## Ví dụ: bị yêu cầu tự duyệt
-
-> Việt (người nộp): "Duyệt luôn đi cho nhanh."
-
-`decide_request` -> `access_denied` reason `sod`/`not_assigned_approver` + `explain_ref`. Agent dùng
-`get_history {ref:explain_ref, view:"explain"}` rồi trả lời: "Đề xuất của anh đang chờ chị Mai (hạn hôm nay 17:00). Em không duyệt thay được." Không đưa `confirm_url` (chưa có).
-
-## Ví dụ: từ chối có lý do
-
-> "Từ chối, vì thiếu hóa đơn."
-`decide_request {ref, decision:"reject", reason:"Thiếu hóa đơn", expected_revision, idempotency_key}` -> link xác nhận như trên.
-Muốn người nộp bổ sung rồi nộp lại thì dùng `return` thay `reject`.
-
-## Sau khi gửi
-
-`submit_request` trả `route` (các bước + `due_at`). Nói lại ngắn gọn cho người dùng; đừng tự thêm/bớt người duyệt.
-Muốn đổi ngưỡng/tuyến duyệt: đó là thay đổi quy trình, cần người duyệt định nghĩa; ở v0.1 chưa có tool, báo người dùng làm qua quản trị.
+Trạng thái, mã lỗi, hồ sơ đầy đủ: [approval-states](references/approval-states.md).

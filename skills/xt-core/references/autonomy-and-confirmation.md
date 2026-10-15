@@ -36,6 +36,6 @@ nói họ chuyển link cho người đó; đừng đề nghị họ dùng tài 
 
 ## CAS (`expected_revision`)
 
-Bắt buộc ở `update_record`, `transition_record`, `decide_request`, `delete_record`. Lấy từ `get_record` ngay trước khi ghi.
-`revision_conflict` -> đọc lại, nếu thay đổi chạm tới ý của người dùng thì hỏi, rồi ghi lại. Không có `force`, không auto-merge.
+Bắt buộc ở `update_record`, `transition_record`, `decide_request`, `delete_record`. Lấy `revision` của bản ghi từ `get_record` ngay trước khi ghi (không phải `model_revision`, không đoán).
+`revision_conflict` -> đọc lại, nếu thay đổi chạm tới ý của người dùng thì hỏi, rồi ghi lại với revision mới và **cùng key** (lần lỗi không giữ key). Không có `force`, không auto-merge.
 `create_record`/`submit_request` không cần revision của model/process; server tự pin bản đang active và trả `model_revision`.

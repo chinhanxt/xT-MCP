@@ -35,3 +35,12 @@ Kết quả thành công có `outcome` (ví dụ `step_completed`, `request_appr
 ## Ủy quyền dài hạn
 
 Agent chỉ thực hiện `delegate` từng đề xuất. Ủy quyền theo khoảng thời gian là cấu hình do quản trị (v0.1 không có tool).
+
+## Hồ sơ đầy đủ (chỉ khi các tool này có trong danh sách tool)
+
+| Người dùng nói | Chuỗi tool |
+|---|---|
+| "Tạo đề xuất ..." | `describe_model` (field hợp lệ) -> `create_record` -> `submit_request` |
+| "8 triệu thì ai duyệt?" | `describe_process {process_id, for_values:{amount:"8000000"}}` |
+| "Vì sao đề xuất bị trả / bị chặn" | `get_history {ref, view:"timeline"}`; lỗi `access_denied` có `explain_ref` -> `view:"explain"` |
+| Sửa đề xuất bị trả lại | `get_record` -> `update_record` -> `submit_request` |

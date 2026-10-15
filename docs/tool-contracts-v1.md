@@ -1404,7 +1404,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 {
   "name": "get_inbox",
   "since": "0.1",
-  "description": "My work queue: tasks assigned to me, requests waiting for my decision, notifications and mentions, with SLA status. Always the current user's own inbox. VD: 'Có gì cần tôi duyệt không?', 'Hôm nay tôi phải làm gì?'",
+  "description": "My work queue: tasks assigned to me, requests waiting for my decision, notifications and mentions, with SLA status. Always the current user's own inbox. Not for finding or counting records by state, team or overdue -> search_records / aggregate_records. VD: 'Có gì cần tôi duyệt không?', 'Hôm nay tôi phải làm gì?'",
   "max_autonomy": "L0",
   "human_only": false,
   "effects_true": ["idempotent"],
@@ -1621,7 +1621,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 5.10. `create_record`
 
 - Mức: **L2** · effects: `mutates_records, enqueues_work, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 987 B, data 1704 B, outputSchema (envelope) 2771 B.
+- Kích thước: input 1020 B, data 1704 B, outputSchema (envelope) 2771 B.
 - Ghi chú: `model_id=task` → `invalid_request` reason `wrong_tool` + continuation sang `create_task`. Request luôn được tạo ở state `initial` (draft). Field lạ → `invalid_request` reason `unknown_field` kèm danh sách field hợp lệ (probe: model 4B tự chế field `destination` khi chưa gọi `describe_model`). Level: L1 mặc định; model có thể khai `create_level: L2`.
 
 ```json
@@ -1672,7 +1672,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "idempotency_key": {
         "type": "string",
         "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
-        "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+        "description": "Key you invent once per action (8-128 chars). Retrying the same action, also after the user confirmed: SAME key. New key = different action."
       }
     },
     "required": ["model_id", "values", "idempotency_key"],
@@ -1777,7 +1777,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 5.11. `update_record`
 
 - Mức: **L2** · effects: `mutates_records, enqueues_work, notifies_internal, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 1200 B, data 1527 B, outputSchema (envelope) 2594 B.
+- Kích thước: input 1300 B, data 1527 B, outputSchema (envelope) 2594 B.
 - Ghi chú: Field `state` → `precondition_failed` reason `state_field` + continuation sang `transition_record`. Field `impact: high` (vd `assignee` của task giao ngoài tuyến) → L2.
 
 ```json
@@ -1826,7 +1826,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "expected_revision": {
         "type": "integer",
         "minimum": 1,
-        "description": "Revision you last read (from get_record/search). Mismatch -> revision_conflict; re-read, do not guess."
+        "description": "`revision` of the record from get_record (not model_revision). Never guess. revision_conflict -> get_record again, retry with that revision and the same idempotency_key."
       },
       "reason": {
         "type": "string",
@@ -1836,7 +1836,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "idempotency_key": {
         "type": "string",
         "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
-        "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+        "description": "Key you invent once per action (8-128 chars). Retrying the same action, also after the user confirmed: SAME key. New key = different action."
       }
     },
     "required": ["ref", "set", "expected_revision", "idempotency_key"],
@@ -1931,7 +1931,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 5.12. `transition_record`
 
 - Mức: **L3** · effects: `mutates_records, enqueues_work, notifies_internal, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 1289 B, data 1898 B, outputSchema (envelope) 2965 B.
+- Kích thước: input 1389 B, data 1898 B, outputSchema (envelope) 2965 B.
 - Ghi chú: `(current_state, to_state)` xác định duy nhất transition. Level do transition khai báo. Request: chỉ `withdrawn`; state khác → `precondition_failed` + continuation `submit_request`/`decide_request`. `depends_on` chưa xong → `precondition_failed` reason `dependency_open`.
 
 ```json
@@ -1984,7 +1984,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "expected_revision": {
         "type": "integer",
         "minimum": 1,
-        "description": "Revision you last read (from get_record/search). Mismatch -> revision_conflict; re-read, do not guess."
+        "description": "`revision` of the record from get_record (not model_revision). Never guess. revision_conflict -> get_record again, retry with that revision and the same idempotency_key."
       },
       "reason": {
         "type": "string",
@@ -1994,7 +1994,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "idempotency_key": {
         "type": "string",
         "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
-        "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+        "description": "Key you invent once per action (8-128 chars). Retrying the same action, also after the user confirmed: SAME key. New key = different action."
       }
     },
     "required": ["ref", "to_state", "expected_revision", "idempotency_key"],
@@ -2100,7 +2100,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 5.13. `upload_file`
 
 - Mức: **L1** · effects: `mutates_records, enqueues_work, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 1013 B, data 751 B, outputSchema (envelope) 1818 B.
+- Kích thước: input 1046 B, data 751 B, outputSchema (envelope) 1818 B.
 - Ghi chú: `text` chỉ khi `source=text`, `base64` chỉ khi `source=base64` (server kiểm). `put_url` đi qua APISIX, không lộ endpoint SeaweedFS.
 
 ```json
@@ -2145,7 +2145,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "idempotency_key": {
         "type": "string",
         "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
-        "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+        "description": "Key you invent once per action (8-128 chars). Retrying the same action, also after the user confirmed: SAME key. New key = different action."
       }
     },
     "required": ["name", "source", "idempotency_key"],
@@ -2198,7 +2198,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 5.14. `submit_request`
 
 - Mức: **L2** · effects: `mutates_records, enqueues_work, notifies_internal, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 734 B, data 896 B, outputSchema (envelope) 1963 B.
+- Kích thước: input 767 B, data 896 B, outputSchema (envelope) 1963 B.
 - Ghi chú: L1 với đề xuất của chính người được đại diện; policy có thể nâng. File đính kèm chưa `clean`/`not_scanned` → `precondition_failed` reason `file_not_clean`.
 
 ```json
@@ -2241,7 +2241,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "idempotency_key": {
         "type": "string",
         "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
-        "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+        "description": "Key you invent once per action (8-128 chars). Retrying the same action, also after the user confirmed: SAME key. New key = different action."
       }
     },
     "required": ["ref", "idempotency_key"],
@@ -2298,14 +2298,14 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 5.15. `decide_request`
 
 - Mức: **human-only** · effects: `mutates_records, mutates_definitions, enqueues_work, notifies_internal, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 1139 B, data 991 B, outputSchema (envelope) 2058 B.
+- Kích thước: input 1276 B, data 991 B, outputSchema (envelope) 2058 B.
 - Ghi chú: `human_only`: kể cả agent ở trần L3 cũng nhận `confirmation_required`; người xác nhận phải là người được giao bước. Người đề nghị/không được giao → `access_denied` (sod/not_assigned_approver) trước mọi xác nhận. `reason` bắt buộc với reject/return; `delegate_to` bắt buộc với delegate, phải là human khác người đề nghị (kiểm ở server). Request quản trị (proposal) duyệt xong → worker kích hoạt có revalidate.
 
 ```json
 {
   "name": "decide_request",
   "since": "0.1",
-  "description": "Approve, reject, return or delegate a request step assigned to the current user. Always needs that human's own click on the xT confirmation page: the first call returns confirmation_required with confirm_url; show it to the user, then retry the same call. Never claim approval without it. VD: 'Duyệt đề xuất của Việt'",
+  "description": "Record the current user's decision on a request step assigned to them: approve, reject, return or delegate. Not for sending (submit_request) or withdrawing (transition_record). Get expected_revision with get_record, then call this; do not stop after reading. Human-only: it returns confirmation_required with confirm_url. Give the user that confirm_url exactly and stop; call again (same arguments, same idempotency_key) only after the user says they confirmed. reject/return need the user's own reason: if missing, ask; never write one. VD: 'Duyệt đề xuất của Việt'",
   "max_autonomy": "L3",
   "human_only": true,
   "effects_true": ["mutates_records", "mutates_definitions", "enqueues_work", "notifies_internal", "idempotent"],
@@ -2338,7 +2338,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       },
       "reason": {
         "type": "string",
-        "description": "Required for reject/return. Shown to the requester.",
+        "description": "Required for reject/return: the user's own words. Missing -> ask the user, never invent.",
         "maxLength": 1000
       },
       "delegate_to": {
@@ -2349,12 +2349,12 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "expected_revision": {
         "type": "integer",
         "minimum": 1,
-        "description": "Revision you last read (from get_record/search). Mismatch -> revision_conflict; re-read, do not guess."
+        "description": "`revision` of the record from get_record (not model_revision). Never guess. revision_conflict -> get_record again, retry with that revision and the same idempotency_key."
       },
       "idempotency_key": {
         "type": "string",
         "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
-        "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+        "description": "Key you invent once per action (8-128 chars). Retrying the same action, also after the user confirmed: SAME key. New key = different action."
       }
     },
     "required": ["ref", "decision", "expected_revision", "idempotency_key"],
@@ -2431,7 +2431,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 5.16. `create_task`
 
 - Mức: **L2** · effects: `mutates_records, enqueues_work, notifies_internal, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 2525 B, data 703 B, outputSchema (envelope) 1770 B.
+- Kích thước: input 2592 B, data 703 B, outputSchema (envelope) 1770 B.
 - Ghi chú: Giao cho cấp dưới trực tiếp = L1 (policy mặc định), ngoài tuyến = L2. `due_at` bỏ trống → SLA của task type. `recurrence` tạo task con theo lịch bằng timer engine.
 
 ```json
@@ -2498,7 +2498,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       },
       "recurrence": {
         "type": "string",
-        "description": "RFC 5545 RRULE for repeating work, e.g. 'FREQ=WEEKLY;BYDAY=MO'.",
+        "description": "RFC 5545 RRULE, e.g. every Friday 'FREQ=WEEKLY;BYDAY=FR' (MO TU WE TH FR SA SU = Monday..Sunday).",
         "maxLength": 200,
         "pattern": "^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;[A-Z]+=[A-Z0-9,+-]+)*$"
       },
@@ -2530,7 +2530,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "idempotency_key": {
         "type": "string",
         "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
-        "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+        "description": "Key you invent once per action (8-128 chars). Retrying the same action, also after the user confirmed: SAME key. New key = different action."
       }
     },
     "required": ["title", "assignee", "idempotency_key"],
@@ -2590,7 +2590,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 5.17. `propose_model_change`
 
 - Mức: **L1** · effects: `mutates_records, enqueues_work, notifies_internal, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 8866 B, data 988 B, outputSchema (envelope) 2055 B.
+- Kích thước: input 8899 B, data 988 B, outputSchema (envelope) 2055 B.
 - Ghi chú: Không còn `preview_token`/`preview_digest`. `dry_run=false` lưu Proposal bất biến + gửi Request quản trị (L1: chỉ đề xuất). Kích hoạt chỉ sau `decide_request` của người (destructive: 2 người). `capability_unavailable` cho phép biến đổi chưa hỗ trợ (đổi kiểu có backfill).
 
 ```json
@@ -2928,7 +2928,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "idempotency_key": {
         "type": "string",
         "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
-        "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+        "description": "Key you invent once per action (8-128 chars). Retrying the same action, also after the user confirmed: SAME key. New key = different action."
       }
     },
     "required": ["model_id", "operations", "rationale", "idempotency_key"],
@@ -3055,7 +3055,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "idempotency_key": {
         "type": "string",
         "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
-        "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+        "description": "Key you invent once per action (8-128 chars). Retrying the same action, also after the user confirmed: SAME key. New key = different action."
       }
     },
     "required": ["process_id", "idempotency_key"],
@@ -3204,7 +3204,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "idempotency_key": {
         "type": "string",
         "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
-        "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+        "description": "Key you invent once per action (8-128 chars). Retrying the same action, also after the user confirmed: SAME key. New key = different action."
       }
     },
     "required": ["process_id", "operations", "rationale", "idempotency_key"],
@@ -3287,7 +3287,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "expected_revision": {
         "type": "integer",
         "minimum": 1,
-        "description": "Revision you last read (from get_record/search). Mismatch -> revision_conflict; re-read, do not guess."
+        "description": "`revision` of the record from get_record (not model_revision). Never guess. revision_conflict -> get_record again, retry with that revision and the same idempotency_key."
       },
       "reason": {
         "type": "string",
@@ -3297,7 +3297,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "idempotency_key": {
         "type": "string",
         "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
-        "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+        "description": "Key you invent once per action (8-128 chars). Retrying the same action, also after the user confirmed: SAME key. New key = different action."
       }
     },
     "required": ["ref", "expected_revision", "idempotency_key"],
@@ -3361,7 +3361,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "idempotency_key": {
         "type": "string",
         "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
-        "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+        "description": "Key you invent once per action (8-128 chars). Retrying the same action, also after the user confirmed: SAME key. New key = different action."
       }
     },
     "required": ["recipients", "message", "idempotency_key"],
@@ -3635,26 +3635,26 @@ Ngân sách REA là ≤ 13.312 B mỗi input.
 | `search_records` | 0.1 | L0 | 2243 | 2173 | 744 | 1811 | 2662 | 4432 | 285 | 8/0 | T | F | T | F |
 | `aggregate_records` | 0.1 | L0 | 2972 | 2879 | 1000 | 2067 | 3319 | 5345 | 240 | 12/1 | T | F | T | F |
 | `get_record` | 0.1 | L0 | 813 | 756 | 2615 | 3682 | 1217 | 4858 | 271 | 4/1 | T | F | T | F |
-| `get_inbox` | 0.1 | L0 | 815 | 728 | 980 | 2047 | 1131 | 3137 | 213 | 5/0 | T | F | T | F |
+| `get_inbox` | 0.1 | L0 | 815 | 728 | 980 | 2047 | 1232 | 3238 | 314 | 5/0 | T | F | T | F |
 | `get_history` | 0.1 | L0 | 859 | 768 | 1617 | 2684 | 1199 | 3842 | 238 | 4/1 | T | F | T | F |
-| `create_record` | 0.1 | L2 | 987 | 930 | 1704 | 2771 | 1426 | 4156 | 293 | 4/3 | F | F | T | F |
-| `update_record` | 0.1 | L2 | 1200 | 1143 | 1527 | 2594 | 1600 | 4153 | 257 | 5/4 | F | F | T | F |
-| `transition_record` | 0.1 | L3 | 1289 | 1232 | 1898 | 2965 | 1791 | 4715 | 357 | 6/4 | F | F | T | F |
-| `upload_file` | 0.1 | L1 | 1013 | 956 | 751 | 1818 | 1487 | 3264 | 341 | 6/3 | F | F | T | F |
-| `submit_request` | 0.1 | L2 | 734 | 677 | 896 | 1963 | 1093 | 3015 | 219 | 4/2 | F | F | T | F |
-| `decide_request` | 0.1 | human-only | 1139 | 1082 | 991 | 2058 | 1597 | 3614 | 317 | 6/4 | F | F | T | F |
-| `create_task` | 0.1 | L2 | 2525 | 2432 | 703 | 1770 | 2929 | 4658 | 307 | 13/3 | F | F | T | F |
-| `propose_model_change` | 0.1 | L1 | 8866 | 8794 | 988 | 2055 | 9305 | 11319 | 299 | 6/4 | F | F | T | F |
-| `start_process` | 1.0 | L3 | 1002 | 945 | 401 | 1468 | 1367 | 2794 | 227 | 4/2 | F | F | T | F |
-| `propose_process_change` | 1.0 | L1 | 2280 | 2208 | 505 | 1572 | 2680 | 4211 | 252 | 6/4 | F | F | T | F |
-| `delete_record` | 1.0 | L3 | 815 | 758 | 160 | 1227 | 1138 | 2324 | 191 | 4/3 | F | T | T | F |
-| `notify` | 1.0 | L2 | 860 | 803 | 364 | 1431 | 1160 | 2550 | 179 | 4/3 | F | F | T | F |
+| `create_record` | 0.1 | L2 | 1020 | 963 | 1704 | 2771 | 1459 | 4189 | 293 | 4/3 | F | F | T | F |
+| `update_record` | 0.1 | L2 | 1300 | 1243 | 1527 | 2594 | 1700 | 4253 | 257 | 5/4 | F | F | T | F |
+| `transition_record` | 0.1 | L3 | 1389 | 1332 | 1898 | 2965 | 1891 | 4815 | 357 | 6/4 | F | F | T | F |
+| `upload_file` | 0.1 | L1 | 1046 | 989 | 751 | 1818 | 1520 | 3297 | 341 | 6/3 | F | F | T | F |
+| `submit_request` | 0.1 | L2 | 767 | 710 | 896 | 1963 | 1126 | 3048 | 219 | 4/2 | F | F | T | F |
+| `decide_request` | 0.1 | human-only | 1276 | 1219 | 991 | 2058 | 1983 | 4000 | 566 | 6/4 | F | F | T | F |
+| `create_task` | 0.1 | L2 | 2592 | 2499 | 703 | 1770 | 2996 | 4725 | 307 | 13/3 | F | F | T | F |
+| `propose_model_change` | 0.1 | L1 | 8899 | 8827 | 988 | 2055 | 9338 | 11352 | 299 | 6/4 | F | F | T | F |
+| `start_process` | 1.0 | L3 | 1035 | 978 | 401 | 1468 | 1400 | 2827 | 227 | 4/2 | F | F | T | F |
+| `propose_process_change` | 1.0 | L1 | 2313 | 2241 | 505 | 1572 | 2713 | 4244 | 252 | 6/4 | F | F | T | F |
+| `delete_record` | 1.0 | L3 | 915 | 858 | 160 | 1227 | 1238 | 2424 | 191 | 4/3 | F | T | T | F |
+| `notify` | 1.0 | L2 | 893 | 836 | 364 | 1431 | 1193 | 2583 | 179 | 4/3 | F | F | T | F |
 
 | Tập | Số tool | Σ input (B) | Σ compact (B) | Σ data (B) | Σ outputSchema (B) | tools/list (B) | tools/list + outputSchema (B) | Token tool thật trên qwen3.5:4b |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| v0.1 | 17 | 28017 | 26839 | 25473 | 43612 | 34802 | 77717 | 8155 |
-| v1.0 (tất cả) | 21 | 32974 | 31553 | 26903 | 49310 | 41147 | 89596 | 9635 |
-| core-10 (model nhỏ) | 10 | 14612 | 13898 | 13022 | 23692 | 18617 | 41899 | 3916 |
+| v0.1 | 17 | 28553 | 27375 | 25473 | 43612 | 35688 | 78603 | 8155 |
+| v1.0 (tất cả) | 21 | 33709 | 32288 | 26903 | 49310 | 42232 | 90681 | 9635 |
+| core-10 (model nhỏ) | 10 | 14982 | 14268 | 13022 | 23692 | 19337 | 42619 | 3916 |
 
 Input lớn nhất: 8866 B (`propose_model_change`) = 66% ngân sách REA 13.312 B. Token tool đo bằng `prompt_eval_count` của ollama (`/api/chat`, template tool của qwen3.5) trừ baseline không có tool (71 token); chỉ gồm name/description/parameters, không gồm outputSchema (ollama không gửi).
 

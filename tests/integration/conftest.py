@@ -8,6 +8,16 @@ from collections.abc import Iterator
 
 import pytest
 
+from tests.integration.composition.fixtures import (  # noqa: F401  (fixture phiên dùng chung)
+    app_db,
+    composition,
+    idp,
+    mcp_port,
+    pg,
+    stack_base,
+    tenants,
+    worker,
+)
 from tests.integration.keycloak import Admin, Realm, start_container, stop_container
 
 

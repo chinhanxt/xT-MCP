@@ -33,7 +33,6 @@ from tests.integration.composition.test_e2e import (  # noqa: F401  (fixture `st
     advance,
     run_admin,
     stack,
-    stack_base,
     sub,
 )
 from xt.adapters.db.integration import person_id

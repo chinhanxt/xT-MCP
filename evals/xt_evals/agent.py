@@ -16,8 +16,7 @@ from mcp.client.streamable_http import create_mcp_http_client, streamable_http_c
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]  # repo xT
 SKILLS_DIR = ROOT / "skills"
-CORE10 = ["find_people", "search_records", "aggregate_records", "get_record", "get_inbox",
-          "create_record", "create_task", "submit_request", "transition_record", "decide_request"]
+CORE10 = json.loads((ROOT / "evals" / "data" / "tools.json").read_text(encoding="utf-8"))["core10"]
 
 BASE_PROMPT = (
     "Bạn là trợ lý AI của Công ty Bình Minh, làm việc qua các tool của hệ thống xT. "
@@ -43,9 +42,12 @@ def skills_for(mode: str, scenario: dict) -> list[str]:
     return [s for s in mode.split(",") if s]
 
 
-def system_prompt(scenario: dict, people: dict, skills: list[str]) -> str:
+def system_prompt(scenario: dict, people: dict, skills: list[str], server_instructions: str | None = None) -> str:
+    """Như client MCP thật (Claude Desktop/Code): `instructions` của server được đưa vào system prompt, rồi tới skill."""
     p = people.get(scenario["actor"], {"name": scenario["actor"], "title": ""})
     s = BASE_PROMPT.format(name=p["name"], title=p["title"], slug=scenario["actor"])
+    if server_instructions:
+        s += "\n\n# Hướng dẫn của MCP server xT\n\n" + server_instructions.strip()
     for k in skills:
         s += f"\n\n# Skill {k}\n\n" + load_skill(k)
     return s
@@ -88,7 +90,8 @@ async def mcp_session(url: str, actor: str, extra_headers: dict | None = None):
     client = create_mcp_http_client(headers=headers)
     async with streamable_http_client(url, http_client=client) as (r, w, *_):
         async with ClientSession(r, w) as s:
-            await s.initialize()
+            init = await s.initialize()
+            s.server_instructions = init.instructions
             yield s
 
 
@@ -96,10 +99,12 @@ def strip_think(text: str | None) -> str:
     return re.sub(r"<think>.*?</think>", "", text or "", flags=re.S).strip()
 
 
-async def run_turns(llm: LLM, session, tools_mcp, profile: str, scenario: dict, system: str, hooks, max_steps: int = 8):
+async def run_turns(llm: LLM, session, tools_mcp, profile: str, scenario: dict, system: str, hooks, max_steps: int = 8,
+                    profile_tools: list[str] | None = None):
     """Chạy các lượt user của scenario. Trả về dict kết quả thô."""
     by_name = {t.name: t for t in tools_mcp}
-    visible = [t for t in tools_mcp if profile == "full" or t.name in CORE10]
+    allowed = set(profile_tools or CORE10)
+    visible = [t for t in tools_mcp if profile == "full" or t.name in allowed]
     oa_tools = [to_openai_tool(t) for t in visible]
     validators = {t.name: Draft202012Validator(t.input_schema) for t in tools_mcp}
     messages = [{"role": "system", "content": system}]
@@ -143,7 +148,11 @@ async def run_turns(llm: LLM, session, tools_mcp, profile: str, scenario: dict, 
                 known = name in by_name and name in {t.name for t in visible}
                 t0 = time.perf_counter()
                 if not known:
-                    text, ok, code, valid = json.dumps({"ok": False, "error": {"code": "invalid_request", "message": f"Không có tool {name}"}}), False, "invalid_request", False
+                    # cùng câu trả lời như server thật với tool ngoài hồ sơ (src/xt/adapters/mcp/server.py: wrong_tool + danh sách tool)
+                    text = json.dumps({"ok": False, "error": {"code": "invalid_request", "message": f"Unknown tool {name[:64]!r}.", "retryable": False,
+                                                              "remediation": "Use one of the tools from tools/list.",
+                                                              "details": {"reason": "wrong_tool", "tools": sorted(t.name for t in visible)}}})
+                    ok, code, valid = False, "invalid_request", False
                 else:
                     valid = not any(True for _ in validators[name].iter_errors(args))
                     res = await session.call_tool(name, args)

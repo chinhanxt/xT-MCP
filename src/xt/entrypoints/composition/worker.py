@@ -55,12 +55,19 @@ def _required(env: Mapping[str, str], name: str) -> str:
 
 class WorkflowJobs:
     def __init__(
-        self, rt: Runtime, queue: JobQueue, tenant_dsn: str, *, relay_interval_s: int
+        self,
+        rt: Runtime,
+        queue: JobQueue,
+        tenant_dsn: str,
+        *,
+        relay_interval_s: int,
+        files: Any = None,
     ) -> None:
         if relay_interval_s < 5:
             raise ValueError("relay interval must be >= 5 seconds")
         self.rt, self.queue, self.tenant_dsn = rt, queue, tenant_dsn
         self.relay_interval_s = relay_interval_s
+        self.files: Any = files  # CompositionFilesBackend khi bật files + ClamAV
         self.engine = SpiffProcessEngine()
 
     def tick_sync(self, tenant_id: UUID, instance_id: str) -> dict[str, Any]:
@@ -148,6 +155,13 @@ class WorkflowJobs:
             self.rt.uow.run(finish)
         return {"proposal": str(proposal_id), "state": state, "version": version, "error": error}
 
+    def rescan_files(self, tenant: TenantRef) -> int:
+        assert self.files is not None
+        actor = ModelActor(tenant, NIL, (), client_azp="xt-worker")
+        with self.rt.uow.scope(actor):
+            profile = self.rt.uow.run(lambda: self.rt.store.profile(actor))
+        return self.files.rescan(profile.alias) if profile else 0
+
     def purge_reveal_tickets(self, tenant: TenantRef) -> int:
         """Dọn vé xem PII đã hết hạn quá 1 giờ (audit đã ở `pii_egress`, PIIR-08)."""
         actor = ModelActor(tenant, NIL, (), client_azp="xt-worker")
@@ -168,6 +182,8 @@ class WorkflowJobs:
         tenant = self._tenant(job.tenant_id)
         await anyio.to_thread.run_sync(self.rt.models.migrator.run_jobs, tenant.seq)
         await anyio.to_thread.run_sync(self.purge_reveal_tickets, tenant)
+        if self.files is not None:  # ClamAV bật: quét lại tệp `scanning` (clamd từng lỗi)
+            await anyio.to_thread.run_sync(self.rescan_files, tenant)
         await self._schedule_relay(connection, job.tenant_id, after=self.relay_interval_s)
 
     async def _schedule_relay(self, connection: Any, tenant_id: UUID, *, after: int) -> int:
@@ -224,7 +240,15 @@ def build_jobs(env: Mapping[str, str]) -> WorkflowJobs:
         max_attempts=3,
         retry_seconds=5,
     )
-    jobs = WorkflowJobs(rt, enq.queue, tenant_dsn, relay_interval_s=int(interval))
+    files = None
+    if env.get("XT_FILES_CLAMD", "").strip():
+        # Profile full (ClamAV): relay mỗi chu kỳ quét lại tệp `scanning`. Cần đủ XT_FILES_*.
+        from xt.entrypoints.files_http import CompositionFilesBackend, FilesPep, FilesStack
+
+        files = CompositionFilesBackend(
+            rt, FilesStack.build(env, ensure_bucket=False), FilesPep(rt)
+        )
+    jobs = WorkflowJobs(rt, enq.queue, tenant_dsn, relay_interval_s=int(interval), files=files)
     holder["jobs"] = jobs
     return jobs
 

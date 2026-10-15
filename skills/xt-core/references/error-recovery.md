@@ -6,11 +6,11 @@ Thứ tự đọc: `remediation` -> `continuation` -> `details`. `retryable` ngh
 
 | Mã | Nói với người dùng | Agent làm |
 |---|---|---|
-| `invalid_request` | "Thiếu/sai thông tin ..." (nêu field) | Đọc `details.reason`: `unknown_field` -> `describe_model`, dùng field hợp lệ được liệt kê; `wrong_tool` -> gọi `continuation`; `duplicate_key`/schema -> sửa args; `masked_value` -> bỏ giá trị `[PII:...]` khỏi payload ghi; `cursor_mismatch`/`cursor_expired` -> gọi lại không `cursor`; `state_field` -> dùng `transition_record` |
+| `invalid_request` | "Thiếu/sai thông tin ..." (nêu field) | Đọc `details.reason`: `unknown_field` -> dùng `details.valid_fields` (có `describe_model` thì đọc thêm ở đó); `wrong_tool` -> gọi `continuation`; `duplicate_key`/schema -> sửa args; `masked_value` -> bỏ giá trị `[PII:...]` khỏi payload ghi; `cursor_mismatch`/`cursor_expired` -> gọi lại không `cursor`; `state_field` -> dùng `transition_record` |
 | `unauthenticated` | "Phiên đăng nhập hết hạn, anh đăng nhập lại xT giúp em" | Dừng ghi. Chờ người dùng kết nối lại, rồi thử lại |
 | `access_denied` | Nêu lý do bằng lời thường: "Anh là người đề nghị nên không tự duyệt được" / "Bước này giao cho chị Mai" | **Không retry, không đường vòng, không nhờ người khác duyệt hộ.** Có `explain_ref` -> `get_history {ref:explain_ref, view:"explain"}` rồi diễn giải. Reason: `sod`, `not_assigned_approver`, `autonomy_hard_limit` |
 | `not_found` | "Em không tìm thấy mục đó (hoặc anh không có quyền xem)" | Kiểm tra ref bằng `search_records`/`find_people`; không đoán id. Không suy ra "tồn tại nhưng bị ẩn" |
-| `revision_conflict` | "Có người vừa sửa bản ghi, đây là nội dung mới" | `get_record` lấy `current_revision`, cho người dùng xem thay đổi nếu liên quan, rồi gọi lại với revision mới và **key mới**. Không có `force` |
+| `revision_conflict` | "Có người vừa sửa bản ghi, đây là nội dung mới" | `get_record` lấy `revision` (không phải `model_revision`), cho người dùng xem thay đổi nếu liên quan, rồi gọi lại với revision đó và **cùng key** (lần lỗi không giữ key). Không có `force` |
 | `idempotency_conflict` | (thường im lặng) | Cùng key nhưng args khác: đây là ý định mới -> key mới. Nếu đang retry thì args phải giống hệt |
 | `rule_violation` | Đọc `details.violations[].message` bằng tiếng Việt, hỏi giá trị đúng | Sửa theo `remediation`, gọi lại **key mới**. Có `explain_ref` -> giải thích rule nếu người dùng hỏi |
 | `precondition_failed` | "Chưa làm được vì ..." (trạng thái không cho phép, tệp chưa sạch, việc phụ thuộc chưa xong) | `file_not_clean` -> đợi quét / xin tệp khác; `dependency_open` -> `get_record` việc phụ thuộc; sai trạng thái -> `get_record` xem `available_transitions` |

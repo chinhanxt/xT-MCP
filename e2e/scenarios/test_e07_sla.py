@@ -101,7 +101,15 @@ def test_sla_escalation_survives_worker_restart(ev: Evidence, world) -> None:  #
     )
     c.check(int(notes or 0) >= 1, f"có bản ghi thông báo leo thang ({notes})")
     if esc:
-        h = world.by_key(B, B_HEAD)
+        who = compose.psql(
+            "SELECT p.key FROM xt_meta.notification n JOIN xt_meta.person p ON p.tenant_id = n.tenant_id"
+            f" AND p.id = n.recipient WHERE n.dedupe_key LIKE 'esc:{iid}:%' LIMIT 1"
+        )
+        ev.step("người nhận leo thang (khóa nhân sự)", who)
+        try:
+            h = world.by_key(B, who or B_HEAD)
+        except KeyError:
+            ev.gap("đăng nhập cho người nhận leo thang", f"{who} không có trong tập user demo-seed")
         got = world.call(h, "get_record", {"ref": ref})
         ev.step("người nhận leo thang get_record", got)
         rev = ((got.get("data") or {}).get("record") or {}).get("revision") or sub["data"]["request"]["revision"]

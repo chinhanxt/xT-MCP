@@ -11,6 +11,7 @@ metadata:
 
 xT không cài cứng nghiệp vụ. Doanh nghiệp nào cũng có thể thêm model mới (quản lý thiết bị, hợp đồng, khách hàng, ticket...) bằng cách nói chuyện: agent đề xuất **spec JSON**, con người duyệt, rồi mới có hiệu lực.
 Quy tắc chung ở `xt-core`.
+**Cần tool `propose_model_change`, `inspect_workspace`, `describe_model`.** Không có trong danh sách tool của bạn (hồ sơ `core-10`) -> nói chức năng thiết kế nghiệp vụ chưa bật ở kết nối này; không gọi, không giả lập bằng `create_record`.
 
 ## Quy tắc
 

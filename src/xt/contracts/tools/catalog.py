@@ -823,7 +823,8 @@ _tool(
     ui_resource="ui://xt/inbox",
     description=(
         "My work queue: tasks assigned to me, requests waiting for my decision, notifications and mentions, with SLA status. "
-        "Always the current user's own inbox. VD: 'Có gì cần tôi duyệt không?', 'Hôm nay tôi phải làm gì?'"
+        "Always the current user's own inbox. Not for finding or counting records by state, team or overdue -> search_records / "
+        "aggregate_records. VD: 'Có gì cần tôi duyệt không?', 'Hôm nay tôi phải làm gì?'"
     ),
     errors=["invalid_request"],
     input_schema=inp(
@@ -1430,9 +1431,11 @@ _tool(
     iam=["request.decide"],
     ui_resource="ui://xt/approval-card",
     description=(
-        "Approve, reject, return or delegate a request step assigned to the current user. Always needs that human's own click on "
-        "the xT confirmation page: the first call returns confirmation_required with confirm_url; show it to the user, then "
-        "retry the same call. Never claim approval without it. VD: 'Duyệt đề xuất của Việt'"
+        "Record the current user's decision on a request step assigned to them: approve, reject, return or delegate. "
+        "Not for sending (submit_request) or withdrawing (transition_record). Get expected_revision with get_record, then call this; "
+        "do not stop after reading. Human-only: it returns confirmation_required with confirm_url. Give the user that confirm_url "
+        "exactly and stop; call again (same arguments, same idempotency_key) only after the user says they confirmed. "
+        "reject/return need the user's own reason: if missing, ask; never write one. VD: 'Duyệt đề xuất của Việt'"
     ),
     errors=[
         "invalid_request",
@@ -1453,7 +1456,7 @@ _tool(
             },
             "reason": {
                 **REASON,
-                "description": "Required for reject/return. Shown to the requester.",
+                "description": "Required for reject/return: the user's own words. Missing -> ask the user, never invent.",
             },
             "delegate_to": person("Human who takes over this step when decision=delegate."),
             "expected_revision": EXPECTED_REV,
@@ -1583,7 +1586,7 @@ _tool(
                 "description": "Tasks that must be done before this one can start.",
             },
             "recurrence": s(
-                "RFC 5545 RRULE for repeating work, e.g. 'FREQ=WEEKLY;BYDAY=MO'.",
+                "RFC 5545 RRULE, e.g. every Friday 'FREQ=WEEKLY;BYDAY=FR' (MO TU WE TH FR SA SU = Monday..Sunday).",
                 maxLength=200,
                 pattern=r"^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;[A-Z]+=[A-Z0-9,+-]+)*$",
             ),

@@ -82,7 +82,6 @@ async def run_one(sc, profile, skills_mode, args, llm, admin, tools_cache, oracl
     if admin:
         admin.reset(seed)
     skills = skills_for(skills_mode, sc)
-    system = system_prompt(sc, PEOPLE_MAP, skills)
     t0 = time.perf_counter()
     err = None
     raw = {"calls": [], "answers": [], "tool_texts": [], "usage": {"prompt": 0, "completion": 0, "llm_calls": 0, "first_prompt": None}, "llm_time": 0, "step_limit": False}
@@ -91,7 +90,9 @@ async def run_one(sc, profile, skills_mode, args, llm, admin, tools_cache, oracl
             if "tools" not in tools_cache:
                 tools_cache["tools"] = (await s.list_tools()).tools
             hooks = (lambda name: asyncio.sleep(0, admin.hook(name))) if admin else (lambda name: asyncio.sleep(0))
-            raw = await run_turns(llm, s, tools_cache["tools"], profile, sc, system, hooks, args.max_steps)
+            instr = getattr(s, "server_instructions", None) if getattr(args, "server_instructions", True) else None
+            system = system_prompt(sc, PEOPLE_MAP, skills, instr)
+            raw = await run_turns(llm, s, tools_cache["tools"], profile, sc, system, hooks, args.max_steps, getattr(args, "profile_tools", None))
     except Exception as e:  # noqa: BLE001  lỗi hạ tầng được ghi lại, không làm sập cả lượt chạy
         err = f"{type(e).__name__}: {e}"[:400]
     wall = time.perf_counter() - t0
@@ -162,7 +163,8 @@ async def run_all(args, scenarios, out_dir: pathlib.Path):
     digest = hashlib.sha256(json.dumps([(t.name, t.input_schema) for t in tools], sort_keys=True).encode()).hexdigest()[:12]
     meta = {"model": args.model, "llm_url": args.llm_url, "mcp_url": args.mcp_url, "profile": args.profile, "repeat": args.repeat,
             "num_ctx": args.num_ctx, "temperature": args.temperature, "reasoning_effort": args.reasoning_effort, "max_steps": args.max_steps,
-            "server_tools": [t.name for t in tools], "catalog_digest": digest, "admin": bool(admin), "wall_total_s": round(time.time() - t_start, 1),
+            "server_tools": [t.name for t in tools], "catalog_digest": digest, "profile_tools": getattr(args, "profile_tools", None),
+            "server_instructions": getattr(args, "server_instructions", True), "admin": bool(admin), "wall_total_s": round(time.time() - t_start, 1),
             "date": time.strftime("%Y-%m-%d %H:%M:%S"), "scenarios": len(scenarios)}
     result = {"meta": meta, "configs": {c: summarize([r for r in rows if r["skills"] == c]) for c in configs}, "rows": rows}
     (out_dir / "results.json").write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")

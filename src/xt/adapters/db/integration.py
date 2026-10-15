@@ -414,6 +414,18 @@ class PgIntegrationStore:
                 (state, applied_version, error[:1000] if error else None, proposal_id),
             )
 
+    # ---- tệp đính kèm (0009_files)
+    def files_not_clean(self, actor: ModelActor, file_ids: Sequence[UUID]) -> list[UUID]:
+        """Id tệp không `clean`/`not_scanned` (đang quét, nhiễm, chưa tải, đã xóa, không có)."""
+        with self.uow.tenant_tx(actor) as cur:
+            rows = cur.execute(
+                "SELECT id FROM xt_meta.file_object WHERE id = ANY(%s)"
+                " AND status IN ('clean', 'not_scanned') AND deleted_at IS NULL",
+                (list(file_ids),),
+            ).fetchall()
+        ok = {r["id"] for r in rows}
+        return [i for i in file_ids if i not in ok]
+
     # ---- làn PII
     def pii_put(
         self,

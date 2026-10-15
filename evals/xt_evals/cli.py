@@ -40,6 +40,9 @@ def main(argv=None):
     r.add_argument("--max-tokens", type=int, default=1024)
     r.add_argument("--max-steps", type=int, default=8, help="số vòng gọi LLM tối đa mỗi lượt user")
     r.add_argument("--only", nargs="*", help="lọc theo id con, pack hoặc category")
+    r.add_argument("--tools", default="", help="thay danh sách tool của hồ sơ core-10 (ngăn bằng dấu phẩy), để đo biến thể hồ sơ")
+    r.add_argument("--no-server-instructions", dest="server_instructions", action="store_false",
+                   help="không đưa `instructions` của server vào system prompt (mặc định có, như client MCP thật)")
     r.add_argument("--out", default=None, help="thư mục kết quả (mặc định results/<thời gian>)")
     rp = sub.add_parser("report", help="sinh lại report.md từ results.json")
     rp.add_argument("dir")
@@ -61,11 +64,14 @@ def main(argv=None):
         print(pathlib.Path(a.dir) / "report.md")
         return 0
 
+    from .agent import CORE10
     from .runner import run_all
     scs = scenario.load_all(only=a.only)
+    a.profile_tools = [x for x in a.tools.split(",") if x] or (list(CORE10) if a.profile == "core-10" else None)
     proc = None
     if not a.mcp_url:
-        proc = subprocess.Popen([sys.executable, "-m", "xt_evals.mock", "--port", str(a.mock_port)], cwd=ROOT)
+        proc = subprocess.Popen([sys.executable, "-m", "xt_evals.mock", "--port", str(a.mock_port),
+                                 "--profile-tools", ",".join(a.profile_tools or [])], cwd=ROOT)
         a.mcp_url = f"http://127.0.0.1:{a.mock_port}/mcp"
         for _ in range(50):
             try:

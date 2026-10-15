@@ -4,12 +4,15 @@
 import json
 import pathlib
 
+from xt.adapters.mcp.instructions import _HINTS, SERVER_INSTRUCTIONS
 from xt.contracts.tools import CATALOG, CORE_10, catalog_digest
 
 out = {
     "_source": "src/xt/contracts/tools (ToolContract catalog), regenerate with tools/export_tools.py",
     "_catalog_digest": catalog_digest(),
     "core10": list(CORE_10),
+    # `instructions` của server thật (xt.adapters.mcp.instructions); mock ghép theo tool đang quảng bá như instructions_for
+    "instructions": {"base": SERVER_INSTRUCTIONS, "hints": [[list(need), text] for need, text in _HINTS]},
     "tools": [
         {
             "name": t.name,

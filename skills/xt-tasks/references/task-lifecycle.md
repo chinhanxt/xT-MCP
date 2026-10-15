@@ -38,3 +38,11 @@ SLA tính từ loại việc; `get_inbox` và `get_record` cho thấy trạng th
 - `precondition_failed` `dependency_open`: nêu việc phụ thuộc chưa xong (`get_record` từng ref).
 - `access_denied`: giao ngoài quyền hoặc autonomy hard limit; giải thích bằng `get_history(view:"explain")`.
 - `rule_violation`: hạn trong quá khứ, thiếu field bắt buộc của task_type; hỏi người dùng giá trị đúng.
+
+## Hồ sơ đầy đủ (chỉ khi các tool này có trong danh sách tool)
+
+| Người dùng nói | Chuỗi tool |
+|---|---|
+| "Dời hạn sang 20/11 / chuyển cho Lan / đổi ưu tiên" | `get_record` (revision) -> `update_record {set:{due_at:...}}`; đổi `assignee` có thể ra `confirmation_required`. Không nhét `state` vào `set` (lỗi `state_field`) |
+| "Việc bị kẹt vì sao / ai đã làm gì" | `get_record` rồi `get_history {ref, view:"timeline"}` |
+| "Loại việc có những trạng thái nào" | `describe_model {model_id:<task model>}` hoặc `inspect_workspace` để biết các loại việc |

@@ -58,12 +58,12 @@ def values(desc: str) -> Schema:
 IDEM: Schema = {
     "type": "string",
     "pattern": r"^[A-Za-z0-9_.:-]{8,128}$",
-    "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action.",
+    "description": "Key you invent once per action (8-128 chars). Retrying the same action, also after the user confirmed: SAME key. New key = different action.",
 }
 EXPECTED_REV: Schema = {
     "type": "integer",
     "minimum": 1,
-    "description": "Revision you last read (from get_record/search). Mismatch -> revision_conflict; re-read, do not guess.",
+    "description": "`revision` of the record from get_record (not model_revision). Never guess. revision_conflict -> get_record again, retry with that revision and the same idempotency_key.",
 }
 LIMIT: Schema = {
     "type": "integer",

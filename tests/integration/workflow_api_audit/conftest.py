@@ -24,7 +24,6 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from tests.integration.composition import pgfixture
-from tests.integration.composition.conftest import idp, mcp_port, pg  # noqa: F401
 from tests.integration.composition.idp import AGENT_CLIENT, DESK_CLIENT, LocalIdp
 from tests.integration.composition.mcphttp import serve
 from tests.integration.composition.test_e2e import (
@@ -51,7 +50,7 @@ OTHER_HEAD = (
 PEOPLE = (REQUESTER, DEPT_HEAD, DIRECTOR, OTHER, OTHER_HEAD)
 
 
-def stack_env(pg: pgfixture.Pg, idp: LocalIdp, mcp_port: int, d: Any) -> dict[str, str]:  # noqa: F811
+def stack_env(pg: pgfixture.Pg, idp: LocalIdp, mcp_port: int, d: Any) -> dict[str, str]:
     receipt_key = Ed25519PrivateKey.generate().private_bytes(
         serialization.Encoding.PEM,
         serialization.PrivateFormat.PKCS8,
@@ -93,9 +92,9 @@ def stack_env(pg: pgfixture.Pg, idp: LocalIdp, mcp_port: int, d: Any) -> dict[st
 
 @contextlib.contextmanager
 def build_stack(
-    pg: pgfixture.Pg,  # noqa: F811
-    idp: LocalIdp,  # noqa: F811
-    mcp_port: int,  # noqa: F811
+    pg: pgfixture.Pg,
+    idp: LocalIdp,
+    mcp_port: int,
     d: Path,
     aliases: tuple[str, str] = (A, B),
     people: tuple[str, ...] = PEOPLE,
@@ -151,9 +150,9 @@ def build_stack(
 
 @pytest.fixture(scope="session")  # một stack cho cả thư mục (tenant wxa/wxb chỉ tạo một lần)
 def wstack(
-    pg: pgfixture.Pg,  # noqa: F811
-    idp: LocalIdp,  # noqa: F811
-    mcp_port: int,  # noqa: F811
+    pg: pgfixture.Pg,
+    idp: LocalIdp,
+    mcp_port: int,
     tmp_path_factory: pytest.TempPathFactory,
 ) -> Iterator[Stack]:
     with build_stack(pg, idp, mcp_port, tmp_path_factory.mktemp("xt-wf-audit")) as s:
