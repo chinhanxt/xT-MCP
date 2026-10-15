@@ -560,78 +560,111 @@ def test_worker_timer_start_once_per_period_with_two_workers(
 ) -> None:
     """`workflow.timer_starts`: hai worker quét cùng kỳ -> đúng MỘT instance weekly_digest; quét
     lại -> `already`. Instance chạy hết (rollup + gửi), bản tin của kỳ được tạo đúng một lần."""
+    from tests.unit.process import support
+
+    now, period, from_date = _period_after(ops, pg)
+    # Kỳ nằm sau lúc tạo định nghĩa (tương lai so với đồng hồ thật): đồng hồ timer của
+    # SpiffWorkflow đặt tới `now` để timer start event của kỳ chín ngay (như lúc worker chạy thật).
+    monkeypatch.setattr(support.spiff_timer, "datetime", support.FakeDT)
+    support.Clock().set(now)
+    try:
+        _two_workers(ops, worker, pg, monkeypatch, now, period, from_date)
+    finally:
+        support.FakeDT.offset = timedelta(0)
+
+
+def _two_workers(
+    ops: Ops,
+    worker: Any,
+    pg: pgfixture.Pg,
+    monkeypatch: pytest.MonkeyPatch,
+    now: datetime,
+    period: str,
+    from_date: str,
+) -> None:
     import threading
 
     from xt.entrypoints.composition import worker as wk
 
-    now, period, from_date = _period_after(ops, pg)
+    def count() -> int:
+        with pg.su() as su:
+            row = su.execute(
+                "SELECT count(*) FROM xt_meta.workflow_instance WHERE tenant_id=%s"
+                " AND process_id='weekly_digest'",
+                (ops.tenant.id,),
+            ).fetchone()
+        return int(row[0]) if row else 0
+
+    before = count()
     jobs = [wk.build_jobs(worker.env), wk.build_jobs(worker.env)]
-    barrier = threading.Barrier(2)
-    results: list[dict[str, Any]] = []
-    errors: list[BaseException] = []
+    try:
+        barrier = threading.Barrier(2)
+        results: list[dict[str, Any]] = []
+        errors: list[BaseException] = []
 
-    def run(j: Any) -> None:
-        try:
-            barrier.wait()
-            results.extend(j.timer_starts_sync(ops.tenant.id, now))
-        except BaseException as e:  # pragma: no cover - báo ở assert
-            errors.append(e)
+        def run(j: Any) -> None:
+            try:
+                barrier.wait()
+                results.extend(j.timer_starts_sync(ops.tenant.id, now))
+            except BaseException as e:  # pragma: no cover - báo ở assert
+                errors.append(e)
 
-    threads = [threading.Thread(target=run, args=(j,)) for j in jobs]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join(120)
-    assert not errors, errors
-    mine = [r for r in results if r["process_key"] == "weekly_digest"]
-    assert sorted(r["result"] for r in mine) == ["already", "fired"], results
-    fired = next(r for r in mine if r["result"] == "fired")
-    assert fired["period_key"] == period
-    again = jobs[0].timer_starts_sync(ops.tenant.id, now + timedelta(minutes=5))
-    assert [r["result"] for r in again if r["process_key"] == "weekly_digest"] == ["already"]
-    with pg.su() as su:
-        rows = su.execute(
-            "SELECT f.status, f.instance_id, i.status FROM xt_meta.workflow_timer_fire f"
-            " JOIN xt_meta.workflow_instance i ON i.tenant_id=f.tenant_id AND i.id=f.instance_id"
-            " WHERE f.tenant_id=%s AND f.process_id='weekly_digest'",
-            (ops.tenant.id,),
-        ).fetchall()
-        n = su.execute(
-            "SELECT count(*) FROM xt_meta.workflow_instance WHERE tenant_id=%s"
-            " AND process_id='weekly_digest'",
-            (ops.tenant.id,),
-        ).fetchone()[0]
-    assert len(rows) == 1 and rows[0][0] == "fired" and rows[0][1] == fired["instance_id"]
-    assert rows[0][2] == "completed" and n == 1
-    y, w, _ = date.fromisoformat(from_date).isocalendar()
-    code = f"BT-{y:04d}-W{w:02d}"
-    digests = ops.search("weekly_digest", {"field": "code", "op": "=", "value": code})
-    assert len(digests) == 1 and digests[0]["sent"] is True
-    assert digests[0]["from_date"] == from_date
-    # Job được đăng ký trong `xt worker` và relay hẹn nó mỗi chu kỳ
-    for k, v in worker.env.items():
-        monkeypatch.setenv(k, v)
-    assert wk.TIMER_STARTS in wk.handlers()
-    rc, out = run_admin(["tenant", "bind-queue", "--tenant", ALIAS], worker.env)
-    assert rc == 0, out
+        threads = [threading.Thread(target=run, args=(j,)) for j in jobs]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(120)
+        assert not errors, errors
+        mine = [r for r in results if r["process_key"] == "weekly_digest"]
+        assert sorted(r["result"] for r in mine) == ["already", "fired"], results
+        fired = next(r for r in mine if r["result"] == "fired")
+        assert fired["period_key"] == period
+        again = jobs[0].timer_starts_sync(ops.tenant.id, now + timedelta(minutes=5))
+        assert [r["result"] for r in again if r["process_key"] == "weekly_digest"] == ["already"]
+        with pg.su() as su:
+            rows = su.execute(
+                "SELECT f.status, f.instance_id, i.status FROM xt_meta.workflow_timer_fire f"
+                " JOIN xt_meta.workflow_instance i"
+                " ON i.tenant_id=f.tenant_id AND i.id=f.instance_id"
+                " WHERE f.tenant_id=%s AND f.process_id='weekly_digest'",
+                (ops.tenant.id,),
+            ).fetchall()
+        assert len(rows) == 1 and rows[0][0] == "fired" and rows[0][1] == fired["instance_id"]
+        assert rows[0][2] == "completed" and count() == before + 1
+        y, w, _ = date.fromisoformat(from_date).isocalendar()
+        code = f"BT-{y:04d}-W{w:02d}"
+        digests = ops.search("weekly_digest", {"field": "code", "op": "=", "value": code})
+        assert len(digests) == 1 and digests[0]["sent"] is True
+        assert digests[0]["from_date"] == from_date
+        # Job được đăng ký trong `xt worker` và relay hẹn nó mỗi chu kỳ
+        for k, v in worker.env.items():
+            monkeypatch.setenv(k, v)
+        assert wk.TIMER_STARTS in wk.handlers()
+        rc, out = run_admin(["tenant", "bind-queue", "--tenant", ALIAS], worker.env)
+        assert rc == 0, out
 
-    async def relay() -> None:
-        from xt.adapters.db.workflow_bridge import tenant_async_tx
-        from xt.application.jobs import JobRequest
+        async def relay() -> None:
+            from xt.adapters.db.workflow_bridge import tenant_async_tx
+            from xt.application.jobs import JobRequest
 
-        async with tenant_async_tx(worker.env["XT_WORKER_DATABASE_URL"], ops.tenant.id) as conn:
-            await jobs[0].relay(conn, JobRequest(ops.tenant.id, wk.RELAY, "it.relay.ops", {}))
+            async with tenant_async_tx(worker.env["XT_WORKER_DATABASE_URL"], ops.tenant.id) as conn:
+                await jobs[0].relay(conn, JobRequest(ops.tenant.id, wk.RELAY, "it.relay.ops", {}))
 
-    import anyio
+        import anyio
 
-    anyio.run(relay)
-    with pg.su() as su:
-        queued = su.execute(
-            "SELECT count(*) FROM xt_queue.requests WHERE tenant_id=%s"
-            " AND idempotency_key LIKE 'workflow.timer_starts:%%'",
-            (ops.tenant.id,),
-        ).fetchone()[0]
-    assert queued >= 1
+        anyio.run(relay)
+        with pg.su() as su:
+            queued = su.execute(
+                "SELECT count(*) FROM xt_queue.requests WHERE tenant_id=%s"
+                " AND idempotency_key LIKE 'workflow.timer_starts:%%'",
+                (ops.tenant.id,),
+            ).fetchone()[0]
+        assert queued >= 1
+
+    finally:
+        for j in jobs:
+            j.rt.close()
+            j.rt.app_db.close()
 
 
 def test_timer_fire_migration_is_idempotent(pg: pgfixture.Pg) -> None:

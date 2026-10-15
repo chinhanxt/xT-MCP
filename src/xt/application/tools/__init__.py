@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Use case của 17 tool: handler theo tool + pipeline chung (IAM -> idempotency -> plan/CAS ->
+"""Use case của 18 tool: handler theo tool + pipeline chung (IAM -> idempotency -> plan/CAS ->
 tự chủ/xác nhận -> commit). Chỉ phụ thuộc port (`ports.py`), không import adapter."""
 
 from xt.application.tools.context import Actor, CallContext, ClientClass, PersonRef

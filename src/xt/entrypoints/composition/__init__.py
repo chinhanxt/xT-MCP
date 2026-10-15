@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Composition root thật: nối adapter Postgres / process engine / danh tính vào 17 tool.
+"""Composition root thật: nối adapter Postgres / process engine / danh tính vào 18 tool.
 
 `XT_MCP_SERVICES=xt.entrypoints.composition:build`. Mọi cấu hình bắt buộc; thiếu thì dừng với
 danh sách lỗi (không mặc định giả, không fallback in-memory):

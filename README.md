@@ -45,7 +45,7 @@ Chi tiết và lý do từng quyết định: [docs/architecture-v2.md](docs/arc
 
 ## Tính năng (chỉ liệt kê phần đã có mã và test)
 
-Số test: `uv run pytest` 1258 passed (162 test tích hợp cần Docker nằm ngoài bộ mặc định); Desk `vitest` 118 passed, Playwright e2e 15 passed. Số đo ngày 16/10/2026.
+Số test: `uv run pytest` 1523 passed (test tích hợp nằm ngoài bộ mặc định: `make test-integration` 346 passed trong một lần chạy, cần Docker); Desk `vitest` 144 passed. Kiểm như giám khảo: `make verify-clean`. Số đo ngày 16/10/2026.
 
 | Tính năng | Mô tả | Tài liệu |
 |---|---|---|

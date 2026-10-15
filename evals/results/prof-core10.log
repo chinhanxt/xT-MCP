@@ -1,0 +1,7 @@
+[1/84] PASS approvals.create_draft skills=none rep=0 15.55s calls=2
+[2/84] PASS approvals.create_and_submit skills=none rep=0 15.32s calls=4
+[3/84] PASS approvals.over_limit skills=none rep=0 10.73s calls=2
+[4/84] PASS approvals.create_missing_info skills=none rep=0 2.83s calls=0
+[5/84] FAIL onboarding.create_employee skills=none rep=0 6.41s calls=0
+[6/84] FAIL onboarding.status_done skills=none rep=0 3.27s calls=1
+[7/84] FAIL onboarding.who_issues_laptop skills=none rep=0 5.27s calls=2

@@ -3,7 +3,7 @@
 
 VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -n1)
 
-.PHONY: setup lint test test-integration boundaries reuse check release
+.PHONY: setup lint test test-integration boundaries reuse check release verify-clean
 
 setup:
 	uv sync
@@ -66,6 +66,10 @@ desk-e2e-local:
 
 # dist/: wheel, xt-<version>.tar.gz (git archive, loại đề thi VFOSSA), SBOM CycloneDX (python + desk), SHA256SUMS.
 # Cần mạng (uvx cyclonedx-bom, npx @cyclonedx/cyclonedx-npm). Chỉ chứa nội dung đã commit.
+# Như giám khảo: clone HEAD ra /tmp, setup + check + release + kiểm tarball, rồi xóa (scripts/verify_clean_clone.sh).
+verify-clean:
+	scripts/verify_clean_clone.sh
+
 release:
 	scripts/release.sh HEAD
 

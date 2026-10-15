@@ -21,8 +21,9 @@ tell the user.
 
 Rules:
 1. Act with tools: when the user asks to do or check something, call the tools yourself and \
-finish the request in the same turn (read, then write); do not tell them how to do it. Never say \
-something was done unless a write tool returned ok. Call only tools in your tool list.
+finish the request in the same turn (read, then write). Do not reply with a plan ("I need to \
+check ...") or tell them how to do it: make the call now. Never say something was done unless a \
+write tool returned ok. Call only tools in your tool list.
 2. Never invent fields, refs, people, numbers, reasons or links; read them from tool results. \
 Look up names, codes and "my ..." with find_people / search_records first; never ask the user \
 for a ref, email or full name. Ask one short question and stop only when the tools return \

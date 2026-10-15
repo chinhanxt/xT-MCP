@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 xT contributors -->
 # Dịch vụ Workflow headless: REST `/workflow/v1`
 
-Tầng 1 của đề thi bắt buộc dịch vụ Workflow chạy được mà không cần MCP. `/workflow/v1` là API REST trên `xt-api.freepro.online` (qua APISIX), dùng **cùng pipeline** với 17 tool MCP: IAM + SoD → idempotency → plan/CAS → mức tự chủ/xác nhận của người → commit → làn PII. Không có đường tắt vào engine. Mã: `src/xt/adapters/http/workflow_api.py`, nối ở `src/xt/entrypoints/workflow_http.py`. Quyết định: `docs/decisions.md` "REST /workflow/v1". Tài liệu máy đọc: `GET /workflow/v1/openapi.json` (OpenAPI 3.1 sinh từ code).
+Tầng 1 của đề thi bắt buộc dịch vụ Workflow chạy được mà không cần MCP. `/workflow/v1` là API REST trên `xt-api.freepro.online` (qua APISIX), dùng **cùng pipeline** với các tool MCP: IAM + SoD → idempotency → plan/CAS → mức tự chủ/xác nhận của người → commit → làn PII. Không có đường tắt vào engine. Mã: `src/xt/adapters/http/workflow_api.py`, nối ở `src/xt/entrypoints/workflow_http.py`. Quyết định: `docs/decisions.md` "REST /workflow/v1". Tài liệu máy đọc: `GET /workflow/v1/openapi.json` (OpenAPI 3.1 sinh từ code).
 
 ## Trạng thái (đọc trước)
 
@@ -25,7 +25,7 @@ Mọi đường dẫn bắt đầu bằng `/workflow/v1`. Cột "Tool" là tool 
 | `GET /definitions` | `inspect_workspace(include=[processes])` | Quy trình đang kích hoạt + link `self`, `bpmn` |
 | `GET /definitions/{id}` | `describe_process` | Bước, người duyệt, SLA, trigger (`model_id` đề nghị) |
 | `GET /definitions/{id}/bpmn` | `describe_process` rồi đọc bản compile | BPMN 2.0 XML có BPMNDI, `Content-Disposition: attachment; filename="<id>-v<rev>.bpmn"`, `ETag` mạnh; `If-None-Match` so sánh yếu theo RFC 9110 (danh sách, `W/`, `*`) → 304. Mở được bằng bpmn.io / Camunda Modeler |
-| `POST /instances` | `describe_process` → `create_record` → `submit_request` | **Bắt buộc `Idempotency-Key`**. Body: `{definition_id` **hoặc** `model_id` (không cả hai)`, values, note?}` (tạo nháp rồi gửi duyệt) hoặc `{ref, note?, expected_revision?}` (gửi nháp có sẵn). 201 + `Location`; gửi lại cùng khóa → 200 cùng kết quả |
+| `POST /instances` | `describe_process` → `create_record` → `submit_request` | **Bắt buộc `Idempotency-Key`**. Body: `{definition_id` **hoặc** `model_id` (không cả hai)`, values, note?}` (tạo nháp rồi gửi duyệt), `{ref, note?, expected_revision?}` (gửi nháp có sẵn), hoặc `{definition_id, subject_ref?, parameters?}` (quy trình `manual` không gắn đề nghị → tool `start_process`). 201 + `Location`; gửi lại cùng khóa → 200 cùng kết quả |
 | `GET /instances/{id}` | engine (RLS tenant) rồi `get_record` của đề nghị | Trạng thái (`running/completed/rejected/withdrawn`), task đang mở (`task_id` = ref đề nghị, bước, người được giao dạng `person:<id>`), link `decision`/`withdraw`, bản ghi đề nghị đã qua làn PII. Id task nội bộ, biến, comment của engine không trả ra. Không được đọc (kể cả cùng tenant) → 404 giống hệt id không tồn tại |
 | `GET /inbox` | `get_inbox` | Query: `kinds` (phẩy), `status`, `due_before`, `limit`, `cursor`. Mục `approval` có `task_id` + `links.decision` |
 | `POST /tasks/{task_id}/decision` | `decide_request` | **Bắt buộc `Idempotency-Key`**. `task_id` = `ref` trong inbox (cũng là `instance.tasks[].task_id`). Body: `{decision, expected_revision, reason?, delegate_to?}`. Ủy quyền cho người không hợp lệ (không tồn tại/tenant khác, chính mình, người đề nghị, vướng SoD, hoặc không qua IAM `request.decide` của bước) bị từ chối **ngay** (400 `invalid_delegate` / 403 `sod` / 403 `delegate_not_permitted`), không bao giờ ra 428 |

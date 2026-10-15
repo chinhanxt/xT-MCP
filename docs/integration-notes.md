@@ -355,3 +355,20 @@ Tài liệu: `docs/files-api.md`. Quyết định: `docs/decisions.md` "REST /fi
 | IAM (FB-08): `/mcp` (`identity/config.py`) và `/workflow/v1` coi `XT_FILES_AUDIENCE` (mặc định `xt-files`) là aud lạ | — |
 | FB-09: `create_record`/`update_record` kiểm field `file` qua `AttachmentPolicy.check_attachable` (`FileToolService`): người ghi phải `file.read` được tệp, tệp phải `clean`/`not_scanned` | `Composition.services(files=Files())` placeholder không có policy → không kiểm; dịch vụ tệp thật (gắn bởi `with_files_api`) có |
 | Compose: mạng `files` (internal) cho `seaweedfs`, `clamav`, `xt-api`, `xt-worker`; `configs.seaweed-security`; `-volume.max=32`; `xt-worker` có `XT_FILES_*` + `XT_CURSOR_KEY_FILE`; `.env`: 4 khóa `XT_SEAWEED_*_JWT_*` + quota | `make env` sinh khóa còn thiếu |
+
+## `start_process` (v1.0) + timer start trong `xt-worker` (16/10/2026)
+
+Quyết định: `docs/decisions.md` "start_process + timer start". Catalog MCP giờ là **18 tool** (17 v0.1 + `start_process`, contract nguyên văn TCV1 §6.1).
+
+| Thay đổi | Ai cần làm gì |
+|---|---|
+| `contracts/tools/catalog.py`: thêm `start_process` (since 1.0, trần L3, IAM `process.start`) sau 17 tool v0.1. **Không** vào `core-10` (`profiles.py` không đổi) | Eval-tuning: `evals/data/tools.json` đã sinh lại (`export_tools.py`, 18 tool). `tool_count: 18` trong mọi `SKILL.md`; skill core chỉ nêu tool core-10, `start_process` nằm ở `references/` |
+| `test_contracts.py`: so contract §5 **và** §6 (tool v1.0 có trong catalog), bảng §4.1 + §4.2, kích thước §9 hàng 0.1/1.0. `test_mcp_http` ngân sách tools/list full ≤ 42.000 B (+out ≤ 89.700 B) | Thêm tool v1.0 khác: chỉ cần thêm `_tool(...)` đúng JSON §6.n, test tự phủ |
+| `ProcessService` port (`application/tools/ports.py`): `plan_start`; handler `StartProcess` (IAM trên `xrn:<t>:process:<process_id>`, `parameters` không vào thuộc tính PEP) | Backend khác của port phải hiện thực `plan_start` |
+| Composition `ProcessToolAdapter.plan_start/_commit_start`: chỉ quy trình `trigger.kind=manual` không gắn model đề nghị (gắn -> `invalid_request wrong_tool`; timer -> `not_manual_trigger`); subject đọc bằng RLS của người gọi; input `<model>_id` kiểu str nhận ref subject; tham số `user` nhận `me`/`person:<id>`; level **L1**; subject gắn instance (`workflow_request`, giữ liên kết cũ nếu có) | — |
+| REST `POST /workflow/v1/instances` body `{definition_id, subject_ref?, parameters?}` (không `values`/`ref`) -> gọi đúng tool `start_process` trên cùng dispatcher. OpenAPI `x-xt-tools` thêm `start_process` | Client REST dùng được ngay |
+| Gói `giao-viec-sla` / `nhan-su-vong-doi` 0.3.1: statement `tsk.start-task-process` (dept_head, director, agent: `task_normal`, `task_urgent`) và `hr.start-lifecycle` (hr, agent: `employee_onboarding`, `employee_offboarding`) | Tenant đã cài gói 0.3.0: `xt pack install` lại (policy gộp theo id statement) |
+| Migration `0012_workflow_timer_fire.sql`: `xt_meta.workflow_timer_fire` (PK tenant+process+kỳ, RLS `tenant_isolation`, xt_app SELECT/INSERT/UPDATE) | `xt db migrate` |
+| `TimerPoller(store, defs, processes=ProcessService)` tạo instance qua `ProcessService.start(requester=None, fire=..., version=...)`; `PgTimerFireStore` (`workflow_bridge.py`) | — |
+| Worker: job mới `workflow.timer_starts` trong `handlers()` của `composition/worker.py`; relay mỗi chu kỳ hẹn một job (khóa `workflow.timer_starts:<mốc>`). Kỳ trước lúc tạo định nghĩa (`process_definition.created_at`) bỏ qua | Không cần env mới; tenant đã `bind-queue` tự có. `ProcessDefinition.created_at` (mới, mặc định None) |
+| Còn mở | Bước người của quy trình không gắn đề nghị (vd `accept`/`work` của `task_normal`, bước `hr` của onboarding) chưa có tool hoàn thành (`decide_request` chỉ nhận ref đề nghị). `GET /instances/{id}` của instance không có subject trả 404 |

@@ -10,7 +10,7 @@ Mỗi endpoint là một lớp mỏng trên CÙNG `ToolDispatcher` của MCP (IA
 | `GET /definitions` | `inspect_workspace(include=[processes])` |
 | `GET /definitions/{id}` | `describe_process` |
 | `GET /definitions/{id}/bpmn` | `describe_process` (IAM + revision) rồi `WorkflowBackend.bpmn` |
-| `POST /instances` | `create_record` (nếu chưa có nháp) + `submit_request`; quy trình `manual` không gắn đề nghị: `start_process` |
+| `POST /instances` | `create_record` (nếu chưa có nháp) + `submit_request`; hoặc `start_process` |
 | `GET /instances/{id}` | `WorkflowBackend.instance` (RLS tenant) rồi `get_record` của đề nghị |
 | `GET /inbox` | `get_inbox` |
 | `POST /tasks/{id}/decision` | `decide_request` (luôn `confirmation_required` + `confirm_url`) |

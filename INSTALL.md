@@ -66,13 +66,14 @@ Sửa hostname xong chạy lại `make -C deploy render` (sinh `deploy/apisix/re
 | `make setup` | `uv sync`: tạo `.venv`, cài xt và công cụ dev theo `uv.lock` | [đã chạy] |
 | `make lint` | `ruff check`, `ruff format --check`, `mypy` (strict) | [đã chạy]: ruff xanh; mypy xanh khi mã nguồn nhất quán (lần chạy 16/10 báo 1 lỗi kiểu trong `src/` đang được sửa dở, không thuộc phần tài liệu/phát hành) |
 | `make boundaries` | `lint-imports`: ranh giới module/lớp | [đã chạy] 4 contract kept, 0 broken |
-| `make reuse` | `uv run reuse lint`: giấy phép từng tệp | [đã chạy] 996/996 tệp có SPDX, tuân thủ REUSE 3.3 |
-| `make test` | `pytest` (unit, không cần Docker) | [đã chạy] 1258 passed, 162 deselected (tích hợp) |
-| `make check` | lint + boundaries + reuse + test (+ `desk-test` nếu có `desk/node_modules`) + `scripts/check_spdx.sh .` | [đã chạy từng bước]; `check_spdx.sh`: OK 317 tệp |
-| `make test-integration` | pytest tích hợp với Keycloak 26.6.3 và postgres:17 thật trong Docker, tự dọn container | [Docker: có output trong docs/identity.md, docs/model-engine.md, docs/worker-queue.md] |
-| `make desk-setup` | `npm ci` + cài Chromium headless cho Playwright (qua nvm) | [chưa chạy lại trên máy này: `node_modules` đã có sẵn] |
+| `make reuse` | `uv run reuse lint`: giấy phép từng tệp | [đã chạy] tuân thủ REUSE 3.3 (cả trong tarball phát hành: 948/948 tệp) |
+| `make test` | `pytest` (unit, không cần Docker) | [đã chạy] 1523 passed, 379 deselected (tích hợp + chậm), ~30 s |
+| `make check` | lint + boundaries + reuse + test (+ `desk-test` nếu có `desk/node_modules`) + `scripts/check_spdx.sh .` | [đã chạy] |
+| `make verify-clean` | Như giám khảo: `git clone` HEAD ra `/tmp/xt-clean-*`, chạy `make setup`, `make check`, `make release`, kiểm tarball (không đề thi/`.env`/khóa/`e2e/reports`, có LICENSE/NOTICE/THIRD_PARTY_NOTICES, REUSE trong tarball) rồi xóa clone. Cảnh báo nếu `src/`, `desk/src/`, `tests/`... còn tệp chưa commit | [đã chạy 16/10] |
+| `make test-integration` | MỘT lần pytest cho mọi suite tích hợp (Keycloak 26.6.3, postgres:17, PostgREST, SeaweedFS thật trong Docker); mỗi suite container tên/cổng riêng, dọn bằng `docker rm -f -v`. Không tự pull ảnh: kéo trước (mục "Ảnh cho test tích hợp") | [đã chạy 16/10] 346 passed, 16 xfailed, ~5 phút 20 s, RAM cần ≥ 4 GB trống |
+| `make desk-setup` | `npm ci` + cài Chromium headless cho Playwright (qua nvm) | [đã chạy trên clone sạch]. Ubuntu mới còn thiếu thư viện hệ thống của Chromium: chạy thêm `cd desk && npx playwright install-deps chromium` (cần sudo) |
 | `make desk-build` | `tsc --noEmit` + `vite build` → `desk/dist/`; nạp `desk/.env` (hoặc `desk/.env.example` nếu chưa có) | [đã chạy] build thành công |
-| `make desk-test` | `vitest` + Playwright e2e (LLM giả) | [đã chạy] 118 unit + 15 e2e passed |
+| `make desk-test` | `vitest` + Playwright e2e (LLM giả, OIDC giả, MCP giả) | [đã chạy] 144 vitest passed. E2E dùng cổng cố định 195xx: không chạy hai phiên `desk-test` cùng lúc (lỗi `... is already used`) |
 | `make desk-e2e-local` | e2e với Ollama thật | cần Ollama chạy sẵn, [chưa kiểm chứng trong tài liệu này] |
 | `make release` | `scripts/release.sh`: wheel, `xt-<version>.tar.gz`, SBOM Python + Desk, `SHA256SUMS` trong `dist/` | [đã chạy] mục 6 |
 | `make up-minimal` / `up-full` / `up-public` | sinh `deploy/.env`, render APISIX, `docker compose --profile ... up -d --build` | [Docker: có output trong docs/deploy.md] cho `minimal` (postgres, keycloak, apisix, xt-init, xt-api, xt-worker); `full`/`public` [chưa kiểm chứng] |
@@ -92,6 +93,18 @@ make desk-setup            # một lần
 cp desk/.env.example desk/.env   # chỉnh nếu cần, rồi:
 make desk-build
 make desk-test
+```
+
+### Ảnh cho test tích hợp
+
+Fixture không bao giờ tự kéo ảnh (đĩa có thể đầy). Kéo một lần (~1,5 GB, kiểm `df -h /` trước):
+
+```sh
+docker pull postgres:17-alpine
+docker pull quay.io/keycloak/keycloak:26.6.3
+docker pull postgrest/postgrest@sha256:d155c6718ed9a9f990d159a2ab7c0a3f16944dbb6d0a0344557421042acfe0df
+docker pull chrislusf/seaweedfs@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+make test-integration      # free -g: available >= 4 GB; không chạy song song với stack nặng khác
 ```
 
 ### Trình tự chạy stack (cần Docker Engine)
@@ -159,6 +172,8 @@ SBOM Python có 41 thành phần, SBOM Desk có 99. Phiên bản lấy từ `pyp
 | `uv sync` báo lỗi mạng | Cần truy cập PyPI; đặt `UV_INDEX_URL` nếu dùng mirror |
 | `make release`: `cannot find ... cyclonedx` | Cần mạng cho `uvx --from cyclonedx-bom` và `npx @cyclonedx/cyclonedx-npm` |
 | Tarball thiếu thay đổi mới | `git archive` chỉ lấy nội dung đã commit; commit trước khi `make release` |
+| Clone sạch lỗi `ModuleNotFoundError` / `Cannot find module './…'` mà máy phát triển chạy được | Mã đã commit tham chiếu tệp **chưa commit**. Chạy `make verify-clean` (in danh sách tệp chưa commit trong `src/`, `desk/src/`, `tests/`…) và commit đủ trước khi phát hành |
+| `make test-integration`: `thiếu image ...` / `image is missing` | Kéo ảnh ở mục "Ảnh cho test tích hợp" |
 | Podman | Thử `make -C deploy up-minimal DC="podman compose --env-file .env"`; [chưa kiểm chứng] |
 
 Báo lỗi cài đặt bằng GitHub Issues (mẫu **Báo lỗi**), kèm phiên bản và output lệnh.

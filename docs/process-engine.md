@@ -154,6 +154,8 @@ wf_instance(id, process_key, version, state json)
 4. Giành được -> tính input từ biến kỳ (`fire_at`, `fire_date`, `period_start(_date)`, `period_end_date`) bằng engine biểu thức an toàn, `runtime.start(fire=...)`, lưu instance cùng transaction. Lỗi -> rollback cả dòng kỳ, lần quét sau thử lại;
 5. `catchup: latest` chỉ chạy kỳ gần nhất; `catchup: none` + trễ quá `grace` -> `skipped`. Một định nghĩa lỗi không chặn định nghĩa khác (`result: error`).
 
+Lớp ghép (`xt-worker`, job `workflow.timer_starts` do relay hẹn mỗi chu kỳ): `PgTimerFireStore` trên `xt_meta.workflow_timer_fire` (PK tenant + process + kỳ, migration 0012), `TimerPoller(..., processes=ProcessService)` tạo instance qua `ProcessService.start(requester=None, fire=..., version=...)` cùng transaction với dòng kỳ; `not_before` = `process_definition.created_at`.
+
 `dtstart` của lịch là mốc cố định 05/01/2026 nên `INTERVAL>1` không lệch pha theo ngày kích hoạt. DST: giờ không tồn tại được chuẩn hóa qua UTC, giờ lặp chỉ chạy một lần (so sánh theo timestamp UTC). BPMN có timer start event `timeDate = xt_fire_at`: poller tạo sớm thì engine vẫn chờ đúng giờ.
 
 ## 6. An toàn
