@@ -8,9 +8,11 @@ Tầng 1 của đề thi bắt buộc dịch vụ Workflow chạy được mà k
 
 | Thành phần | Trạng thái |
 |---|---|
-| 8 endpoint + OpenAPI 3.1 | Có; 17 unit test (`tests/unit/http/test_workflow_api.py`, dispatcher thật + port giả, JWT ký thật qua JWKS tĩnh) |
-| Postgres 17 thật + composition thật | 4 test tích hợp (`tests/integration/composition/test_workflow_api.py`, marker `integration`): W1 chạy hết bằng HTTP, cô lập tenant, BPMN hợp lệ, `headless-demo.sh` chạy curl thật |
-| Ghép vào `xt serve` | **Chưa**: lớp tích hợp thêm 1 dòng vào `serve.Prepared.http_app()` (`docs/integration-notes.md`, mục REST `/workflow/v1`) |
+| 9 endpoint + OpenAPI 3.1 | Có; 26 unit test (`tests/unit/http/`, dispatcher thật + port giả, JWT ký thật qua JWKS tĩnh) |
+| Postgres 17 thật + composition thật | 5 test tích hợp (`tests/integration/composition/test_workflow_api.py`, marker `integration`): W1 chạy hết bằng HTTP, cô lập tenant, BPMN hợp lệ, `headless-demo.sh` chạy curl thật |
+| Ghép vào `xt serve` | Có: `serve.Prepared.http_app()` gọi `with_workflow_api` |
+| Deploy | `deploy/compose.yaml` truyền `XT_WORKFLOW_ALLOWED_CLIENTS=${XT_WORKFLOW_CLIENTS:-xt-cli}` (cùng nguồn với `provision_data.py`) và `XT_WORKFLOW_PUBLIC_URL`; kiểm offline ở `tests/unit/http/test_workflow_deploy.py` |
+| Audit `docs/audit-workflow-api.md` | WA-01…WA-10 đã sửa; `tests/integration/workflow_api_audit/` 17 passed, không còn xfail |
 | Route APISIX `api-workflow` | Có trong `deploy/apisix/apisix.yaml.tmpl`; chưa render/nạp vào stack công khai |
 | Client scope Keycloak `xt-workflow` | Chưa provision trên Keycloak thật |
 
@@ -22,18 +24,19 @@ Mọi đường dẫn bắt đầu bằng `/workflow/v1`. Cột "Tool" là tool 
 |---|---|---|
 | `GET /definitions` | `inspect_workspace(include=[processes])` | Quy trình đang kích hoạt + link `self`, `bpmn` |
 | `GET /definitions/{id}` | `describe_process` | Bước, người duyệt, SLA, trigger (`model_id` đề nghị) |
-| `GET /definitions/{id}/bpmn` | `describe_process` rồi đọc bản compile | BPMN 2.0 XML có BPMNDI, `Content-Disposition: attachment; filename="<id>-v<rev>.bpmn"`, `ETag` (hỗ trợ `If-None-Match` → 304). Mở được bằng bpmn.io / Camunda Modeler |
-| `POST /instances` | `describe_process` → `create_record` → `submit_request` | **Bắt buộc `Idempotency-Key`**. Body: `{definition_id \| model_id, values, note?}` (tạo nháp rồi gửi duyệt) hoặc `{ref, note?, expected_revision?}` (gửi nháp có sẵn). 201 + `Location`; gửi lại cùng khóa → 200 cùng kết quả |
-| `GET /instances/{id}` | engine (RLS tenant) rồi `get_record` của đề nghị | Trạng thái (`running/completed/rejected/withdrawn`), task đang mở (bước, người được giao dạng `person:<id>`), bản ghi đề nghị đã qua làn PII. Biến/comment của engine không trả ra |
+| `GET /definitions/{id}/bpmn` | `describe_process` rồi đọc bản compile | BPMN 2.0 XML có BPMNDI, `Content-Disposition: attachment; filename="<id>-v<rev>.bpmn"`, `ETag` mạnh; `If-None-Match` so sánh yếu theo RFC 9110 (danh sách, `W/`, `*`) → 304. Mở được bằng bpmn.io / Camunda Modeler |
+| `POST /instances` | `describe_process` → `create_record` → `submit_request` | **Bắt buộc `Idempotency-Key`**. Body: `{definition_id` **hoặc** `model_id` (không cả hai)`, values, note?}` (tạo nháp rồi gửi duyệt) hoặc `{ref, note?, expected_revision?}` (gửi nháp có sẵn). 201 + `Location`; gửi lại cùng khóa → 200 cùng kết quả |
+| `GET /instances/{id}` | engine (RLS tenant) rồi `get_record` của đề nghị | Trạng thái (`running/completed/rejected/withdrawn`), task đang mở (`task_id` = ref đề nghị, bước, người được giao dạng `person:<id>`), link `decision`/`withdraw`, bản ghi đề nghị đã qua làn PII. Id task nội bộ, biến, comment của engine không trả ra. Không được đọc (kể cả cùng tenant) → 404 giống hệt id không tồn tại |
 | `GET /inbox` | `get_inbox` | Query: `kinds` (phẩy), `status`, `due_before`, `limit`, `cursor`. Mục `approval` có `task_id` + `links.decision` |
-| `POST /tasks/{task_id}/decision` | `decide_request` | **Bắt buộc `Idempotency-Key`**. `task_id` = `ref` trong inbox. Body: `{decision, expected_revision, reason?, delegate_to?}` |
+| `POST /tasks/{task_id}/decision` | `decide_request` | **Bắt buộc `Idempotency-Key`**. `task_id` = `ref` trong inbox (cũng là `instance.tasks[].task_id`). Body: `{decision, expected_revision, reason?, delegate_to?}`. Ủy quyền cho người không hợp lệ (không tồn tại/tenant khác, chính mình, người đề nghị, vướng SoD, hoặc không qua IAM `request.decide` của bước) bị từ chối **ngay** (400 `invalid_delegate` / 403 `sod` / 403 `delegate_not_permitted`), không bao giờ ra 428 |
+| `POST /instances/{id}/withdraw` | `transition_record(to_state=withdrawn)` | **Bắt buộc `Idempotency-Key`**. Body `{expected_revision, reason?}`. Người đề nghị rút đề nghị đang chờ duyệt (kể cả bước bị kẹt) hoặc bị trả lại; instance chuyển `withdrawn`, task mở bị hủy. Qua MCP: `transition_record` y hệt |
 | `GET /openapi.json` | (không) | Công khai, không cần token |
 
 `decision` nhận tên outcome của engine: `approve`, `reject`, `return_for_revision` (= `return` của tool), `delegate`, `request_info`. Riêng `request_info` trả **400 `decision_not_supported`** vì ToolContract `decide_request` v0.1 chưa có giá trị này (không giả thành công).
 
 ## Xác thực
 
-- `Authorization: Bearer <access token Keycloak>`, **`aud` = `xt-workflow`**, scope `xt-workflow`, `azp` thuộc `XT_WORKFLOW_ALLOWED_CLIENTS` (mặc định = `XT_MCP_ALLOWED_CLIENTS`). Token MCP (aud là URL `/mcp`) hay token `/data` (aud `xt-data`) đều bị 401; token workflow cũng bị `/mcp` từ chối.
+- `Authorization: Bearer <access token Keycloak>`, **`aud` = `xt-workflow`** (token mang thêm aud của resource MCP bị 401, kể cả khi đủ scope), scope `xt-workflow`, `azp` thuộc `XT_WORKFLOW_ALLOWED_CLIENTS` (mặc định = `XT_MCP_ALLOWED_CLIENTS`). Token MCP (aud là URL `/mcp`) hay token `/data` (aud `xt-data`) đều bị 401; token workflow cũng bị `/mcp` từ chối.
 - Lấy token: client `xt-cli` (public, auth-code + PKCE), `scope=openid xt-workflow` (scope optional do `provision_data.py` cấp cho `XT_WORKFLOW_CLIENTS`, mặc định `xt-cli`; mapper phát đúng `aud=xt-workflow`). `bash docs/headless-demo.sh --get-token workflow`. Token `xt-data` và token MCP không chứa aud này; `make -C deploy provision-data` tự kiểm `mcp-xt` sạch.
 - Token phải là của **agent đại diện một người** (auth-code, `sub` liên kết với `xt_meta.person`). Service account không đại diện ai bị `access_denied invalid_behalf` (như MCP).
 - **Phiên người (client Desk xác nhận) bị 401**: người chỉ quyết định trên trang `/desk/confirm/{id}` có step-up OTP (M6).
@@ -58,12 +61,13 @@ Thành công và lỗi dùng **đúng envelope của tool** (`ok`, `untrusted:tr
 | `invalid_request` | 400 |
 | `unauthenticated` | 401 |
 | `access_denied` | 403 |
-| `not_found` | 404 (tenant khác cho đúng cùng câu trả lời) |
+| `not_found` | 404: instance/BPMN của tenant khác cho đúng câu trả lời của id không tồn tại; route lạ dưới `/workflow/v1` cũng là envelope 404. Quyết định/gửi duyệt bằng ref của tenant khác trả **403** `access_denied` (PEP chạy trước handler, D-INT-4), giống hệt ref ma |
+| (method sai) | 405 envelope + `Allow` |
 | `revision_conflict`, `idempotency_conflict`, `precondition_failed`, `confirmation_declined` | 409 |
 | `resource_constraint` | 413 (body > 64 KiB) |
 | `rule_violation` | 422 |
 | `confirmation_required` | **428** + `Link: <confirm_url>; rel="confirm"` |
-| `rate_limited` | 429 + `Retry-After` |
+| `rate_limited` | 429 + `Retry-After` (từ xt-api, vd cùng khóa đang chạy). 429/413 do **APISIX** trả là HTML của gateway, không có envelope/`Retry-After` |
 | `internal_error` | 500 |
 | `capability_unavailable` | 501 |
 | `timeout` | 503 + `Retry-After` |
@@ -131,6 +135,9 @@ Chạy lại: `uv run pytest tests/integration/composition/test_workflow_api.py 
 
 ## Giới hạn
 
-- `request_info` chưa mở (xem trên). Hủy/rút đề nghị vẫn qua tool `transition_record` (MCP); chưa có endpoint REST.
+- Remediation và `continuation` trong envelope là của tool dùng chung với MCP (vd `continuation.tool = decide_request`): cố ý giữ một hợp đồng lỗi; REST client dùng `code`/`details`.
+- Quản trị gán lại bước (`ProcessService.reassign`) chưa lộ ra (composition chưa cấu hình `admin_role`); đường gỡ bước kẹt hiện tại là người đề nghị rút đề nghị.
+
+- `request_info` chưa mở (xem trên).
 - JWT chưa kiểm ở APISIX (W7) và rate-limit theo IP, chưa theo `azp`.
 - `GET /definitions` chưa trả `revision` (theo output của `inspect_workspace`); dùng `GET /definitions/{id}`.

@@ -14,7 +14,7 @@ import subprocess
 
 import pytest
 
-from xte2e import compose, mcpc, net, oidc
+from xte2e import compose, mcpc, net
 from xte2e.config import DEPLOY, HEADLESS_CLIENT, HEADLESS_REDIRECT
 from xte2e.flows import A, DEPT_HEAD, REQUESTER, advance, dumps, err, key
 from xte2e.kcadmin import Admin

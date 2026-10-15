@@ -541,3 +541,39 @@ def test_sla_escalation_never_back_to_same_overdue_person(
     assert t["via"] == "process_fallback" and "đang giữ việc bị quá hạn" in t["trail"][0]
     i.act(t["task_id"], "NV-0001", "approve")
     assert i.status() == "completed" and services.notes == ["SLA vượt hạn: Trưởng bộ phận duyệt"]
+
+
+def test_check_delegate_validates_without_changing_state(make_rt: MakeRt) -> None:
+    i = start_proposal(make_rt("de_xuat_phe_duyet"))
+    t = only(i)
+    before = json.dumps(i.to_state(), sort_keys=True, default=str)
+    for target, code in (
+        ("NV-0006", "access_denied"),  # người đề nghị
+        ("NV-9999", "invalid_request"),  # không tồn tại
+        ("NV-0005", "invalid_request"),  # chính mình
+        (None, "invalid_request"),
+    ):
+        with pytest.raises(DecisionError) as e:
+            i.check_delegate(t["task_id"], "NV-0005", target)
+        assert e.value.code == code, (target, e.value)
+    with pytest.raises(DecisionError) as e:
+        i.check_delegate(t["task_id"], "NV-0007", "NV-0001")
+    assert e.value.reason == "not_assigned_approver"
+    i.check_delegate(t["task_id"], "NV-0005", "NV-0007")
+    assert json.dumps(i.to_state(), sort_keys=True, default=str) == before
+
+
+def test_requester_withdraws_running_instance(make_rt: MakeRt) -> None:
+    rt = make_rt("de_xuat_phe_duyet")
+    i = start_proposal(rt)
+    with pytest.raises(DecisionError) as e:
+        i.withdraw("NV-0005", "không phải của tôi")
+    assert e.value.reason == "not_owner"
+    i.withdraw("NV-0006", "Đổi kế hoạch")
+    assert i.status() == "withdrawn" and i.inbox() == [] and i.candidates() == []
+    assert i.meta["history"][-1]["outcome"] == "withdraw"
+    j = rt.load(jsonb_roundtrip(i.to_state(), 3))
+    assert j.status() == "withdrawn" and j.inbox() == []
+    with pytest.raises(DecisionError) as e:
+        j.withdraw("NV-0006", "lần hai")
+    assert e.value.reason == "invalid_state"

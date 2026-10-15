@@ -146,3 +146,21 @@ uv run pytest tests/integration/workflow_api_audit -m integration --no-cov -rxX
 - **WA-02**: ủy quyền làm kẹt quy trình, không có đường gỡ qua REST.
 
 Sửa WA-01, WA-02 (nên làm luôn WA-03, WA-04) rồi gỡ `xfail` tương ứng thì có thể chuyển sang ĐẠT. Các lỗi WA-05…WA-10 ở mức thấp, sửa sau mốc nộp bài vẫn được.
+
+## 5. Phản hồi tác giả (16/10/2026)
+
+Mọi WA đã sửa và đã gỡ `xfail`. Kết quả: `tests/integration/workflow_api_audit` 17 passed; `tests/integration/composition` (gồm `test_workflow_api.py`, 5 test) xanh; unit xanh.
+
+| # | Sửa | Ghi chú |
+|---|---|---|
+| WA-01 | `compose.yaml` xt-api: `XT_WORKFLOW_ALLOWED_CLIENTS: ${XT_WORKFLOW_CLIENTS:-xt-cli}` (cùng nguồn `provision_data.py`), `XT_WORKFLOW_AUDIENCE`, `XT_WORKFLOW_PUBLIC_URL`; `.env.example` ghi rõ | Test offline `tests/unit/http/test_workflow_deploy.py` nội suy env thật của service: `XT_MCP_ALLOWED_CLIENTS` rỗng + registry Keycloak vẫn dựng được cả hai cấu hình. Mức tối thiểu (ít nhất 1 client workflow) được kiểm và ghi trong `docs/integration-notes.md` |
+| WA-02 | Ở service dùng chung (MCP + REST): `plan_decide` kiểm PEP `request.decide` của người nhận trên đúng ref (`ToolAccessGuard.person_allowed`) → 403 `delegate_not_permitted` trước khi tạo pending | Đường gỡ bước kẹt: người đề nghị rút đề nghị `in_review` (`transition_record` / `POST /instances/{id}/withdraw`, engine `ProcessService.withdraw`). Test audit WA-02 được siết: phải là 403 `delegate_not_permitted` |
+| WA-03 | `ProcessService.check_delegate` (không đổi state) + kiểm người tồn tại/active trong tenant ở plan | 400 `invalid_delegate` / 403 `sod` |
+| WA-04 | `tasks[].task_id` = ref đề nghị; id engine không còn trả ra | |
+| WA-05 | Route catch-all trong Mount: 404/405 envelope (+`Allow`) | |
+| WA-06 | So sánh yếu RFC 9110 (danh sách, `W/`, `*`); 304 có `Cache-Control` | ETag giữ dạng mạnh (bytes BPMN tất định) |
+| WA-07 | `get_instance`: `get_record` 403/404 → `_not_found()` tĩnh | |
+| WA-08 | Verifier workflow từ chối token có aud = resource MCP | **Không đồng ý một phần:** chiều ngược lại (token có thêm `xt-workflow` dùng ở `/mcp`) thuộc verifier MCP/`serve.IdentityHttpAuth`, chưa sửa ở đây vì đụng mọi connector; Keycloak không phát token như vậy (scope optional chỉ cho `xt-cli`, bị cấm với client MCP trong `provision_data.py`) |
+| WA-09 | Schema: `definition_id` XOR `model_id` → 400 | |
+| WA-10 | OpenAPI khai 304/405/413/422/428/429/501 | |
+| Tài liệu | `docs/workflow-api.md`: trạng thái ghép serve, 403 cho ref tenant khác ở quyết định/gửi duyệt, 429/413 HTML của APISIX, `continuation`/remediation dùng chung với MCP (cố ý) | Thêm phát hiện: `transition_record(withdrawn)` trước đây trả `internal_error` vì output thiếu `model_revision`/`available_transitions` (vi phạm `RECORD_FULL`); đã sửa |

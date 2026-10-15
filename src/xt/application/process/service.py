@@ -139,6 +139,15 @@ class ProcessService:
     ) -> dict[str, Any]:
         return self._apply(instance_id, lambda i: i.act(task_id, actor, outcome, comment, **kw))
 
+    def check_delegate(
+        self, instance_id: str, task_id: str, actor: str, delegate_to: str | None
+    ) -> None:
+        """Kiểm đích ủy quyền mà không lưu gì (plan của decide_request)."""
+        self._load(instance_id).check_delegate(task_id, actor, delegate_to)
+
+    def withdraw(self, instance_id: str, actor: str, reason: str | None = None) -> dict[str, Any]:
+        return self._apply(instance_id, lambda i: i.withdraw(actor, reason))
+
     def reassign(
         self, instance_id: str, task_id: str, admin: str, to_user: str, reason: str
     ) -> dict[str, Any]:

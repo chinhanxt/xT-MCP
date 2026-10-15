@@ -333,7 +333,8 @@ CREATE_INSTANCE_BODY: dict[str, Any] = {
         },
         {
             "required": ["values"],
-            "not": {"required": ["ref"]},
+            # definition_id XOR model_id: gửi cả hai thì không rõ ý (WA-09).
+            "not": {"anyOf": [{"required": ["ref"]}, {"required": ["definition_id", "model_id"]}]},
             "anyOf": [{"required": ["definition_id"]}, {"required": ["model_id"]}],
         },
     ],
@@ -351,6 +352,16 @@ DECISION_BODY: dict[str, Any] = {
         "reason": _tool_prop("decide_request", "reason"),
         "delegate_to": _tool_prop("decide_request", "delegate_to"),
         "expected_revision": _tool_prop("decide_request", "expected_revision"),
+    },
+}
+
+WITHDRAW_BODY: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["expected_revision"],
+    "properties": {
+        "expected_revision": _tool_prop("transition_record", "expected_revision"),
+        "reason": _tool_prop("transition_record", "reason"),
     },
 }
 
@@ -423,10 +434,12 @@ STARTED = _envelope(
 )
 INBOX = _envelope(_tool_out("get_inbox"))
 DECIDED = _envelope(_tool_out("decide_request"))
+WITHDRAWN = _envelope(_tool_out("transition_record"))
 
 _BODY_VALIDATORS = {
     "create_instance": Draft202012Validator(CREATE_INSTANCE_BODY),
     "decide_task": Draft202012Validator(DECISION_BODY),
+    "withdraw_instance": Draft202012Validator(WITHDRAW_BODY),
 }
 for _v in _BODY_VALIDATORS.values():
     Draft202012Validator.check_schema(_v.schema)
@@ -469,8 +482,17 @@ _COMMON_ERRORS: Mapping[int, tuple[str, Mapping[str, Any] | None]] = {
     401: ("Thiếu/sai token (WWW-Authenticate: Bearer).", None),
     403: _ERR,
     404: _ERR,
+    405: ("Method không hỗ trợ (header Allow).", None),
+    429: ("Quá tải hoặc cùng Idempotency-Key đang chạy (Retry-After).", None),
     500: _ERR,
+    501: ("Năng lực chưa có trong bản phát hành này.", None),
     503: _ERR,
+}
+_WRITE_ERRORS: Mapping[int, tuple[str, Mapping[str, Any] | None]] = {
+    409: _ERR,
+    413: ("Body vượt giới hạn (resource_constraint).", None),
+    422: ("Vi phạm rule nghiệp vụ (rule_violation).", None),
+    428: ("Cần người xác nhận trên confirm_url, rồi gửi lại y hệt.", None),
 }
 INBOX_QUERY = BY_NAME["get_inbox"].input_schema["properties"]
 
@@ -498,7 +520,11 @@ OPERATIONS: tuple[Operation, ...] = (
         "/definitions/{definition_id}/bpmn",
         "BPMN 2.0 XML (có BPMNDI) của bản đang kích hoạt; mở được bằng bpmn.io/Camunda Modeler.",
         ("describe_process",),
-        {200: ("BPMN XML.", {"type": "string"}), **_COMMON_ERRORS},
+        {
+            200: ("BPMN XML.", {"type": "string"}),
+            304: ("Không đổi (If-None-Match khớp ETag).", {"type": "string"}),
+            **_COMMON_ERRORS,
+        },
         (Param("definition_id", "path", {"type": "string", "pattern": PROCESS_ID.pattern}, True),),
     ),
     Operation(
@@ -510,9 +536,7 @@ OPERATIONS: tuple[Operation, ...] = (
         {
             201: ("Đã gửi duyệt; Location = instance.", STARTED),
             200: ("Gửi lại cùng Idempotency-Key: trả lại kết quả cũ.", STARTED),
-            409: _ERR,
-            422: _ERR,
-            428: ("Cần người xác nhận trên confirm_url, rồi gửi lại y hệt.", None),
+            **_WRITE_ERRORS,
             **_COMMON_ERRORS,
         },
         (IDEM_PARAM,),
@@ -526,6 +550,16 @@ OPERATIONS: tuple[Operation, ...] = (
         ("get_record",),
         {200: ("Instance.", INSTANCE), **_COMMON_ERRORS},
         (Param("instance_id", "path", {"type": "string", "format": "uuid"}, True),),
+    ),
+    Operation(
+        "withdraw_instance",
+        "POST",
+        "/instances/{instance_id}/withdraw",
+        "Người đề nghị rút đề nghị đang chờ duyệt (kể cả bước bị kẹt); quy trình dừng ở withdrawn.",
+        ("transition_record",),
+        {200: ("Đã rút.", WITHDRAWN), **_WRITE_ERRORS, **_COMMON_ERRORS},
+        (Param("instance_id", "path", {"type": "string", "format": "uuid"}, True), IDEM_PARAM),
+        WITHDRAW_BODY,
     ),
     Operation(
         "get_inbox",
@@ -556,8 +590,7 @@ OPERATIONS: tuple[Operation, ...] = (
         ("decide_request",),
         {
             200: ("Đã thực hiện (sau khi người xác nhận).", DECIDED),
-            409: _ERR,
-            428: ("confirmation_required: details.confirm_url.", None),
+            **_WRITE_ERRORS,
             **_COMMON_ERRORS,
         },
         (
@@ -584,6 +617,9 @@ def openapi_document(server_url: str | None = None) -> dict[str, Any]:
     for op in OPERATIONS:
         responses: dict[str, Any] = {}
         for status, (desc, schema) in sorted(op.responses.items()):
+            if status == 304:
+                responses[str(status)] = {"description": desc}
+                continue
             if op.op_id == "get_definition_bpmn" and status == 200:
                 content = {"application/xml": {"schema": {"type": "string"}}}
             elif schema is None:
@@ -653,6 +689,25 @@ def openapi_document(server_url: str | None = None) -> dict[str, Any]:
 Handler = Callable[[Request, CallContext], Awaitable[Response]]
 
 
+_ALL_METHODS = ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+
+
+def _path_rx(template: str) -> re.Pattern[str]:
+    return re.compile(re.sub(r"\\\{[a-z_]+\\\}", "[^/]+", re.escape(template)))
+
+
+def _etag_matches(header: str | None, etag: str) -> bool:
+    """If-None-Match theo RFC 9110 §13.1.2: so sánh yếu, danh sách, `*`."""
+    if not header:
+        return False
+    opaque = etag.removeprefix("W/")
+    for raw in header.split(","):
+        tag = raw.strip()
+        if tag == "*" or tag.removeprefix("W/") == opaque:
+            return True
+    return False
+
+
 def _href(*parts: str) -> str:
     return API_PREFIX + "".join("/" + quote(p, safe=":") for p in parts)
 
@@ -696,6 +751,7 @@ class WorkflowApi:
             "get_instance": self.get_instance,
             "get_inbox": self.get_inbox,
             "decide_task": self.decide_task,
+            "withdraw_instance": self.withdraw_instance,
         }
         out: list[Route] = []
         for op in OPERATIONS:
@@ -703,7 +759,23 @@ class WorkflowApi:
                 out.append(Route(op.path, self.openapi, methods=[op.method]))
             else:
                 out.append(Route(op.path, self._guard(handlers[op.op_id]), methods=[op.method]))
+        # Route/method lạ: envelope lỗi chung thay vì text/plain của router (WA-05).
+        out.append(Route("/{rest:path}", self._fallback, methods=list(_ALL_METHODS)))
         return out
+
+    async def _fallback(self, request: Request) -> Response:
+        trace_id = "tr_" + uuid.uuid4().hex[:20]
+        rel = "/" + str(request.path_params.get("rest", ""))
+        allowed = sorted({op.method for op in OPERATIONS if _path_rx(op.path).fullmatch(rel)})
+        if allowed:
+            err = ToolError(
+                ErrorCode.INVALID_REQUEST,
+                "Method not allowed on this endpoint.",
+                remediation=f"Use {', '.join(allowed)} (see /workflow/v1/openapi.json).",
+                details={"reason": "method_not_allowed", "allowed": allowed},
+            )
+            return _json(405, error_envelope(trace_id, err), {"Allow": ", ".join(allowed)})
+        return _json(404, error_envelope(trace_id, _not_found().error))
 
     async def openapi(self, request: Request) -> Response:
         return Response(
@@ -918,8 +990,10 @@ class WorkflowApi:
             raise _not_found()
         raw = xml.encode("utf-8")
         etag = '"sha256-' + hashlib.sha256(raw).hexdigest()[:32] + '"'
-        if request.headers.get("if-none-match") == etag:
-            return Response(status_code=304, headers={"ETag": etag})
+        if _etag_matches(request.headers.get("if-none-match"), etag):
+            return Response(
+                status_code=304, headers={"ETag": etag, "Cache-Control": "private, no-cache"}
+            )
         return Response(
             raw,
             media_type="application/xml",
@@ -982,7 +1056,7 @@ class WorkflowApi:
         replayed = bool((env["meta"].get("receipt") or {}).get("replayed"))
         return _json(200 if replayed else 201, {**env, "data": data}, {"Location": href})
 
-    async def get_instance(self, request: Request, ctx: CallContext) -> Response:
+    async def _view(self, request: Request, ctx: CallContext) -> InstanceView:
         raw = str(request.path_params["instance_id"])
         try:
             iid = str(uuid.UUID(raw))
@@ -991,15 +1065,25 @@ class WorkflowApi:
         view = await anyio.to_thread.run_sync(self.backend.instance, ctx.actor, ctx.trace_id, iid)
         if view is None:
             raise _not_found()
+        return view
+
+    async def get_instance(self, request: Request, ctx: CallContext) -> Response:
+        view = await self._view(request, ctx)
+        iid = view.instance_id
         # IAM + RLS bản ghi qua đúng tool đọc; chỉ sau khi được phép mới trả trạng thái engine.
         got = await self._tool("get_record", {"ref": view.ref}, ctx)
         if got.is_error:
+            code = got.envelope.get("error", {}).get("code")
+            if code in (ErrorCode.NOT_FOUND.value, ErrorCode.ACCESS_DENIED.value):
+                # Cùng tenant, không được đọc: giống hệt id không tồn tại (WA-07).
+                raise _not_found()
             return outcome_response(got)
         env = got.envelope
         tasks = []
         for t in view.tasks:
             item: dict[str, Any] = {
-                "task_id": t.task_id,
+                # Khóa thao tác = ref đề nghị (decisions.md câu 4), không phải id task của engine.
+                "task_id": view.ref,
                 "step": t.step,
                 "name": t.name,
                 "kind": t.kind,
@@ -1013,6 +1097,8 @@ class WorkflowApi:
         }
         if any(t.kind == "decision" for t in view.tasks):
             links["decision"] = _href("tasks", view.ref, "decision")
+        if view.status == "running":
+            links["withdraw"] = _href("instances", iid, "withdraw")
         instance = {
             "id": iid,
             "process_id": view.process_id,
@@ -1022,6 +1108,20 @@ class WorkflowApi:
             "links": links,
         }
         return _json(200, {**env, "data": {"instance": instance, "request": env["data"]["record"]}})
+
+    async def withdraw_instance(self, request: Request, ctx: CallContext) -> Response:
+        key = self._idempotency_key(request)
+        view = await self._view(request, ctx)
+        body = await self._body(request, "withdraw_instance")
+        args: dict[str, Any] = {
+            "ref": view.ref,
+            "to_state": "withdrawn",
+            "expected_revision": body["expected_revision"],
+            "idempotency_key": key,
+        }
+        if "reason" in body:
+            args["reason"] = body["reason"]
+        return outcome_response(await self._tool("transition_record", args, ctx))
 
     # ---- inbox + quyết định ----------------------------------------------------------------
 

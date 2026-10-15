@@ -169,6 +169,10 @@ services:
       XT_MCP_RESOURCE: https://${XT_DOMAIN_MCP}/mcp
       XT_MCP_ALLOWED_CLIENTS: ${XT_MCP_ALLOWED_CLIENTS:-}
       XT_MCP_CLIENT_REGISTRY: ${XT_MCP_CLIENT_REGISTRY:-keycloak}
+      # REST /workflow/v1 (docs/workflow-api.md): azp được gọi = đúng client mà provision_data.py cấp scope xt-workflow
+      XT_WORKFLOW_ALLOWED_CLIENTS: ${XT_WORKFLOW_CLIENTS:-xt-cli}
+      XT_WORKFLOW_AUDIENCE: xt-workflow
+      XT_WORKFLOW_PUBLIC_URL: https://${XT_DOMAIN_API}
       XT_IDP_ADMIN_API_URL: http://keycloak:8080/admin/realms/${XT_REALM:-xt}
       XT_IDP_ADMIN_TOKEN_URL: http://keycloak:8080/realms/${XT_REALM:-xt}/protocol/openid-connect/token
       XT_IDP_ADMIN_CLIENT_ID: ${XT_IDP_ADMIN_CLIENT_ID:-xt-client-registry}

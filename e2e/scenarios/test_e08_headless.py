@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -54,7 +55,7 @@ def test_sso_gateway_data(ev: Evidence, world) -> None:  # type: ignore[no-untyp
 
 def test_workflow_rest_w1(ev: Evidence, world) -> None:  # type: ignore[no-untyped-def]
     c = Checks(ev)
-    req, dh, dr = world.by_key(A, REQUESTER), world.by_key(A, DEPT_HEAD), world.by_key(A, DIRECTOR)
+    req, dh, _dr = world.by_key(A, REQUESTER), world.by_key(A, DEPT_HEAD), world.by_key(A, DIRECTOR)
     api = f"{world.s.api}/workflow/v1"
     tok = _cli(world, req, "workflow")
     cl = oidc.claims(tok)
@@ -130,20 +131,26 @@ def _get_token(kind: str, user: dict, proxy: net.HostProxy, out: Path, ev: Evide
     """Lái `headless-demo.sh --get-token` headless: script in URL + nghe 127.0.0.1; harness đăng nhập
     Keycloak thật (qua proxy -> APISIX) rồi đi theo redirect loopback về script."""
     env = {**os.environ, "XT_AUTH_BASE": proxy.base, "XT_REALM": world_realm()}
-    p = subprocess.Popen(["bash", str(ROOT / "docs" / "headless-demo.sh"), "--get-token", kind, str(out)],
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
+    # Script chạy `python3 -I` (bỏ qua PYTHONUNBUFFERED): cấp pty để stdout line-buffered, đọc được URL ngay.
+    cmd = f"bash {ROOT / 'docs' / 'headless-demo.sh'} --get-token {kind} {out}"
+    p = subprocess.Popen(["script", "-qfec", cmd, "/dev/null"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         stdin=subprocess.DEVNULL, text=True, env=env)
     assert p.stdout is not None
     url = ""
     lines: list[str] = []
-    for line in p.stdout:
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        line = p.stdout.readline()
+        if not line:
+            break
         lines.append(line.rstrip())
-        if line.startswith("http"):
+        if line.strip().startswith("http"):
             url = line.strip()
             break
     if not url:
-        p.wait(10)
+        p.kill()
         ev.step(f"--get-token {kind}", lines)
-        return p.returncode or 1
+        return p.wait(10) or 1
     b = oidc.Browser()
     redirect = re.search(r"redirect_uri=([^&]+)", url)
     from urllib.parse import unquote
@@ -152,7 +159,11 @@ def _get_token(kind: str, user: dict, proxy: net.HostProxy, out: Path, ev: Evide
     step = b.get(url, stop=stop)
     step = b.login_pages(step, user["username"], user["password"], user.get("totp"), stop=stop)
     b.c.get(step.url)  # trình duyệt về loopback của script
-    rest, _ = p.communicate(timeout=30)
+    try:
+        rest, _ = p.communicate(timeout=30)
+    except subprocess.TimeoutExpired:
+        p.kill()
+        rest, _ = p.communicate()
     ev.step(f"--get-token {kind}", [*lines[:1], *rest.splitlines()[-2:]])
     return p.returncode
 

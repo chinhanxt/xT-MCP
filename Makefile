@@ -43,7 +43,7 @@ check-worker:
 	uv run pytest $(WORKER_UNIT) tests/unit/test_cli.py --no-cov
 	uv run reuse lint-file $(filter %.py,$(WORKER_SRC)) src/xt/adapters/queue/*.py $(WORKER_UNIT) $(WORKER_IT) docs/worker-queue.md
 
-# Local postgres:17-alpine only, :19800; fixture removes its container and volume.
+# Local postgres:17-alpine only, random loopback port; fixture removes its container and volume.
 test-worker-integration:
 	uv run pytest -m integration tests/integration/test_worker_queue.py tests/integration/test_worker_queue_review.py --no-cov
 
@@ -92,3 +92,28 @@ check-data:
 # Fixture chỉ dùng 1 Postgres + 1 PostgREST local; tên ngẫu nhiên, tự dọn.
 test-data-integration:
 	uv run pytest -m integration tests/integration/test_headless_data.py --no-cov
+
+# ---- E2E toàn bộ E0-E11 (docs/e2e.md): stack compose minimal THẬT, volume mới, qua APISIX, không mock ----
+# Bằng chứng: e2e/reports/<timestamp>/ (E<n>.json/.md, summary.md). Bí mật user test: ~/.config/xt/e2e/ (0600).
+# Heavy-stack: e2e-up chờ RAM available >= 4 GiB và không có Keycloak/Ollama khác. E2E_KEEP=1 giữ stack sau khi chạy.
+E2E := cd e2e && PYTHONPATH=. uv run --project ..
+.PHONY: e2e-up e2e-down demo-seed e2e e2e-run e2e-llm
+e2e-up:
+	$(E2E) python -m xte2e.stack up
+
+e2e-down:
+	$(E2E) python -m xte2e.stack down
+
+demo-seed:
+	$(E2E) python -m xte2e.seed
+
+e2e-run:   # chạy kịch bản trên stack đang có (đã demo-seed)
+	$(E2E) pytest -c pytest.ini -m "e2e and not llm" $(E2E_ARGS)
+
+e2e:
+	@rc=0; $(MAKE) e2e-up && $(MAKE) demo-seed && $(MAKE) e2e-run || rc=$$?; \
+	  [ "$${E2E_KEEP:-0}" = 1 ] || $(MAKE) e2e-down; exit $$rc
+
+e2e-llm:   # E1: Desk + Ollama qwen3.5:4b (slot heavy riêng); cần stack đã up + demo-seed
+	$(E2E) python -m xte2e.stack preflight
+	$(E2E) pytest -c pytest.ini -m llm $(E2E_ARGS)

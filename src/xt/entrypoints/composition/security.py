@@ -172,6 +172,16 @@ class ToolAccessGuard:
         )
         return bool(pep.evaluate(req).allowed)
 
+    def person_allowed(self, ctx: CallContext, person: Any, action: str, ref: str) -> bool:
+        """`person` có qua PEP `action` trên bản ghi `ref` không (thuộc tính tài nguyên đọc như
+        `check`). Dùng để kiểm đích ủy quyền trước khi tạo PendingOperation (WA-02)."""
+        caller = self.rt.caller(ctx)
+        try:
+            xrn, resource = self._resource(ctx, caller, AccessCheck("", action, ref))
+        except ToolError:
+            return False
+        return self.allows(caller, person, action, xrn, int(ctx.now.timestamp()), resource)
+
     def autonomy_ceiling(self, ctx: CallContext) -> RiskLevel:
         caller = self.rt.caller(ctx)
         if not caller.is_agent:

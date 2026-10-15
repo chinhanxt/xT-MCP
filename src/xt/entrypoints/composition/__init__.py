@@ -206,7 +206,7 @@ class Composition:
         guard = ToolAccessGuard(rt)
         model_changes = ModelChangeDecisions(rt, guard)
         process = ProcessToolAdapter(
-            rt, cursor_key=key, engine=self.engine, model_changes=model_changes
+            rt, cursor_key=key, engine=self.engine, model_changes=model_changes, access=guard
         )
         records = RecordServiceAdapter(
             rt,

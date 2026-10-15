@@ -8,6 +8,7 @@ import asyncio
 import os
 import secrets
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -51,9 +52,10 @@ PORT = 19800
 @dataclass(frozen=True)
 class WorkerDatabase:
     password: str = field(repr=False)
+    port: int = PORT
 
     def dsn(self, role: str) -> str:
-        return f"postgresql://{role}:{self.password}@127.0.0.1:{PORT}/xt_worker_it"
+        return f"postgresql://{role}:{self.password}@127.0.0.1:{self.port}/xt_worker_it"
 
     def runtime(self, **settings: Any) -> QueueRuntime:
         from xt.adapters.queue.runtime import create_runtime
@@ -86,6 +88,13 @@ class WorkerDatabase:
             yield connection
 
 
+def free_port() -> int:
+    """Random free loopback port so concurrent suites never collide."""
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return int(probe.getsockname()[1])
+
+
 @pytest.fixture(scope="module")
 def worker_database() -> Iterator[WorkerDatabase]:
     if shutil.which("docker") is None:
@@ -96,7 +105,7 @@ def worker_database() -> Iterator[WorkerDatabase]:
     )
     if inspected.returncode:
         pytest.fail("postgres:17-alpine image is missing; integration tests never pull images")
-    database = WorkerDatabase(secrets.token_hex(18))
+    database = WorkerDatabase(secrets.token_hex(18), free_port())
     name = f"xt-it-worker-{secrets.token_hex(4)}"
     try:
         subprocess.run(
@@ -109,7 +118,7 @@ def worker_database() -> Iterator[WorkerDatabase]:
                 "--name",
                 name,
                 "-p",
-                f"127.0.0.1:{PORT}:5432",
+                f"127.0.0.1:{database.port}:5432",
                 "-e",
                 f"POSTGRES_PASSWORD={database.password}",
                 "-e",

@@ -27,6 +27,10 @@ ACCT = "0123456789012"
 TOKEN_RE = re.compile(r"\[PII:[a-z2-7]{8,}\]|⟨[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.[a-z][a-z0-9_]{0,63}⟩")
 
 
+def _is_error(r: Any) -> bool:
+    return bool(getattr(r, "is_error", getattr(r, "isError", False)))
+
+
 def _b64u(b: bytes) -> str:
     return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
 
@@ -65,8 +69,8 @@ def test_masked_then_reveal(ev: Evidence, world) -> None:  # type: ignore[no-unt
     raw = mcpc.call_raw(tok, "pii_reveal_ticket", {"tokens": [acct], "pubkey_jwk": _jwk(priv.public_key())})
     meta = (getattr(raw, "meta", None) or {}).get("xt/reveal") or {}
     body_text = raw.content[0].text if raw.content else ""
-    ev.step("pii_reveal_ticket", {"isError": raw.isError, "content": body_text[:400], "meta_keys": sorted(meta)})
-    c.check(not raw.isError and bool(meta.get("ticket")) and bool(meta.get("url")), "vé nằm ở _meta['xt/reveal']")
+    ev.step("pii_reveal_ticket", {"isError": _is_error(raw), "content": body_text[:400], "meta_keys": sorted(meta)})
+    c.check(not _is_error(raw) and bool(meta.get("ticket")) and bool(meta.get("url")), "vé nằm ở _meta['xt/reveal']")
     c.check(meta.get("ticket", "x") not in body_text, "vé không nằm trong content")
     if not meta.get("ticket"):
         c.done()

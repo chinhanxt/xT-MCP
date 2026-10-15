@@ -469,3 +469,94 @@ async def test_revoked_token_blocks_high_risk_write(env: Env) -> None:
         )
     assert r.status_code == 401 and _err(r)["code"] == "unauthenticated"
     assert env.world.store.commits == []
+
+
+# ---- sau audit WA-04..WA-10 ----------------------------------------------------------------
+
+
+async def test_unknown_route_and_method_use_error_envelope(env: Env) -> None:
+    async with env.client(token()) as c:
+        nope = await c.get(f"{API_PREFIX}/nope")
+        deep = await c.get(f"{API_PREFIX}/definitions/a/b/c")
+        method = await c.delete(f"{API_PREFIX}/inbox")
+    for r in (nope, deep):
+        assert r.status_code == 404 and _err(r)["code"] == "not_found"
+    assert method.status_code == 405 and method.headers["allow"] == "GET"
+    assert _err(method)["details"]["reason"] == "method_not_allowed"
+
+
+async def test_if_none_match_weak_list_and_star(env: Env) -> None:
+    url = f"{API_PREFIX}/definitions/advance_approval/bpmn"
+    async with env.client(token()) as c:
+        et = (await c.get(url)).headers["etag"]
+        codes = [
+            (await c.get(url, headers={"If-None-Match": v})).status_code
+            for v in (f"W/{et}", f'"x", {et}', "*", '"other"')
+        ]
+        r304 = await c.get(url, headers={"If-None-Match": et})
+    assert codes == [304, 304, 304, 200]
+    assert r304.headers["cache-control"] == "private, no-cache" and r304.headers["etag"] == et
+
+
+async def test_instance_tasks_use_decision_key_and_hide_unreadable(env: Env) -> None:
+    env.world.access.deny_tools["get_record"] = "behalf_permission"
+    async with env.client(token()) as c:
+        denied = await c.get(f"{API_PREFIX}/instances/{INSTANCE}")
+        ghost = await c.get(f"{API_PREFIX}/instances/{uuid.uuid4()}")
+    assert denied.status_code == ghost.status_code == 404
+    assert _err(denied) == _err(ghost)
+    del env.world.access.deny_tools["get_record"]
+    async with env.client(token()) as c:
+        ok = await c.get(f"{API_PREFIX}/instances/{INSTANCE}")
+    inst = ok.json()["data"]["instance"]
+    assert [t["task_id"] for t in inst["tasks"]] == ["advance_request:tu-0042"]
+    assert inst["links"]["withdraw"] == f"{API_PREFIX}/instances/{INSTANCE}/withdraw"
+
+
+async def test_withdraw_instance_maps_to_transition_record(env: Env) -> None:
+    url = f"{API_PREFIX}/instances/{INSTANCE}/withdraw"
+    h = {"Idempotency-Key": "wf-unit-wd-0001"}
+    async with env.client(token()) as c:
+        nokey = await c.post(url, json={"expected_revision": 2})
+        bad = await c.post(url, json={"expected_revision": 2, "x": 1}, headers=h)
+        ghost = await c.post(
+            f"{API_PREFIX}/instances/{uuid.uuid4()}/withdraw", json={"expected_revision": 2},
+            headers=h,
+        )  # fmt: skip
+        done = await c.post(url, json={"expected_revision": 2, "reason": "Đổi kế hoạch"}, headers=h)
+    assert nokey.status_code == 400 and bad.status_code == 400 and ghost.status_code == 404
+    assert done.status_code == 200, done.text
+    assert done.json()["data"]["record"]["state"] == "withdrawn"
+
+
+async def test_definition_and_model_together_is_rejected(env: Env) -> None:
+    body = {"definition_id": "advance_approval", "model_id": "advance_request", "values": VALUES}
+    async with env.client(token()) as c:
+        r = await c.post(
+            f"{API_PREFIX}/instances", json=body, headers={"Idempotency-Key": "wf-unit-wa09-01"}
+        )
+    assert r.status_code == 400 and _err(r)["details"]["reason"] == "schema"
+
+
+async def test_token_with_foreign_audience_is_rejected() -> None:
+    from tests.unit.identity.factory import FakeJwks as Jwks
+
+    ws = workflow_resource_settings(rs_settings(), {})
+    verifier = AccessTokenVerifier(
+        ws, JwksCache(Jwks([KEY]), 300, 10, FakeClock()), FakeClock(),
+        clients=StaticClientAllowlist(ws.allowed_clients, ws.human_clients),
+    )  # fmt: skip
+    auth = IdentityWorkflowAuth(ws, verifier, frozenset({RESOURCE}))
+    assert auth.verify(token()).subject == "sub-viet"
+    with pytest.raises(InvalidTokenError):
+        auth.verify(token(aud=[RESOURCE, "xt-workflow"], scope="openid mcp-xt xt-workflow"))
+
+
+def test_openapi_declares_observed_statuses() -> None:
+    paths = openapi_document()["paths"]
+    inst = paths[f"{API_PREFIX}/instances"]["post"]["responses"]
+    dec = paths[f"{API_PREFIX}/tasks/{{task_id}}/decision"]["post"]["responses"]
+    bpmn = paths[f"{API_PREFIX}/definitions/{{definition_id}}/bpmn"]["get"]["responses"]
+    assert {"413", "422", "428", "429", "405", "501"} <= set(inst) <= set(dec) | {"201"}
+    assert "304" in bpmn and "content" not in bpmn["304"]
+    assert f"{API_PREFIX}/instances/{{instance_id}}/withdraw" in paths

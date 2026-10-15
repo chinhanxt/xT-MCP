@@ -38,7 +38,7 @@ def envelope(result: Any) -> dict[str, Any]:
         env = {"ok": False, "error": {"code": "non_json", "message": text[:500]}}
     if getattr(result, "meta", None):
         env.setdefault("_mcp_meta", result.meta)
-    if getattr(result, "isError", False):
+    if getattr(result, "is_error", getattr(result, "isError", False)):
         env.setdefault("_mcp_is_error", True)
     return env
 

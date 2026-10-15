@@ -18,6 +18,7 @@ from xte2e.report import Checks, Evidence
 SCENARIO = "E6"
 pytestmark = pytest.mark.e2e
 FIELD = "ma_du_an"
+RATIONALE = "Kế toán cần gắn mỗi tạm ứng với mã dự án để đối chiếu chi phí theo dự án."
 
 
 def _column_exists(schema: str) -> bool:
@@ -55,12 +56,13 @@ def test_add_field_apply(ev: Evidence, world) -> None:  # type: ignore[no-untype
     schema = world.tenants[A]["schema"]
     proposer = world.by_key(A, DEPT_HEAD)
     ops = [{"op": "add_field", "field": {"id": FIELD, "label": "Mã dự án", "type": "string", "required": False}}]
-    dry = world.call(proposer, "propose_model_change", {"model_id": "advance_request", "operations": ops, "dry_run": True})
+    dry = world.call(proposer, "propose_model_change", {"model_id": "advance_request", "operations": ops, "dry_run": True,
+                                                       "rationale": RATIONALE})
     ev.step("propose_model_change dry_run", dry)
     c.check(dry.get("ok") is True, f"dry-run ok ({err(dry).get('code')})")
     c.check("AN TOÀN" in dumps(dry) or "safe" in dumps(dry).lower(), "plan phân loại an toàn")
     filed = world.call(proposer, "propose_model_change", {"model_id": "advance_request", "operations": ops,
-                                                          "dry_run": False, "idempotency_key": key("mc")})
+                                                          "rationale": RATIONALE, "dry_run": False, "idempotency_key": key("mc")})
     ev.step("propose_model_change dry_run=false", filed)
     assert filed.get("ok"), f"gửi đề xuất: {dumps(filed)[:500]}"
     data = filed.get("data") or {}
@@ -105,11 +107,12 @@ def test_remove_field_needs_two_approvers(ev: Evidence, world) -> None:  # type:
         ev.gap("W2 áp đề xuất model (decide -> approve_and_apply -> pha 2)", f"cột {FIELD} chưa được áp ở test trước")
     proposer = world.by_key(A, DEPT_HEAD)
     ops = [{"op": "remove_field", "field": {"id": FIELD}}]
-    dry = world.call(proposer, "propose_model_change", {"model_id": "advance_request", "operations": ops, "dry_run": True})
+    dry = world.call(proposer, "propose_model_change", {"model_id": "advance_request", "operations": ops, "dry_run": True,
+                                                       "rationale": RATIONALE})
     ev.step("dry-run xóa field có dữ liệu", dry)
     c.check("PHÁ HỦY" in dumps(dry) or "destructive" in dumps(dry).lower(), "plan phân loại PHÁ HỦY")
     filed = world.call(proposer, "propose_model_change", {"model_id": "advance_request", "operations": ops,
-                                                          "dry_run": False, "idempotency_key": key("mc-rm")})
+                                                          "rationale": RATIONALE, "dry_run": False, "idempotency_key": key("mc-rm")})
     ev.step("gửi đề xuất xóa", filed)
     data = filed.get("data") or {}
     ref = data.get("request", {}).get("ref") or data.get("proposal", {}).get("ref") or data.get("ref")

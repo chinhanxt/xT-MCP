@@ -349,3 +349,64 @@ def test_headless_demo_script_workflow_section(
     assert re.search(r"4 Workflow\s+OK", out), out
     for secret in (env["XT_WORKFLOW_TOKEN_FILE"], env["XT_WORKFLOW_APPROVER_TOKEN_FILE"]):
         assert Path(secret).read_text() not in out + run.stderr
+
+
+def test_requester_withdraws_running_request_rest_and_mcp(wstack: Stack) -> None:
+    """Đường gỡ bước kẹt: người đề nghị rút đề nghị đang chờ duyệt (REST + MCP cùng service)."""
+    import anyio
+
+    s = wstack
+    body = {"definition_id": "proposal_approval", "values": advance(3_000_000)}
+    with http(s, wf_token(s, A, REQUESTER)) as c:
+        started = c.post(f"{WF}/instances", json=body, headers={"Idempotency-Key": "it-wf-wd-01"})
+        assert started.status_code == 201, started.text
+        iid = started.json()["data"]["instance"]["id"]
+        rev = started.json()["data"]["request"]["revision"]
+        inst = c.get(f"{WF}/instances/{iid}").json()["data"]["instance"]
+        assert inst["links"]["withdraw"] == f"{WF}/instances/{iid}/withdraw"
+    with http(s, wf_token(s, A, DEPT_HEAD)) as c:  # không phải người đề nghị
+        other = c.post(
+            f"{WF}/instances/{iid}/withdraw",
+            json={"expected_revision": rev},
+            headers={"Idempotency-Key": "it-wf-wd-dh"},
+        )
+    assert other.status_code in (403, 404), other.text
+    hk = {"Idempotency-Key": "it-wf-wd-02"}
+    with http(s, wf_token(s, A, REQUESTER)) as c:
+        done = c.post(
+            f"{WF}/instances/{iid}/withdraw",
+            json={"expected_revision": rev, "reason": "Đổi kế hoạch"},
+            headers=hk,
+        )
+        after = c.get(f"{WF}/instances/{iid}").json()["data"]
+        again = c.post(
+            f"{WF}/instances/{iid}/withdraw", json={"expected_revision": rev + 1}, headers=hk
+        )
+    assert done.status_code == 200, done.text
+    assert done.json()["data"]["record"]["state"] == "withdrawn"
+    assert after["instance"]["status"] == "withdrawn" and after["instance"]["tasks"] == []
+    assert again.status_code == 409  # cùng khóa, body khác
+    with http(s, wf_token(s, A, DEPT_HEAD)) as c:
+        items = c.get(f"{WF}/inbox", params={"kinds": "approval"}).json()["data"]["items"]
+    assert all(i["ref"] != after["request"]["ref"] for i in items)
+
+    # MCP: transition_record(to_state=withdrawn) trên đề nghị đang chờ duyệt.
+    async def mcp() -> dict[str, Any]:
+        created = await s.call(
+            A, REQUESTER, "create_record",
+            {"model_id": "advance_request", "values": advance(2_500_000),
+             "idempotency_key": "it-wf-wd-mcp-c"},
+        )  # fmt: skip
+        ref = created["data"]["record"]["ref"]
+        sub_ = await s.call(A, REQUESTER, "submit_request",
+                            {"ref": ref, "idempotency_key": "it-wf-wd-mcp-s"})  # fmt: skip
+        assert sub_["ok"], sub_
+        return await s.call(
+            A, REQUESTER, "transition_record",
+            {"ref": ref, "to_state": "withdrawn", "reason": "Không đi nữa",
+             "expected_revision": sub_["data"]["request"]["revision"],
+             "idempotency_key": "it-wf-wd-mcp-w"},
+        )  # fmt: skip
+
+    out = anyio.run(mcp)
+    assert out["ok"] and out["data"]["record"]["state"] == "withdrawn", out

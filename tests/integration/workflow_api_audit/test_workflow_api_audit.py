@@ -274,11 +274,6 @@ def test_error_envelopes_pii_scrubbed(wstack: Stack) -> None:
 
 
 # ------------------------------------------------------- lỗi (xfail strict) ----
-@pytest.mark.xfail(
-    strict=True,
-    reason="WA-01: compose không truyền XT_WORKFLOW_ALLOWED_CLIENTS; "
-    "Keycloak chỉ cấp scope xt-workflow cho xt-cli nhưng xt-api chỉ nhận azp của MCP",
-)
 def test_wa01_deploy_allows_the_client_that_gets_the_workflow_scope() -> None:
     text = (ROOT / "deploy" / "compose.yaml").read_text(encoding="utf-8")
     block = text.split("\n  xt-api:\n", 1)[1].split("\n  xt-", 1)[0]  # service xt-api
@@ -286,11 +281,6 @@ def test_wa01_deploy_allows_the_client_that_gets_the_workflow_scope() -> None:
     assert "xt-cli" in line or "XT_WORKFLOW_CLIENTS" in line, line
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="WA-02: ủy quyền cho người không có quyền request.decide "
-    "được chấp nhận -> bước duyệt kẹt, không ai quyết định được",
-)
 def test_wa02_delegation_to_unauthorized_person_does_not_deadlock(wstack: Stack) -> None:
     s = wstack
     d = start(s, REQUESTER, "audit-wa02-001", 5_100_000)
@@ -300,7 +290,10 @@ def test_wa02_delegation_to_unauthorized_person_does_not_deadlock(wstack: Stack)
     body = {"decision": "delegate", "delegate_to": oh_ref, "expected_revision": 2}
     r = decide_confirmed(s, DEPT_HEAD, ref, body, "audit-wa02-dlg")
     if r.status_code != 200:
-        return  # bị từ chối khi ủy quyền: hành vi đúng -> test đạt (XPASS)
+        # bị từ chối ngay lúc plan (không 428, không 500): hành vi đúng
+        assert r.status_code == 403, r.text
+        assert r.json()["error"]["details"]["reason"] == "delegate_not_permitted", r.text
+        return
     rev = inbox_rev(s, OTHER_HEAD, ref) or 3
     r = decide(
         s, OTHER_HEAD, ref, {"decision": "approve", "expected_revision": rev}, "audit-wa02-oh1"
@@ -308,11 +301,6 @@ def test_wa02_delegation_to_unauthorized_person_does_not_deadlock(wstack: Stack)
     assert r.status_code == 428, r.text
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="WA-03: delegate_to không tồn tại/tenant khác/me/người đề "
-    "nghị vẫn ra 428 (bắt người duyệt step-up OTP cho thao tác chắc chắn thất bại)",
-)
 def test_wa03_invalid_delegate_target_rejected_before_confirmation(wstack: Stack) -> None:
     s = wstack
     d = start(s, REQUESTER, "audit-wa03-001", 4_000_000)
@@ -331,11 +319,6 @@ def test_wa03_invalid_delegate_target_rejected_before_confirmation(wstack: Stack
     assert all(c in (400, 403, 404, 409, 422) for c in codes.values()), codes
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="WA-04: instance.tasks[].task_id là UUID nội bộ của Spiff, "
-    "không dùng được cho POST /tasks/{task_id}/decision (trái decisions.md câu 4)",
-)
 def test_wa04_instance_task_id_is_the_decision_key(wstack: Stack) -> None:
     s = wstack
     d = start(s, REQUESTER, "audit-wa04-001", 2_000_000)
@@ -346,10 +329,6 @@ def test_wa04_instance_task_id_is_the_decision_key(wstack: Stack) -> None:
         assert TASK_ID.fullmatch(t["task_id"]) and t["task_id"] == d["request"]["ref"], t
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="WA-05: route/method lạ dưới /workflow/v1 trả text/plain, không phải envelope lỗi chung",
-)
 def test_wa05_unknown_route_and_method_use_error_envelope(wstack: Stack) -> None:
     s = wstack
     with cli(s, tok(s, A, REQUESTER)) as c:
@@ -359,11 +338,6 @@ def test_wa05_unknown_route_and_method_use_error_envelope(wstack: Stack) -> None
         assert r.json()["ok"] is False
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="WA-06: If-None-Match chỉ so chuỗi tuyệt đối; ETag yếu "
-    "(W/) và danh sách ETag không ra 304 (RFC 9110 §13.1.2)",
-)
 def test_wa06_if_none_match_weak_and_list(wstack: Stack) -> None:
     s = wstack
     with cli(s, tok(s, A, REQUESTER)) as c:
@@ -377,11 +351,6 @@ def test_wa06_if_none_match_weak_and_list(wstack: Stack) -> None:
     assert weak.status_code == 304 and lst.status_code == 304
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="WA-07: cùng tenant, người không có quyền đọc instance nhận "
-    "403/404 có details.ref -> phân biệt được với id ngẫu nhiên và lộ ref đề nghị",
-)
 def test_wa07_same_tenant_unauthorized_instance_looks_like_ghost(wstack: Stack) -> None:
     s = wstack
     d = start(s, REQUESTER, "audit-wa07-001", 2_000_000)
@@ -393,11 +362,6 @@ def test_wa07_same_tenant_unauthorized_instance_looks_like_ghost(wstack: Stack) 
         assert real.json()["error"] == ghost.json()["error"], who
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="WA-08: token có cả aud /mcp và aud xt-workflow được nhận ở "
-    "cả hai bề mặt (chỉ dựa vào provisioning Keycloak để tách)",
-)
 def test_wa08_multi_audience_token_rejected(wstack: Stack) -> None:
     s = wstack
     dual = s.idp.access_token(
@@ -408,11 +372,6 @@ def test_wa08_multi_audience_token_rejected(wstack: Stack) -> None:
         assert c.get(f"{WF}/inbox").status_code == 401
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="WA-09: gửi cả definition_id và model_id: model_id thắng, "
-    "definition_id bị bỏ qua im lặng",
-)
 def test_wa09_definition_and_model_must_agree(wstack: Stack) -> None:
     s = wstack
     body = {
@@ -425,11 +384,6 @@ def test_wa09_definition_and_model_must_agree(wstack: Stack) -> None:
     assert r.status_code == 400 and r.json()["error"]["code"] == "invalid_request", r.text
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="WA-10: OpenAPI thiếu mã thực tế: 413 (POST), 304 (BPMN), "
-    "429 (idempotency_in_progress), 422 (decide)",
-)
 def test_wa10_openapi_declares_observed_statuses(wstack: Stack) -> None:
     s = wstack
     with httpx.Client(base_url=s.app.base) as c:

@@ -74,6 +74,9 @@ class SpiffWorkflowHandle:
     def is_completed(self) -> bool:
         return bool(self.workflow.is_completed())
 
+    def cancel(self) -> None:
+        self.workflow.cancel()
+
     def completed_task_names(self) -> set[str]:
         return {t.task_spec.name for t in self.workflow.get_tasks(state=TaskState.COMPLETED)}
 

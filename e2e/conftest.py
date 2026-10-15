@@ -28,11 +28,10 @@ def scenario_of(item: pytest.Item) -> str:
     return str(sid) if sid else "E?"
 
 
-def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    for it in items:
-        sid = scenario_of(it)
-        if sid not in _selected:
-            _selected.append(sid)
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    sid = scenario_of(item)
+    if sid not in _selected:
+        _selected.append(sid)
 
 
 @pytest.hookimpl(hookwrapper=True)

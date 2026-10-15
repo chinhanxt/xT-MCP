@@ -233,6 +233,8 @@ class ProcessInstance:
 
     def status(self) -> str:
         """running | completed | rejected | withdrawn."""
+        if self.meta.get("withdrawn"):  # người đề nghị rút khi đang chạy (wf đã cancel)
+            return "withdrawn"
         if not self.wf.is_completed():
             return "running"
         if "end_rejected" in self.wf.completed_task_names():
@@ -428,6 +430,81 @@ class ProcessInstance:
             }
         )
 
+    def _delegate_target(self, m: Mapping[str, Any], actor: str, delegate_to: str | None) -> None:
+        """Đích ủy quyền hợp lệ: người khác, đang hoạt động, không bị SoD của bước, không phải
+        người đề nghị (bước quyết định). Dùng chung cho `check_delegate` (lúc plan) và `act`."""
+        if not delegate_to or delegate_to == actor:
+            raise DecisionError(
+                "ủy quyền cần delegate_to là người khác",
+                code="invalid_request",
+                reason="invalid_delegate",
+            )
+        if m["kind"] in DECISION_KINDS and delegate_to == self.meta["requester"]:
+            raise DecisionError(
+                "không ủy quyền bước duyệt cho chính người đề nghị",
+                code="access_denied",
+                reason="sod",
+            )
+        u = self.rt.user(delegate_to)
+        if u is None or not u.active:
+            raise DecisionError(
+                "người được ủy quyền không tồn tại hoặc không còn hoạt động",
+                code="invalid_request",
+                reason="invalid_delegate",
+            )
+        ex = self._exclude(m)
+        if delegate_to in ex:
+            raise DecisionError(
+                f"không ủy quyền được cho {delegate_to}: {ex[delegate_to]}",
+                code="access_denied",
+                reason="sod",
+            )
+
+    def check_delegate(self, task_id: str, actor: str, delegate_to: str | None) -> None:
+        """Kiểm trước (không đổi state) một lời ủy quyền: như nhánh `delegate` của `act`. Gọi lúc
+        plan để lỗi hiện ngay, trước khi người duyệt phải step-up xác nhận (WA-03)."""
+        t = self._task(task_id)
+        m = self._manifest_task(t.name)
+        a = self.meta["assign"].get(t.id) or {}
+        if actor not in a.get("candidates", ()):
+            raise DecisionError(
+                f"{actor!r} không phải người được giao bước '{m['name']}'",
+                code="access_denied",
+                reason="not_assigned_approver",
+            )
+        if "delegate" not in m["outcomes"]:
+            raise DecisionError(f"bước '{m['name']}' không cho ủy quyền", code="invalid_request")
+        if self.meta["loops"].get(m["step"], 0) >= MAX_LOOPS_PER_STEP:
+            raise DecisionError(
+                f"bước '{m['name']}' đã ủy quyền/hỏi thêm {MAX_LOOPS_PER_STEP} lần; phải quyết định"
+            )
+        self._delegate_target(m, actor, delegate_to)
+
+    def withdraw(self, actor: str, reason: str | None = None) -> None:
+        """Người đề nghị rút đề nghị đang chạy (kể cả bước đang kẹt): hủy mọi task mở, trạng thái
+        `withdrawn`. Đề nghị bị trả lại thì rút qua task sửa (`act(..., "withdraw")`)."""
+        if self.status() != "running":
+            raise DecisionError("quy trình đã kết thúc, không rút được", reason="invalid_state")
+        if actor != self.meta["requester"]:
+            raise DecisionError(
+                "chỉ người đề nghị được rút đề nghị", code="access_denied", reason="not_owner"
+            )
+        comment = _text(reason, "lý do rút")
+        snapshot = self.wf.to_state()
+        try:
+            self.wf.cancel()
+        except Exception as e:
+            self.wf = self.rt._load_wf(snapshot, self.id)
+            raise self._incident(None, actor, e, "engine lỗi khi rút đề nghị") from e
+        self.meta["withdrawn"] = {"actor": actor, "comment": comment}
+        self.meta["assign"] = {}
+        self.meta["overrides"] = {}
+        self.meta["history"].append(
+            {"task": None, "step": None, "actor": actor, "outcome": "withdraw", "comment": comment}
+        )
+        self._emit({"type": "instance.withdrawn", "instance": self.id, "actor": actor})
+        self._after_change()
+
     # ---------- act
     def act(
         self,
@@ -506,17 +583,8 @@ class ProcessInstance:
                 if m["on_return"].get("to_step"):
                     clear_from = m["on_return"]["to_step"]
             elif outcome == "delegate":
-                if not delegate_to or delegate_to == actor:
-                    raise DecisionError(
-                        "ủy quyền cần delegate_to là người khác", code="invalid_request"
-                    )
-                self._active_user(delegate_to, "người được ủy quyền")
-                if delegate_to in ex:
-                    raise DecisionError(
-                        f"không ủy quyền được cho {delegate_to}: {ex[delegate_to]}",
-                        code="access_denied",
-                        reason="sod",
-                    )
+                self._delegate_target(m, actor, delegate_to)
+                assert delegate_to is not None
                 overrides[t.name] = {"users": [delegate_to], "reason": f"được {actor} ủy quyền"}
             elif outcome == "request_info":
                 _text(comment, "câu hỏi", required=True)

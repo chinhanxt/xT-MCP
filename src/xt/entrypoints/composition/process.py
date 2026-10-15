@@ -25,7 +25,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Protocol
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -284,6 +284,7 @@ class WithdrawPlan:
     revision: int
     instance_id: str | None
     task_id: str | None
+    reason: str | None = None
 
 
 def _intish(v: Any) -> Any:
@@ -298,6 +299,12 @@ def _intish(v: Any) -> Any:
     return v
 
 
+class DelegatePolicy(Protocol):
+    """PEP cho đích ủy quyền (`ToolAccessGuard.person_allowed`)."""
+
+    def person_allowed(self, ctx: CallContext, person: Any, action: str, ref: str) -> bool: ...
+
+
 class ProcessToolAdapter:
     """`ProcessService` + `InboxService` port của tool, và transition `withdrawn` của request."""
 
@@ -308,11 +315,13 @@ class ProcessToolAdapter:
         cursor_key: bytes,
         engine: SpiffProcessEngine,
         model_changes: ModelChangeDecisions | None = None,
+        access: DelegatePolicy | None = None,
     ) -> None:
         self.rt = rt
         self.cursor_key = cursor_key
         self.engine = engine
         self.model_changes = model_changes
+        self.access = access
 
     def pc(self, caller: Caller) -> ProcessContext:
         return ProcessContext(self.rt, self.engine, caller.workflow(), caller.profile.timezone)
@@ -615,6 +624,8 @@ class ProcessToolAdapter:
         delegate = None
         if args.get("delegate_to"):
             delegate = str(parse_person_ref(caller, str(args["delegate_to"])))
+        if outcome == "delegate":
+            self._check_delegate(ctx, caller, svc, iid, task, me, delegate, ref)
         if caller.person.subject is None:
             raise access_denied(
                 "Người duyệt chưa liên kết tài khoản đăng nhập.", "invalid_approver", None
@@ -655,6 +666,47 @@ class ProcessToolAdapter:
             confirmers=(confirmer,),
             payload=plan,
         )
+
+    def _check_delegate(
+        self,
+        ctx: CallContext,
+        caller: Caller,
+        svc: EngineProcesses,
+        iid: str,
+        task: Mapping[str, Any],
+        me: str,
+        delegate: str | None,
+        ref: str,
+    ) -> None:
+        """Đích ủy quyền phải hợp lệ TRƯỚC khi tạo PendingOperation (WA-02/WA-03): tồn tại và
+        đang hoạt động trong tenant (RLS: người tenant khác = không tồn tại), khác người gọi và
+        người đề nghị, không vướng SoD của bước, và qua PEP `request.decide` trên đúng đề nghị
+        (nếu không, bước sẽ kẹt vì người nhận không quyết định được)."""
+        if delegate is None:
+            raise invalid_request(
+                "Ủy quyền cần delegate_to (người nhận).",
+                "invalid_delegate",
+                remediation="Find the person with find_people, then send delegate_to=person:<id>.",
+            )
+        person = self.rt.store.person(caller.actor, UUID(delegate))
+        if person is None or not person.active:
+            raise invalid_request(
+                "Người được ủy quyền không tồn tại hoặc không còn hoạt động trong tổ chức.",
+                "invalid_delegate",
+                remediation="Find an active colleague with find_people and use their person ref.",
+            )
+        engine_call(lambda: svc.check_delegate(iid, str(task["task_id"]), me, delegate))
+        if self.access is not None and not self.access.person_allowed(
+            ctx, person, "request.decide", ref
+        ):
+            raise access_denied(
+                f"{person.name} không có quyền duyệt bước '{task['name']}' của đề nghị này;"
+                " ủy quyền sẽ làm bước bị kẹt.",
+                "delegate_not_permitted",
+                None,
+                remediation="Delegate to someone who may approve this step (same rules as the "
+                "approver), or decide it yourself.",
+            )
 
     def _commit_decide(self, ctx: CallContext, caller: Caller, p: DecidePlan) -> CommitResult:
         pc = self.pc(caller)
@@ -737,16 +789,23 @@ class ProcessToolAdapter:
         ref = f"{model}:{rid}"
         iid, task_id = None, None
         if state == "returned":
-            iid = PgWorkflowStore(self.rt.uow).instance_for(ref)
-            if iid is not None:
-                info = engine_call(lambda: self.pc(caller).service().get(iid))
+            found = PgWorkflowStore(self.rt.uow).instance_for(ref)
+            iid = found
+            if found is not None:
+                info = engine_call(lambda: self.pc(caller).service().get(found))
                 t = next((t for t in info["tasks"] if t["kind"] == "revise"), None)
                 task_id = str(t["task_id"]) if t else None
+        elif state == "in_review":
+            # Đang chờ duyệt (kể cả bước bị kẹt): người đề nghị rút, engine hủy instance.
+            iid = PgWorkflowStore(self.rt.uow).instance_for(ref)
+            if iid is None:
+                raise precondition_failed("Đề nghị chưa có quy trình đang chạy.", "invalid_state")
         elif state != "draft":
             raise precondition_failed(
                 f"Không rút được đề nghị ở trạng thái '{state}'.", "invalid_state"
             )
-        plan = WithdrawPlan(ctx.actor.key, ref, model, rid, revision, iid, task_id)
+        reason = str(args["reason"]) if args.get("reason") else None
+        plan = WithdrawPlan(ctx.actor.key, ref, model, rid, revision, iid, task_id, reason)
         return MutationPlan(
             RiskLevel.L1,
             f"Rút đề nghị {ref}",
@@ -762,6 +821,10 @@ class ProcessToolAdapter:
             svc = self.pc(caller).service()
             iid, tid = p.instance_id, p.task_id
             engine_call(lambda: svc.act(iid, tid, str(caller.person.id), "withdraw", "Rút đề nghị"))
+        elif p.instance_id:
+            svc = self.pc(caller).service()
+            iid, why = p.instance_id, p.reason or "Rút đề nghị"
+            engine_call(lambda: svc.withdraw(iid, str(caller.person.id), why))
         rec = self._write_state(
             caller,
             p.model,
@@ -778,12 +841,20 @@ class ProcessToolAdapter:
                     "title": p.ref,
                     "state": "withdrawn",
                     "revision": int(rec["revision"]),
+                    # Hợp đồng RECORD_FULL (thiếu hai trường này -> output contract violation).
+                    "model_revision": self._model_revision(caller),
                     "values": {},
+                    "available_transitions": [],
                 },
                 "from_state": row.get(str(config.get("state_field", "state"))),
+                "to_state": "withdrawn",
             },
             f"operation:{uuid.uuid4().hex}",
         )
+
+    def _model_revision(self, caller: Caller) -> int:
+        current = self.rt.catalogs.current(caller.actor)
+        return int(current[0]) if current is not None else 0
 
     # ---- commit chung -------------------------------------------------------------------------
     def commit(self, ctx: CallContext, plan: MutationPlan) -> CommitResult:
