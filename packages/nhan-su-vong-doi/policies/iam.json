@@ -165,6 +165,22 @@
       "conditions": []
     },
     {
+      "id": "hr.start-lifecycle",
+      "effect": "Allow",
+      "subjects": [
+        "role:hr",
+        "role:agent"
+      ],
+      "actions": [
+        "process.start"
+      ],
+      "resources": [
+        "xrn:binhminh:process:employee_onboarding",
+        "xrn:binhminh:process:employee_offboarding"
+      ],
+      "conditions": []
+    },
+    {
       "id": "hr.agent-l0-l1",
       "effect": "Allow",
       "subjects": [

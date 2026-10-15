@@ -14,6 +14,8 @@ Model `request` có `process`. Các trạng thái do engine điều khiển; age
 
 Tên trạng thái thật lấy từ `describe_model`/`get_record.available_transitions`; bảng trên là mặc định của primitive.
 
+Quy trình duyệt gắn model đề nghị luôn bắt đầu bằng `submit_request` trên bản ghi nháp. `start_process` (hồ sơ đầy đủ) chỉ dành cho quy trình `trigger.kind=manual` không gắn đề nghị (tiếp nhận, nghỉ việc, giao việc có nghiệm thu); gọi nó cho quy trình duyệt -> `invalid_request` `wrong_tool`.
+
 ## `decide_request`
 
 | `decision` | Bắt buộc thêm | Ghi chú |

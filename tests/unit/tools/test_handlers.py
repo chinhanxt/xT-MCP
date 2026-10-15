@@ -568,6 +568,32 @@ def test_submit_request(d: ToolDispatcher) -> None:
     assert code(out) == "revision_conflict"
 
 
+def test_start_process(d: ToolDispatcher, world: World) -> None:
+    args = {
+        "process_id": "onboarding",
+        "subject_ref": "person:binh",
+        "parameters": {"start_date": "2026-12-01"},
+        "idempotency_key": "onb-binh-20261201",
+    }
+    out = call(d, "start_process", args)
+    got = data(out)
+    assert got["process_instance"] == "process_instance:pi9" and got["state"] == "running"
+    assert got["first_steps"][0]["assignee"]["ref"] == "person:mai"
+    assert out.envelope["meta"]["effective_level"] == "L1"  # người khởi tạo = người được đại diện
+    check = world.access.checks[-1]
+    assert check.action == "process.start" and check.resource is None
+    assert check.attributes["process_id"] == "onboarding" and "parameters" not in check.attributes
+    replay = call(d, "start_process", args)
+    assert replay.envelope["meta"]["receipt"]["replayed"] is True
+    assert world.store.commits.count("start") == 1
+    other = {**args, "parameters": {"start_date": "2026-12-02"}}
+    assert code(call(d, "start_process", other)) == "idempotency_conflict"
+    wrong = {"process_id": "advance_approval", "idempotency_key": "start-adv-0001"}
+    assert err(call(d, "start_process", wrong))["details"]["reason"] == "wrong_tool"
+    missing = {"process_id": "nope", "idempotency_key": "start-nope-0001"}
+    assert code(call(d, "start_process", missing)) == "not_found"
+
+
 def test_create_task_levels(d: ToolDispatcher) -> None:
     out = call(
         d,

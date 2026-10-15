@@ -95,7 +95,7 @@ async def test_tools_list_is_projected_from_contracts(h: Harness) -> None:
             t.annotations.open_world_hint,
         ) == (a.read_only, a.destructive, a.idempotent, a.open_world)
         assert t.meta is not None and "ui" not in t.meta  # chưa đăng ký resource ui:// nào
-        assert t.meta["xt/since"] == "0.1"
+        assert t.meta["xt/since"] == c.since
 
 
 async def test_initialize_carries_untrusted_data_instructions(h: Harness) -> None:
@@ -331,11 +331,12 @@ async def test_core10_profile_and_measured_size() -> None:
         "core10+out": _listing_bytes(core_tools, True),
     }
     print("tools/list bytes", sizes)
-    # Đo thật (10/2026): core-10 20.182 B, kèm outputSchema 44.034 B; v0.1-17: 37.367 / 81.251 B
-    # (title, annotations, `_meta`, input đầy đủ có `default`). Ngân sách = số đo + 5%.
+    # Đo thật (10/2026): core-10 20.182 B, kèm outputSchema 44.034 B; v0.1-17: 37.367 / 81.251 B;
+    # 18 tool (+ start_process v1.0): 39.964 / 85.346 B (title, annotations, `_meta`, input đầy đủ
+    # có `default`). Ngân sách = số đo + 5%.
     assert sizes["core10"] < 0.6 * sizes["full"]
     assert sizes["core10"] <= 21_200 and sizes["core10+out"] <= 46_300
-    assert sizes["full"] <= 39_300 and sizes["full+out"] <= 85_400
+    assert sizes["full"] <= 42_000 and sizes["full+out"] <= 89_700
 
 
 # ---- verifier thật của lớp danh tính (khóa ký cục bộ, không mạng) -------------------------------

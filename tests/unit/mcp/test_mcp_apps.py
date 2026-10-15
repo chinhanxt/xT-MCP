@@ -157,7 +157,7 @@ async def test_tool_meta_linkage_and_app_only_visibility(h: Harness) -> None:
 
     model_visible = [n for n, t in tools.items() if not only_app(t)]
     assert not {"org_person_details", "records_table_page"} & set(model_visible)
-    assert len(model_visible) == 17
+    assert len(model_visible) == len(CATALOG)
 
 
 async def test_core10_profile_keeps_views_of_listed_tools() -> None:

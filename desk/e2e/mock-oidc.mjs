@@ -18,7 +18,7 @@ const jwt = (claims) => `${b64u('{"alg":"none"}')}.${b64u(JSON.stringify(claims)
 
 function cors(req, res) {
   res.setHeader("access-control-allow-origin", req.headers.origin || "*");
-  res.setHeader("access-control-allow-headers", "content-type");
+  res.setHeader("access-control-allow-headers", "content-type, dpop"); // như Keycloak 26 (Cors.DEFAULT_ALLOW_HEADERS có DPoP)
 }
 
 createServer((req, res) => {

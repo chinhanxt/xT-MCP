@@ -3,7 +3,7 @@ name: xt-approvals
 description: Handle request approval workflows in xT for any business process - prepare and submit requests, see who must approve, review the approval queue, and hand decisions to the human via confirm_url (approve, reject, return, delegate). Use for "gửi đề xuất", "tôi có gì cần duyệt", "duyệt/từ chối/trả lại", "ai duyệt", "đề xuất đang ở bước nào", "rút đề xuất", submit/approve/reject/withdraw/pending approvals. The agent never approves for itself or for the requester.
 metadata:
   version: "1"
-  tool_count: 17
+  tool_count: 18
 ---
 
 <!-- SPDX-License-Identifier: Apache-2.0 -->

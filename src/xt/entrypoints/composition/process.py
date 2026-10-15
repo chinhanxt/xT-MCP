@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Port tool trên process engine: describe_process, submit_request, decide_request, get_inbox,
-transition_record (rút đề nghị).
+"""Port tool trên process engine: describe_process, submit_request, decide_request, start_process,
+get_inbox, transition_record (rút đề nghị).
 
 Nối (docs/process-engine.md §7):
 - `ProcessCatalog`: định nghĩa đã duyệt trong `xt_meta.process_definition`, compile lại theo đúng
@@ -41,6 +41,7 @@ from xt.application.tools.errors import (
     ToolError,
     access_denied,
     invalid_request,
+    not_found,
     precondition_failed,
     revision_conflict,
 )
@@ -275,6 +276,16 @@ class DecidePlan:
     comment: str | None
     delegate_to: str | None
     person: str
+
+
+@dataclass(frozen=True)
+class StartPlan:
+    actor_key: str
+    process_id: str
+    version: int
+    inputs: dict[str, Any]
+    requester: str
+    subject_ref: str | None
 
 
 @dataclass(frozen=True)
@@ -621,6 +632,112 @@ class ProcessToolAdapter:
             f"operation:{uuid.uuid4().hex}",
         )
 
+    # ---- start_process ------------------------------------------------------------------------
+    def _request_model_of(self, caller: Caller, process_id: str) -> str | None:
+        return next(
+            (m for m, b in self.rt.store.bindings(caller.actor).items()
+             if b.primitive == "request" and b.config.get("process") == process_id),
+            None,
+        )  # fmt: skip
+
+    def plan_start(self, ctx: CallContext, args: Args) -> MutationPlan:
+        """Quy trình trigger `manual` không gắn model đề nghị (giao việc, tiếp nhận/nghỉ việc...).
+        Người được đại diện là người khởi tạo (`requester`) -> L1 (TCV1 §3.5: khởi tạo việc của
+        chính mình); trần tĩnh của contract vẫn là L3."""
+        caller = self.rt.caller(ctx)
+        pid = str(args["process_id"])
+        pc = self.pc(caller)
+        rt = pc.active(pid)
+        if rt is None:
+            raise not_found(f"process:{pid}")
+        spec = rt.compiled.spec
+        if spec.trigger.kind != "manual":
+            raise invalid_request(
+                f"Quy trình '{pid}' chạy định kỳ theo lịch; xt-worker tự khởi tạo mỗi kỳ.",
+                "not_manual_trigger",
+                remediation="Do not start it by hand; read its results with search_records.",
+            )
+        bound = self._request_model_of(caller, pid)
+        if bound is not None:
+            raise invalid_request(
+                f"Quy trình '{pid}' khởi động khi gửi duyệt một bản ghi '{bound}'.",
+                "wrong_tool",
+                remediation=f"Create the {bound} record with create_record, then submit_request.",
+                model_id=bound,
+            )
+        inputs: dict[str, Any] = {}
+        for k, v in dict(args.get("parameters") or {}).items():
+            ispec = spec.inputs.get(k)
+            if ispec is not None and ispec.type == "user" and isinstance(v, str):
+                try:
+                    v = str(UUID(v))
+                except ValueError:
+                    v = str(parse_person_ref(caller, v))  # 'me' / person:<id>
+            elif ispec is not None and ispec.type in ("int", "number"):
+                v = _intish(v)
+            inputs[k] = v
+        subject: str | None = None
+        if args.get("subject_ref"):
+            model, rid = parse_record_ref(ctx, str(args["subject_ref"]))
+            if model == "person":
+                if self.rt.store.person(caller.actor, rid) is None:
+                    raise not_found(str(args["subject_ref"]))
+            else:  # đọc bằng ngữ cảnh của chính người gọi (RLS): không thấy = không có
+                engine_call(lambda: self.rt.records.get(caller.actor, model, rid))
+            subject = f"{model}:{rid}"
+            # Quy ước dữ liệu: input `<model>_id` kiểu str nhận ref của subject khi chưa truyền.
+            key = f"{model}_id"
+            hint = spec.inputs.get(key)
+            if hint is not None and hint.type == "str" and key not in inputs:
+                inputs[key] = subject
+        engine_call(lambda: rt.validate_inputs(inputs))
+        requester = str(caller.person.id)
+        if not rt.is_active(requester):
+            raise access_denied("Người khởi tạo không còn hoạt động.", "inactive_requester", None)
+        version = rt.compiled.version
+        plan = StartPlan(ctx.actor.key, pid, version, inputs, requester, subject)
+        return MutationPlan(
+            RiskLevel.L1,
+            f"Khởi động quy trình {pid} v{version}" + (f" cho {subject}" if subject else ""),
+            {
+                "process": pid,
+                "process_version": version,
+                "subject": subject,
+                "inputs": jsonable(inputs),
+            },
+            target_ref=subject or f"process:{pid}",
+            payload=plan,
+        )
+
+    def _commit_start(self, ctx: CallContext, caller: Caller, p: StartPlan) -> CommitResult:
+        svc = self.pc(caller).service()
+        iid = str(uuid.uuid4())
+        summary = engine_call(
+            lambda: svc.start(
+                p.process_id, p.inputs, p.requester, instance_id=iid, version=p.version
+            )
+        )
+        if p.subject_ref:
+            # Subject đã gắn quy trình khác (vd hồ sơ cũ) thì giữ liên kết cũ.
+            PgWorkflowStore(self.rt.uow).link(p.subject_ref, iid, if_absent=True)
+        first = [
+            {
+                "label": str(t["name"]),
+                "assignee": self._person(caller, t["candidates"][0])
+                if t.get("candidates")
+                else None,
+            }
+            for t in summary["tasks"]
+        ]
+        data: Data = {
+            "process_instance": f"process_instance:{iid}",
+            "state": str(summary["status"]),
+            "first_steps": first,
+        }
+        if p.subject_ref:
+            data["subject_ref"] = p.subject_ref
+        return CommitResult(data, f"operation:{uuid.uuid4().hex}")
+
     # ---- decide_request -----------------------------------------------------------------------
     def plan_decide(self, ctx: CallContext, args: Args) -> MutationPlan:
         caller = self.rt.caller(ctx)
@@ -915,7 +1032,7 @@ class ProcessToolAdapter:
         p = plan.payload
         caller = self.rt.caller(ctx)
         if (
-            not isinstance(p, SubmitPlan | DecidePlan | WithdrawPlan | ModelDecidePlan)
+            not isinstance(p, SubmitPlan | DecidePlan | WithdrawPlan | StartPlan | ModelDecidePlan)
             or p.actor_key != ctx.actor.key
         ):
             raise invalid_request("Unknown process mutation plan.", "invalid_plan")
@@ -926,6 +1043,8 @@ class ProcessToolAdapter:
             return self._commit_submit(ctx, caller, p)
         if isinstance(p, DecidePlan):
             return self._commit_decide(ctx, caller, p)
+        if isinstance(p, StartPlan):
+            return self._commit_start(ctx, caller, p)
         return self._commit_withdraw(ctx, caller, p)
 
     # ---- get_inbox ----------------------------------------------------------------------------

@@ -53,11 +53,16 @@ def _json_blocks(text: str) -> list[Any]:
 
 
 def doc_contracts() -> dict[str, dict[str, Any]]:
-    """JSON contract của mỗi tool ở §5 (v0.1): khối ```json đầu tiên sau tiêu đề `### 5.n`."""
+    """JSON contract của mỗi tool ở §5 (v0.1) và §6 (v1.0): khối ```json đầu tiên sau tiêu đề
+    `### 5.n` / `### 6.n`."""
     out: dict[str, dict[str, Any]] = {}
-    for m in re.finditer(r"^### 5\.\d+\. `(\w+)`\n(.*?)```json\n(.*?)\n```", DOC, re.S | re.M):
+    for m in re.finditer(r"^### [56]\.\d+\. `(\w+)`\n(.*?)```json\n(.*?)\n```", DOC, re.S | re.M):
         out[m.group(1)] = json.loads(m.group(3))
     return out
+
+
+V01 = [c for c in CATALOG if c.since == "0.1"]
+V10 = [c for c in CATALOG if c.since == "1.0"]
 
 
 def minify(o: Any) -> str:
@@ -89,17 +94,22 @@ def compact(schema: Any) -> Any:
 # ---- catalog ↔ docs -------------------------------------------------------------------------
 
 
-def test_catalog_has_the_17_tools_of_section_4_1_in_order() -> None:
+def test_catalog_has_the_17_tools_of_section_4_1_in_order_then_v1_0() -> None:
     table = _section(r"4\.1\.")
     names = re.findall(r"^\| \d+ \| `(\w+)` \|", table, re.M)
-    assert names == [c.name for c in CATALOG]
-    assert len(CATALOG) == 17
-    assert all(c.since == "0.1" for c in CATALOG)
+    assert names == [c.name for c in V01]
+    assert len(V01) == 17
+    # v1.0 đã hiện thực: nằm sau v0.1, theo thứ tự §4.2 (thêm tool là minor, không breaking).
+    v10 = re.findall(r"^\| \d+ \| `(\w+)` \|", _section(r"4\.2\."), re.M)
+    assert [c.name for c in V10] == [n for n in v10 if n in BY_NAME]
+    assert [c.name for c in V10] == ["start_process"]
+    assert list(CATALOG) == V01 + V10
 
 
 def test_every_contract_equals_the_doc_json_exactly() -> None:
     docs = doc_contracts()
-    assert set(docs) == set(BY_NAME)
+    assert {c.name for c in V01} == {n for n, d in docs.items() if d["since"] == "0.1"}
+    assert set(BY_NAME) <= set(docs)
     for c in CATALOG:
         assert c.doc_view() == docs[c.name], c.name
 
@@ -108,10 +118,11 @@ def test_catalog_table_columns_match_derived_annotations() -> None:
     rows = re.findall(
         r"^\| \d+ \| `(\w+)` \| [^|]+ \| ([^|]+) \| ([TF]) \| ([TF]) \| ([TF]) \| ([TF]) "
         r"\| ([^|]+) \|",
-        _section(r"4\.1\."),
+        _section(r"4\.1\.") + _section(r"4\.2\."),
         re.M,
     )
-    assert len(rows) == 17
+    rows = [r for r in rows if r[0] in BY_NAME]
+    assert len(rows) == len(CATALOG)
     for name, level, ro, d, i, ow, ui in rows:
         c = BY_NAME[name]
         a = c.annotations
@@ -125,11 +136,12 @@ def test_catalog_table_columns_match_derived_annotations() -> None:
 def test_measured_sizes_match_section_9() -> None:
     """Cột in/compact/data/out của §9 là byte đo thật; code đổi schema thì test này đỏ."""
     rows = re.findall(
-        r"^\| `(\w+)` \| 0\.1 \| [^|]+ \| (\d+) \| (\d+) \| (\d+) \| (\d+) \|",
+        r"^\| `(\w+)` \| (?:0\.1|1\.0) \| [^|]+ \| (\d+) \| (\d+) \| (\d+) \| (\d+) \|",
         _section(r"9\."),
         re.M,
     )
-    assert len(rows) == 17
+    rows = [r for r in rows if r[0] in BY_NAME]
+    assert len(rows) == len(CATALOG)
     for name, inp, cmp_, data, out in rows:
         c = BY_NAME[name]
         assert nbytes(c.input_schema) == int(inp), name
@@ -164,7 +176,8 @@ def test_core_10_profile_matches_section_10() -> None:
     assert [c.name for c in profile_tools(Profile.CORE_10)] == [
         c.name for c in CATALOG if c.name in CORE_10
     ]
-    assert len(profile_tools(Profile.FULL)) == 17
+    assert len(profile_tools(Profile.FULL)) == len(CATALOG)
+    assert "start_process" not in CORE_10  # hồ sơ model nhỏ giữ 10 tool (§10)
 
 
 # ---- bất biến của build.py ------------------------------------------------------------------

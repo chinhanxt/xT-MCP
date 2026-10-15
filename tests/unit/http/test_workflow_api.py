@@ -196,7 +196,9 @@ async def test_openapi_is_generated_public_and_valid(env: Env) -> None:
     assert doc["paths"][f"{API_PREFIX}/openapi.json"]["get"]["security"] == []
     post = doc["paths"][f"{API_PREFIX}/instances"]["post"]
     assert {p["name"] for p in post["parameters"]} == {"Idempotency-Key"}
-    assert post["x-xt-tools"] == ["describe_process", "create_record", "submit_request"]
+    assert post["x-xt-tools"] == [
+        "describe_process", "create_record", "submit_request", "start_process",
+    ]  # fmt: skip
     for schema in [*_schemas(doc["paths"]), *doc["components"]["schemas"].values()]:
         Draft202012Validator.check_schema(schema)
     decide = doc["paths"][f"{API_PREFIX}/tasks/{{task_id}}/decision"]["post"]
@@ -531,6 +533,37 @@ async def test_withdraw_instance_maps_to_transition_record(env: Env) -> None:
     assert nokey.status_code == 400 and bad.status_code == 400 and ghost.status_code == 404
     assert done.status_code == 200, done.text
     assert done.json()["data"]["record"]["state"] == "withdrawn"
+
+
+async def test_start_manual_process_uses_start_process_tool(env: Env) -> None:
+    body = {
+        "definition_id": "onboarding",
+        "subject_ref": "person:binh",
+        "parameters": {"start_date": "2026-12-01"},
+    }
+    h = {"Idempotency-Key": "wf-unit-start-manual-01"}
+    async with env.client(token()) as c:
+        first = await c.post(f"{API_PREFIX}/instances", json=body, headers=h)
+        again = await c.post(f"{API_PREFIX}/instances", json=body, headers=h)
+        mixed = await c.post(
+            f"{API_PREFIX}/instances",
+            json={**body, "note": "x"},
+            headers={"Idempotency-Key": "wf-unit-start-manual-02"},
+        )
+        bound = await c.post(
+            f"{API_PREFIX}/instances",
+            json={"definition_id": "advance_approval"},
+            headers={"Idempotency-Key": "wf-unit-start-manual-03"},
+        )
+    assert first.status_code == 201, first.text
+    data = first.json()["data"]
+    assert data["process_instance"] == "process_instance:pi9" and data["state"] == "running"
+    assert data["instance"] == {"id": "pi9", "href": f"{API_PREFIX}/instances/pi9"}
+    assert first.headers["location"] == f"{API_PREFIX}/instances/pi9"
+    assert again.status_code == 200 and again.json()["meta"]["receipt"]["replayed"] is True
+    assert env.world.store.commits.count("start") == 1
+    assert mixed.status_code == 400 and _err(mixed)["details"]["reason"] == "schema"
+    assert bound.status_code == 400 and _err(bound)["details"]["reason"] == "wrong_tool"
 
 
 async def test_definition_and_model_together_is_rejected(env: Env) -> None:

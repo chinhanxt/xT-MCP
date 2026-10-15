@@ -1,9 +1,10 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Hồ sơ đầy đủ (catalog 17 tool)
+# Hồ sơ đầy đủ (catalog 18 tool)
 
 Chỉ dùng phần này khi danh sách tool của bạn có các tool bên dưới (server `instructions` liệt kê
 "Tools in this session"). Ở hồ sơ `core-10` các tool `inspect_workspace`, `describe_model`,
-`describe_process`, `get_history`, `update_record`, `upload_file`, `propose_model_change` không có:
+`describe_process`, `get_history`, `update_record`, `upload_file`, `propose_model_change`,
+`start_process` không có:
 gọi chúng chỉ nhận lỗi `wrong_tool`. Khi đó field hợp lệ lấy từ `details.valid_fields` của lỗi.
 
 Khi có đủ tool:
@@ -28,6 +29,7 @@ Khi có đủ tool:
 | Gửi đi duyệt | `submit_request` | |
 | Duyệt / từ chối / trả lại | `decide_request` | luồng confirm_url |
 | Giao việc cho A | `find_people` | `create_task` |
+| Bắt đầu quy trình tiếp nhận / nghỉ việc cho A, chạy quy trình giao việc có nghiệm thu cho việc X | `describe_process` (lấy `parameters`, `trigger.kind` phải là `manual`) | `start_process {process_id, subject_ref, parameters}`; quy trình gắn đề nghị (`trigger.kind=on_submit`) đi `create_record` -> `submit_request`; quy trình định kỳ (`timer`, vd bản tin tuần) do xt-worker tự chạy mỗi kỳ, không khởi động tay |
 | Xong / bắt đầu / trả lại / rút / đã đọc | `get_record` (xem `available_transitions`) | `transition_record` |
 | Sửa số tiền / đổi người / dời hạn | `get_record` (lấy revision) | `update_record` |
 | Đính kèm hóa đơn, hợp đồng | `upload_file` | gán `file:<id>` bằng `update_record` |

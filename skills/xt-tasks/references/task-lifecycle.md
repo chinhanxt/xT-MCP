@@ -46,3 +46,5 @@ SLA tính từ loại việc; `get_inbox` và `get_record` cho thấy trạng th
 | "Dời hạn sang 20/11 / chuyển cho Lan / đổi ưu tiên" | `get_record` (revision) -> `update_record {set:{due_at:...}}`; đổi `assignee` có thể ra `confirmation_required`. Không nhét `state` vào `set` (lỗi `state_field`) |
 | "Việc bị kẹt vì sao / ai đã làm gì" | `get_record` rồi `get_history {ref, view:"timeline"}` |
 | "Loại việc có những trạng thái nào" | `describe_model {model_id:<task model>}` hoặc `inspect_workspace` để biết các loại việc |
+| "Chạy quy trình giao việc có nghiệm thu cho việc X" (vd `task_normal`, `task_urgent`) | `describe_process {process_id}` (tham số) -> `start_process {process_id, subject_ref:"task:<id>", parameters:{assignee_user:"person:<id>", assigner_user:"me"}, idempotency_key}`. Input `<model>_id` (vd `task_id`) tự nhận `subject_ref`. Trả `process_instance` + `first_steps` (bước đầu, người nhận) |
+| "Bản tin tuần đâu" | Quy trình định kỳ: xt-worker tự tạo mỗi kỳ (thứ Hai 8:00); đọc bằng `search_records {model_id:"weekly_digest"}`, không `start_process` |

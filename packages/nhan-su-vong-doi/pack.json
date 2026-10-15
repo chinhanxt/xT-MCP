@@ -1,7 +1,7 @@
 {
   "format": "xt-pack/1",
   "pack": "nhan-su-vong-doi",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "title": "Vòng đời nhân sự liên phòng ban: tiếp nhận và nghỉ việc",
   "depends_on": [
     "de-xuat-phe-duyet"

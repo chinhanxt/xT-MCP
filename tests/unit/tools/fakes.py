@@ -596,8 +596,36 @@ class FakeProcesses:
             payload=Plan("decide", ref=r.ref, changes={"decision": args["decision"]}),
         )
 
+    def plan_start(self, ctx: CallContext, args: Args) -> MutationPlan:
+        if args["process_id"] == "advance_approval":
+            raise invalid_request("Started by submitting a request.", "wrong_tool")
+        if args["process_id"] != "onboarding":
+            raise not_found(f"process:{args['process_id']}")
+        subject = args.get("subject_ref")
+        if subject is not None and subject not in BY_REF:
+            raise not_found(subject)
+        return MutationPlan(
+            RiskLevel.L1,
+            f"Khởi động quy trình onboarding cho {subject}",
+            {"process": "onboarding", "subject": subject, "inputs": args.get("parameters") or {}},
+            target_ref=subject,
+            payload=Plan("start", ref=subject),
+        )
+
     def commit(self, ctx: CallContext, plan: MutationPlan) -> CommitResult:
         p: Plan = plan.payload
+        if p.kind == "start":
+            self.s.commits.append(p.kind)
+            return CommitResult(
+                {
+                    "process_instance": "process_instance:pi9",
+                    "state": "running",
+                    "first_steps": [
+                        {"label": "Nhân sự chuẩn bị hồ sơ", "assignee": PEOPLE["sub-mai"].named()}
+                    ],
+                },
+                self.s.ids.new_id("op"),
+            )
         assert p.ref
         r = self.s.get(p.ref)
         r.revision += 1

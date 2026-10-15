@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Một handler cho mỗi tool của catalog v0.1. Handler chỉ biết port; pipeline chung (IAM trước,
-idempotency, CAS qua plan, tự chủ -> PendingOperation) nằm ở `dispatcher.py`.
+"""Một handler cho mỗi tool của catalog (v0.1 + `start_process` v1.0). Handler chỉ biết port;
+pipeline chung (IAM trước, idempotency, CAS qua plan, tự chủ -> PendingOperation) nằm ở
+`dispatcher.py`.
 
 Kiểm chéo field mà schema không diễn đạt (C3: không combinator ở root) làm ở `precheck`.
 """
@@ -376,6 +377,21 @@ class DecideRequest(_ProcessWrite):
         return s.processes.plan_decide(ctx, args)
 
 
+class StartProcess(_ProcessWrite):
+    name = "start_process"
+
+    def access(self, s: ToolServices, ctx: CallContext, args: Args) -> AccessCheck:
+        """IAM `process.start` trên `xrn:<tenant>:process:<process_id>`; tham số quy trình không
+        vào thuộc tính PEP (giá trị nghiệp vụ, có thể là PII)."""
+        attrs: dict[str, Any] = {"model_id": "process", "process_id": args["process_id"]}
+        if "subject_ref" in args:
+            attrs["subject_ref"] = args["subject_ref"]
+        return AccessCheck(self.name, self.contract.iam[0], None, attrs)
+
+    def plan(self, s: ToolServices, ctx: CallContext, args: Args) -> MutationPlan:
+        return s.processes.plan_start(ctx, args)
+
+
 class CreateTask(_RecordWrite):
     name = "create_task"
 
@@ -418,5 +434,6 @@ HANDLERS: Mapping[str, Handler] = {
         DecideRequest(),
         CreateTask(),
         ProposeModelChange(),
+        StartProcess(),
     )
 }

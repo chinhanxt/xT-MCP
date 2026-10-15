@@ -250,3 +250,31 @@ def test_in_memory_timer_store_same_semantics(
     assert fire["status"] == "fired" and fire["instance_id"] in store.instances
     with pytest.raises(ValueError, match="múi giờ"):
         p.poll(datetime(2026, 10, 19, 8, 6))
+
+
+def test_poller_starts_through_process_service(
+    digest: ProcessRuntime, services: Services, clock: Clock
+) -> None:
+    """Lớp ghép: instance tạo qua `ProcessService.start(fire=...)` (InstanceStore thật), dòng kỳ
+    nối instance; kỳ đã giành -> `already`, không tạo thêm."""
+    from xt.application.process.memory import InMemoryInstanceStore
+    from xt.application.process.service import InMemoryProcessCatalog, ProcessService
+
+    catalog = InMemoryProcessCatalog()
+    catalog.add(digest)
+    instances = InMemoryInstanceStore()
+    svc = ProcessService(catalog, instances)
+    store = InMemoryTimerFireStore()
+    pid = digest.compiled.process_id
+    p = TimerPoller(store, [TimerDefinition(pid, digest, NOT_BEFORE)], svc)
+    clock.set(at(2026, 10, 19, 8, 5))
+    first = p.poll(at(2026, 10, 19, 8, 5))
+    assert first[0]["result"] == "fired", first
+    assert p.poll(at(2026, 10, 19, 8, 7))[0]["result"] == "already"
+    (fire,) = store.fires.values()
+    assert fire["instance_id"] == first[0]["instance_id"]
+    assert store.instances == {}  # không đi đường `tx.save_instance`
+    rec = instances.get_for_update(first[0]["instance_id"])
+    assert rec is not None and rec.process_id == pid
+    with pytest.raises(DecisionError):  # quy trình định kỳ không nhận người khởi tạo
+        svc.start(pid, {}, "u-1", fire={"fire_at": "x", "period_key": "x"})

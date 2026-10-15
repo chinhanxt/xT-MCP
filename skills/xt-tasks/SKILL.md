@@ -3,7 +3,7 @@ name: xt-tasks
 description: Assign and track work in xT for any team - create tasks with owner, deadline, subtasks, dependencies and recurrence, change assignee or due date, move tasks through their lifecycle, and report on workload. Use for "giao việc cho ...", "nhắc hạn", "việc của tôi hôm nay", "dời hạn", "xong rồi", "trả lại việc", "ai đang làm gì", assign/task/deadline/subtask/SLA/overdue.
 metadata:
   version: "1"
-  tool_count: 17
+  tool_count: 18
 ---
 
 <!-- SPDX-License-Identifier: Apache-2.0 -->

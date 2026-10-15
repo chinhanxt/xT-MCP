@@ -3,7 +3,7 @@ name: xt-data-modeling
 description: Design or change business models and lifecycles in xT by chat for any domain - interview the user, propose entities, fields, states, transitions, rules and named metrics as JSON via propose_model_change (dry run first), then hand to a human for approval. Use for "thêm nghiệp vụ", "thêm trường", "quản lý mượn trả thiết bị", "thêm trạng thái", "thêm quy tắc", "tạo loại đề xuất mới", design a data model, add a field, new workflow, change schema. Never active until a human approves.
 metadata:
   version: "1"
-  tool_count: 17
+  tool_count: 18
 ---
 
 <!-- SPDX-License-Identifier: Apache-2.0 -->

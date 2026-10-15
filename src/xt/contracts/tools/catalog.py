@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
 # ruff: noqa: E501  (chuỗi description chép nguyên văn từ docs/tool-contracts-v1.md)
-"""Catalog v0.1: 17 ToolContract dưới dạng dữ liệu (tool-contracts-v1 §4.1, §5).
+"""Catalog: 17 ToolContract v0.1 (tool-contracts-v1 §4.1, §5) + `start_process` v1.0 (§4.2, §6.1).
 
 Đây là nguồn duy nhất; `tests/unit/tools/test_contracts.py` trích JSON Schema từ
 `docs/tool-contracts-v1.md` và so bằng tuyệt đối để docs và code không trôi lệch.
@@ -1908,8 +1908,83 @@ _tool(
 )
 
 
+# 18 start_process (v1.0, §4.2 / §6.1)
+_tool(
+    name="start_process",
+    since="1.0",
+    max_autonomy="L3",
+    effects=WRITE_NOTIFY,
+    iam=["process.start"],
+    ui_resource="ui://xt/process",
+    description=(
+        "Start an approved process that is not tied to a record transition (manual trigger), e.g. onboarding a new hire, a "
+        "one-off audit. Lifecycle processes usually start via transition_record. VD: 'Bắt đầu quy trình tiếp nhận cho Lan'"
+    ),
+    errors=[
+        "invalid_request",
+        "rule_violation",
+        "not_found",
+        "access_denied",
+        "confirmation_required",
+        "idempotency_conflict",
+    ],
+    input_schema=inp(
+        {
+            "process_id": {
+                "type": "string",
+                "pattern": MODEL_ID,
+                "description": "Process with manual trigger from describe_process.",
+            },
+            "subject_ref": ref("Record the process is about (employee, customer, device)."),
+            "parameters": {
+                "type": "object",
+                "description": "Process parameters from describe_process.parameters.",
+                "propertyNames": {"pattern": MODEL_ID},
+                "additionalProperties": {
+                    "type": ["string", "number", "boolean", "null", "array"],
+                    "items": {"type": ["string", "number", "boolean"]},
+                    "maxItems": 100,
+                },
+                "maxProperties": 200,
+            },
+            "idempotency_key": IDEM,
+        },
+        ["process_id", "idempotency_key"],
+    ),
+    output_schema=out(
+        {
+            "process_instance": {"type": "string"},
+            "state": {"type": "string"},
+            "first_steps": {
+                "type": "array",
+                "items": out({"label": {"type": "string"}, "assignee": NAMED_OR_NULL}, ["label"]),
+            },
+        },
+        ["process_instance", "state"],
+    ),
+    examples=[
+        {
+            "process_id": "onboarding",
+            "subject_ref": "person:lan",
+            "parameters": {"start_date": "2026-12-01"},
+            "idempotency_key": "onb-lan-20261201",
+        }
+    ],
+    sample_output={
+        "process_instance": "process_instance:01jd5k",
+        "state": "running",
+        "first_steps": [
+            {
+                "label": "Nhân sự chuẩn bị hồ sơ",
+                "assignee": {"ref": "person:mai", "name": "Nguyễn Thị Mai"},
+            }
+        ],
+    },
+)
+
+
 CATALOG: tuple[ToolContract, ...] = tuple(_T)
-"""17 tool v0.1, đúng thứ tự §4.1."""
+"""17 tool v0.1 đúng thứ tự §4.1, rồi tool v1.0 đã hiện thực (§4.2: `start_process`)."""
 
 BY_NAME: Mapping[str, ToolContract] = MappingProxyType({c.name: c for c in CATALOG})
 

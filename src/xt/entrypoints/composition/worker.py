@@ -9,6 +9,10 @@
   `PgMigrator.run_jobs` (pha 2); relay cũng đẩy pha 2 còn dở mỗi chu kỳ.
 - `workflow.tick` (đúng hạn): `ProcessService.tick(instance)` trong một transaction tenant
   (SLA leo thang, thông báo, sự kiện/sự cố vào `xt_meta.process_event`).
+- `workflow.timer_starts` (relay hẹn mỗi chu kỳ, khóa theo mốc): quy trình định kỳ (trigger
+  `timer`, vd `weekly_digest`) đang active -> `TimerPoller` tạo instance cho kỳ gần nhất qua
+  `ProcessService`, đúng một lần mỗi `(tenant, process_id, period_key)`
+  (`xt_meta.workflow_timer_fire`) dù nhiều worker cùng chạy.
 
 Biến: `XT_WORKER_DATABASE_URL` (xt_app), `XT_QUEUE_DATABASE_URL` (xt_control), `XT_AUDIT_KEY_FILE`,
 `XT_AUDIT_KEY_ID`, `XT_WORKFLOW_RELAY_SECONDS`, `XT_DB_MIGRATOR_URL` (pha 1/2 của model
@@ -17,6 +21,7 @@ engine). Thiếu -> lỗi lúc nạp handler, không có mặc định.
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from collections.abc import Awaitable, Callable, Mapping
@@ -30,10 +35,11 @@ import anyio.to_thread
 from xt.adapters.db.connection import AuditKey, Database
 from xt.adapters.db.integration import tenant_by_id
 from xt.adapters.db.model_changes import APPLY_TASK, relay_model_changes
-from xt.adapters.db.workflow_bridge import relay_timers, tenant_async_tx
+from xt.adapters.db.workflow_bridge import PgTimerFireStore, relay_timers, tenant_async_tx
 from xt.adapters.queue.runtime import create_runtime
 from xt.adapters.workflow.bpmn.spiff import SpiffProcessEngine
 from xt.application.jobs import JobQueue, JobRequest
+from xt.application.process.timers import TimerDefinition, TimerPoller
 from xt.domain.model.context import ModelActor, TenantRef
 from xt.domain.model.errors import ModelError
 from xt.domain.process.errors import EngineError
@@ -42,8 +48,10 @@ from xt.entrypoints.composition.runtime import NIL, WORKFLOW_ROLE, Runtime
 
 TICK = "workflow.tick"
 RELAY = "workflow.relay_timers"
+TIMER_STARTS = "workflow.timer_starts"
 APPLY = APPLY_TASK
 Handler = Callable[[Any, JobRequest], Awaitable[None]]
+log = logging.getLogger(__name__)
 
 
 def _required(env: Mapping[str, str], name: str) -> str:
@@ -92,6 +100,45 @@ class WorkflowJobs:
 
         with self.rt.uow.scope(actor):
             return self.rt.uow.run(work)
+
+    def timer_starts_sync(
+        self, tenant_id: UUID, now: datetime | None = None
+    ) -> list[dict[str, Any]]:
+        """Quét định nghĩa active có trigger `timer`; kỳ gần nhất <= now (và >= lúc tạo định
+        nghĩa) chưa chạy -> một instance qua `ProcessService.start(fire=...)`, cùng transaction
+        với dòng kỳ. Định nghĩa lỗi không chặn định nghĩa khác (`result: error`, lần quét sau
+        thử lại)."""
+        tenant = self._tenant(tenant_id)
+        actor = ModelActor(tenant, NIL, (WORKFLOW_ROLE,), client_azp="xt-worker")
+        when = now or datetime.now(UTC)
+        out: list[dict[str, Any]] = []
+        with self.rt.uow.scope(actor):
+            profile = self.rt.uow.run(lambda: self.rt.store.profile(actor))
+            if profile is None:
+                raise LookupError("tenant has no profile")
+            pc = ProcessContext(self.rt, self.engine, actor, profile.timezone)
+            defs = self.rt.uow.run(lambda: self.rt.store.definitions(actor, active_only=True))
+            timers: list[TimerDefinition] = []
+            for d in defs:
+                if (d.spec.get("trigger") or {}).get("kind") != "timer":
+                    continue
+                try:
+                    rt = pc.runtime(d)
+                except Exception as e:  # spec lệch sha256, op chưa đăng ký...
+                    out.append({"process_key": d.process_id, "result": "error",
+                                "error": f"{type(e).__name__}: {e}"[:300]})  # fmt: skip
+                    continue
+                timers.append(TimerDefinition(d.process_id, rt, d.created_at or when))
+            if timers:
+                poller = TimerPoller(PgTimerFireStore(self.rt.uow), timers, pc.service())
+                out.extend(poller.poll(when))
+        for r in out:
+            if r["result"] == "error":
+                log.warning("timer start %s failed: %s", r["process_key"], r.get("error"))
+        return out
+
+    async def timer_starts(self, connection: Any, job: JobRequest) -> None:
+        await anyio.to_thread.run_sync(self.timer_starts_sync, job.tenant_id)
 
     async def tick(self, connection: Any, job: JobRequest) -> None:
         await anyio.to_thread.run_sync(
@@ -184,7 +231,15 @@ class WorkflowJobs:
         await anyio.to_thread.run_sync(self.purge_reveal_tickets, tenant)
         if self.files is not None:  # ClamAV bật: quét lại tệp `scanning` (clamd từng lỗi)
             await anyio.to_thread.run_sync(self.rescan_files, tenant)
+        await self._schedule_timer_starts(connection, job.tenant_id)
         await self._schedule_relay(connection, job.tenant_id, after=self.relay_interval_s)
+
+    async def _schedule_timer_starts(self, connection: Any, tenant_id: UUID) -> int:
+        """Một job quét timer start mỗi chu kỳ relay (khóa theo mốc: relay chạy lại không nhân đôi;
+        job chạy trùng vẫn an toàn nhờ khóa kỳ của `workflow_timer_fire`)."""
+        slot = int(time.time()) // self.relay_interval_s * self.relay_interval_s
+        job = JobRequest(tenant_id, TIMER_STARTS, f"workflow.timer_starts:{slot}", {})
+        return await self.queue.schedule_at(connection, job, datetime.fromtimestamp(slot, UTC))
 
     async def _schedule_relay(self, connection: Any, tenant_id: UUID, *, after: int) -> int:
         slot = (int(time.time()) // self.relay_interval_s + (1 if after else 0)) * (
@@ -229,11 +284,14 @@ def build_jobs(env: Mapping[str, str]) -> WorkflowJobs:
     async def apply(c: Any, j: JobRequest) -> None:
         await holder["jobs"].apply(c, j)
 
+    async def timer_starts(c: Any, j: JobRequest) -> None:
+        await holder["jobs"].timer_starts(c, j)
+
     # Chỉ dùng `.queue` để enqueue trong transaction của người gọi (không mở pool/worker).
     enq = create_runtime(
         queue_dsn=queue_dsn,
         tenant_dsn=tenant_dsn,
-        handlers={TICK: tick, RELAY: relay, APPLY: apply},
+        handlers={TICK: tick, RELAY: relay, APPLY: apply, TIMER_STARTS: timer_starts},
         concurrency=1,
         stalled_seconds=30,
         recover_seconds=5,
@@ -255,4 +313,9 @@ def build_jobs(env: Mapping[str, str]) -> WorkflowJobs:
 
 def handlers() -> dict[str, Handler]:
     jobs = build_jobs(dict(os.environ))
-    return {TICK: jobs.tick, RELAY: jobs.relay, APPLY: jobs.apply}
+    return {
+        TICK: jobs.tick,
+        RELAY: jobs.relay,
+        APPLY: jobs.apply,
+        TIMER_STARTS: jobs.timer_starts,
+    }

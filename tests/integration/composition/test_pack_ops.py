@@ -20,7 +20,7 @@ import re
 import uuid
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from importlib.resources import files
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -30,12 +30,12 @@ import pytest
 
 from tests.integration.composition import pgfixture
 from tests.integration.composition.fixtures import PACK, ROOT, StackBase, run_admin
-from tests.integration.composition.idp import DESK_CLIENT
+from tests.integration.composition.idp import AGENT_CLIENT, DESK_CLIENT
 from xt.adapters.db.connection import Database
 from xt.adapters.db.integration import SodViolation, connect, person_id, tenant_of_alias
 from xt.adapters.db.workflow_bridge import PgWorkflowStore
 from xt.application.process.service import _record, summary
-from xt.application.tools.context import Actor
+from xt.application.tools.context import Actor, CallContext, ClientClass
 from xt.domain.identity import PrincipalKind
 from xt.domain.model.context import TenantRef
 from xt.domain.process.errors import EngineError
@@ -65,6 +65,7 @@ PEOPLE = [
     ("NV-0010", "Nhân Viên Kinh Doanh", "KD", "NV-0009", []),
     ("NV-0011", "Nhân Viên Mới", "KD", "NV-0009", []),
     ("NV-0012", "Nhân Viên Nghỉ", "KD", "NV-0009", []),
+    ("NV-0013", "Nhân Viên Mới Hai", "KD", "NV-0009", []),
 ]
 
 
@@ -78,6 +79,14 @@ class Ops:
     engine: Any
     tenant: TenantRef
     plans: dict[str, str]
+    dispatcher: Any = None
+
+    def tool(self, key: str, name: str, args: dict[str, Any]) -> dict[str, Any]:
+        """Agent (it-agent, trần L1) đại diện người `key` gọi tool qua dispatcher thật của MCP."""
+        actor = Actor(ALIAS, subject(key), PrincipalKind.AGENT, AGENT_CLIENT, subject(key))
+        ctx = CallContext(actor, ClientClass.CLOUD, f"it-{uuid.uuid4().hex[:8]}", datetime.now(UTC))
+        out: dict[str, Any] = self.dispatcher.call(name, args, ctx).envelope
+        return out
 
     def pid(self, key: str) -> str:
         return str(person_id(self.tenant.id, key))
@@ -154,7 +163,15 @@ def ops(
     }  # fmt: skip
     (d / "org.json").write_text(json.dumps(org, ensure_ascii=False), encoding="utf-8")
     (d / "links.json").write_text(
-        json.dumps({"subjects": {k: subject(k) for k, *_ in PEOPLE}, "agent_grants": []}),
+        json.dumps(
+            {
+                "subjects": {k: subject(k) for k, *_ in PEOPLE},
+                "agent_grants": [
+                    {"person": k, "client_id": AGENT_CLIENT, "autonomy": 1, "roles": ["agent"]}
+                    for k, *_ in PEOPLE
+                ],
+            }
+        ),
         encoding="utf-8",
     )
     rc, out = run_admin(
@@ -180,7 +197,7 @@ def ops(
     prepared = prepare(env, ns)
     comp = prepared.services
     try:
-        yield Ops(comp.runtime, comp.engine, tenant, plans)  # type: ignore[union-attr]
+        yield Ops(comp.runtime, comp.engine, tenant, plans, prepared.dispatcher)  # type: ignore[union-attr]
     finally:
         prepared.close()
 
@@ -429,3 +446,201 @@ def test_decision_migration_is_idempotent(pg: pgfixture.Pg) -> None:
             " AND tgname = 'decision_sod_guard'"
         ).fetchone()
         assert n == (1,)
+
+
+# ------------------------------------------------- start_process + timer start (xt-worker) ----
+def test_start_process_task_normal_via_tool(ops: Ops) -> None:
+    """Trưởng phòng (qua agent L1) khởi động quy trình giao việc có nghiệm thu trên một task."""
+    kind = ops.search("task_type", {"field": "code", "op": "=", "value": "bao_cao"})[0]
+    task = ops.create(
+        "NV-0009",
+        "task",
+        {"task_no": "CV-2026-0101", "title": "Chuẩn bị hội chợ", "kind": kind["id"],
+         "assigner": ops.pid("NV-0009"), "assignee": ops.pid("NV-0010"),
+         "deadline": "2099-12-31T17:00:00+07:00", "done_criteria": "Có kế hoạch"},
+    )  # fmt: skip
+    ref = f"task:{task['id']}"
+    args = {
+        "process_id": "task_normal",
+        "subject_ref": ref,
+        "parameters": {"assignee_user": f"person:{ops.pid('NV-0010')}", "assigner_user": "me"},
+        "idempotency_key": "it-start-task-0101",
+    }
+    out = ops.tool("NV-0009", "start_process", args)
+    assert out["ok"], out
+    assert out["meta"]["effective_level"] == "L1"
+    data = out["data"]
+    assert data["state"] == "running" and data["subject_ref"] == ref
+    (step,) = data["first_steps"]
+    assert step["assignee"]["ref"] == f"person:{ops.pid('NV-0010')}"
+    iid = data["process_instance"].split(":", 1)[1]
+    again = ops.tool("NV-0009", "start_process", args)
+    assert again["ok"] and again["meta"]["receipt"]["replayed"] is True
+    assert again["data"]["process_instance"] == data["process_instance"]
+
+    def linked(_: Caller, pc: ProcessContext) -> tuple[str | None, dict[str, Any]]:
+        return PgWorkflowStore(ops.rt.uow).ref_for(iid), pc.service().get(iid)
+
+    got_ref, info = ops.run("NV-0009", linked)
+    assert got_ref == ref  # task_id = subject_ref (quy ước `<model>_id`), inbox/timeline thấy task
+    assert info["process_id"] == "task_normal" and {t["step"] for t in info["tasks"]} == {"accept"}
+    # nhân viên không có `process.start`; quy trình định kỳ / gắn đề nghị không khởi động tay
+    denied = ops.tool("NV-0010", "start_process", {**args, "idempotency_key": "it-start-emp-01"})
+    assert denied["error"]["code"] == "access_denied", denied
+    timer = ops.tool(
+        "NV-0001",
+        "start_process",
+        {"process_id": "weekly_digest", "idempotency_key": "it-start-digest-01"},
+    )
+    assert timer["error"]["code"] in ("invalid_request", "access_denied"), timer
+    ghost = ops.tool(
+        "NV-0009",
+        "start_process",
+        {**args, "subject_ref": f"task:{uuid.uuid4()}", "idempotency_key": "it-start-ghost-1"},
+    )
+    assert ghost["error"]["code"] == "not_found", ghost
+
+
+def test_start_process_onboarding_via_tool(ops: Ops) -> None:
+    dept = ops.search("department", {"field": "code", "op": "=", "value": "KD"})[0]
+    emp = _employee(ops, "NV-0013", "NV-0013", dept)
+    case = ops.create(
+        "NV-0003",
+        "lifecycle_case",
+        {"code": "ON-2026-0002", "employee": emp["id"], "kind": "onboarding",
+         "effective_on": "2026-12-01", "initiated_by": ops.pid("NV-0003")},
+    )  # fmt: skip
+    out = ops.tool(
+        "NV-0003",
+        "start_process",
+        {
+            "process_id": "employee_onboarding",
+            "subject_ref": f"lifecycle_case:{case['id']}",
+            "parameters": {
+                "case_id": case["id"],
+                "employee_id": emp["id"],
+                "employee_user": f"person:{ops.pid('NV-0013')}",
+            },
+            "idempotency_key": "it-start-onb-0002",
+        },
+    )
+    assert out["ok"], out
+    assert [s["assignee"]["ref"] for s in out["data"]["first_steps"]] == [
+        f"person:{ops.pid('NV-0003')}"
+    ]
+    tasks = ops.search("lifecycle_task", _of_case(case))
+    assert sorted(t["owner_unit"] for t in tasks) == ["accounting", "hr", "it", "manager"]
+
+
+def _period_after(ops: Ops, pg: pgfixture.Pg) -> tuple[datetime, str, str]:
+    """Mốc 'now' giả lập: lần kích hoạt đầu tiên của weekly_digest sau lúc định nghĩa được tạo
+    (poller bỏ kỳ trước lúc kích hoạt); trả (now, period_key, from_date của kỳ)."""
+    with pg.su() as c:
+        created = c.execute(
+            "SELECT created_at FROM xt_meta.process_definition WHERE tenant_id=%s"
+            " AND process_id='weekly_digest' AND active",
+            (ops.tenant.id,),
+        ).fetchone()[0]
+
+    def trig(_: Caller, pc: ProcessContext) -> TimerTrigger:
+        rt = pc.active("weekly_digest")
+        assert rt is not None and isinstance(rt.compiled.spec.trigger, TimerTrigger)
+        return rt.compiled.spec.trigger
+
+    t = ops.run("NV-0001", trig)
+    sch = Schedule(t)
+    occ = sch.next_after(created)
+    assert occ is not None
+    from_date = timer_inputs(t, sch.fire_context(occ))["from_date"]
+    return occ + timedelta(minutes=3), occ.isoformat(), str(from_date)
+
+
+def test_worker_timer_start_once_per_period_with_two_workers(
+    ops: Ops, worker: Any, pg: pgfixture.Pg, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`workflow.timer_starts`: hai worker quét cùng kỳ -> đúng MỘT instance weekly_digest; quét
+    lại -> `already`. Instance chạy hết (rollup + gửi), bản tin của kỳ được tạo đúng một lần."""
+    import threading
+
+    from xt.entrypoints.composition import worker as wk
+
+    now, period, from_date = _period_after(ops, pg)
+    jobs = [wk.build_jobs(worker.env), wk.build_jobs(worker.env)]
+    barrier = threading.Barrier(2)
+    results: list[dict[str, Any]] = []
+    errors: list[BaseException] = []
+
+    def run(j: Any) -> None:
+        try:
+            barrier.wait()
+            results.extend(j.timer_starts_sync(ops.tenant.id, now))
+        except BaseException as e:  # pragma: no cover - báo ở assert
+            errors.append(e)
+
+    threads = [threading.Thread(target=run, args=(j,)) for j in jobs]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(120)
+    assert not errors, errors
+    mine = [r for r in results if r["process_key"] == "weekly_digest"]
+    assert sorted(r["result"] for r in mine) == ["already", "fired"], results
+    fired = next(r for r in mine if r["result"] == "fired")
+    assert fired["period_key"] == period
+    again = jobs[0].timer_starts_sync(ops.tenant.id, now + timedelta(minutes=5))
+    assert [r["result"] for r in again if r["process_key"] == "weekly_digest"] == ["already"]
+    with pg.su() as su:
+        rows = su.execute(
+            "SELECT f.status, f.instance_id, i.status FROM xt_meta.workflow_timer_fire f"
+            " JOIN xt_meta.workflow_instance i ON i.tenant_id=f.tenant_id AND i.id=f.instance_id"
+            " WHERE f.tenant_id=%s AND f.process_id='weekly_digest'",
+            (ops.tenant.id,),
+        ).fetchall()
+        n = su.execute(
+            "SELECT count(*) FROM xt_meta.workflow_instance WHERE tenant_id=%s"
+            " AND process_id='weekly_digest'",
+            (ops.tenant.id,),
+        ).fetchone()[0]
+    assert len(rows) == 1 and rows[0][0] == "fired" and rows[0][1] == fired["instance_id"]
+    assert rows[0][2] == "completed" and n == 1
+    y, w, _ = date.fromisoformat(from_date).isocalendar()
+    code = f"BT-{y:04d}-W{w:02d}"
+    digests = ops.search("weekly_digest", {"field": "code", "op": "=", "value": code})
+    assert len(digests) == 1 and digests[0]["sent"] is True
+    assert digests[0]["from_date"] == from_date
+    # Job được đăng ký trong `xt worker` và relay hẹn nó mỗi chu kỳ
+    for k, v in worker.env.items():
+        monkeypatch.setenv(k, v)
+    assert wk.TIMER_STARTS in wk.handlers()
+    rc, out = run_admin(["tenant", "bind-queue", "--tenant", ALIAS], worker.env)
+    assert rc == 0, out
+
+    async def relay() -> None:
+        from xt.adapters.db.workflow_bridge import tenant_async_tx
+        from xt.application.jobs import JobRequest
+
+        async with tenant_async_tx(worker.env["XT_WORKER_DATABASE_URL"], ops.tenant.id) as conn:
+            await jobs[0].relay(conn, JobRequest(ops.tenant.id, wk.RELAY, "it.relay.ops", {}))
+
+    import anyio
+
+    anyio.run(relay)
+    with pg.su() as su:
+        queued = su.execute(
+            "SELECT count(*) FROM xt_queue.requests WHERE tenant_id=%s"
+            " AND idempotency_key LIKE 'workflow.timer_starts:%%'",
+            (ops.tenant.id,),
+        ).fetchone()[0]
+    assert queued >= 1
+
+
+def test_timer_fire_migration_is_idempotent(pg: pgfixture.Pg) -> None:
+    body = (
+        files("xt.adapters.db").joinpath("sql/migrations/0012_workflow_timer_fire.sql").read_text()
+    )
+    with pg.migrator() as m:
+        assert m.execute(
+            "SELECT 1 FROM xt_meta.schema_migration WHERE name = '0012_workflow_timer_fire.sql'"
+        ).fetchone()
+        with m.transaction():
+            m.execute(body.encode())

@@ -152,6 +152,11 @@ class ProcessService(Protocol):
         """`confirmers[0]` bắt buộc là người được giao bước (human_only)."""
         ...
 
+    def plan_start(self, ctx: CallContext, args: Args) -> MutationPlan:
+        """`start_process`: quy trình trigger `manual` không gắn model đề nghị; người được đại
+        diện là người khởi tạo (`requester`)."""
+        ...
+
     def commit(self, ctx: CallContext, plan: MutationPlan) -> CommitResult: ...
 
 

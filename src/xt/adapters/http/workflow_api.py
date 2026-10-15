@@ -10,7 +10,7 @@ Mỗi endpoint là một lớp mỏng trên CÙNG `ToolDispatcher` của MCP (IA
 | `GET /definitions` | `inspect_workspace(include=[processes])` |
 | `GET /definitions/{id}` | `describe_process` |
 | `GET /definitions/{id}/bpmn` | `describe_process` (IAM + revision) rồi `WorkflowBackend.bpmn` |
-| `POST /instances` | `create_record` (nếu chưa có nháp) + `submit_request` |
+| `POST /instances` | `create_record` (nếu chưa có nháp) + `submit_request`; quy trình `manual` không gắn đề nghị: `start_process` |
 | `GET /instances/{id}` | `WorkflowBackend.instance` (RLS tenant) rồi `get_record` của đề nghị |
 | `GET /inbox` | `get_inbox` |
 | `POST /tasks/{id}/decision` | `decide_request` (luôn `confirmation_required` + `confirm_url`) |
@@ -310,7 +310,8 @@ CREATE_INSTANCE_BODY: dict[str, Any] = {
     "additionalProperties": False,
     "description": (
         "Tạo nháp đề nghị rồi gửi duyệt (definition_id hoặc model_id + values), "
-        "hoặc gửi duyệt một nháp có sẵn (ref)."
+        "gửi duyệt một nháp có sẵn (ref), hoặc khởi động quy trình thủ công không gắn đề nghị "
+        "(definition_id + subject_ref/parameters, như tool start_process)."
     ),
     "properties": {
         "definition_id": {
@@ -323,6 +324,8 @@ CREATE_INSTANCE_BODY: dict[str, Any] = {
         "ref": _tool_prop("submit_request", "ref"),
         "note": _tool_prop("submit_request", "note"),
         "expected_revision": _tool_prop("submit_request", "expected_revision"),
+        "subject_ref": _tool_prop("start_process", "subject_ref"),
+        "parameters": _tool_prop("start_process", "parameters"),
     },
     "oneOf": [
         {
@@ -332,14 +335,36 @@ CREATE_INSTANCE_BODY: dict[str, Any] = {
                     {"required": ["values"]},
                     {"required": ["model_id"]},
                     {"required": ["definition_id"]},
+                    {"required": ["subject_ref"]},
+                    {"required": ["parameters"]},
                 ]
             },
         },
         {
             "required": ["values"],
             # definition_id XOR model_id: gửi cả hai thì không rõ ý (WA-09).
-            "not": {"anyOf": [{"required": ["ref"]}, {"required": ["definition_id", "model_id"]}]},
+            "not": {
+                "anyOf": [
+                    {"required": ["ref"]},
+                    {"required": ["definition_id", "model_id"]},
+                    {"required": ["subject_ref"]},
+                    {"required": ["parameters"]},
+                ]
+            },
             "anyOf": [{"required": ["definition_id"]}, {"required": ["model_id"]}],
+        },
+        {
+            # Quy trình trigger manual không gắn đề nghị -> start_process (cùng dispatcher).
+            "required": ["definition_id"],
+            "not": {
+                "anyOf": [
+                    {"required": ["values"]},
+                    {"required": ["model_id"]},
+                    {"required": ["ref"]},
+                    {"required": ["note"]},
+                    {"required": ["expected_revision"]},
+                ]
+            },
         },
     ],
 }
@@ -422,7 +447,7 @@ INSTANCE = _envelope(
 STARTED = _envelope(
     {
         "allOf": [
-            _tool_out("submit_request"),
+            {"anyOf": [_tool_out("submit_request"), _tool_out("start_process")]},
             {
                 "required": ["instance"],
                 "properties": {
@@ -535,8 +560,9 @@ OPERATIONS: tuple[Operation, ...] = (
         "create_instance",
         "POST",
         "/instances",
-        "Khởi động quy trình: tạo nháp đề nghị (nếu cần) rồi gửi duyệt.",
-        ("describe_process", "create_record", "submit_request"),
+        "Khởi động quy trình: tạo nháp đề nghị (nếu cần) rồi gửi duyệt; quy trình thủ công không"
+        " gắn đề nghị qua start_process.",
+        ("describe_process", "create_record", "submit_request", "start_process"),
         {
             201: ("Đã gửi duyệt; Location = instance.", STARTED),
             200: ("Gửi lại cùng Idempotency-Key: trả lại kết quả cũ.", STARTED),
@@ -1014,6 +1040,8 @@ class WorkflowApi:
     async def create_instance(self, request: Request, ctx: CallContext) -> Response:
         key = self._idempotency_key(request)
         body = await self._body(request, "create_instance")
+        if "values" not in body and "ref" not in body:
+            return await self._start_process(body, key, ctx)
         ref = body.get("ref")
         if ref is None:
             model_id = body.get("model_id")
@@ -1055,6 +1083,25 @@ class WorkflowApi:
         iid = _instance_id(env["data"].get("process_instance"))
         if iid is None:  # pragma: no cover - output contract đã kiểm process_instance
             raise RuntimeError("submit_request without process_instance")
+        href = _href("instances", iid)
+        data = {**env["data"], "instance": {"id": iid, "href": href}}
+        replayed = bool((env["meta"].get("receipt") or {}).get("replayed"))
+        return _json(200 if replayed else 201, {**env, "data": data}, {"Location": href})
+
+    async def _start_process(self, body: Mapping[str, Any], key: str, ctx: CallContext) -> Response:
+        """`{definition_id, subject_ref?, parameters?}` -> đúng tool `start_process` (MCP dùng
+        chung): quy trình gắn đề nghị bị tool trả `wrong_tool`, định kỳ trả `not_manual_trigger`."""
+        args: dict[str, Any] = {"process_id": body["definition_id"], "idempotency_key": key}
+        for k in ("subject_ref", "parameters"):
+            if k in body:
+                args[k] = body[k]
+        started = await self._tool("start_process", args, ctx)
+        if started.is_error:
+            return outcome_response(started)
+        env = started.envelope
+        iid = _instance_id(env["data"].get("process_instance"))
+        if iid is None:  # pragma: no cover - output contract đã kiểm process_instance
+            raise RuntimeError("start_process without process_instance")
         href = _href("instances", iid)
         data = {**env["data"], "instance": {"id": iid, "href": href}}
         replayed = bool((env["meta"].get("receipt") or {}).get("replayed"))

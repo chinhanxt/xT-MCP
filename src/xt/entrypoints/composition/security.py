@@ -87,6 +87,9 @@ class ToolAccessGuard:
             }
             if caller.person.unit_key:
                 res["department"] = caller.person.unit_key
+            if model == "process" and isinstance(check.attributes.get("process_id"), str):
+                # start_process: tài nguyên là chính quy trình, người khởi tạo là chủ (owner).
+                return f"xrn:{ctx.tenant}:process:{check.attributes['process_id']}", res
             return f"xrn:{ctx.tenant}:{model}:{model}", res
         model, rid = parse_record_ref(ctx, ref)
         res = {}

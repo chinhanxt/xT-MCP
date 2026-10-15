@@ -134,6 +134,23 @@
       "conditions": []
     },
     {
+      "id": "tsk.start-task-process",
+      "effect": "Allow",
+      "subjects": [
+        "role:dept_head",
+        "role:director",
+        "role:agent"
+      ],
+      "actions": [
+        "process.start"
+      ],
+      "resources": [
+        "xrn:binhminh:process:task_normal",
+        "xrn:binhminh:process:task_urgent"
+      ],
+      "conditions": []
+    },
+    {
       "id": "tsk.agent-l0-l1",
       "effect": "Allow",
       "subjects": [

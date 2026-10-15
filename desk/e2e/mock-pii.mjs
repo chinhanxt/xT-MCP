@@ -59,7 +59,7 @@ createServer(async (req, res) => {
     return res.end(JSON.stringify(state));
   }
   if (req.url === "/pii/reveal") {
-    const cors = { "access-control-allow-origin": allowOrigin, "access-control-allow-methods": "POST", "access-control-allow-headers": "content-type", vary: "Origin", "cache-control": "no-store" };
+    const cors = { "access-control-allow-origin": allowOrigin, "access-control-allow-methods": "POST", "access-control-allow-headers": "content-type, dpop", vary: "Origin", "cache-control": "no-store" };
     if (req.method === "OPTIONS") return res.writeHead(204, cors).end();
     let raw = "";
     for await (const c of req) raw += c;

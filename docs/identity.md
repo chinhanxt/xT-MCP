@@ -118,9 +118,9 @@ Bề mặt không có ngữ cảnh DPoP (REST `/workflow/v1`, `/files/v1`, stdio
 3. `jwk` là khóa **công khai**: không thành viên riêng (`d`, `p`, `q`, `k`...), `kty`/`crv` khớp `alg`, tọa độ EC base64url **chuẩn tắc** đúng độ dài (cùng lớp với R2-02), RSA ≥ 2048.
 4. Chữ ký đúng với chính `jwk` đó.
 5. `jti` chuỗi 1–256 ký tự; `htm` == method (phân biệt hoa thường); `htu` sau chuẩn hóa (bỏ query/fragment, scheme/host chữ thường, bỏ cổng mặc định) thuộc `{origin + path}` với mọi origin công khai (origin của `XT_MCP_RESOURCE`, `XT_DESK_URL`, `XT_DPOP_ORIGINS`: Desk gọi `/mcp` cùng origin qua APISIX nên `htu` là URL Desk).
-6. `iat` số: `now − max_age − leeway ≤ iat ≤ now + leeway`.
-7. `ath` == base64url(SHA-256(access token)) (với `/pii/reveal`: hash của vé).
-8. Thumbprint RFC 7638 của `jwk` == `cnf.jkt` (so sánh hằng thời gian).
+6. `ath` == base64url(SHA-256(access token)) (với `/pii/reveal`: hash của vé).
+7. Thumbprint RFC 7638 của `jwk` == `cnf.jkt` (so sánh hằng thời gian).
+8. `iat` số: `now − max_age − leeway ≤ iat ≤ now + leeway`. Kiểm sau ath/jkt để "stale" (không tiêu vé PII) chỉ báo cho đúng chủ khóa.
 9. Cuối cùng mới tiêu `jti` (khóa `dpop|jkt|jti`, hết hạn sau cửa sổ iat): proof sai không đốt jti của proof thật; phát lại bị `dpop_replay`. Cache trong bộ nhớ của tiến trình (`xt-api` chạy một tiến trình; nhiều replica cần store chung).
 
 Challenge: `WWW-Authenticate: DPoP error="…", error_description="…", algs="ES256", Bearer resource_metadata="…", scope="…"` (vẫn có PRM cho client MCP). Server không phát `DPoP-Nonce`.
