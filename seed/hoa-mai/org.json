@@ -1,0 +1,178 @@
+{
+  "departments": [
+    {
+      "id": "D01",
+      "name": "Ban Chủ cửa hàng",
+      "parent_id": null
+    },
+    {
+      "id": "D02",
+      "name": "Bán hàng",
+      "parent_id": "D01"
+    },
+    {
+      "id": "D03",
+      "name": "Kho",
+      "parent_id": "D01"
+    }
+  ],
+  "positions": [
+    {
+      "id": "P01",
+      "name": "Chủ cửa hàng",
+      "level": 5
+    },
+    {
+      "id": "P02",
+      "name": "Trưởng phòng",
+      "level": 4
+    },
+    {
+      "id": "P03",
+      "name": "Kế toán viên",
+      "level": 3
+    },
+    {
+      "id": "P04",
+      "name": "Nhân viên bán hàng",
+      "level": 2
+    },
+    {
+      "id": "P05",
+      "name": "Nhân viên kho",
+      "level": 2
+    }
+  ],
+  "employees": [
+    {
+      "id": "NV-0001",
+      "full_name": "Mai Xuân Phúc",
+      "email": "phuc.maixuan@hoamai.example",
+      "department_id": "D01",
+      "position_id": "P01",
+      "manager_id": null,
+      "hire_date": "2019-03-15",
+      "active": true,
+      "roles": [
+        "director"
+      ]
+    },
+    {
+      "id": "NV-0002",
+      "full_name": "Lê Thị Hồng Vân",
+      "email": "van.lethihong@hoamai.example",
+      "department_id": "D01",
+      "position_id": "P02",
+      "manager_id": "NV-0001",
+      "hire_date": "2019-07-20",
+      "active": true,
+      "roles": [
+        "dept_head"
+      ]
+    },
+    {
+      "id": "NV-0003",
+      "full_name": "Trần Minh Quang",
+      "email": "quang.tranminh@hoamai.example",
+      "department_id": "D01",
+      "position_id": "P03",
+      "manager_id": "NV-0002",
+      "hire_date": "2020-11-05",
+      "active": true,
+      "roles": [
+        "accountant"
+      ]
+    },
+    {
+      "id": "NV-0004",
+      "full_name": "Nguyễn Thanh Tùng",
+      "email": "tung.nguyenthanh@hoamai.example",
+      "department_id": "D02",
+      "position_id": "P02",
+      "manager_id": "NV-0001",
+      "hire_date": "2020-02-18",
+      "active": true,
+      "roles": [
+        "dept_head"
+      ]
+    },
+    {
+      "id": "NV-0005",
+      "full_name": "Phạm Ngọc Ánh",
+      "email": "anh.phamngoc@hoamai.example",
+      "department_id": "D02",
+      "position_id": "P04",
+      "manager_id": "NV-0004",
+      "hire_date": "2021-06-10",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0006",
+      "full_name": "Hoàng Gia Bảo",
+      "email": "bao.hoanggia@hoamai.example",
+      "department_id": "D02",
+      "position_id": "P04",
+      "manager_id": "NV-0004",
+      "hire_date": "2022-09-01",
+      "active": false,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0007",
+      "full_name": "Vũ Phương Linh",
+      "email": "linh.vuphuong@hoamai.example",
+      "department_id": "D02",
+      "position_id": "P04",
+      "manager_id": "NV-0004",
+      "hire_date": "2023-12-15",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0008",
+      "full_name": "Đỗ Tuấn Kiệt",
+      "email": "kiet.dotuan@hoamai.example",
+      "department_id": "D03",
+      "position_id": "P02",
+      "manager_id": "NV-0001",
+      "hire_date": "2019-08-01",
+      "active": true,
+      "roles": [
+        "dept_head"
+      ]
+    },
+    {
+      "id": "NV-0009",
+      "full_name": "Bùi Văn Hùng",
+      "email": "hung.buivan@hoamai.example",
+      "department_id": "D03",
+      "position_id": "P05",
+      "manager_id": "NV-0008",
+      "hire_date": "2022-04-20",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0010",
+      "full_name": "Đặng Thùy Dương",
+      "email": "duong.dangthuy@hoamai.example",
+      "department_id": "D03",
+      "position_id": "P05",
+      "manager_id": "NV-0008",
+      "hire_date": "2025-05-12",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    }
+  ]
+}
