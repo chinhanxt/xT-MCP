@@ -20,7 +20,8 @@ UNKNOWN = "unknown"
 
 MIN_PYTHON = (3, 12)
 DATABASE_ENV = "XT_DATABASE_URL"
-# Dịch vụ thật dùng DSN theo vai trò: xt-api/xt-init `XT_DB_APP_URL`, xt-worker `XT_WORKER_DATABASE_URL`.
+# Dịch vụ thật dùng DSN theo vai trò:
+# xt-api/xt-init `XT_DB_APP_URL`, xt-worker `XT_WORKER_DATABASE_URL`.
 DATABASE_ENV_FALLBACKS = ("XT_DB_APP_URL", "XT_WORKER_DATABASE_URL", "XT_QUEUE_DATABASE_URL")
 CONNECT_TIMEOUT_S = 3.0
 
