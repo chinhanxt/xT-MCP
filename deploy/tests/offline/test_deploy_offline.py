@@ -380,5 +380,41 @@ class FetchJwks(unittest.TestCase):
         self.assertFalse(self.out.exists())
 
 
+class DeskAgentRedirects(unittest.TestCase):
+    """Builder redirect URI của xt-desk-agent theo profile (không cần Keycloak)."""
+
+    DESK = "https://xt.example"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.mod = load("provision_t", "keycloak/provision.py")
+
+    def setUp(self):
+        self._argv = sys.argv
+        sys.argv = ["provision.py"]
+
+    def tearDown(self):
+        sys.argv = self._argv
+
+    def test_production_has_no_loopback(self):
+        for env in ({}, {"XT_PROFILE": ""}, {"XT_PROFILE": "production"}, {"XT_PROFILE": "devx"},
+                    {"XT_DESK_AGENT_DEV_REDIRECTS": "http://localhost:5173/auth/callback"}):
+            r = self.mod.desk_agent_redirects(env, self.DESK)
+            self.assertEqual(r, [f"{self.DESK}/auth/callback"])
+            self.assertEqual(self.mod.desk_agent_web_origins(self.DESK, r), [self.DESK])
+
+    def test_dev_adds_loopback(self):
+        r = self.mod.desk_agent_redirects({"XT_PROFILE": "dev"}, self.DESK)
+        self.assertEqual(r[0], f"{self.DESK}/auth/callback")
+        self.assertIn("http://localhost:5173/auth/callback", r)
+        self.assertIn("http://127.0.0.1:5173/auth/callback", r)
+        self.assertEqual(self.mod.desk_agent_web_origins(self.DESK, r), [self.DESK, "http://localhost:5173", "http://127.0.0.1:5173"])
+
+    def test_dev_flag_and_custom_list(self):
+        sys.argv = ["provision.py", "--dev"]
+        r = self.mod.desk_agent_redirects({"XT_DESK_AGENT_DEV_REDIRECTS": "http://localhost:3000/auth/callback"}, self.DESK)
+        self.assertEqual(r, [f"{self.DESK}/auth/callback", "http://localhost:3000/auth/callback"])
+
+
 if __name__ == "__main__":
     unittest.main()

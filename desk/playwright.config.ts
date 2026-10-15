@@ -9,6 +9,8 @@ const EVIL = 19503;
 const DESK_SEC = 19504;
 const COLLECT = 19505; // origin khác xT (kẻ tấn công)
 const OIDC = 19506; // Keycloak giả
+const PII_XT = 19507; // MCP giả + /pii/reveal giả của xT (e2e/mock-pii.mjs)
+const DESK_PII = 19508;
 const local = process.env.DESK_E2E_LOCAL_LLM === "1";
 
 function need(n: string): string {
@@ -43,6 +45,18 @@ const deskEnv: Record<string, string> = {
   DESK_PORT: String(DESK),
 };
 
+const piiEnv: Record<string, string> = {
+  ...common,
+  DESK_MCP_URL: `http://127.0.0.1:${PII_XT}/mcp`,
+  DESK_LLM_URL: `http://127.0.0.1:${LLM}/v1`,
+  DESK_LLM_MODEL: "mock-model",
+  DESK_LLM_REASONING_EFFORT: "none",
+  DESK_TOOL_PROFILE: "get_employee_pii",
+  DESK_SANDBOX_URL: `http://127.0.0.1:${DESK_PII}/sandbox.html`,
+  DESK_XT_ORIGIN: `http://127.0.0.1:${PII_XT}`,
+  DESK_PORT: String(DESK_PII),
+};
+
 const secEnv: Record<string, string> = {
   ...common,
   DESK_MCP_URL: `http://127.0.0.1:${EVIL}/mcp`,
@@ -66,6 +80,7 @@ export default defineConfig({
     : [
         { name: "desk", testMatch: /(desk|auth)\.spec\.ts/, use: { baseURL: `http://localhost:${DESK}` } },
         { name: "security", testMatch: /security\.spec\.ts/, use: { baseURL: `http://localhost:${DESK_SEC}` } },
+        { name: "pii", testMatch: /pii\.spec\.ts/, use: { baseURL: `http://localhost:${DESK_PII}` } },
       ],
   webServer: [
     { command: "node e2e/mock-oidc.mjs", env: { E2E_OIDC_PORT: String(OIDC) }, port: OIDC, reuseExistingServer: false },
@@ -82,6 +97,12 @@ export default defineConfig({
           },
           { command: "node e2e/mock-llm.mjs", env: { E2E_LLM_PORT: String(LLM), E2E_COLLECT_PORT: String(COLLECT) }, port: LLM, reuseExistingServer: false },
           { command: "npx vite build --outDir node_modules/.cache/dist-sec && npx vite preview --outDir node_modules/.cache/dist-sec", env: secEnv, port: DESK_SEC, timeout: 120_000, reuseExistingServer: false },
+        ]),
+    ...(local
+      ? []
+      : [
+          { command: "node e2e/mock-pii.mjs", env: { E2E_PII_PORT: String(PII_XT), E2E_PII_ALLOW_ORIGIN: `http://localhost:${DESK_PII}` }, port: PII_XT, reuseExistingServer: false },
+          { command: "npx vite build --outDir node_modules/.cache/dist-pii && npx vite preview --outDir node_modules/.cache/dist-pii", env: piiEnv, port: DESK_PII, timeout: 120_000, reuseExistingServer: false },
         ]),
     { command: "npx vite build && npx vite preview", env: deskEnv, port: DESK, timeout: 120_000, reuseExistingServer: false },
   ],

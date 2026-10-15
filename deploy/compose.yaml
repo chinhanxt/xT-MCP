@@ -171,9 +171,9 @@ services:
       XT_IDP_ADMIN_CLIENT_ID: ${XT_IDP_ADMIN_CLIENT_ID:-xt-client-registry}
       XT_IDP_ADMIN_CLIENT_SECRET: ${XT_IDP_ADMIN_CLIENT_SECRET:?chạy make env}
       XT_MCP_CONNECTOR_REDIRECT_HOSTS: ${XT_MCP_CONNECTOR_REDIRECT_HOSTS:-chatgpt.com,claude.ai,127.0.0.1}
-      # M6: chỉ client xác nhận là "human" (composition từ chối client khác); chat Desk là agent (XT_MCP_LOCAL_CLIENTS)
+      # M6: chỉ client xác nhận là "human"; chat Desk là agent tier masked (docs/decisions.md "Tier PII của Desk chat"); XT_MCP_LOCAL_CLIENTS chỉ dành cho client confidential phía server
       XT_MCP_HUMAN_CLIENTS: ${XT_CONFIRM_CLIENT_ID:-xt-desk-confirm}
-      XT_MCP_LOCAL_CLIENTS: ${XT_MCP_LOCAL_CLIENTS:-xt-desk-agent}
+      XT_MCP_LOCAL_CLIENTS: ${XT_MCP_LOCAL_CLIENTS:-}
       XT_MCP_REQUIRED_SCOPES: ${XT_MCP_REQUIRED_SCOPES:-mcp-xt}
       XT_MCP_SCOPES_SUPPORTED: ${XT_MCP_SCOPES_SUPPORTED:-mcp-xt openid profile email}
       XT_CONFIRM_CLIENT_ID: ${XT_CONFIRM_CLIENT_ID:-xt-desk-confirm}

@@ -43,6 +43,10 @@ export-realm: env
 pgrst-jwks: env   # tải + kiểm JWKS Keycloak cho PostgREST (fail-closed); xong thì: docker compose kill -s USR2 postgrest
 	python3 scripts/fetch_jwks.py
 
+.PHONY: pgrst-db
+pgrst-db:  # XT_DATA_SUPERUSER_URL tường minh; không ghi DSN/mật khẩu vào argv/log
+	uv run python scripts/configure_data.py
+
 provision-data: env   # cấp scope xt-data (optional) cho XT_DATA_CLIENTS; chạy sau provision-realm
 	python3 keycloak/provision_data.py
 

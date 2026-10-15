@@ -6,6 +6,8 @@ import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { createAppBridgeHandlers, createGlobalToolLimiter, createRateLimiter, sanitizeUiCsp, type UiCsp } from "./bridge";
 import { config } from "./config";
 import { confirmInfo } from "./confirm";
+import { PiiReveal } from "./PiiReveal";
+import { extractTokens } from "./pii";
 import type { McpTool, ToolResult } from "./types";
 
 export interface ToolEntry {
@@ -104,6 +106,7 @@ export function ToolItem(props: Props) {
   const { entry } = props;
   const [open, setOpen] = useState(false);
   const confirm = confirmInfo(entry.result, config.xtOrigin);
+  const piiTokens = entry.status === "ok" ? extractTokens(entry.result) : [];
   return (
     <div className="tool" data-testid="tool-item">
       <button className={`chip ${entry.status}`} onClick={() => setOpen(!open)} aria-expanded={open}>
@@ -115,6 +118,7 @@ export function ToolItem(props: Props) {
           {JSON.stringify({ arguments: entry.args, result: entry.result?.structuredContent ?? entry.result?.content }, null, 2)}
         </pre>
       )}
+      {piiTokens.length > 0 && <PiiReveal tokens={piiTokens} client={props.client} />}
       {confirm && (
         <div className="confirm-card" data-testid="confirm-card">
           <div>Cần người dùng xác nhận{confirm.summary ? `: ${confirm.summary}` : "."}</div>

@@ -48,6 +48,8 @@ Không route nào chèn `Authorization`/bearer tĩnh (mục LOW của `audit-des
 
 ## Realm `xt` (provision.py)
 
+- **Profile (16/10/2026, `decisions.md` "Tier PII của Desk chat").** Client public `xt-desk-agent` có redirect theo `XT_PROFILE`. Production (mặc định, để trống): chỉ `https://<XT_DOMAIN_DESK>/auth/callback`, **không** loopback, `webOrigins` chỉ origin Desk. Dev (`XT_PROFILE=dev` hoặc `provision.py --dev`): thêm `XT_DESK_AGENT_DEV_REDIRECTS` (mặc định `localhost:5173` và `127.0.0.1:5173`) và origin tương ứng. Giá trị khác `dev` (kể cả `devx`) coi là production. Test: `deploy/tests/offline` lớp `DeskAgentRedirects`. Chạy lại provision ở production sẽ gỡ loopback khỏi client đã có (upsert ghi đè `redirectUris`).
+
 - Organizations bật; mật khẩu tối thiểu 12 ký tự + hoa/thường/số, không trùng username/email, nhớ 3 mật khẩu gần nhất; `accessTokenLifespan` 300 s; refresh token xoay vòng; brute-force bật.
 - Role realm lấy từ `research/packs-draft/*/policies`: `employee, dept_head, director, chief_accountant, payment_accountant, hr, hr_pii, it_admin, admin, agent`.
 - Client scope `mcp-xt`: mapper audience `aud = https://<xt-mcp>/mcp`, mapper audience `xt-api-introspect` (bắt buộc giữ; nếu thiếu, introspection Keycloak 26 trả `active:false`, `identity.md`), mapper Organization. **Không** nằm trong default của realm; là *default optional* để connector xin `scope=mcp-xt`. `offline_access` bị gỡ khỏi optional mặc định.

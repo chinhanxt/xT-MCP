@@ -4,6 +4,7 @@
 """Realm-as-code cho Keycloak (Admin REST, stdlib, idempotent).
 
     python3 deploy/keycloak/provision.py            # tạo/cập nhật realm
+    XT_PROFILE=dev python3 deploy/keycloak/provision.py   # profile dev: thêm redirect loopback cho xt-desk-agent
     python3 deploy/keycloak/provision.py --export   # + xuất deploy/keycloak/realm-xt.json (đã bỏ secret)
 
 Cấu hình từ deploy/.env + môi trường. Bí mật còn trống được sinh vào deploy/.env (không commit).
@@ -101,6 +102,27 @@ class KC:
 
 def env_list(env: dict[str, str], key: str, default: str = "") -> list[str]:
     return [x.strip() for x in env.get(key, default).replace(" ", ",").split(",") if x.strip()]
+
+
+DEV_AGENT_REDIRECTS = "http://localhost:5173/auth/callback,http://127.0.0.1:5173/auth/callback"
+
+
+def is_dev_profile(env: dict[str, str]) -> bool:
+    """Chỉ `XT_PROFILE=dev` (hoặc cờ `--dev`) mới là dev. Mặc định/giá trị lạ = production (không loopback)."""
+    return env.get("XT_PROFILE", "").strip().lower() == "dev" or "--dev" in sys.argv[1:]
+
+
+def desk_agent_redirects(env: dict[str, str], desk: str) -> list[str]:
+    """Redirect URI của xt-desk-agent. Production: chỉ `{desk}/auth/callback`, KHÔNG loopback (docs/decisions.md, Tier PII).
+    Dev: thêm localhost/127.0.0.1 (XT_DESK_AGENT_DEV_REDIRECTS, mặc định vite :5173)."""
+    uris = [f"{desk}/auth/callback"]
+    if is_dev_profile(env):
+        uris += [u for u in env_list(env, "XT_DESK_AGENT_DEV_REDIRECTS", DEV_AGENT_REDIRECTS) if u not in uris]
+    return uris
+
+
+def desk_agent_web_origins(desk: str, redirects: list[str]) -> list[str]:
+    return [desk, *dict.fromkeys(u.rsplit("/auth/callback", 1)[0] for u in redirects if not u.startswith(desk + "/"))]
 
 
 def upsert_realm(kc: KC, realm: str, env: dict[str, str]) -> None:
@@ -364,14 +386,15 @@ def provision(kc: KC, env: dict[str, str]) -> None:
         "redirectUris": [f"{desk}/*"], "webOrigins": [desk], "attributes": pkce, "protocolMappers": [amr]})
     set_client_scope(kc, realm, human, mcp_sid, "default")   # token Desk mang aud MCP + scope mcp-xt
     # Chat của Desk là AGENT hành động thay người dùng: client riêng, public + PKCE S256, mcp-xt là scope OPTIONAL
-    # (Desk chủ động xin scope=mcp-xt). Server liệt kê client này trong XT_MCP_LOCAL_CLIENTS (tier local, PII full).
+    # (Desk chủ động xin scope=mcp-xt). Client public tối đa tier masked (docs/decisions.md, Tier PII); người xem giá trị thật qua /pii/reveal.
+    # Redirect: production KHÔNG có loopback; dev (XT_PROFILE=dev hoặc --dev) thêm localhost/127.0.0.1.
     agent_id = env.get("XT_DESK_AGENT_CLIENT_ID", "xt-desk-agent")
-    agent_redirects = [f"{desk}/auth/callback", *env_list(env, "XT_DESK_AGENT_DEV_REDIRECTS", "http://localhost:5173/auth/callback,http://127.0.0.1:5173/auth/callback")]
+    agent_redirects = desk_agent_redirects(env, desk)
     agent = upsert_client(kc, realm, {
         "clientId": agent_id, "name": "xT Desk agent (chat thay mặt người dùng)",
         "publicClient": True, "standardFlowEnabled": True, "directAccessGrantsEnabled": False, "serviceAccountsEnabled": False,
         "implicitFlowEnabled": False, "redirectUris": agent_redirects,
-        "webOrigins": [desk, *[u.rsplit("/auth/callback", 1)[0] for u in agent_redirects[1:]]],
+        "webOrigins": desk_agent_web_origins(desk, agent_redirects),
         "attributes": pkce, "protocolMappers": [amr]})
     set_client_scope(kc, realm, agent, mcp_sid, "optional")
     confirm = upsert_client(kc, realm, {
