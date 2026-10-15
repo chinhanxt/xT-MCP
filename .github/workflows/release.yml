@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 xT contributors
+
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+      - run: uv python install 3.12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Tag khớp version trong pyproject.toml
+        run: |
+          v="$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -n1)"
+          [ "${GITHUB_REF_NAME}" = "v${v}" ] || { echo "tag ${GITHUB_REF_NAME} khác v${v}" >&2; exit 1; }
+      - name: Kiểm tra (lint, ranh giới, REUSE, test)
+        run: |
+          uv sync --frozen
+          make lint boundaries reuse test
+          scripts/check_spdx.sh .
+      - name: Tarball + SBOM + SHA256SUMS
+        run: scripts/release.sh "${GITHUB_REF_NAME}"
+      - name: Tạo GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --title "xT ${GITHUB_REF_NAME}" \
+            --notes "Bản phát hành ${GITHUB_REF_NAME}. Xem CHANGELOG.md. Kiểm: sha256sum -c SHA256SUMS."

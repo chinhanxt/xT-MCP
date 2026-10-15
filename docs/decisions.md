@@ -1,4 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- SPDX-FileCopyrightText: 2026 xT contributors -->
 # Nhật ký quyết định
 
 Các quyết định thay chủ dự án do agent Opus 5.5 "decision" đưa ra trong chế độ tự vận hành. Mỗi mục ghi: ngày, câu hỏi, các phương án, lựa chọn, lý do.
@@ -7,106 +8,50 @@ Các quyết định thay chủ dự án do agent Opus 5.5 "decision" đưa ra t
 |---|---|---|---|
 | 16/10/2026 | Desk production gọi `/mcp` cùng origin (`xt.freepro.online/mcp`) nhưng APISIX đẩy host Desk sang nginx tĩnh (404). Sửa ở đâu? (a) đổi Desk gọi thẳng `https://xt-mcp.freepro.online/mcp` (cần CORS), (b) thêm route APISIX `/mcp` trên host Desk tới `xt-api:8000`, (c) nginx proxy trong ảnh Desk | **(b)**: thêm route `desk-mcp` (hosts Desk, uris `/mcp`, priority > desk-static) tới `xt-api:8000`, KHÔNG chèn bearer | Cùng origin nên không cần CORS và giữ nguyên token trong bộ nhớ; không đổi code Desk; MCP vẫn tự xác thực (gateway không xác thực, D12); `XT_MCP_ALLOWED_HOSTS` cần thêm host Desk. Đã áp dụng 16/10/2026 (`deploy/apisix/apisix.yaml.tmpl`, route `desk-mcp`, kèm `proxy-buffering` tắt, `limit-req`, timeout 3600 s; compose thêm host+origin Desk vào `XT_MCP_ALLOWED_HOSTS/ORIGINS`). Không thêm `/.well-known/*` trên host Desk: Desk dùng issuer/client cấu hình lúc build, PRM chỉ phục vụ connector ở host MCP. |
 | 16/10/2026 | Chạy E2E https trên APISIX http cục bộ: nới `KC_HOSTNAME`/cho http, hay giả lập? | Giả lập bằng Playwright route (https giữ nguyên) | Không đổi cấu hình production; kiểm đúng issuer/redirect thật. |
-| 16/10/2026 | PostgREST GET chạy trong transaction `READ ONLY`; pre-request có ghi ngữ cảnh vào `xt_meta.session_ctx` qua `xt.set_context` được không? | **Không.** Pre-request ghi ngữ cảnh vào GUC cục bộ transaction `xt.pgrst_ctx` qua overload mới `xt.set_context(jsonb)`; `xt.cur()` thành wrapper, bản audit đổi tên `xt.backend_cur()` giữ nguyên thân (PG-1, PG-6). *Bản đầu (`CREATE OR REPLACE xt.cur`, migration 0004) đã bị thay, xem dòng follow-up bên dưới.* | Đã chạy thật trên PG 16 cục bộ (`initdb` tạm, đã xóa): `INSERT` vào bảng unlogged qua hàm SECURITY DEFINER trong `BEGIN READ ONLY` → `cannot execute INSERT in a read-only transaction`; `CREATE TEMP TABLE` cũng bị chặn; chỉ `set_config(…, true)` chạy được. Các session khác giữ nguyên hành vi đã audit. |
+| 16/10/2026 | PostgREST GET chạy trong transaction `READ ONLY`; pre-request có ghi ngữ cảnh vào `xt_meta.session_ctx` qua `xt.set_context` được không? | **Không.** Pre-request ghi ngữ cảnh vào GUC cục bộ transaction `xt.pgrst_ctx` qua overload mới `xt.set_context(jsonb)`; `xt.cur()` thành wrapper, logic audit được giữ nguyên trong `xt.backend_cur()` (PG-1, PG-6). *Bản đầu (`CREATE OR REPLACE xt.cur`, migration 0004) đã bị thay, xem dòng follow-up bên dưới.* | Đã chạy thật trên PG 16 cục bộ (`initdb` tạm, đã xóa): `INSERT` vào bảng unlogged qua hàm SECURITY DEFINER trong `BEGIN READ ONLY` → `cannot execute INSERT in a read-only transaction`; `CREATE TEMP TABLE` cũng bị chặn; chỉ `set_config(…, true)` chạy được. Các session khác giữ nguyên hành vi đã audit. |
 | 16/10/2026 | Role PostgREST: tạo ở đâu, quyền gì? | `xt_authenticator` LOGIN NOINHERIT, chỉ là thành viên `xt_web` (`SET TRUE, INHERIT FALSE`); mật khẩu từ secret ngoài repo; tạo bằng bước superuser riêng (PG-2) | `xt_migrator` không có CREATEROLE. Không cấp `xt_app`/`xt_workflow`/`xt_api_owner` cho `xt_authenticator`/`xt_web` (SMT §5.2). Claim role trỏ tới role khác → SET ROLE thất bại. |
 | 16/10/2026 | `db-schemas` động: `ALTER ROLE … SET pgrst.db_schemas` (spike) hay `db-pre-config`? | `db-pre-config = xt.pgrst_config` (SECURITY DEFINER, suy ra từ `xt_meta.tenant` + schema thật), schema đầu là placeholder rỗng `xt_api_none` (PG-3) | Không giữ trạng thái thừa, migrator không cần quyền ALTER ROLE; registry rỗng vẫn khởi động được; thiếu `Accept-Profile` rơi vào schema rỗng và bị pre-request từ chối. |
 | 16/10/2026 | Hook sau khi tạo/xóa tenant, tạo/xóa model | `pg_notify('pgrst','reload config')` + `'reload schema'` **trong cùng transaction** của `provision_tenant`/`drop_tenant`; model đã có `reload schema` trong `PgMigrator.apply` (PG-4) | NOTIFY chỉ phát khi commit → rollback không gây tác dụng phụ; không có listener thì là no-op ⇒ không đổi hành vi đã audit. |
 | 16/10/2026 | DB đã bootstrap áp phần PostgREST thế nào? | **Không có migration 0004.** `sql/postgrest.sql` cộng thêm, idempotent; `bootstrap()` nạp kèm (`tenancy.bootstrap_sql()`); DB cũ và cả DB mới đều phải gọi `tenancy.install_postgrest_role(superuser, *, authenticator_password, issuer, clients)` (PG-5) | Migration chạy bằng `xt_migrator` không `CREATE ROLE` được; bắt `migrate` RAISE khi thiếu role làm hỏng fixture bootstrap → migrate hiện có. `install_postgrest_role` chạy lại `postgrest.sql` nên DB bootstrap trước đó vẫn nhận. |
-| 16/10/2026 (follow-up) | Bản đầu `CREATE OR REPLACE xt.cur` sửa thân hàm đã audit, trái yêu cầu tường minh của user. Thay bằng gì? | **Seam API, không sửa thân hàm audit:** `ALTER FUNCTION xt.cur() RENAME TO backend_cur` (có guard, một lần); `xt.cur()` mới là wrapper chỉ xử lý `session_user = 'xt_authenticator'`, mọi session khác ủy quyền nguyên vẹn cho `xt.backend_cur()`; `xt.set_context(8 tham số)` giữ nguyên; thêm overload `xt.set_context(jsonb)` chỉ cho authenticator, chỉ trong transaction READ ONLY, không lộ qua HTTP (PG-6) | Thân `backend_cur`/`set_context(8)` giữ nguyên byte, kiểm bằng `pg_proc.prosrc` (md5). Đã chạy thật trên PG 16 tạm: hàm SQL/plpgsql gọi `xt.cur()` theo tên chuyển sang wrapper ngay sau commit, kể cả session mở sẵn có plan cache; tham chiếu gắn OID (policy/view gọi thẳng `xt.cur()`) **đi theo** tên mới `backend_cur` ⇒ bắt buộc guard `pg_depend`. |
+| 16/10/2026 (follow-up) | Nối ngữ cảnh READ ONLY mà giữ logic RBAC đã audit thế nào? | Clone thân `xt.cur()` gốc sang hàm private `xt.backend_cur()`, thay `xt.cur()` bằng wrapper giữ nguyên OID/ACL; thêm overload private `xt.set_context(jsonb)` (PG-6) | Không rename nên dependency và quyền BI hiện có vẫn gắn đúng OID. Session ngoài PostgREST chỉ gọi lại logic gốc. Đã kiểm trên PG17 thật: source/OID/ACL, reinstall và BI có từ trước. |
 
-## Chi tiết PostgREST runtime (16/10/2026, agent decision)
+## Chi tiết PostgREST runtime (đã triển khai 16/10/2026)
 
-Phạm vi: Tầng 1 "Data" (`/data`, PostgREST chỉ đọc, `aud = xt-data`). Căn cứ: architecture-v2 §(c), SMT §5, `docs/identity.md`, `bootstrap.sql`, `tenancy.py`, `migrator.py`, `migrations.py`. Mọi mục dưới đây là **quyết định thiết kế, chưa triển khai, chưa có test HTTP** trừ khi ghi rõ "đã chạy thật".
+### PG-1. Ngữ cảnh READ ONLY
 
-### PG-1. Kênh ngữ cảnh cho PostgREST (nhánh GUC trong `xt.cur`)
+PostgREST chạy GET/HEAD trong transaction READ ONLY; hàm `xt.set_context` 8 tham số ghi bảng nên không dùng trực tiếp được. `xt.pgrst_pre()` là SECURITY DEFINER, thân chỉ dùng tên đủ schema. Nó đọc profile từ GUC `search_path` do PostgREST đặt (không dùng `current_schema()` vì quyền USAGE đổi khi vào SECURITY DEFINER), đọc GUC `role`, rồi gọi gate private `xt.pgrst_gate(text,text)` có `search_path = pg_catalog, pg_temp`.
 
-- **Sự thật đã chạy thật** (PG 16.x cục bộ, không Docker, thư mục tạm đã xóa): trong `BEGIN ISOLATION LEVEL READ COMMITTED READ ONLY`, hàm SECURITY DEFINER `INSERT … ON CONFLICT` vào bảng UNLOGGED báo `ERROR: cannot execute INSERT in a read-only transaction`; `CREATE TEMP TABLE` báo `cannot execute CREATE TABLE in a read-only transaction`; `pg_current_xact_id()` và `set_config('x','1',true)` chạy được. PostgREST chạy GET/HEAD trong transaction read-only, nên ghi chú cũ "pre-request gọi `xt.set_context`/ghi `session_ctx`" **không khả thi**. Chưa chạy lại trên PG 17 + PostgREST thật: test tích hợp phải xác nhận.
-- **Quyết định (bản chốt sau follow-up, tên theo SQL thật):** `xt.pgrst_pre()` (SECURITY INVOKER, EXECUTE chỉ `xt_web`) chỉ gọi `xt.pgrst_gate(current_schema(), current_user)` (SECURITY DEFINER, chủ `xt_migrator`, `SET search_path = pg_catalog, pg_temp`). Phải tách invoker/definer vì trong hàm SECURITY DEFINER có `SET search_path`, `current_schema()` là `pg_catalog`. Gate kiểm xong thì gọi `xt.set_context(jsonb)` với `{t, a, r, tm, d}` (tenant, actor, roles, teams hiện `[]`, departments); overload này đặt `set_config('xt.pgrst_ctx', …, true)`. `xt.cur()` là wrapper đọc GUC đó khi `session_user = 'xt_authenticator'`; mọi session khác (xt_app, BI login, xt_worker, xt_migrator) đi qua `xt.backend_cur()`, tức thân đã audit giữ nguyên byte. Chi tiết seam ở PG-6.
-- *Đã thay:* bản đầu `CREATE OR REPLACE xt.cur` (thêm nhánh 3 vào thân audit) và cách gate tự `set_config` trực tiếp. `postgrest.sql` hiện tại (lúc ghi mục này) vẫn còn `CREATE OR REPLACE xt.cur`; primary sẽ thay bằng seam PG-6 sau khi agent SQL xong. Ràng buộc PG-6 phải có trước khi coi là xong.
-- **Pre-request kiểm theo thứ tự, lỗi nào cũng `RAISE … USING ERRCODE = '42501'`, thông điệp cố định, không lộ giá trị claim:**
-  1. `current_user = 'xt_web'`.
-  2. `request.jwt.claims` có; `typ = 'Bearer'`; `sub` khác rỗng; `aud` (chuỗi hoặc mảng) chứa `xt-data` (lặp lại `jwt-aud` để phòng cấu hình sai); `iss` = `xt_meta.platform.value` với key `pgrst_issuer` (thiếu dòng → từ chối, fail-closed). PostgREST **không** kiểm `iss`, nên bước này bắt buộc.
-  3. `azp` thuộc `xt_meta.pgrst_client(client_id)` (allowlist, ghi bằng `install_postgrest_role(clients=…)`, giống N2/D9). Không có dòng → từ chối.
-  4. Claim Organization (`organization`, dạng list alias hoặc object `{alias:{…}}`, cùng cách đọc với `access_token._organizations`) có **đúng một** alias; tra `xt_meta.tenant_profile.alias` → `(seq, id)`.
-  5. Profile: `request.method` ∈ {GET, HEAD}; `request.headers->>'accept-profile'` **bắt buộc có** và bằng `'api_t' || seq`; `current_schema()` cũng phải bằng giá trị đó (chặn cả trường hợp không gửi header). Method khác → từ chối (APISIX cũng chỉ cho GET/HEAD).
-  6. Actor: `xt_meta.person` với `tenant_id = id`, `subject = sub`, `active` → `actor = person.id`, `roles = person.roles` (mỗi role khớp `^[a-z][a-z0-9_]{0,62}$` như `set_context`), `departments = ARRAY[unit]` nếu `unit` khác NULL. Không có person → từ chối. Token client credentials của nhà tích hợp phải có person tương ứng (subject = `sub` service account), vai trò do xT cấp, không lấy từ token.
-- **Rủi ro chấp nhận (ghi cho review):** ai có mật khẩu `xt_authenticator` và kết nối SQL trực tiếp thì đặt được `request.jwt.claims`/`xt.pgrst_ctx` và đọc view `api_t*` của mọi tenant (field sensitive vẫn không có trong view). Đây là ranh giới tin cậy cố hữu của PostgREST; HMAC trên GUC không giải được vì kẻ tấn công gọi lại chính `xt.pgrst_pre`. Giảm thiểu: mật khẩu ở secret ngoài repo, `pg_hba` chỉ cho IP/container PostgREST, `CONNECTION LIMIT`, không cấp gì khác cho role này.
-- **Lý do không chọn phương án khác:** (a) ghi `session_ctx` — đã chứng minh lỗi read-only; (b) mỗi tenant một PostgREST với login gắn qua `login_tenant` — 200 tiến trình, trái D6; (c) để `xt.cur` đọc thẳng `request.jwt.claims` — phải tra tổ chức trong hàm STABLE gọi theo từng dòng, chậm và không có điểm chặn profile.
+Gate kiểm session authenticator/role xt_web, token Bearer, sub, aud xt-data, exp, issuer đã cấu hình, allowlist azp, đúng một organization alias, tenant đã đăng ký, profile và method. Actor/roles/phòng ban lấy từ person active của xT; không lấy role nghiệp vụ từ JWT. Gate gọi overload private `xt.set_context(jsonb)` để đặt GUC local transaction. Không expose RPC.
 
-### PG-2. Role và quyền
+### PG-2. Role và danh tính
 
-- `CREATE ROLE xt_authenticator LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION CONNECTION LIMIT 20`; `GRANT xt_web TO xt_authenticator WITH INHERIT FALSE, SET TRUE`; `GRANT CONNECT ON DATABASE … TO xt_authenticator`; `ALTER ROLE xt_authenticator PASSWORD <secret>` (giá trị từ `~/.config/xt/` hoặc Compose secret, truyền qua `sql.Literal` như `bootstrap()`, không log).
-- Bất biến kiểm bằng test: `pg_has_role('xt_authenticator', r, 'MEMBER')` chỉ đúng với `xt_web`; `xt_web` không là thành viên role nào; không role nào ngoài code xT là thành viên `xt_app`.
-- PostgREST: `jwt-role-claim-key = .data_role` (tên chốt, đã thay `."xt_pgrst_role"` ở bản đầu). `deploy/keycloak/provision_data.py` tạo client scope `xt-data` với audience mapper `included.custom.audience = xt-data`, hardcoded-claim mapper `data_role = xt_web`, mapper `organization`; scope chỉ gán cho client có trong allowlist `XT_DATA_CLIENTS`, không bao giờ là scope mặc định của realm, không gán cho client MCP/DCR. Danh sách `azp` trong DB (`xt_meta.pgrst_client`) do `install_postgrest_role(clients=…)` ghi và phải khớp `XT_DATA_CLIENTS`. **Không đặt `db-anon-role`** (không token → 401). Claim role bị sửa sẽ làm hỏng chữ ký; claim role hợp lệ nhưng khác `xt_web` → SET ROLE thất bại vì không là thành viên.
-- Hàm: không có hàm nào trong `api_t*`/`xt_api_none` ⇒ không có RPC (gate còn chặn `/rpc/*` bằng `rpc_disabled`). EXECUTE: `xt.pgrst_pre` và `xt.pgrst_gate(text,text)` cho `xt_web`; `xt.pgrst_config` cho `xt_authenticator`; `xt.set_context(jsonb)` và `xt.backend_cur()` **chỉ chủ sở hữu `xt_migrator`**, không cấp cho ai. Tất cả `REVOKE ALL … FROM PUBLIC`. `db-extra-search-path = ''`.
+`xt_authenticator` LOGIN NOINHERIT, NOBYPASSRLS, chỉ được SET ROLE xt_web; không thuộc xt_app/xt_workflow/xt_api_owner. `xt_web` chỉ SELECT view, không được EXECUTE setter (cả hai chữ ký), backend_cur hay gate. Chỉ pre-request được gọi bởi xt_web; pre-config được gọi bởi authenticator. Mọi hàm mới thu quyền PUBLIC.
 
-### PG-3. `db-schemas` động
+Keycloak scope optional `xt-data`: aud xt-data, claim hằng `data_role=xt_web`, organization. Không gán realm-default hoặc DCR; `XT_DATA_CLIENTS` phải khớp allowlist DB. PostgREST dùng `.data_role`, không có anon-role. JWKS chỉ gồm khóa công khai của realm, nạp qua file; xoay khóa phải cập nhật file và reload.
 
-- `db-config = true`, `db-pre-config = xt.pgrst_config`. Hàm (SECURITY DEFINER, chủ `xt_migrator`) đặt `set_config('pgrst.db_schemas', 'xt_api_none' || coalesce(',' || string_agg('api_t' || seq ORDER BY seq), ''), true)` chỉ với tenant có schema `api_t<seq>` thật trong `pg_namespace`.
-- `xt_api_none`: schema rỗng do `postgrest.sql` tạo, chủ `xt_api_owner`, `REVOKE ALL FROM PUBLIC`, `GRANT USAGE TO xt_web`. Là profile mặc định nên request thiếu `Accept-Profile` không đọc được gì và bị pre-request từ chối.
-- Env `PGRST_DB_SCHEMAS=xt_api_none` làm giá trị nền. Thứ tự ưu tiên env ↔ in-db config của bản PostgREST được pin **[cần kiểm chứng bằng test reload]**.
-- Trần ~200 tenant/CSDL (SMT §3) ⇒ chuỗi < 2 KB.
+Ranh giới tin cậy: người có mật khẩu authenticator và kết nối SQL trực tiếp có thể giả ngữ cảnh. Giới hạn pg_hba/mạng vào PostgREST, giữ secret ngoài repo; không đưa credentials superuser/runtime khác vào service này. GUC local không phải chữ ký xác thực và không dùng để chống người đã chiếm credentials authenticator.
 
-### PG-4. Hook (root triển khai, không đổi hành vi)
+### PG-3. Schema động
 
-- Helper duy nhất: `xt.adapters.db.postgrest.notify_postgrest(conn)` gửi **cả hai** `pg_notify('pgrst', 'reload config')` rồi `pg_notify('pgrst', 'reload schema')` trong transaction của caller (chỉ phát khi commit, rollback thì không phát). Không có tham số `config`, không đặt trong `tenancy.py` (bản đầu đề xuất `tenancy.notify_postgrest(conn, *, config)` đã bỏ).
-- Nơi gọi: cuối `provision_tenant`, cuối `drop_tenant` (`tenancy.py`, trong `migrator.transaction()`), `PgMigrator.apply` khi áp model (`migrator.py`, thay chỗ trước đây chỉ `reload schema`). `install_postgrest_role` gửi reload config sau khi đổi issuer/allowlist.
-- Reload config ở mọi nơi (kể cả lúc áp model) là có chủ ý: rẻ, idempotent, và tránh lệch danh sách schema khi tạo tenant đồng thời. Danh sách schema không lưu phía Python mà `xt.pgrst_config()` đọc lại từ DB.
-- Root vẫn phải xác nhận không có bước tạo/xóa view nào chạy ở pha `post/concurrent` của migrator. Nếu có, bước đó phải gọi `notify_postgrest` sau commit.
+`xt.pgrst_config()` suy danh sách từ tenant đã đăng ký và schema api_t<seq> thật, thuộc xt_api_owner. Schema rỗng xt_api_none luôn đứng đầu. Env PGRST_DB_SCHEMAS chỉ là nền; pre-config và reload đã được kiểm qua PostgREST thật khi thêm/xóa tenant/model lúc server đang chạy.
 
-### PG-5. Áp lên DB (đã chốt theo SQL thật, không có migration 0004)
+### PG-4. Reload theo commit
 
-1. `sql/postgrest.sql`: cộng thêm, idempotent, chạy bằng superuser. `tenancy.bootstrap_sql()` = `bootstrap.sql` + `postgrest.sql` trong cùng transaction của `bootstrap()`.
-2. `tenancy.install_postgrest_role(superuser, *, authenticator_password: str, issuer: str, clients: Sequence[str])`: chạy lại `postgrest.sql`, `ALTER ROLE xt_authenticator PASSWORD` (giá trị qua `sql.Literal`, không log), ghi `xt_meta.platform['pgrst_issuer']`, thay toàn bộ `xt_meta.pgrst_client`, gửi NOTIFY reload. **Bắt buộc gọi** cả sau bootstrap mới; thiếu issuer hoặc allowlist ⇒ mọi request 403 (fail-closed).
-3. Thứ tự: `bootstrap` → `install_postgrest_role` → `migrate` → `provision_tenant`. Tenant có từ trước vẫn dùng được vì danh sách schema suy ra động.
-4. Không viết vào `sql/migrations/` (role cần superuser). Không tuyên bố "migration 0004" ở tài liệu, CHANGELOG hay release note.
-5. Stack đang chạy (`xt` full/minimal, PG `xt-audit-queue` của session khác) **không** được áp `postgrest.sql`. Nếu DB dev nào đã nhận bản interim `CREATE OR REPLACE xt.cur`, guard PG-6 sẽ RAISE: bootstrap lại DB đó, không tự sửa.
+`xt.adapters.db.postgrest.notify_postgrest(conn)` gửi reload config rồi reload schema trong transaction DDL. Gọi từ provision/drop tenant, PgMigrator.apply và install_postgrest_role. Rollback không phát thông báo; test LISTEN/NOTIFY thật đã kiểm. View được compiler tạo/xóa ở pha tx của migration.
 
-### PG-6. Seam API: wrapper `xt.cur` + overload `xt.set_context(jsonb)` (follow-up 16/10/2026)
+### PG-5. Cài mới và nâng cấp
 
-Mục tiêu: không sửa thân hàm đã audit; điểm nối là API mới, có tên, kiểm được bằng `pg_proc`.
+`postgrest.sql` là phần cộng thêm, idempotent, chạy bằng superuser; bootstrap_sql nạp cùng bootstrap gốc. DB đã bootstrap phải gọi `install_postgrest_role(superuser, authenticator_password, issuer, clients)`; không có migration 0004. Dùng `make -C deploy pgrst-db` với XT_DATA_SUPERUSER_URL tường minh, cùng issuer/client như Keycloak. API cài schema nền cho các migration audit cũ: PG-7.
 
-**Cấu trúc (mọi hàm chủ `xt_migrator`, `SECURITY DEFINER`, `SET search_path = pg_catalog, pg_temp`, tên đủ schema):**
-- `xt.backend_cur()` là hàm `xt.cur()` gốc trong `bootstrap.sql`, chỉ đổi tên bằng `ALTER FUNCTION … RENAME`. Giữ OID, thân, `STABLE`, OUT args, owner, `proconfig`. Không bao giờ `CREATE OR REPLACE` lên nó.
-- `xt.cur()` mới (cùng 5 OUT: `tenant_id uuid, actor_id uuid, roles text[], team_ids uuid[], department_ids uuid[]`, `LANGUAGE sql STABLE`):
-  `SELECT b.* FROM xt.backend_cur() b WHERE session_user <> 'xt_authenticator' UNION ALL SELECT <giải GUC xt.pgrst_ctx> WHERE session_user = 'xt_authenticator' AND g IS NOT NULL LIMIT 1`.
-  Session authenticator **không bao giờ** đi vào `backend_cur` (`login_tenant`/`session_ctx` bị bỏ qua); session khác không bao giờ đọc GUC. Không có ngữ cảnh ⇒ một dòng NULL, giống bản gốc ⇒ policy false.
-- `xt.set_context(ctx jsonb) RETURNS void`, `LANGUAGE plpgsql VOLATILE`. Thứ tự kiểm: `session_user = 'xt_authenticator'` và `current_setting('transaction_read_only') = 'on'`, sai thì 42501. `ctx` phải là object đúng 5 khóa `t, a, r, tm, d`; `t`, `a` là uuid khác NULL; `r` là mảng chuỗi khớp `^[a-z][a-z0-9_]{0,62}$` (cùng quy tắc bản 8 tham số); `tm`, `d` là mảng uuid. Sai thì 22023. Hàm chỉ gọi `set_config('xt.pgrst_ctx', <jsonb đã chuẩn hóa>, true)`: không INSERT, không đặt `xt.tenant_id`, không đụng `session_ctx`. `xt.set_context(uuid,uuid,text[],uuid[],uuid[],uuid,text,text)` giữ nguyên thân và ACL (chỉ `xt_app`). Overload không làm nhập nhằng caller hiện có: Python và queue gọi đủ 8 tham số, `queue/runtime.py` tra bằng `to_regprocedure` có chữ ký đầy đủ.
-- Không lộ qua HTTP: schema `xt` không nằm trong `db-schemas`, gate chặn `/rpc/*`, `xt_web` không có EXECUTE trên `set_context(jsonb)`/`backend_cur`. Gate gọi `set_context(jsonb)` với quyền chủ sở hữu.
+Không áp thay đổi vào stack của session khác. Cài lại giữ OID/ACL của cur và login BI đã có; mật khẩu lấy từ secret, không vào argv/log. Thiếu issuer/client hoặc person chưa đăng ký thì fail-closed.
 
-**Guard idempotent trong `postgrest.sql` (một transaction, superuser rồi `SET ROLE xt_migrator`):**
-| Trạng thái | Hành động |
-|---|---|
-| Có `xt.cur()`, chưa có `xt.backend_cur()` | Kiểm `md5(prosrc)` của `xt.cur()` = `348d4bd86ae7593f0082945074289ffa` (thân trong `bootstrap.sql` hiện tại) và `prosecdef`/`provolatile='s'`/`proconfig`/owner. Kiểm `pg_depend` không có dòng `refobjid = 'xt.cur()'::regprocedure` (policy, view, default, hàm `BEGIN ATOMIC`). Lệch thì RAISE. Ghi lại ACL gốc (`aclexplode(proacl)`), `RENAME TO backend_cur`, tạo wrapper |
-| Có cả hai | Kiểm `md5(prosrc)` của `backend_cur` như trên rồi `CREATE OR REPLACE` wrapper (giữ OID). Không đổi tên lần nữa |
-| Có `backend_cur`, thiếu `xt.cur` | Tạo wrapper (phục hồi) |
-| Không có cả hai / md5 lệch (vd DB đã nhận bản interim) | `RAISE EXCEPTION`, rollback, không tự sửa |
+### PG-6. Giữ nguyên logic RBAC đã audit
 
-**Quyền (đã kiểm thật trên PG 16):**
-- `CREATE FUNCTION` mặc định cho PUBLIC EXECUTE (`proacl` NULL), nên phải `REVOKE ALL ON FUNCTION xt.cur(), xt.set_context(jsonb) FROM PUBLIC` ngay sau khi tạo.
-- Chuyển ACL: wrapper nhận đúng mọi grantee của `xt.cur()` gốc, gồm `xt_app, xt_workflow, xt_audit_owner, xt_api_owner, xt_web` và **các login BI/`xt_job` đã được `provision_tenant` grant theo tên trước khi cài**. Grant gốc gắn OID nên sau rename nằm trên `backend_cur`. Sau đó `REVOKE` mọi grantee khỏi `backend_cur`, chỉ còn owner. Lý do: không ai gọi vòng qua seam, và login BI cũ không mất quyền. Grant mới theo tên (`tenancy.py` dòng `GRANT EXECUTE ON FUNCTION xt.cur()…`) tự rơi vào wrapper.
-- Wrapper SECURITY DEFINER gọi `backend_cur` bằng quyền owner nên không cần grant thêm. `session_user` không đổi khi vào SECURITY DEFINER (đã kiểm: nhánh authenticator chạy đúng).
+Không rename cur: clone định nghĩa gốc bằng pg_get_functiondef sang backend_cur (giữ nguyên prosrc/owner/STABLE/search_path), thu quyền PUBLIC. CREATE OR REPLACE cur chỉ thêm wrapper và giữ OID/ACL cũ. Mọi session ngoài xt_authenticator đi vào backend_cur, không đọc GUC data. Session authenticator chỉ dùng ctx local do gate kiểm.
 
-**Phụ thuộc và plan cache (đã kiểm thật trên PG 16, cluster tạm đã xóa):**
-- `xt.tenant()/actor()/has_role()/in_teams()/in_departments()` là hàm SQL thân văn bản, gọi `xt.cur()` theo tên ⇒ tự dùng wrapper, không có dòng `pg_depend`. Policy của model engine gọi các hàm này, không gọi thẳng `xt.cur()`. Trong `src/` không có tham chiếu gắn OID nào tới `xt.cur()`.
-- Tham chiếu gắn OID (policy/view gọi thẳng `xt.cur()`) sau rename thành `xt.backend_cur()` và bỏ qua wrapper (đã kiểm: `pg_get_viewdef` hiện `xt.backend_cur()`). Sau khi revoke thì caller bị `permission denied`. Vì vậy guard `pg_depend` là bắt buộc, và code mới không được tạo view/policy/`BEGIN ATOMIC` gọi thẳng `xt.cur()`.
-- Plan cache: session mở sẵn trước khi cài, có plan plpgsql và hàm SQL đã cache, gọi lại sau commit ra kết quả của hàm mới (invalidation `pg_proc`). Kể cả khi plan cũ còn sót, nó trỏ `backend_cur`, cho kết quả y hệt với mọi session không phải authenticator; với authenticator thì ra NULL, tức fail-closed, không rò. Khuyến nghị vận hành: restart PostgREST sau lần cài đầu. Chưa kiểm trên PG 17 (image deploy): test tích hợp phải chạy.
-- Chi phí: mỗi lần policy gọi `xt.cur()` thêm một lớp SECURITY DEFINER + `SET search_path`, tức 2 lần đổi ngữ cảnh/hàng thay vì 1 (không inline được, bản gốc cũng không). Không tối ưu sớm; test đo trên ~10k dòng, ghi số vào `docs/headless-data.md`.
+Cài lại dưới advisory lock: cur còn là core (kể cả core vừa nâng cấp) thì clone core hiện tại; đã là wrapper thì giữ backend; wrapper mất backend thì RAISE thay vì clone đệ quy. Hàm 8 tham số không đổi; overload jsonb là API mới private. Không cấp xid cho GET chỉ để giữ ngữ cảnh: transaction-local GUC tự hết hạn. Không thêm subtransaction vào nhánh backend; bắt lỗi JSON chỉ nằm trong nhánh data.
 
-**Regression bắt buộc (chưa có kết quả, primary viết sau khi SQL agent xong):**
-1. Nguồn `pg_proc`: `prosrc` của `xt.backend_cur()` bằng **đúng byte** thân `xt.cur` tách từ `bootstrap.sql` lúc chạy test. Test còn assert hằng md5 trong `postgrest.sql` khớp với file, để bootstrap.sql đổi thì test đỏ. `prosecdef`, `provolatile`, `proconfig`, owner, kiểu/tên OUT khớp DB chỉ chạy `bootstrap.sql`. `xt.set_context(8)`: `md5(prosrc) = e4e6aa663b5afe77c22606203b6bb05b`, ACL chỉ `xt_app`.
-2. Hành vi y hệt: `xt_app` sau `set_context(8)`, login BI (`login_tenant`), `xt_migrator` không ngữ cảnh, worker queue (AUD-13): `xt.cur()` = `xt.backend_cur()` (gọi bằng owner) theo từng cột. Toàn bộ suite model/queue audit hiện có xanh.
-3. Idempotent: cài 2 lần ⇒ OID `xt.cur`/`backend_cur` không đổi, `prosrc` không đổi. DB đã có view gọi thẳng `xt.cur()` ⇒ cài RAISE, rollback, `xt.cur` còn nguyên. DB có `xt.cur` bị sửa thân ⇒ RAISE.
-4. ACL: PUBLIC không có EXECUTE trên `xt.cur`, `backend_cur`, `set_context(jsonb)`. `backend_cur` chỉ còn owner. Login BI provision **trước** khi cài vẫn đọc được view tenant mình sau khi cài.
-5. `set_context(jsonb)`: gọi từ `xt_app`/`xt_web` ⇒ permission denied. Gọi bằng owner trong transaction READ WRITE hoặc `session_user` khác ⇒ 42501. JSON sai khóa/uuid/role ⇒ 22023. HTTP `/rpc/set_context` ⇒ 403/404.
-6. Session mở trước khi cài (xt_app + xt_authenticator) chạy đúng sau khi cài. Hai token khác tenant xen kẽ trên pool PostgREST 1 connection: không rò ngữ cảnh.
-
-**Rủi ro còn lại (chấp nhận, như PG-1):** người có mật khẩu `xt_authenticator` và kết nối SQL trực tiếp có thể tự đặt `request.jwt.claims` rồi gọi gate (gate chạy được trong `BEGIN READ ONLY`) và đọc view của tenant bất kỳ. Ký HMAC lên GUC không chặn được vì kẻ đó gọi lại chính gate. Giảm thiểu: secret ngoài repo, `pg_hba` chỉ cho container PostgREST, `CONNECTION LIMIT 20`, role không có quyền nào khác, và mọi ngữ cảnh chỉ đọc (READ ONLY bắt buộc).
-
-### Học từ nguồn tham khảo
-- REA (`AGENTS.md`/`CONTRIBUTING.md`): nguyên tắc tích hợp fail-closed, lỗi mang lý do ổn định, che credential khi ghi log → áp vào pre-request (lỗi 42501 cố định, không lộ claim) và vào hàm cài role (không log mật khẩu).
-- sklite: bản giải nén `/tmp/sklite_src` không còn trên máy lúc ra quyết định; không đọc, không chép (repo không có LICENSE).
-- Follow-up PG-6: không cần tra thêm REA/sklite. Seam là quyết định riêng về catalog PostgreSQL, đã kiểm thật trên PG 16 tạm.
+Đã kiểm PostgreSQL17 + PostgREST16.4: 28 integration test, bao gồm nâng DB cũ/BI có từ trước, source/OID/ACL, reinstall, thiếu backend, GUC spoof, READ ONLY GET/HEAD, pool một connection, metadata model đổi động. Nguồn mẫu: REA (chặn theo phạm vi/qualified boundary), sklite (phân biệt danh tính upstream/tenant; chỉ học pattern từ zip, không chép code vì không có LICENSE).
 
 ## Vai trò `xt_migrator` với audit (16/10/2026, chủ dự án – Opus 5.5)
 
@@ -133,3 +78,16 @@ Mục tiêu: không sửa thân hàm đã audit; điểm nối là API mới, c�
   4. Realm production bỏ redirect loopback; loopback chỉ có trong profile dev.
   5. Chính sách tenant `local_only` luôn được tôn trọng.
 - **Lý do:** đặt quyền theo thứ server kiểm chứng được (client confidential), không theo thứ client tự khai. Cảnh demo "lương thật chỉ hiện trong Desk" vẫn giữ nguyên, nhưng giá trị thật đi qua kênh dành cho người thay vì qua LLM.
+
+### PG-7 — cài đặt quản trị schema nền (16/10/2026)
+
+Sau phản biện bằng Codex gpt-6-astra: dùng API cộng thêm `install_data_prerequisites(superuser)` cho giai đoạn cài `/data`. Quyền EXECUTE trigger chỉ tồn tại trong transaction quản trị (cấp + thu hồi trước commit); không sửa thân migration/audit, không mở quyền runtime. Lý do chọn: các migration cũ cần quyền để tạo trigger trong khi bootstrap audit mới đã thu quyền đó. Giữ nguyên ACL/ownership ở trạng thái đã commit và kiểm lại trong integration. Đây không phải cách sửa lỗi tên/hành vi trigger metadata của các module khác; không tuyên bố workflow e2e xanh từ test data. Chi tiết và giới hạn: `docs/integration-notes.md`, mục API cài schema nền cho data.
+
+## Đề thi OLP2026 không phát hành (16/10/2026, chủ dự án – Opus 5.5)
+
+- **Câu hỏi:** `research/de_thi_OLP2026.pdf` và `.txt` có vào tarball phát hành và repo công khai không? (PoF I.5: không phát hành kèm tài liệu của bên khác; giấy phép của đề không rõ.)
+- **Quyết định:** **Loại cả hai tệp** khỏi `xt-<version>.tar.gz` và khỏi repo công khai. Giữ bản local để đối chiếu. Phần còn lại của `research/` (tài liệu do đội viết) vẫn vào tarball.
+- **Cách thực hiện:** `scripts/release.sh` loại hai tệp bằng pathspec `:(exclude)` của `git archive`; `.gitattributes` có `export-ignore` (cho cả tarball tự sinh của GitHub). Checklist `research/olp-checklist.md` trích dẫn đề bằng số mục, không chép nguyên văn.
+- **Còn lại trước khi push công khai:** hai tệp hiện đã nằm trong lịch sử git cục bộ. Trước lần push đầu tiên phải gỡ khỏi chỉ mục (`git rm --cached`) và thêm vào `.gitignore`, hoặc viết lại lịch sử để chúng không có trong repo công khai. Chủ dự án thực hiện khi commit; chưa làm ở đây vì chưa commit.
+- **Lý do:** đề thuộc VFOSSA, không có giấy phép phân phối lại; phát hành sẽ vi phạm chính tiêu chí PoF về gói/tài liệu đính kèm.
+

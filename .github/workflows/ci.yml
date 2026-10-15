@@ -20,5 +20,25 @@ jobs:
         run: uv run lint-imports
       - name: REUSE
         run: uv run reuse lint
+      - name: SPDX header
+        run: scripts/check_spdx.sh .
       - name: Tests
         run: uv run pytest
+
+  desk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desk/package-lock.json
+      - name: Setup (npm ci + Chromium headless)
+        run: |
+          cd desk && npm ci && npx playwright install --with-deps chromium
+      - name: Desk unit + e2e (LLM giả, không cần GPU)
+        run: cd desk && npm test && npm run e2e
+      - name: Desk build
+        run: make desk-build
