@@ -5,36 +5,37 @@
   "title": "Vòng đời nhân sự liên phòng ban: tiếp nhận và nghỉ việc",
   "tenant_demo": "binhminh",
   "depends_on": [],
-  "models": ["phong_ban", "nhan_vien", "nhan_vien_pii", "ho_so_vong_doi", "viec_vong_doi", "tai_san_cap", "cap_quyen", "quyet_toan_nghi_viec"],
-  "processes": ["nv_onboarding", "nv_offboarding"],
+  "models": ["department", "employee", "employee_pii", "lifecycle_case", "lifecycle_task", "asset_issue", "access_grant", "offboarding_settlement"],
+  "processes": ["employee_onboarding", "employee_offboarding"],
   "policies": ["iam"],
   "roles": {
-    "nhan_su": "HR: hồ sơ, xác nhận ngày nghỉ, đóng hồ sơ",
-    "hr_pii": "Chỉ người này đọc/sửa CCCD, SĐT, STK, lương (model nhan_vien_pii tách riêng)",
+    "hr": "HR: hồ sơ, xác nhận ngày nghỉ, đóng hồ sơ",
+    "hr_pii": "Chỉ người này đọc/sửa CCCD, SĐT, STK, lương (model employee_pii tách riêng)",
     "it_admin": "Cấp và thu hồi tài khoản, thiết bị",
-    "ke_toan_thanh_toan": "Mã lương, quyết toán nghỉ việc",
-    "ke_toan_truong": "Xử lý khoản còn nợ hoặc tài sản chưa trả",
-    "truong_bo_phan": "Quản lý trực tiếp: kế hoạch 30-60-90, bàn giao",
-    "giam_doc": "Nhận leo thang",
-    "nhan_vien": "Đọc hồ sơ của chính mình",
+    "payment_accountant": "Mã lương, quyết toán nghỉ việc",
+    "chief_accountant": "Xử lý khoản còn nợ hoặc tài sản chưa trả",
+    "dept_head": "Quản lý trực tiếp: kế hoạch 30-60-90, bàn giao",
+    "director": "Nhận leo thang",
+    "employee": "Đọc hồ sơ của chính mình",
     "xt_workflow": "Danh tính dịch vụ ghi hồ sơ vòng đời, checklist, kích hoạt, đóng hồ sơ",
-    "agent": "Danh tính agent (L0-L1); bị chặn hoàn toàn với PII"
+    "agent": "Danh tính agent (L0-L1); đọc PII qua làn PII của contract (cloud: masked, local: full), không bị Deny riêng"
   },
   "step_actions": {"*": "record.approve"},
-  "iam_resource_mapping": {"owner": "nhân viên đang vào/ra (user_id)", "creator": "ho_so_vong_doi.nguoi_khoi_tao", "department": "phòng của nhân viên đó"},
+  "pii_lane": {"llm_egress": "masked", "employee_pii": {"national_id": "sensitive", "phone": "pii", "bank_account": "sensitive", "base_salary": "sensitive"}, "_note": "Đề xuất: nhãn pii/sensitive theo tool-contracts-v1.md §3.8; engine spike chưa có nhãn này (G-M2) nên tạm khai ở manifest."},
+  "iam_resource_mapping": {"owner": "nhân viên đang vào/ra (user_id)", "creator": "lifecycle_case.initiated_by", "department": "phòng của nhân viên đó"},
   "allowed_ops": {
-    "tao_viec_vong_doi": {"params": ["ho_so_id", "loai"], "returns": {"so_viec": "số mục checklist sinh ra"}},
-    "kich_hoat_nhan_vien": {"params": ["nhan_vien_id"], "returns": {"trang_thai": "thu_viec"}},
-    "kiem_tra_tai_san": {"params": ["nhan_vien_id"], "returns": {"chua_tra": "số tài sản chưa thu hồi", "con_quyen": "số quyền chưa thu hồi"}},
-    "kiem_tra_cong_no": {"params": ["requester"], "returns": {"qua_han": "số khoản tạm ứng quá hạn"}},
-    "dong_ho_so_vong_doi": {"params": ["ho_so_id"], "returns": {"closed": "ho_so_id"}, "_guard": "phải raise nếu còn tài sản/quyền chưa thu hồi"}
+    "create_lifecycle_tasks": {"params": ["case_id", "kind"], "returns": {"task_count": "số mục checklist sinh ra"}},
+    "activate_employee": {"params": ["employee_id"], "returns": {"state": "probation"}},
+    "check_unreturned_assets": {"params": ["employee_id"], "returns": {"unreturned": "số tài sản chưa thu hồi", "active_grants": "số quyền chưa thu hồi"}},
+    "check_overdue_advances": {"params": ["requester"], "returns": {"overdue": "số khoản tạm ứng quá hạn"}},
+    "close_lifecycle_case": {"params": ["case_id"], "returns": {"closed": "case_id"}, "_guard": "phải raise nếu còn tài sản/quyền chưa thu hồi"}
   },
   "process_inputs": {
-    "nv_onboarding": ["ho_so_id", "nhan_vien_id"],
-    "nv_offboarding": ["ho_so_id", "nhan_vien_id", "nhan_vien_user"]
+    "employee_onboarding": ["case_id", "employee_id"],
+    "employee_offboarding": ["case_id", "employee_id", "employee_user"]
   },
   "autonomy": {
-    "L0": ["đọc danh bạ/ sơ đồ tổ chức (không PII)", "liệt kê việc, tài sản, quyền người nghỉ đang nắm"],
+    "L0": ["đọc danh bạ/ sơ đồ tổ chức; đọc PII theo làn PII (masked với client cloud)", "liệt kê việc, tài sản, quyền người nghỉ đang nắm"],
     "L1": ["soạn nháp hồ sơ vòng đời và đề xuất người nhận bàn giao", "nhắc bước đang trễ SLA"],
     "L2": [],
     "L3": []

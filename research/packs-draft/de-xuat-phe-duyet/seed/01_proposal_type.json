@@ -1,0 +1,33 @@
+{
+  "model": "proposal_type",
+  "records": [
+    {
+      "_key": "advance_request",
+      "code": "advance_request",
+      "name": "Tạm ứng",
+      "process_id": "proposal_approval",
+      "form_template": "Giấy đề nghị tạm ứng (tham khảo mẫu 03-TT, TT 99/2025/TT-BTC)",
+      "limit_amount": 30000000,
+      "sla_hours": 24,
+      "active": true
+    },
+    {
+      "_key": "payment_request",
+      "code": "payment_request",
+      "name": "Thanh toán",
+      "process_id": "proposal_approval",
+      "form_template": "Giấy đề nghị thanh toán (tham khảo mẫu 05-TT, TT 99/2025/TT-BTC)",
+      "sla_hours": 24,
+      "active": true
+    },
+    {
+      "_key": "advance_settlement",
+      "code": "advance_settlement",
+      "name": "Hoàn ứng",
+      "process_id": "proposal_approval",
+      "form_template": "Giấy thanh toán tiền tạm ứng (tham khảo mẫu 04-TT, TT 99/2025/TT-BTC)",
+      "sla_hours": 24,
+      "active": true
+    }
+  ]
+}

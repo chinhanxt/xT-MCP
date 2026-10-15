@@ -1,0 +1,81 @@
+{
+  "id": "tsk_item",
+  "name": "task_item",
+  "label": "Mục checklist công việc",
+  "title_field": "content",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "task",
+      "type": "ref",
+      "label": "Công việc",
+      "required": true,
+      "ref": "task"
+    },
+    {
+      "id": "f2",
+      "name": "seq",
+      "type": "number",
+      "label": "Thứ tự",
+      "required": true,
+      "min": 1
+    },
+    {
+      "id": "f3",
+      "name": "content",
+      "type": "text",
+      "label": "Nội dung",
+      "required": true,
+      "max": 500
+    },
+    {
+      "id": "f4",
+      "name": "done",
+      "type": "bool",
+      "label": "Đã xong",
+      "required": true,
+      "default": false
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "task",
+        "seq"
+      ]
+    }
+  ],
+  "rules": [],
+  "permissions": {
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "dept_head": {
+      "actions": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ],
+      "scope": "department"
+    },
+    "director": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

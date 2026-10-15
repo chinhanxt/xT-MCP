@@ -1,0 +1,40 @@
+{
+  "model": "department",
+  "records": [
+    {
+      "_key": "BGD",
+      "code": "BGD",
+      "name": "Ban Giám đốc",
+      "head": "@user:NV-0001",
+      "active": true
+    },
+    {
+      "_key": "KD",
+      "code": "KD",
+      "name": "Kinh doanh",
+      "head": "@user:NV-0005",
+      "active": true
+    },
+    {
+      "_key": "KT",
+      "code": "KT",
+      "name": "Kế toán - Tài chính",
+      "head": "@user:NV-0002",
+      "active": true
+    },
+    {
+      "_key": "NS",
+      "code": "NS",
+      "name": "Nhân sự - Hành chính",
+      "head": "@user:NV-0009",
+      "active": true
+    },
+    {
+      "_key": "IT",
+      "code": "IT",
+      "name": "Công nghệ thông tin",
+      "head": "@user:NV-0012",
+      "active": true
+    }
+  ]
+}

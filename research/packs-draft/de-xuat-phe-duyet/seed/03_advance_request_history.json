@@ -1,0 +1,50 @@
+{
+  "model": "advance_request",
+  "records": [
+    {
+      "proposal": "@proposal:TU-2026-0021",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "prepared_on": "2026-07-08",
+      "amount": 6500000,
+      "trip_start": "2026-07-14",
+      "trip_end": "2026-07-16",
+      "destination": "Đà Nẵng",
+      "settlement_due": "2026-07-16",
+      "payout_method": "bank_transfer",
+      "bank_name": "Ngân hàng giả lập",
+      "bank_account": "9704000000006",
+      "settled": true
+    },
+    {
+      "proposal": "@proposal:TU-2026-0027",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "prepared_on": "2026-08-12",
+      "amount": 7000000,
+      "trip_start": "2026-08-18",
+      "trip_end": "2026-08-20",
+      "destination": "Hà Nội",
+      "settlement_due": "2026-08-20",
+      "payout_method": "bank_transfer",
+      "bank_name": "Ngân hàng giả lập",
+      "bank_account": "9704000000006",
+      "settled": true
+    },
+    {
+      "proposal": "@proposal:TU-2026-0033",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "prepared_on": "2026-09-09",
+      "amount": 8100000,
+      "trip_start": "2026-09-15",
+      "trip_end": "2026-09-18",
+      "destination": "Cần Thơ",
+      "settlement_due": "2026-09-18",
+      "payout_method": "bank_transfer",
+      "bank_name": "Ngân hàng giả lập",
+      "bank_account": "9704000000006",
+      "settled": true
+    }
+  ]
+}

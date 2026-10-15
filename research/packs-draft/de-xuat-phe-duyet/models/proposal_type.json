@@ -1,0 +1,96 @@
+{
+  "id": "apv_type",
+  "name": "proposal_type",
+  "label": "Loại đề xuất",
+  "title_field": "name",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "code",
+      "type": "text",
+      "label": "Mã loại",
+      "required": true,
+      "unique": true,
+      "regex": "^[a-z][a-z0-9_]{1,29}$"
+    },
+    {
+      "id": "f2",
+      "name": "name",
+      "type": "text",
+      "label": "Tên loại đề xuất",
+      "required": true,
+      "max": 120
+    },
+    {
+      "id": "f3",
+      "name": "process_id",
+      "type": "text",
+      "label": "Mã quy trình phê duyệt",
+      "required": true,
+      "regex": "^[a-z][a-z0-9_]{1,40}$"
+    },
+    {
+      "id": "f4",
+      "name": "form_template",
+      "type": "text",
+      "label": "Mẫu biểu tham chiếu",
+      "max": 120
+    },
+    {
+      "id": "f5",
+      "name": "limit_amount",
+      "type": "money",
+      "label": "Hạn mức mỗi lần (VND)",
+      "min": 0
+    },
+    {
+      "id": "f6",
+      "name": "sla_hours",
+      "type": "number",
+      "label": "SLA mỗi bước (giờ)",
+      "min": 1,
+      "max": 720,
+      "default": 24
+    },
+    {
+      "id": "f7",
+      "name": "active",
+      "type": "bool",
+      "label": "Đang áp dụng",
+      "required": true,
+      "default": true
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "active"
+      ]
+    }
+  ],
+  "rules": [],
+  "permissions": {
+    "admin": {
+      "actions": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ],
+      "scope": "all"
+    },
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    }
+  }
+}

@@ -1,0 +1,344 @@
+{
+  "id": "tsk_task",
+  "name": "task",
+  "label": "Công việc",
+  "title_field": "title",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "task_no",
+      "type": "text",
+      "label": "Mã công việc",
+      "required": true,
+      "unique": true,
+      "regex": "^CV-[0-9]{4}-[0-9]{4}$"
+    },
+    {
+      "id": "f2",
+      "name": "title",
+      "type": "text",
+      "label": "Tiêu đề",
+      "required": true,
+      "min": 3,
+      "max": 200
+    },
+    {
+      "id": "f3",
+      "name": "description",
+      "type": "text",
+      "label": "Mô tả",
+      "max": 4000
+    },
+    {
+      "id": "f4",
+      "name": "kind",
+      "type": "ref",
+      "label": "Loại công việc",
+      "required": true,
+      "ref": "task_type"
+    },
+    {
+      "id": "f5",
+      "name": "assigner",
+      "type": "user",
+      "label": "Người giao",
+      "required": true
+    },
+    {
+      "id": "f6",
+      "name": "assignee",
+      "type": "user",
+      "label": "Người chịu trách nhiệm chính (duy nhất)",
+      "required": true
+    },
+    {
+      "id": "f7",
+      "name": "collaborators",
+      "type": "json",
+      "label": "Người phối hợp (danh sách user id)"
+    },
+    {
+      "id": "f8",
+      "name": "deadline",
+      "type": "datetime",
+      "label": "Hạn chót",
+      "required": true
+    },
+    {
+      "id": "f9",
+      "name": "priority",
+      "type": "enum",
+      "label": "Ưu tiên",
+      "required": true,
+      "default": "medium",
+      "options": [
+        {
+          "value": "low",
+          "label": "Thấp"
+        },
+        {
+          "value": "medium",
+          "label": "Trung bình"
+        },
+        {
+          "value": "high",
+          "label": "Cao"
+        },
+        {
+          "value": "urgent",
+          "label": "Khẩn"
+        }
+      ]
+    },
+    {
+      "id": "f10",
+      "name": "sla_class",
+      "type": "enum",
+      "label": "Lớp quy trình SLA",
+      "required": true,
+      "default": "normal",
+      "options": [
+        {
+          "value": "normal",
+          "label": "Thường"
+        },
+        {
+          "value": "urgent",
+          "label": "Khẩn"
+        }
+      ]
+    },
+    {
+      "id": "f11",
+      "name": "done_criteria",
+      "type": "text",
+      "label": "Tiêu chí hoàn thành",
+      "required": true,
+      "min": 5,
+      "max": 1000
+    },
+    {
+      "id": "f12",
+      "name": "state",
+      "type": "enum",
+      "label": "Trạng thái",
+      "required": true,
+      "default": "new",
+      "options": [
+        {
+          "value": "new",
+          "label": "Mới giao"
+        },
+        {
+          "value": "accepted",
+          "label": "Đã nhận"
+        },
+        {
+          "value": "in_progress",
+          "label": "Đang làm"
+        },
+        {
+          "value": "blocked",
+          "label": "Bị chặn"
+        },
+        {
+          "value": "awaiting_acceptance",
+          "label": "Chờ nghiệm thu"
+        },
+        {
+          "value": "done",
+          "label": "Hoàn thành"
+        },
+        {
+          "value": "not_accepted",
+          "label": "Không chấp nhận kết quả"
+        },
+        {
+          "value": "cancelled",
+          "label": "Hủy"
+        }
+      ]
+    },
+    {
+      "id": "f13",
+      "name": "progress",
+      "type": "number",
+      "label": "Tiến độ (%)",
+      "required": true,
+      "min": 0,
+      "max": 100,
+      "default": 0
+    },
+    {
+      "id": "f14",
+      "name": "result",
+      "type": "text",
+      "label": "Kết quả nộp",
+      "max": 4000
+    },
+    {
+      "id": "f15",
+      "name": "blocked_reason",
+      "type": "text",
+      "label": "Lý do bị chặn",
+      "max": 1000
+    },
+    {
+      "id": "f16",
+      "name": "depends_on_task",
+      "type": "ref",
+      "label": "Phụ thuộc công việc",
+      "ref": "task"
+    },
+    {
+      "id": "f17",
+      "name": "escalated",
+      "type": "bool",
+      "label": "Đã leo thang SLA",
+      "required": true,
+      "default": false
+    },
+    {
+      "id": "f18",
+      "name": "accepted_at",
+      "type": "datetime",
+      "label": "Thời điểm nhận việc"
+    },
+    {
+      "id": "f19",
+      "name": "completed_at",
+      "type": "datetime",
+      "label": "Thời điểm hoàn thành"
+    },
+    {
+      "id": "f20",
+      "name": "process_instance_id",
+      "type": "text",
+      "label": "Mã tiến trình workflow",
+      "max": 64
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "state",
+        "deadline"
+      ]
+    },
+    {
+      "id": "i2",
+      "fields": [
+        "assignee",
+        "state"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Công việc hoàn thành/chờ nghiệm thu phải có kết quả",
+      "check": {
+        "or": [
+          {
+            "not": {
+              "field": "state",
+              "op": "in",
+              "value": [
+                "awaiting_acceptance",
+                "done"
+              ]
+            }
+          },
+          {
+            "field": "result",
+            "op": "not_null"
+          }
+        ]
+      }
+    },
+    {
+      "id": "r2",
+      "message": "Công việc bị chặn phải ghi lý do",
+      "check": {
+        "or": [
+          {
+            "field": "state",
+            "op": "!=",
+            "value": "blocked"
+          },
+          {
+            "field": "blocked_reason",
+            "op": "not_null"
+          }
+        ]
+      }
+    },
+    {
+      "id": "r3",
+      "message": "Công việc ưu tiên Khẩn phải chạy quy trình SLA lớp Khẩn",
+      "check": {
+        "or": [
+          {
+            "field": "priority",
+            "op": "!=",
+            "value": "urgent"
+          },
+          {
+            "field": "sla_class",
+            "op": "=",
+            "value": "urgent"
+          }
+        ]
+      }
+    },
+    {
+      "id": "r4",
+      "message": "Công việc hoàn thành phải có thời điểm hoàn thành",
+      "check": {
+        "or": [
+          {
+            "field": "state",
+            "op": "!=",
+            "value": "done"
+          },
+          {
+            "field": "completed_at",
+            "op": "not_null"
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "dept_head": {
+      "actions": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ],
+      "scope": "department"
+    },
+    "director": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

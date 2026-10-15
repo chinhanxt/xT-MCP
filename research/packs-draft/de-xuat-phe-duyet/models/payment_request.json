@@ -1,0 +1,196 @@
+{
+  "id": "apv_payment",
+  "name": "payment_request",
+  "label": "Giấy đề nghị thanh toán",
+  "title_field": "proposal",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "proposal",
+      "type": "ref",
+      "label": "Đề xuất",
+      "required": true,
+      "unique": true,
+      "ref": "proposal"
+    },
+    {
+      "id": "f2",
+      "name": "requested_on",
+      "type": "date",
+      "label": "Ngày đề nghị",
+      "required": true
+    },
+    {
+      "id": "f3",
+      "name": "amount",
+      "type": "money",
+      "label": "Số tiền đề nghị (VND)",
+      "required": true,
+      "min": 1
+    },
+    {
+      "id": "f4",
+      "name": "content",
+      "type": "text",
+      "label": "Nội dung thanh toán",
+      "required": true,
+      "max": 1000
+    },
+    {
+      "id": "f5",
+      "name": "supplier",
+      "type": "text",
+      "label": "Đơn vị nhận tiền",
+      "required": true,
+      "max": 200
+    },
+    {
+      "id": "f6",
+      "name": "tax_code",
+      "type": "text",
+      "label": "Mã số thuế",
+      "regex": "^[0-9]{10}(-[0-9]{3})?$"
+    },
+    {
+      "id": "f7",
+      "name": "invoice_no",
+      "type": "text",
+      "label": "Số hóa đơn",
+      "max": 40
+    },
+    {
+      "id": "f8",
+      "name": "e_invoice",
+      "type": "bool",
+      "label": "Có hóa đơn điện tử",
+      "required": true,
+      "default": false
+    },
+    {
+      "id": "f9",
+      "name": "payment_method",
+      "type": "enum",
+      "label": "Hình thức thanh toán",
+      "required": true,
+      "options": [
+        {
+          "value": "cash",
+          "label": "Tiền mặt"
+        },
+        {
+          "value": "bank_transfer",
+          "label": "Chuyển khoản"
+        }
+      ]
+    },
+    {
+      "id": "f10",
+      "name": "account_info",
+      "type": "text",
+      "label": "Thông tin tài khoản nhận tiền",
+      "max": 300
+    },
+    {
+      "id": "f11",
+      "name": "voucher_count",
+      "type": "number",
+      "label": "Số lượng chứng từ gốc kèm theo",
+      "required": true,
+      "min": 0
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "supplier",
+        "invoice_no"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Thanh toán từ 20 triệu trở lên phải có hóa đơn điện tử và mã số thuế",
+      "check": {
+        "or": [
+          {
+            "field": "amount",
+            "op": "<=",
+            "value": 20000000
+          },
+          {
+            "and": [
+              {
+                "field": "e_invoice",
+                "op": "=",
+                "value": true
+              },
+              {
+                "field": "tax_code",
+                "op": "not_null"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "r2",
+      "message": "Thanh toán chuyển khoản phải có thông tin tài khoản",
+      "check": {
+        "or": [
+          {
+            "field": "payment_method",
+            "op": "!=",
+            "value": "bank_transfer"
+          },
+          {
+            "field": "account_info",
+            "op": "not_null"
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "dept_head": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "payment_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "chief_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "director": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

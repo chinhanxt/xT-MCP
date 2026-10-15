@@ -999,8 +999,7 @@ CONFIRMATION_DETAILS = {
     "properties": {
         "confirmation_id": {"type": "string"},
         "status": {"enum": ["pending", "awaiting_second_approver"]},
-        "confirm_url": {"type": ["string", "null"], "description": "xT Desk page; null in stdio mode (use cli_command)."},
-        "cli_command": {"type": ["string", "null"]},
+        "confirm_url": {"type": "string", "description": "xT Desk confirmation page (/desk/confirm/{id}); always set while status is pending."},
         "confirmer": NAMED,
         "level": {"enum": ["L2", "L3", "human_only"]},
         "expires_at": {"type": "string"},
@@ -1015,7 +1014,7 @@ SAMPLE_ERRORS = [
      "error": {"code": "confirmation_required", "message": "Cần Nguyễn Thị Mai xác nhận quyết định này trên trang xác nhận của xT.",
                "retryable": True, "remediation": "Show confirm_url to the user. After they confirm, call decide_request again with the same arguments and idempotency_key.",
                "details": {"confirmation_id": "cf_01jd30", "status": "pending", "confirm_url": "https://xt.example.vn/desk/confirm/cf_01jd30",
-                           "cli_command": None, "confirmer": {"ref": "person:mai", "name": "Nguyễn Thị Mai"}, "level": "human_only",
+                           "confirmer": {"ref": "person:mai", "name": "Nguyễn Thị Mai"}, "level": "human_only",
                            "expires_at": "2026-11-15T10:15:00Z", "plan_digest": "sha256:" + "a" * 64,
                            "plan_summary": "Duyệt bước 'Trưởng bộ phận' cho TU-2026-0042 (8.000.000 VND)", "channels": ["desk", "telegram"]},
                "continuation": {"tool": "decide_request", "arguments": {"ref": "advance_request:tu-2026-0042", "decision": "approve",

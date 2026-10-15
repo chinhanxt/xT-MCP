@@ -9,11 +9,11 @@ def tenant_id(t="binhminh"): return uuid.uuid5(NS, "tenant:" + t)
 def user_id(k, t="binhminh"): return uuid.uuid5(NS, f"{t}:user:{k}")
 def dept_id(k, t="binhminh"): return uuid.uuid5(NS, f"{t}:dept:{k}")
 def load_users(pack):
-    d = json.loads((ROOT / pack / "seed" / "00_nguoi_dung.json").read_text())
+    d = json.loads((ROOT / pack / "seed" / "00_users.json").read_text())
     return {u["key"]: u for u in d["users"]}, d
 def actor_of(u, t="binhminh"):
-    return Actor(tenant_id(t), user_id(u["key"], t), tuple(u["roles"]), department_ids=(dept_id(u["phong_ban"], t),))
-SEED_ROLES = ("xt_workflow", "quan_tri", "nhan_su", "hr_pii", "it_admin", "ke_toan_thanh_toan")
+    return Actor(tenant_id(t), user_id(u["key"], t), tuple(u["roles"]), department_ids=(dept_id(u["department"], t),))
+SEED_ROLES = ("xt_workflow", "admin", "hr", "hr_pii", "it_admin", "payment_accountant")
 def seed_actor(t="binhminh"): return Actor(tenant_id(t), user_id("seed-loader", t), SEED_ROLES)
 def seed_pack(eng, pack, keymap, log):
     files = sorted(p for p in (ROOT / pack / "seed").glob("*.json") if not p.name.startswith("00_"))

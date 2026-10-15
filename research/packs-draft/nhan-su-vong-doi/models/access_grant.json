@@ -1,0 +1,117 @@
+{
+  "id": "hr_grant",
+  "name": "access_grant",
+  "label": "Quyền truy cập đã cấp",
+  "title_field": "role",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "employee",
+      "type": "ref",
+      "label": "Nhân viên",
+      "required": true,
+      "ref": "employee"
+    },
+    {
+      "id": "f2",
+      "name": "system",
+      "type": "enum",
+      "label": "Hệ thống",
+      "required": true,
+      "options": [
+        {
+          "value": "email",
+          "label": "Email"
+        },
+        {
+          "value": "erp",
+          "label": "ERP/Kế toán"
+        },
+        {
+          "value": "vpn",
+          "label": "VPN"
+        },
+        {
+          "value": "keycloak",
+          "label": "SSO xT"
+        },
+        {
+          "value": "other",
+          "label": "Khác"
+        }
+      ]
+    },
+    {
+      "id": "f3",
+      "name": "role",
+      "type": "text",
+      "label": "Vai trò được cấp",
+      "required": true,
+      "max": 80
+    },
+    {
+      "id": "f4",
+      "name": "issued_on",
+      "type": "date",
+      "label": "Ngày cấp",
+      "required": true
+    },
+    {
+      "id": "f5",
+      "name": "revoked_on",
+      "type": "date",
+      "label": "Ngày thu hồi"
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "employee",
+        "revoked_on"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Ngày thu hồi phải sau hoặc bằng ngày cấp",
+      "check": {
+        "field": "revoked_on",
+        "op": ">=",
+        "other_field": "issued_on"
+      }
+    }
+  ],
+  "permissions": {
+    "it_admin": {
+      "actions": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ],
+      "scope": "all"
+    },
+    "hr": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    }
+  }
+}

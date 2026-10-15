@@ -3,23 +3,23 @@
   "tenant": "binhminh",
   "statements": [
     {
-      "id": "ns.nv-own-read",
+      "id": "hr.emp-own-read",
       "effect": "Allow",
       "subjects": [
-        "role:nhan_vien"
+        "role:employee"
       ],
       "actions": [
         "record.read"
       ],
       "resources": [
-        "xrn:binhminh:nhan_vien:*",
-        "xrn:binhminh:ho_so_vong_doi:*",
-        "xrn:binhminh:viec_vong_doi:*",
-        "xrn:binhminh:tai_san_cap:*",
-        "xrn:binhminh:cap_quyen:*",
-        "xrn:binhminh:quyet_toan_nghi_viec:*",
-        "xrn:binhminh:phong_ban:*",
-        "xrn:binhminh:nhan_vien_pii:*"
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*",
+        "xrn:binhminh:employee_pii:*"
       ],
       "conditions": [
         {
@@ -32,10 +32,10 @@
       ]
     },
     {
-      "id": "ns.nhan-su-all",
+      "id": "hr.hr-all",
       "effect": "Allow",
       "subjects": [
-        "role:nhan_su"
+        "role:hr"
       ],
       "actions": [
         "record.read",
@@ -44,18 +44,18 @@
         "record.approve"
       ],
       "resources": [
-        "xrn:binhminh:nhan_vien:*",
-        "xrn:binhminh:ho_so_vong_doi:*",
-        "xrn:binhminh:viec_vong_doi:*",
-        "xrn:binhminh:tai_san_cap:*",
-        "xrn:binhminh:cap_quyen:*",
-        "xrn:binhminh:quyet_toan_nghi_viec:*",
-        "xrn:binhminh:phong_ban:*"
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*"
       ],
       "conditions": []
     },
     {
-      "id": "ns.it-admin",
+      "id": "hr.it-admin",
       "effect": "Allow",
       "subjects": [
         "role:it_admin"
@@ -66,22 +66,22 @@
         "record.approve"
       ],
       "resources": [
-        "xrn:binhminh:nhan_vien:*",
-        "xrn:binhminh:ho_so_vong_doi:*",
-        "xrn:binhminh:viec_vong_doi:*",
-        "xrn:binhminh:tai_san_cap:*",
-        "xrn:binhminh:cap_quyen:*",
-        "xrn:binhminh:quyet_toan_nghi_viec:*",
-        "xrn:binhminh:phong_ban:*"
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*"
       ],
       "conditions": []
     },
     {
-      "id": "ns.ke-toan",
+      "id": "hr.accounting",
       "effect": "Allow",
       "subjects": [
-        "role:ke_toan_thanh_toan",
-        "role:ke_toan_truong"
+        "role:payment_accountant",
+        "role:chief_accountant"
       ],
       "actions": [
         "record.read",
@@ -89,34 +89,34 @@
         "record.approve"
       ],
       "resources": [
-        "xrn:binhminh:nhan_vien:*",
-        "xrn:binhminh:ho_so_vong_doi:*",
-        "xrn:binhminh:viec_vong_doi:*",
-        "xrn:binhminh:tai_san_cap:*",
-        "xrn:binhminh:cap_quyen:*",
-        "xrn:binhminh:quyet_toan_nghi_viec:*",
-        "xrn:binhminh:phong_ban:*"
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*"
       ],
       "conditions": []
     },
     {
-      "id": "ns.tbp-ban-giao",
+      "id": "hr.dept-head-handover",
       "effect": "Allow",
       "subjects": [
-        "role:truong_bo_phan"
+        "role:dept_head"
       ],
       "actions": [
         "record.read",
         "record.approve"
       ],
       "resources": [
-        "xrn:binhminh:nhan_vien:*",
-        "xrn:binhminh:ho_so_vong_doi:*",
-        "xrn:binhminh:viec_vong_doi:*",
-        "xrn:binhminh:tai_san_cap:*",
-        "xrn:binhminh:cap_quyen:*",
-        "xrn:binhminh:quyet_toan_nghi_viec:*",
-        "xrn:binhminh:phong_ban:*"
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*"
       ],
       "conditions": [
         {
@@ -129,28 +129,28 @@
       ]
     },
     {
-      "id": "ns.gd-all",
+      "id": "hr.director-all",
       "effect": "Allow",
       "subjects": [
-        "role:giam_doc"
+        "role:director"
       ],
       "actions": [
         "record.read",
         "record.approve"
       ],
       "resources": [
-        "xrn:binhminh:nhan_vien:*",
-        "xrn:binhminh:ho_so_vong_doi:*",
-        "xrn:binhminh:viec_vong_doi:*",
-        "xrn:binhminh:tai_san_cap:*",
-        "xrn:binhminh:cap_quyen:*",
-        "xrn:binhminh:quyet_toan_nghi_viec:*",
-        "xrn:binhminh:phong_ban:*"
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*"
       ],
       "conditions": []
     },
     {
-      "id": "ns.hr-pii",
+      "id": "hr.hr-pii",
       "effect": "Allow",
       "subjects": [
         "role:hr_pii"
@@ -160,12 +160,12 @@
         "record.update"
       ],
       "resources": [
-        "xrn:binhminh:nhan_vien_pii:*"
+        "xrn:binhminh:employee_pii:*"
       ],
       "conditions": []
     },
     {
-      "id": "ns.agent-l0-l1",
+      "id": "hr.agent-l0-l1",
       "effect": "Allow",
       "subjects": [
         "role:agent"
@@ -176,34 +176,19 @@
         "record.update"
       ],
       "resources": [
-        "xrn:binhminh:nhan_vien:*",
-        "xrn:binhminh:ho_so_vong_doi:*",
-        "xrn:binhminh:viec_vong_doi:*",
-        "xrn:binhminh:tai_san_cap:*",
-        "xrn:binhminh:cap_quyen:*",
-        "xrn:binhminh:quyet_toan_nghi_viec:*",
-        "xrn:binhminh:phong_ban:*"
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*",
+        "xrn:binhminh:employee_pii:*"
       ],
       "conditions": []
     },
     {
-      "id": "ns.deny-agent-pii",
-      "effect": "Deny",
-      "subjects": [
-        "role:agent"
-      ],
-      "actions": [
-        "record.read",
-        "record.update",
-        "record.create"
-      ],
-      "resources": [
-        "xrn:binhminh:nhan_vien_pii:*"
-      ],
-      "conditions": []
-    },
-    {
-      "id": "ns.deny-agent-decide",
+      "id": "hr.deny-agent-decide",
       "effect": "Deny",
       "subjects": [
         "role:agent"
@@ -219,7 +204,7 @@
       "conditions": []
     },
     {
-      "id": "ns.deny-tu-duyet-ho-so-minh",
+      "id": "hr.deny-self-approve-own-case",
       "effect": "Deny",
       "subjects": [
         "*"
@@ -228,13 +213,13 @@
         "record.approve"
       ],
       "resources": [
-        "xrn:binhminh:nhan_vien:*",
-        "xrn:binhminh:ho_so_vong_doi:*",
-        "xrn:binhminh:viec_vong_doi:*",
-        "xrn:binhminh:tai_san_cap:*",
-        "xrn:binhminh:cap_quyen:*",
-        "xrn:binhminh:quyet_toan_nghi_viec:*",
-        "xrn:binhminh:phong_ban:*"
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*"
       ],
       "conditions": [
         {
@@ -247,7 +232,7 @@
       ]
     },
     {
-      "id": "ns.deny-delete-ho-so",
+      "id": "hr.deny-delete-case",
       "effect": "Deny",
       "subjects": [
         "*"
@@ -256,14 +241,14 @@
         "record.delete"
       ],
       "resources": [
-        "xrn:binhminh:nhan_vien:*",
-        "xrn:binhminh:ho_so_vong_doi:*",
-        "xrn:binhminh:viec_vong_doi:*",
-        "xrn:binhminh:tai_san_cap:*",
-        "xrn:binhminh:cap_quyen:*",
-        "xrn:binhminh:quyet_toan_nghi_viec:*",
-        "xrn:binhminh:phong_ban:*",
-        "xrn:binhminh:nhan_vien_pii:*"
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*",
+        "xrn:binhminh:employee_pii:*"
       ],
       "conditions": []
     }

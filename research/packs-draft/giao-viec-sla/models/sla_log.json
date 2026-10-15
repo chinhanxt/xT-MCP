@@ -1,0 +1,99 @@
+{
+  "id": "tsk_sla",
+  "name": "sla_log",
+  "label": "Nhật ký SLA",
+  "title_field": "event",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "task",
+      "type": "ref",
+      "label": "Công việc",
+      "required": true,
+      "ref": "task"
+    },
+    {
+      "id": "f2",
+      "name": "event",
+      "type": "enum",
+      "label": "Sự kiện",
+      "required": true,
+      "options": [
+        {
+          "value": "reminded",
+          "label": "Nhắc người làm"
+        },
+        {
+          "value": "escalated",
+          "label": "Leo thang"
+        },
+        {
+          "value": "completed_on_time",
+          "label": "Hoàn thành đúng hạn"
+        },
+        {
+          "value": "completed_late",
+          "label": "Hoàn thành trễ hạn"
+        }
+      ]
+    },
+    {
+      "id": "f3",
+      "name": "to_role",
+      "type": "text",
+      "label": "Gửi tới vai trò",
+      "max": 40
+    },
+    {
+      "id": "f4",
+      "name": "at_time",
+      "type": "datetime",
+      "label": "Thời điểm",
+      "required": true
+    },
+    {
+      "id": "f5",
+      "name": "note",
+      "type": "text",
+      "label": "Ghi chú",
+      "max": 500
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "task",
+        "at_time"
+      ]
+    }
+  ],
+  "rules": [],
+  "permissions": {
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "dept_head": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "director": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read"
+      ],
+      "scope": "all"
+    }
+  }
+}

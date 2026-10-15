@@ -1,0 +1,125 @@
+{
+  "id": "hr_settle",
+  "name": "offboarding_settlement",
+  "label": "Quyết toán nghỉ việc",
+  "title_field": "lifecycle_case",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "lifecycle_case",
+      "type": "ref",
+      "label": "Hồ sơ nghỉ việc",
+      "required": true,
+      "unique": true,
+      "ref": "lifecycle_case"
+    },
+    {
+      "id": "f2",
+      "name": "remaining_salary",
+      "type": "money",
+      "label": "Lương còn phải trả",
+      "required": true,
+      "min": 0,
+      "default": 0
+    },
+    {
+      "id": "f3",
+      "name": "leave_payout",
+      "type": "money",
+      "label": "Tiền phép năm chưa nghỉ quy đổi",
+      "required": true,
+      "min": 0,
+      "default": 0
+    },
+    {
+      "id": "f4",
+      "name": "unreturned_advance",
+      "type": "money",
+      "label": "Tạm ứng chưa hoàn",
+      "required": true,
+      "min": 0,
+      "default": 0
+    },
+    {
+      "id": "f5",
+      "name": "unreturned_assets",
+      "type": "number",
+      "label": "Số tài sản chưa trả",
+      "required": true,
+      "min": 0,
+      "default": 0
+    },
+    {
+      "id": "f6",
+      "name": "total_payout",
+      "type": "money",
+      "label": "Tổng quyết toán (VND, có thể âm: nhân viên nợ)",
+      "required": true
+    },
+    {
+      "id": "f7",
+      "name": "paid",
+      "type": "bool",
+      "label": "Đã chi",
+      "required": true,
+      "default": false
+    }
+  ],
+  "indexes": [],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Chỉ được chi quyết toán khi không còn tài sản chưa trả",
+      "check": {
+        "or": [
+          {
+            "field": "paid",
+            "op": "!=",
+            "value": true
+          },
+          {
+            "field": "unreturned_assets",
+            "op": "=",
+            "value": 0
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "payment_accountant": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "chief_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "hr": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "director": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

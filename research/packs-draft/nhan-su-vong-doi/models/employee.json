@@ -1,0 +1,209 @@
+{
+  "id": "hr_emp",
+  "name": "employee",
+  "label": "Nhân viên",
+  "title_field": "full_name",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "emp_no",
+      "type": "text",
+      "label": "Mã nhân viên",
+      "required": true,
+      "unique": true,
+      "regex": "^NV-[0-9]{4}$"
+    },
+    {
+      "id": "f2",
+      "name": "user_id",
+      "type": "user",
+      "label": "Tài khoản SSO"
+    },
+    {
+      "id": "f3",
+      "name": "full_name",
+      "type": "text",
+      "label": "Họ và tên",
+      "required": true,
+      "max": 120
+    },
+    {
+      "id": "f4",
+      "name": "email",
+      "type": "text",
+      "label": "Email công việc",
+      "max": 200,
+      "regex": "^[^@ ]+@[^@ ]+$"
+    },
+    {
+      "id": "f5",
+      "name": "job_title",
+      "type": "text",
+      "label": "Chức danh",
+      "required": true,
+      "max": 120
+    },
+    {
+      "id": "f6",
+      "name": "department",
+      "type": "ref",
+      "label": "Phòng ban",
+      "required": true,
+      "ref": "department"
+    },
+    {
+      "id": "f7",
+      "name": "manager",
+      "type": "ref",
+      "label": "Quản lý trực tiếp",
+      "ref": "employee"
+    },
+    {
+      "id": "f8",
+      "name": "state",
+      "type": "enum",
+      "label": "Trạng thái",
+      "required": true,
+      "default": "waiting_to_start",
+      "options": [
+        {
+          "value": "waiting_to_start",
+          "label": "Chờ vào làm"
+        },
+        {
+          "value": "probation",
+          "label": "Thử việc"
+        },
+        {
+          "value": "permanent",
+          "label": "Chính thức"
+        },
+        {
+          "value": "offboarding_in_progress",
+          "label": "Đang làm thủ tục nghỉ"
+        },
+        {
+          "value": "resigned",
+          "label": "Đã nghỉ"
+        }
+      ]
+    },
+    {
+      "id": "f9",
+      "name": "hired_on",
+      "type": "date",
+      "label": "Ngày vào làm"
+    },
+    {
+      "id": "f10",
+      "name": "left_on",
+      "type": "date",
+      "label": "Ngày làm việc cuối"
+    },
+    {
+      "id": "f11",
+      "name": "synthetic",
+      "type": "bool",
+      "label": "Dữ liệu giả lập",
+      "required": true,
+      "default": false
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "department",
+        "state"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Ngày làm việc cuối phải sau hoặc bằng ngày vào làm",
+      "check": {
+        "field": "left_on",
+        "op": ">=",
+        "other_field": "hired_on"
+      }
+    },
+    {
+      "id": "r2",
+      "message": "Nhân viên đã nghỉ/đang nghỉ phải có ngày làm việc cuối",
+      "check": {
+        "or": [
+          {
+            "not": {
+              "field": "state",
+              "op": "in",
+              "value": [
+                "offboarding_in_progress",
+                "resigned"
+              ]
+            }
+          },
+          {
+            "field": "left_on",
+            "op": "not_null"
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "hr": {
+      "actions": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "director": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "it_admin": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "payment_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "chief_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "dept_head": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    }
+  }
+}

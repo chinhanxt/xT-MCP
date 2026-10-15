@@ -1,0 +1,221 @@
+{
+  "id": "apv_proposal",
+  "name": "proposal",
+  "label": "Đề xuất",
+  "title_field": "proposal_no",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "proposal_no",
+      "type": "text",
+      "label": "Mã phiếu",
+      "required": true,
+      "unique": true,
+      "regex": "^(TU|TT|HU)-[0-9]{4}-[0-9]{4}$"
+    },
+    {
+      "id": "f2",
+      "name": "kind",
+      "type": "ref",
+      "label": "Loại đề xuất",
+      "required": true,
+      "ref": "proposal_type"
+    },
+    {
+      "id": "f3",
+      "name": "requester",
+      "type": "user",
+      "label": "Người đề nghị",
+      "required": true
+    },
+    {
+      "id": "f4",
+      "name": "department",
+      "type": "text",
+      "label": "Bộ phận/Phòng ban",
+      "required": true,
+      "max": 20
+    },
+    {
+      "id": "f5",
+      "name": "amount",
+      "type": "money",
+      "label": "Số tiền (VND)",
+      "required": true,
+      "min": 1,
+      "max": 10000000000
+    },
+    {
+      "id": "f6",
+      "name": "amount_in_words",
+      "type": "text",
+      "label": "Số tiền bằng chữ",
+      "max": 300
+    },
+    {
+      "id": "f7",
+      "name": "reason",
+      "type": "text",
+      "label": "Lý do",
+      "required": true,
+      "min": 5,
+      "max": 1000
+    },
+    {
+      "id": "f8",
+      "name": "state",
+      "type": "enum",
+      "label": "Trạng thái",
+      "required": true,
+      "default": "draft",
+      "options": [
+        {
+          "value": "draft",
+          "label": "Nháp"
+        },
+        {
+          "value": "pending_approval",
+          "label": "Chờ duyệt"
+        },
+        {
+          "value": "approved",
+          "label": "Đã duyệt"
+        },
+        {
+          "value": "rejected",
+          "label": "Từ chối"
+        },
+        {
+          "value": "paid",
+          "label": "Đã chi/hoàn tất"
+        },
+        {
+          "value": "cancelled",
+          "label": "Hủy"
+        }
+      ]
+    },
+    {
+      "id": "f9",
+      "name": "current_step",
+      "type": "text",
+      "label": "Bước đang chờ",
+      "max": 40
+    },
+    {
+      "id": "f10",
+      "name": "final_approver",
+      "type": "user",
+      "label": "Người duyệt cuối"
+    },
+    {
+      "id": "f11",
+      "name": "approved_at",
+      "type": "datetime",
+      "label": "Thời điểm duyệt cuối"
+    },
+    {
+      "id": "f12",
+      "name": "process_instance_id",
+      "type": "text",
+      "label": "Mã tiến trình workflow",
+      "max": 64
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "state",
+        "current_step"
+      ]
+    },
+    {
+      "id": "i2",
+      "fields": [
+        "requester"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Người duyệt cuối không được là người đề nghị (tách nhiệm vụ)",
+      "check": {
+        "field": "final_approver",
+        "op": "!=",
+        "other_field": "requester"
+      }
+    },
+    {
+      "id": "r2",
+      "message": "Đề xuất đã duyệt/đã chi phải có người duyệt cuối và thời điểm duyệt",
+      "check": {
+        "or": [
+          {
+            "not": {
+              "field": "state",
+              "op": "in",
+              "value": [
+                "approved",
+                "paid"
+              ]
+            }
+          },
+          {
+            "and": [
+              {
+                "field": "final_approver",
+                "op": "not_null"
+              },
+              {
+                "field": "approved_at",
+                "op": "not_null"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "dept_head": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "payment_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "chief_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "director": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

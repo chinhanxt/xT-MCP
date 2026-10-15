@@ -8,43 +8,43 @@ Mỗi việc có đúng một người chịu trách nhiệm, có hạn, có ti�
 ## Vai trò
 | Vai trò | Việc được làm |
 |---|---|
-| `nhan_vien` | Người thực hiện: xem việc của mình (`owner_id` = người làm) |
-| `truong_bo_phan` | Giao việc, nghiệm thu, nhận leo thang cấp 2 (trong phòng mình) |
-| `giam_doc` | Đọc toàn bộ, nhận bản tin |
-| `quan_tri` | Cấu hình `loai_cong_viec` (SLA) |
+| `employee` | Người thực hiện: xem việc của mình (`owner_id` = người làm) |
+| `dept_head` | Giao việc, nghiệm thu, nhận leo thang cấp 2 (trong phòng mình) |
+| `director` | Đọc toàn bộ, nhận bản tin |
+| `admin` | Cấu hình `task_type` (SLA) |
 | `xt_workflow` | Danh tính dịch vụ ghi trạng thái, tiến độ, nhật ký SLA, bản tin |
 | `agent` | L0-L1 |
 
-Quy ước dữ liệu: `owner_id` của `cong_viec` là **người thực hiện**, còn `nguoi_giao` là trường riêng. Nhờ vậy người làm xem được việc của mình qua RLS "own" mà không cần quyền phòng ban.
+Quy ước dữ liệu: `owner_id` của `task` là **người thực hiện**, còn `assigner` là trường riêng. Nhờ vậy người làm xem được việc của mình qua RLS "own" mà không cần quyền phòng ban.
 
 ## Model (5)
-`loai_cong_viec` (SLA theo loại), `cong_viec`, `cong_viec_muc` (checklist), `nhat_ky_sla`, `ban_tin_tuan`.
+`task_type` (SLA theo loại), `task`, `task_item` (checklist), `sla_log`, `weekly_digest`.
 
 ## Quy trình
-`giao_viec_thuong` (SLA 4 giờ nhận, 72 giờ làm, 48 giờ nghiệm thu) và `giao_viec_khan` (1 / 8 / 4 giờ). Chọn theo `cong_viec.lop_sla`; rule model bắt việc ưu tiên Khẩn phải đi lớp Khẩn.
+`task_normal` (SLA 4 giờ nhận, 72 giờ làm, 48 giờ nghiệm thu) và `task_urgent` (1 / 8 / 4 giờ). Chọn theo `task.sla_class`; rule model bắt việc ưu tiên Khẩn phải đi lớp Khẩn.
 
 | Bước | Lane | Quá hạn thì |
 |---|---|---|
-| `nhan` | `nguoi_thuc_hien` | chuyển cho `nguoi_giao` (kèm thông báo) |
-| `lam` | `nguoi_thuc_hien` | chuyển cho `truong_bo_phan` |
-| `nghiem_thu` | `nguoi_giao` | chuyển cho `truong_bo_phan` |
-| `dong` (service) | | đóng việc |
+| `accept` | `assignee` | chuyển cho `assigner` (kèm thông báo) |
+| `work` | `assignee` | chuyển cho `dept_head` |
+| `acceptance` | `assigner` | chuyển cho `dept_head` |
+| `close` (service) | | đóng việc |
 
 Từ chối nhận việc, hoặc không chấp nhận kết quả, đều kết thúc quy trình ở "Bị từ chối".
 
-`ban_tin_tuan`: quy trình hai service (`tong_hop_tuan`, `notify`) chạy 8:00 thứ Hai theo khối `trigger` trong spec. **Khối `trigger` do compiler bỏ qua**; lịch phải do `xt-worker` đọc (xem REPORT.md).
+`weekly_digest`: quy trình hai service (`weekly_rollup`, `notify`) chạy 8:00 thứ Hai theo khối `trigger` trong spec. **Khối `trigger` do compiler bỏ qua**; lịch phải do `xt-worker` đọc (xem REPORT.md).
 
 ## Quy tắc và nơi thực thi
 | Quy tắc | Thực thi tại |
 |---|---|
-| Một người chịu trách nhiệm chính | `nguoi_thuc_hien` là trường bắt buộc duy nhất |
+| Một người chịu trách nhiệm chính | `assignee` là trường bắt buộc duy nhất |
 | Có hạn chót và tiêu chí hoàn thành | trường bắt buộc |
-| Hoàn thành phải có kết quả; bị chặn phải có lý do; hoàn thành phải có thời điểm | rule `cong_viec` |
+| Hoàn thành phải có kết quả; bị chặn phải có lý do; hoàn thành phải có thời điểm | rule `task` |
 | Tiến độ 0-100 | min/max |
-| Việc phụ thuộc việc khác | `cong_viec.phu_thuoc` (ref tự tham chiếu) |
-| **Người làm không tự nghiệm thu** | IAM `self_approval` + Deny `deny-nguoi-lam-tu-nghiem-thu` + lane `nguoi_giao` |
-| **Agent không nghiệm thu** | Deny `deny-agent-nghiem-thu` |
-| Người dùng không ghi thẳng trạng thái | DB: `nhan_vien` chỉ `read`; ghi qua `xt_workflow` |
+| Việc phụ thuộc việc khác | `task.depends_on_task` (ref tự tham chiếu) |
+| **Người làm không tự nghiệm thu** | IAM `self_approval` + Deny `deny-assignee-self-accept` + lane `assigner` |
+| **Agent không nghiệm thu** | Deny `deny-agent-acceptance` |
+| Người dùng không ghi thẳng trạng thái | DB: `employee` chỉ `read`; ghi qua `xt_workflow` |
 
 ## Agent được làm gì theo mức tự chủ
 | Mức | Được | Không được |
@@ -57,4 +57,4 @@ Từ chối nhận việc, hoặc không chấp nhận kết quả, đều kết
 3 loại việc, 4 công việc (đang làm, quá hạn đã leo thang, bị chặn, hoàn thành), 4 mục checklist, 2 dòng nhật ký SLA, bản tin tuần 41.
 
 ## Giới hạn đã biết
-Thời hạn SLA là hằng số trong spec nên phải có hai file quy trình (thường, khẩn) thay vì đọc từ `loai_cong_viec`; leo thang **thay thế** người làm thay vì chỉ nhắc; không có vòng làm lại; lane `nguoi_thuc_hien`, `nguoi_giao` phải được runtime gán từ dữ liệu từng việc. Xem `../REPORT.md`.
+Thời hạn SLA là hằng số trong spec nên phải có hai file quy trình (thường, khẩn) thay vì đọc từ `task_type`; leo thang **thay thế** người làm thay vì chỉ nhắc; không có vòng làm lại; lane `assignee`, `assigner` phải được runtime gán từ dữ liệu từng việc. Xem `../REPORT.md`.

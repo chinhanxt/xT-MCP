@@ -1,0 +1,45 @@
+{
+  "model": "lifecycle_task",
+  "records": [
+    {
+      "lifecycle_case": "@lifecycle_case:ON-2026-0001",
+      "owner_id": "@user:NV-0015",
+      "department_id": "@dept:KD",
+      "owner_unit": "hr",
+      "name": "Ký HĐLĐ, đăng ký BHXH",
+      "state": "done",
+      "due_on": "2026-09-16",
+      "responsible": "@user:NV-0010"
+    },
+    {
+      "lifecycle_case": "@lifecycle_case:ON-2026-0001",
+      "owner_id": "@user:NV-0015",
+      "department_id": "@dept:KD",
+      "owner_unit": "it",
+      "name": "Tạo email, tài khoản SSO, cấp laptop Dell-004",
+      "state": "done",
+      "due_on": "2026-09-16",
+      "responsible": "@user:NV-0013"
+    },
+    {
+      "lifecycle_case": "@lifecycle_case:ON-2026-0001",
+      "owner_id": "@user:NV-0015",
+      "department_id": "@dept:KD",
+      "owner_unit": "accounting",
+      "name": "Tạo mã lương, tài khoản nhận lương",
+      "state": "done",
+      "due_on": "2026-09-16",
+      "responsible": "@user:NV-0003"
+    },
+    {
+      "lifecycle_case": "@lifecycle_case:ON-2026-0001",
+      "owner_id": "@user:NV-0015",
+      "department_id": "@dept:KD",
+      "owner_unit": "manager",
+      "name": "Phân buddy, kế hoạch 30-60-90",
+      "state": "done",
+      "due_on": "2026-09-16",
+      "responsible": "@user:NV-0005"
+    }
+  ]
+}

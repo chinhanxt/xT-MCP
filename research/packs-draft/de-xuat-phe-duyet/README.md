@@ -10,45 +10,45 @@ Giải PP1 (phê duyệt tắc nghẽn), PP6 (tạm ứng/hoàn ứng rối), PP
 ## Vai trò
 | Vai trò | Việc được làm |
 |---|---|
-| `nhan_vien` | Đề nghị; xem đề xuất của chính mình |
-| `truong_bo_phan` | Duyệt bước 1 đề xuất của phòng mình |
-| `ke_toan_thanh_toan` | Kiểm chứng từ (thanh toán, hoàn ứng) |
-| `ke_toan_truong` | Duyệt trên 50 triệu; xem xét nợ tạm ứng quá hạn |
-| `giam_doc` | Duyệt cuối khi trên 5 triệu |
-| `quan_tri` | Cấu hình `loai_de_xuat` |
+| `employee` | Đề nghị; xem đề xuất của chính mình |
+| `dept_head` | Duyệt bước 1 đề xuất của phòng mình |
+| `payment_accountant` | Kiểm chứng từ (thanh toán, hoàn ứng) |
+| `chief_accountant` | Duyệt trên 50 triệu; xem xét nợ tạm ứng quá hạn |
+| `director` | Duyệt cuối khi trên 5 triệu |
+| `admin` | Cấu hình `proposal_type` |
 | `xt_workflow` | Danh tính dịch vụ, **duy nhất** được ghi vào các bảng đề xuất |
 | `agent` | Danh tính agent, chỉ L0-L1, không bao giờ duyệt |
 
 ## Model (6)
-`loai_de_xuat` (mẫu), `de_xuat` (phiếu chung), `tam_ung` (03-TT), `thanh_toan` (05-TT), `hoan_ung` (04-TT), `buoc_duyet` (nhật ký từng bước duyệt).
+`proposal_type` (mẫu), `proposal` (phiếu chung), `advance_request` (03-TT), `payment_request` (05-TT), `advance_settlement` (04-TT), `approval_step` (nhật ký từng bước duyệt).
 
-## Quy trình `de_xuat_phe_duyet`
-Đầu vào: `loai` (`tam_ung`|`thanh_toan`|`hoan_ung`), `amount`, `requester`, `requester_la_tbp`.
+## Quy trình `proposal_approval`
+Đầu vào: `kind` (`advance_request`|`payment_request`|`advance_settlement`), `amount`, `requester`, `requester_is_dept_head`.
 
 | Bước | Vai trò | Điều kiện | SLA, leo thang |
 |---|---|---|---|
-| `chk_no` (service) | | tạm ứng | gọi `kiem_tra_cong_no` |
-| `tbp` | `truong_bo_phan` | người đề nghị không phải trưởng bộ phận | 24 giờ, lên `giam_doc` |
-| `kttt` | `ke_toan_thanh_toan` | thanh toán, hoàn ứng | 24 giờ, lên `ke_toan_truong` |
-| `ktt_no` | `ke_toan_truong` | tạm ứng và còn nợ quá hạn | 24 giờ, lên `giam_doc` |
-| `ktt` | `ke_toan_truong` | trên 50 triệu | 24 giờ, lên `giam_doc` |
-| `gd` | `giam_doc` | trên 5 triệu | không |
-| `ghiso` (service) | | luôn | ghi sổ |
+| `chk_overdue` (service) | | tạm ứng | gọi `check_overdue_advances` |
+| `dept_head` | `dept_head` | người đề nghị không phải trưởng bộ phận | 24 giờ, lên `director` |
+| `pay_acct` | `payment_accountant` | thanh toán, hoàn ứng | 24 giờ, lên `chief_accountant` |
+| `chief_acct_overdue` | `chief_accountant` | tạm ứng và còn nợ quá hạn | 24 giờ, lên `director` |
+| `chief_acct` | `chief_accountant` | trên 50 triệu | 24 giờ, lên `director` |
+| `director` | `director` | trên 5 triệu | không |
+| `post` (service) | | luôn | ghi sổ |
 
 Kết quả: tối đa 5 triệu chỉ cần trưởng bộ phận; trên 5 đến 50 triệu thêm giám đốc; trên 50 triệu thêm kế toán trưởng. Từ chối ở bất kỳ bước nào kết thúc ở "Bị từ chối", không ghi sổ.
 
 ## Quy tắc và nơi thực thi
 | Quy tắc | Thực thi tại |
 |---|---|
-| Hạn mức tạm ứng 30 triệu/lần | model `tam_ung.so_tien` (max) |
-| Ngày về >= ngày đi; hạn hoàn ứng >= ngày về | rule của `tam_ung` |
-| Chuyển khoản phải có số tài khoản | rule của `tam_ung`, `thanh_toan` |
-| Thanh toán từ 20 triệu cần hóa đơn điện tử + MST (ngưỡng cấu hình, sửa theo quy định áp dụng) | rule của `thanh_toan` |
-| Chi vượt tạm ứng phải khai "chi thừa"; không vừa chi thừa vừa nộp lại | rule của `hoan_ung` |
-| **Người đề nghị khác người duyệt** | 3 lớp: CHECK `de_xuat.nguoi_duyet_cuoi != nguoi_de_nghi`; IAM `self_approval`; bỏ bước TBP khi người đề nghị là TBP |
+| Hạn mức tạm ứng 30 triệu/lần | model `advance_request.amount` (max) |
+| Ngày về >= ngày đi; hạn hoàn ứng >= ngày về | rule của `advance_request` |
+| Chuyển khoản phải có số tài khoản | rule của `advance_request`, `payment_request` |
+| Thanh toán từ 20 triệu cần hóa đơn điện tử + MST (ngưỡng cấu hình, sửa theo quy định áp dụng) | rule của `payment_request` |
+| Chi vượt tạm ứng phải khai "chi thừa"; không vừa chi thừa vừa nộp lại | rule của `advance_settlement` |
+| **Người đề nghị khác người duyệt** | 3 lớp: CHECK `proposal.final_approver != requester`; IAM `self_approval`; bỏ bước TBP khi người đề nghị là TBP |
 | **Agent không bao giờ duyệt** | Deny `deny-agent-decide` (mọi mức tự chủ, kể cả có receipt); lane không có role; agent không có quyền ghi DB |
-| Người dùng không ghi thẳng được trạng thái | DB: `nhan_vien`/`truong_bo_phan` chỉ có `read`; ghi qua `xt_workflow` |
-| Chứng từ không được xóa | Deny `deny-delete-chung-tu` |
+| Người dùng không ghi thẳng được trạng thái | DB: `employee`/`dept_head` chỉ có `read`; ghi qua `xt_workflow` |
+| Chứng từ không được xóa | Deny `deny-delete-vouchers` |
 | Trưởng phòng khác phòng không duyệt được | điều kiện `resource.department eq subject.department` |
 
 ## Agent được làm gì theo mức tự chủ

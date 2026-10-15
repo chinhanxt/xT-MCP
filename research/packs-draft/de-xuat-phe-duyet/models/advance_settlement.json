@@ -1,0 +1,160 @@
+{
+  "id": "apv_settle",
+  "name": "advance_settlement",
+  "label": "Giấy thanh toán tiền tạm ứng",
+  "title_field": "proposal",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "proposal",
+      "type": "ref",
+      "label": "Đề xuất",
+      "required": true,
+      "unique": true,
+      "ref": "proposal"
+    },
+    {
+      "id": "f2",
+      "name": "advance_request",
+      "type": "ref",
+      "label": "Khoản tạm ứng được hoàn",
+      "required": true,
+      "ref": "advance_request"
+    },
+    {
+      "id": "f3",
+      "name": "settled_on",
+      "type": "date",
+      "label": "Ngày thanh toán",
+      "required": true
+    },
+    {
+      "id": "f4",
+      "name": "advance_received",
+      "type": "money",
+      "label": "Số tiền tạm ứng đã nhận",
+      "required": true,
+      "min": 0
+    },
+    {
+      "id": "f5",
+      "name": "actual_spent",
+      "type": "money",
+      "label": "Số tiền thực tế đã chi",
+      "required": true,
+      "min": 0
+    },
+    {
+      "id": "f6",
+      "name": "excess_reimbursement",
+      "type": "money",
+      "label": "Số chi thừa đề nghị thanh toán thêm",
+      "required": true,
+      "min": 0,
+      "default": 0
+    },
+    {
+      "id": "f7",
+      "name": "unspent_returned",
+      "type": "money",
+      "label": "Số chưa chi hết nộp lại quỹ",
+      "required": true,
+      "min": 0,
+      "default": 0
+    },
+    {
+      "id": "f8",
+      "name": "voucher_list",
+      "type": "text",
+      "label": "Bảng kê danh mục chứng từ đính kèm",
+      "required": true,
+      "max": 2000
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "advance_request"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Thực chi vượt tạm ứng thì phải khai 'chi thừa đề nghị thanh toán thêm'",
+      "check": {
+        "or": [
+          {
+            "field": "actual_spent",
+            "op": "<=",
+            "other_field": "advance_received"
+          },
+          {
+            "field": "excess_reimbursement",
+            "op": ">",
+            "value": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "r2",
+      "message": "Không thể vừa chi thừa vừa nộp lại quỹ",
+      "check": {
+        "or": [
+          {
+            "field": "excess_reimbursement",
+            "op": "=",
+            "value": 0
+          },
+          {
+            "field": "unspent_returned",
+            "op": "=",
+            "value": 0
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "dept_head": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "payment_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "chief_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "director": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

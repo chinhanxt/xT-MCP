@@ -1,0 +1,102 @@
+{
+  "models": [
+    {
+      "model": "asset_issue",
+      "records": [
+        {
+          "employee": "@employee:NV-0006",
+          "owner_id": "@user:NV-0006",
+          "department_id": "@dept:KD",
+          "kind": "laptop",
+          "asset_code": "Dell-001",
+          "issued_on": "2023-03-02"
+        },
+        {
+          "employee": "@employee:NV-0007",
+          "owner_id": "@user:NV-0007",
+          "department_id": "@dept:KD",
+          "kind": "laptop",
+          "asset_code": "Dell-002",
+          "issued_on": "2024-05-10"
+        },
+        {
+          "employee": "@employee:NV-0008",
+          "owner_id": "@user:NV-0008",
+          "department_id": "@dept:KD",
+          "kind": "laptop",
+          "asset_code": "Dell-003",
+          "issued_on": "2024-06-01"
+        },
+        {
+          "employee": "@employee:NV-0015",
+          "owner_id": "@user:NV-0015",
+          "department_id": "@dept:KD",
+          "kind": "laptop",
+          "asset_code": "Dell-004",
+          "issued_on": "2026-09-15"
+        },
+        {
+          "employee": "@employee:NV-0015",
+          "owner_id": "@user:NV-0015",
+          "department_id": "@dept:KD",
+          "kind": "access_card",
+          "asset_code": "THE-015",
+          "issued_on": "2026-09-15"
+        }
+      ]
+    },
+    {
+      "model": "access_grant",
+      "records": [
+        {
+          "employee": "@employee:NV-0015",
+          "owner_id": "@user:NV-0015",
+          "department_id": "@dept:KD",
+          "system": "email",
+          "role": "hộp thư cá nhân",
+          "issued_on": "2026-09-15"
+        },
+        {
+          "employee": "@employee:NV-0015",
+          "owner_id": "@user:NV-0015",
+          "department_id": "@dept:KD",
+          "system": "keycloak",
+          "role": "employee",
+          "issued_on": "2026-09-15"
+        },
+        {
+          "employee": "@employee:NV-0015",
+          "owner_id": "@user:NV-0015",
+          "department_id": "@dept:KD",
+          "system": "vpn",
+          "role": "vpn_employee",
+          "issued_on": "2026-09-15"
+        },
+        {
+          "employee": "@employee:NV-0006",
+          "owner_id": "@user:NV-0006",
+          "department_id": "@dept:KD",
+          "system": "email",
+          "role": "hộp thư cá nhân",
+          "issued_on": "2023-03-02"
+        },
+        {
+          "employee": "@employee:NV-0006",
+          "owner_id": "@user:NV-0006",
+          "department_id": "@dept:KD",
+          "system": "keycloak",
+          "role": "employee",
+          "issued_on": "2023-03-02"
+        },
+        {
+          "employee": "@employee:NV-0006",
+          "owner_id": "@user:NV-0006",
+          "department_id": "@dept:KD",
+          "system": "erp",
+          "role": "sales",
+          "issued_on": "2023-03-02"
+        }
+      ]
+    }
+  ]
+}

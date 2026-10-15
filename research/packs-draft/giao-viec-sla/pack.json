@@ -5,28 +5,28 @@
   "title": "Giao việc có SLA, leo thang và bản tin tuần",
   "tenant_demo": "binhminh",
   "depends_on": [],
-  "models": ["loai_cong_viec", "cong_viec", "cong_viec_muc", "nhat_ky_sla", "ban_tin_tuan"],
-  "processes": ["giao_viec_thuong", "giao_viec_khan", "ban_tin_tuan"],
+  "models": ["task_type", "task", "task_item", "sla_log", "weekly_digest"],
+  "processes": ["task_normal", "task_urgent", "weekly_digest"],
   "policies": ["iam"],
   "roles": {
-    "nhan_vien": "Người thực hiện; đọc việc của mình, cập nhật qua workflow",
-    "truong_bo_phan": "Giao việc, nghiệm thu, nhận leo thang cấp 2",
-    "giam_doc": "Đọc toàn bộ, nhận bản tin tuần",
-    "quan_tri": "Cấu hình loại công việc và SLA",
+    "employee": "Người thực hiện; đọc việc của mình, cập nhật qua workflow",
+    "dept_head": "Giao việc, nghiệm thu, nhận leo thang cấp 2",
+    "director": "Đọc toàn bộ, nhận bản tin tuần",
+    "admin": "Cấu hình loại công việc và SLA",
     "xt_workflow": "Danh tính dịch vụ được ghi trạng thái, tiến độ, nhật ký SLA, bản tin",
     "agent": "Danh tính agent (L0-L1)"
   },
   "lane_bindings": {
     "_note": "Lane tĩnh trong spec không biểu diễn được 'người làm của đúng công việc này'. Runtime gán lane động từ dữ liệu instance.",
-    "nguoi_thuc_hien": "cong_viec.nguoi_thuc_hien",
-    "nguoi_giao": "cong_viec.nguoi_giao"
+    "assignee": "task.assignee",
+    "assigner": "task.assigner"
   },
-  "step_actions": {"nhan": "record.update", "lam": "record.update", "nghiem_thu": "record.approve"},
-  "iam_resource_mapping": {"owner": "cong_viec.nguoi_thuc_hien", "creator": "cong_viec.nguoi_thuc_hien", "_note": "creator cố ý lấy người làm: Host chặn self_approval theo creator, mà người nghiệm thu chính là người giao"},
-  "process_selection": {"uu_tien=khan": "giao_viec_khan", "default": "giao_viec_thuong"},
+  "step_actions": {"accept": "record.update", "work": "record.update", "acceptance": "record.approve"},
+  "iam_resource_mapping": {"owner": "task.assignee", "creator": "task.assignee", "_note": "creator cố ý lấy người làm: Host chặn self_approval theo creator, mà người nghiệm thu chính là người giao"},
+  "process_selection": {"priority=khan": "task_urgent", "default": "task_normal"},
   "allowed_ops": {
-    "dong_viec": {"params": ["task_id"], "returns": {"closed": "task_id"}},
-    "tong_hop_tuan": {"params": ["tu_ngay", "den_ngay", "phong_ban"], "returns": {"ma": "mã bản tin", "tom_tat": "câu tóm tắt", "id": "id bản ghi ban_tin_tuan"}},
+    "close_task": {"params": ["task_id"], "returns": {"closed": "task_id"}},
+    "weekly_rollup": {"params": ["from_date", "to_date", "department"], "returns": {"code": "mã bản tin", "summary": "câu tóm tắt", "id": "id bản ghi weekly_digest"}},
     "notify": {"params": ["msg"], "returns": {"ok": 1}}
   },
   "autonomy": {

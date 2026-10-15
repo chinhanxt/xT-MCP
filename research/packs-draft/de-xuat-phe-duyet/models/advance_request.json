@@ -1,0 +1,186 @@
+{
+  "id": "apv_advance",
+  "name": "advance_request",
+  "label": "Giấy đề nghị tạm ứng",
+  "title_field": "proposal",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "proposal",
+      "type": "ref",
+      "label": "Đề xuất",
+      "required": true,
+      "unique": true,
+      "ref": "proposal"
+    },
+    {
+      "id": "f2",
+      "name": "prepared_on",
+      "type": "date",
+      "label": "Ngày lập",
+      "required": true
+    },
+    {
+      "id": "f3",
+      "name": "amount",
+      "type": "money",
+      "label": "Số tiền tạm ứng (VND)",
+      "required": true,
+      "min": 100000,
+      "max": 30000000
+    },
+    {
+      "id": "f4",
+      "name": "trip_start",
+      "type": "date",
+      "label": "Ngày đi",
+      "required": true
+    },
+    {
+      "id": "f5",
+      "name": "trip_end",
+      "type": "date",
+      "label": "Ngày về",
+      "required": true
+    },
+    {
+      "id": "f6",
+      "name": "destination",
+      "type": "text",
+      "label": "Nơi công tác",
+      "max": 200
+    },
+    {
+      "id": "f7",
+      "name": "settlement_due",
+      "type": "date",
+      "label": "Thời hạn thanh toán/hoàn ứng",
+      "required": true
+    },
+    {
+      "id": "f8",
+      "name": "payout_method",
+      "type": "enum",
+      "label": "Hình thức nhận tiền",
+      "required": true,
+      "options": [
+        {
+          "value": "cash",
+          "label": "Tiền mặt"
+        },
+        {
+          "value": "bank_transfer",
+          "label": "Chuyển khoản"
+        }
+      ]
+    },
+    {
+      "id": "f9",
+      "name": "bank_name",
+      "type": "text",
+      "label": "Ngân hàng thụ hưởng",
+      "max": 100
+    },
+    {
+      "id": "f10",
+      "name": "bank_account",
+      "type": "text",
+      "label": "Số tài khoản thụ hưởng",
+      "regex": "^[0-9]{6,20}$"
+    },
+    {
+      "id": "f11",
+      "name": "settled",
+      "type": "bool",
+      "label": "Đã hoàn ứng",
+      "required": true,
+      "default": false
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "settlement_due",
+        "settled"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "'Ngày về' phải sau hoặc bằng 'Ngày đi'",
+      "check": {
+        "field": "trip_end",
+        "op": ">=",
+        "other_field": "trip_start"
+      }
+    },
+    {
+      "id": "r2",
+      "message": "'Thời hạn hoàn ứng' phải sau hoặc bằng 'Ngày về'",
+      "check": {
+        "field": "settlement_due",
+        "op": ">=",
+        "other_field": "trip_end"
+      }
+    },
+    {
+      "id": "r3",
+      "message": "Nhận chuyển khoản thì phải có số tài khoản",
+      "check": {
+        "or": [
+          {
+            "field": "payout_method",
+            "op": "!=",
+            "value": "bank_transfer"
+          },
+          {
+            "field": "bank_account",
+            "op": "not_null"
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "dept_head": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "payment_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "chief_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "director": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

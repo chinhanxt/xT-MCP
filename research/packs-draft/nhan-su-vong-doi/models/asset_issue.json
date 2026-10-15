@@ -1,0 +1,114 @@
+{
+  "id": "hr_asset",
+  "name": "asset_issue",
+  "label": "Tài sản cấp phát",
+  "title_field": "asset_code",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "employee",
+      "type": "ref",
+      "label": "Người giữ",
+      "required": true,
+      "ref": "employee"
+    },
+    {
+      "id": "f2",
+      "name": "kind",
+      "type": "enum",
+      "label": "Loại tài sản",
+      "required": true,
+      "options": [
+        {
+          "value": "laptop",
+          "label": "Laptop"
+        },
+        {
+          "value": "phone_device",
+          "label": "Điện thoại"
+        },
+        {
+          "value": "access_card",
+          "label": "Thẻ ra vào"
+        },
+        {
+          "value": "other",
+          "label": "Khác"
+        }
+      ]
+    },
+    {
+      "id": "f3",
+      "name": "asset_code",
+      "type": "text",
+      "label": "Mã tài sản",
+      "required": true,
+      "unique": true,
+      "max": 40
+    },
+    {
+      "id": "f4",
+      "name": "issued_on",
+      "type": "date",
+      "label": "Ngày cấp",
+      "required": true
+    },
+    {
+      "id": "f5",
+      "name": "revoked_on",
+      "type": "date",
+      "label": "Ngày thu hồi"
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "employee",
+        "revoked_on"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Ngày thu hồi phải sau hoặc bằng ngày cấp",
+      "check": {
+        "field": "revoked_on",
+        "op": ">=",
+        "other_field": "issued_on"
+      }
+    }
+  ],
+  "permissions": {
+    "it_admin": {
+      "actions": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ],
+      "scope": "all"
+    },
+    "hr": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    }
+  }
+}

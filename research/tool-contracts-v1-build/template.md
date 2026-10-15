@@ -1,6 +1,8 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Hợp đồng tool MCP của xT, v1 (đã đối chiếu sau debate)
 
+> **v1.0.1 changelog:** theo quyết định D8 (`architecture-debate.md` vòng 3, `architecture-v2-verdict.md`) không có kênh xác nhận CLI. Bỏ `cli_command` khỏi `confirmation_required.details`; `confirm_url` luôn là string khi `status=pending` (stdio trỏ tới Desk cục bộ). Thêm OpenAPI 3.1 (E9) vào danh sách đầu ra sinh từ contract; CLI chỉ là CLI vận hành. Không breaking: `details` là object mở.
+
 - **Phiên bản contract:** `1.0.0`. Gồm catalog v0.1 (17 tool) và phần bổ sung v1.0 (4 tool).
 - **Ngày:** 15/10/2026.
 - **Trạng thái:** chốt sau debate vòng 2. Đây là spec, chưa phải code đã chạy.
@@ -46,7 +48,7 @@ ToolContract {
 }
 ```
 
-Từ contract sinh ra 6 đầu ra như `architecture-v1.md` §4.3: đăng ký MCP, REST `/rest/v1/tools/{name}`, CLI, catalog/docs, metadata skill và contract test. Tool nào thiếu effects thì ứng dụng không khởi động.
+Từ contract sinh ra 7 đầu ra như `architecture-v1.md` §4.3: đăng ký MCP, REST `/rest/v1/tools/{name}`, OpenAPI 3.1, CLI vận hành (không phải kênh xác nhận), catalog/docs, metadata skill và contract test. Tool nào thiếu effects thì ứng dụng không khởi động.
 
 **Các bất biến `build.py` đã kiểm cho cả 21 tool:**
 1. `check_schema` hợp lệ cho input và output (đã bọc envelope).
@@ -180,8 +182,8 @@ agent ──gọi lại y hệt (cùng key)──▶ nhận success với meta.r
 | Ai sở hữu trang | xT Desk (`desk/`), route `/desk/confirm/{id}`. Không cần app riêng |
 | Client Keycloak | `xt-desk`: client của Desk backend (OIDC code flow, token người nằm ở server, không ở trình duyệt; theo `architecture-v2.md`), redirect cố định về domain xT. **Không bao giờ** là client DCR. `/confirm` đòi xác thực tươi `max_age=0` + TOTP. xt-api chỉ coi token `azp=xt-desk` là phiên người. Token của connector (Claude, ChatGPT, Goose, `xt-desk-agent`) luôn là `invoking_actor=agent(azp)`, `on_behalf_of=sub` |
 | Mốc | Theo `architecture-v2.md`: `/confirm` server-render có ngay ở **v0.1** (cùng Streamable HTTP); `/desk/upload` đi cùng SeaweedFS ở v0.2; phần còn lại của Desk ở v0.3. Lý do giữ sớm: thiếu `/confirm` thì connector HTTP không làm được gì từ L2 trở lên |
-| Chế độ stdio (dev/offline) | `confirm_url=null`, `cli_command="xt confirm cf_…"` chạy trên TTY. Cách chứng minh "là người" giống `architecture-v1.md` §5.5 |
-| Telegram (v0.2) | Callback Telegram cho `chat_id` đã liên kết là kênh người hợp lệ (1 chạm). Vượt ngưỡng MFA thì nút chuyển thành `confirm_url` |
+| Chế độ stdio | `confirm_url` trỏ tới Desk cục bộ (`http://<host>/desk/confirm/{id}`); không có `cli_command`; xác nhận luôn qua Desk hoặc Telegram (quyết định D8: không có kênh xác nhận CLI) |
+| Telegram (v0.2) | Callback Telegram cho `chat_id` đã liên kết là kênh người hợp lệ (1 chạm). Vượt ngưỡng step-up thì nút chuyển thành `confirm_url`. Ngưỡng nằm ở dữ liệu gói; mặc định của `de-xuat-phe-duyet` là số tiền > 50.000.000 VND (`confirm_step_up`), không gắn với bước Giám đốc |
 | MCP elicitation dạng URL | Chỉ gửi thêm khi client khai capability. **Chưa kiểm chứng** trên Claude/ChatGPT |
 | Thẻ MCP App | Không có tool app-only để ghi. Nút "Duyệt" mở `confirm_url`. Storyboard S2b/S3 cần sửa: thẻ App tốn 2 chạm, Telegram tốn 1 chạm |
 
@@ -233,7 +235,7 @@ Client `cloud` không bao giờ nhận `full` (`architecture-v2.md`: "`cloud` lu
 
 | `source` | Dùng khi | Luồng |
 |---|---|---|
-| `text` | Agent tự soạn nội dung (biên bản, báo cáo, nháp văn bản), tối đa 256 KiB | Ghi trực tiếp, `status=not_scanned` (v0.1) hoặc `clean` (v1.0, sau ClamAV) |
+| `text` | Agent tự soạn nội dung (biên bản, báo cáo, nháp văn bản), tối đa 256 KiB | Ghi trực tiếp, `status=not_scanned` (v0.1) hoặc `clean` (v0.2, profile `full` có ClamAV; theo `architecture-v2.md` §3) |
 | `base64` | CLI hoặc iframe MCP App đã đọc tệp thật, tối đa `limits.max_inline_upload_bytes` (1 MiB) | Như trên |
 | `upload_link` | **Người dùng** cần đính kèm tệp (hóa đơn, hợp đồng). Model không có byte của tệp đính kèm trong chat | Trả về `upload_url` (trang Desk `/desk/upload/{id}`, đăng nhập `xt-desk`) và `put_url` (presigned PUT `https://<xt>/blob/upload/{id}?sig=…`; APISIX kiểm chữ ký, giới hạn kích thước `limits.max_upload_bytes`, proxy S3 tới SeaweedFS bucket `tenant-<id>`). TTL bằng `limits.upload_link_ttl_seconds` (900 giây) |
 

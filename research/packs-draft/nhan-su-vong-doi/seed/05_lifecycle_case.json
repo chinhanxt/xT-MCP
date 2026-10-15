@@ -1,0 +1,17 @@
+{
+  "model": "lifecycle_case",
+  "records": [
+    {
+      "_key": "ON-2026-0001",
+      "code": "ON-2026-0001",
+      "employee": "@employee:NV-0015",
+      "owner_id": "@user:NV-0015",
+      "department_id": "@dept:KD",
+      "kind": "onboarding",
+      "effective_on": "2026-09-15",
+      "state": "completed",
+      "initiated_by": "@user:NV-0009",
+      "closed_at": "2026-09-17T11:00:00+07:00"
+    }
+  ]
+}

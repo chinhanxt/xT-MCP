@@ -3,18 +3,18 @@
   "tenant": "binhminh",
   "statements": [
     {
-      "id": "gv.nguoi-thuc-hien-read",
+      "id": "tsk.assignee-read",
       "effect": "Allow",
       "subjects": [
-        "role:nhan_vien"
+        "role:employee"
       ],
       "actions": [
         "record.read"
       ],
       "resources": [
-        "xrn:binhminh:cong_viec:*",
-        "xrn:binhminh:cong_viec_muc:*",
-        "xrn:binhminh:nhat_ky_sla:*"
+        "xrn:binhminh:task:*",
+        "xrn:binhminh:task_item:*",
+        "xrn:binhminh:sla_log:*"
       ],
       "conditions": [
         {
@@ -27,18 +27,18 @@
       ]
     },
     {
-      "id": "gv.nguoi-thuc-hien-update",
+      "id": "tsk.assignee-update",
       "effect": "Allow",
       "subjects": [
-        "role:nhan_vien"
+        "role:employee"
       ],
       "actions": [
         "record.update"
       ],
       "resources": [
-        "xrn:binhminh:cong_viec:*",
-        "xrn:binhminh:cong_viec_muc:*",
-        "xrn:binhminh:nhat_ky_sla:*"
+        "xrn:binhminh:task:*",
+        "xrn:binhminh:task_item:*",
+        "xrn:binhminh:sla_log:*"
       ],
       "conditions": [
         {
@@ -51,10 +51,10 @@
       ]
     },
     {
-      "id": "gv.tbp-giao-viec",
+      "id": "tsk.dept-head-assign",
       "effect": "Allow",
       "subjects": [
-        "role:truong_bo_phan"
+        "role:dept_head"
       ],
       "actions": [
         "record.read",
@@ -62,9 +62,9 @@
         "record.update"
       ],
       "resources": [
-        "xrn:binhminh:cong_viec:*",
-        "xrn:binhminh:cong_viec_muc:*",
-        "xrn:binhminh:nhat_ky_sla:*"
+        "xrn:binhminh:task:*",
+        "xrn:binhminh:task_item:*",
+        "xrn:binhminh:sla_log:*"
       ],
       "conditions": [
         {
@@ -77,18 +77,18 @@
       ]
     },
     {
-      "id": "gv.nghiem-thu",
+      "id": "tsk.acceptance",
       "effect": "Allow",
       "subjects": [
-        "role:truong_bo_phan"
+        "role:dept_head"
       ],
       "actions": [
         "record.approve"
       ],
       "resources": [
-        "xrn:binhminh:cong_viec:*",
-        "xrn:binhminh:cong_viec_muc:*",
-        "xrn:binhminh:nhat_ky_sla:*"
+        "xrn:binhminh:task:*",
+        "xrn:binhminh:task_item:*",
+        "xrn:binhminh:sla_log:*"
       ],
       "conditions": [
         {
@@ -101,40 +101,40 @@
       ]
     },
     {
-      "id": "gv.gd-read",
+      "id": "tsk.director-read",
       "effect": "Allow",
       "subjects": [
-        "role:giam_doc"
+        "role:director"
       ],
       "actions": [
         "record.read",
         "record.approve"
       ],
       "resources": [
-        "xrn:binhminh:cong_viec:*",
-        "xrn:binhminh:cong_viec_muc:*",
-        "xrn:binhminh:nhat_ky_sla:*",
-        "xrn:binhminh:ban_tin_tuan:*"
+        "xrn:binhminh:task:*",
+        "xrn:binhminh:task_item:*",
+        "xrn:binhminh:sla_log:*",
+        "xrn:binhminh:weekly_digest:*"
       ],
       "conditions": []
     },
     {
-      "id": "gv.ban-tin-read",
+      "id": "tsk.digest-read",
       "effect": "Allow",
       "subjects": [
-        "role:truong_bo_phan",
-        "role:nhan_vien"
+        "role:dept_head",
+        "role:employee"
       ],
       "actions": [
         "record.read"
       ],
       "resources": [
-        "xrn:binhminh:ban_tin_tuan:*"
+        "xrn:binhminh:weekly_digest:*"
       ],
       "conditions": []
     },
     {
-      "id": "gv.agent-l0-l1",
+      "id": "tsk.agent-l0-l1",
       "effect": "Allow",
       "subjects": [
         "role:agent"
@@ -145,15 +145,15 @@
         "record.update"
       ],
       "resources": [
-        "xrn:binhminh:cong_viec:*",
-        "xrn:binhminh:cong_viec_muc:*",
-        "xrn:binhminh:nhat_ky_sla:*",
-        "xrn:binhminh:ban_tin_tuan:*"
+        "xrn:binhminh:task:*",
+        "xrn:binhminh:task_item:*",
+        "xrn:binhminh:sla_log:*",
+        "xrn:binhminh:weekly_digest:*"
       ],
       "conditions": []
     },
     {
-      "id": "gv.deny-agent-nghiem-thu",
+      "id": "tsk.deny-agent-acceptance",
       "effect": "Deny",
       "subjects": [
         "role:agent"
@@ -169,7 +169,7 @@
       "conditions": []
     },
     {
-      "id": "gv.deny-nguoi-lam-tu-nghiem-thu",
+      "id": "tsk.deny-assignee-self-accept",
       "effect": "Deny",
       "subjects": [
         "*"
@@ -178,9 +178,9 @@
         "record.approve"
       ],
       "resources": [
-        "xrn:binhminh:cong_viec:*",
-        "xrn:binhminh:cong_viec_muc:*",
-        "xrn:binhminh:nhat_ky_sla:*"
+        "xrn:binhminh:task:*",
+        "xrn:binhminh:task_item:*",
+        "xrn:binhminh:sla_log:*"
       ],
       "conditions": [
         {

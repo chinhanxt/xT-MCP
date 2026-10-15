@@ -52,7 +52,7 @@
 | D8 `/confirm` xác thực tươi `max_age=0` + TOTP + `acr` (V2:50, V2:491-495) | **Chưa có báo cáo.** `research/spike-hitl/` mới có code (`kc_setup.py`, `stepup_flow.py`, `ciba_flow.py` chưa commit), không có `spike-hitl.md` | **Thiếu bằng chứng**, trong khi đây là phần chịu lực của nghiệm thu v0.1 (1) và (3). Xem **B3** |
 | Làn PII (V2:519-528) | Không có `spike-pii-lane.md` | Mới là thiết kế. Làm ở v0.3 nên không chặn |
 | Footprint `minimal` < 4 GB (V2:674) | Không có `footprint.md`; `spike-local-llm.md:39` ghi ổ `/` chỉ còn 6,7 GB | Chưa đo. V2 hẹn đo ở v0.2. Máy dev hiện chỉ còn khoảng 6 GB RAM và 7,5 GB đĩa nên cần **đo từ v0.1** (T1-19) |
-| Hợp đồng tool (V2:43, V2:108-115) | TCV1:14 (17/21 tool), TCV1:20 (C7: `confirm_url`, trang tự thực thi pending operation), TCV1:3731 (tự ghi chỗ lệch với V2:111) | **Đã chốt.** Catalog 17 tool thỏa trần ≤22 và đủ 6 năng lực của V2 §1.3 (TCV1:3727-3730). V2 còn nhiều chỗ chưa khớp (§8). Riêng TCV1:183,3491-3492 (`cli_command` ở stdio) **ngược với** D8 "không có CLI" (V2:50, DEB:57) |
+| Hợp đồng tool (V2:43, V2:108-115) | TCV1:14 (17/21 tool), TCV1:20 (C7: `confirm_url`, trang tự thực thi pending operation), TCV1:3731 (tự ghi chỗ lệch với V2:111) | **Đã chốt.** Catalog 17 tool thỏa trần ≤22 và đủ 6 năng lực của V2 §1.3 (TCV1:3728-3730). V2 còn nhiều chỗ chưa khớp (§8). Riêng TCV1:183,3491-3492 (`cli_command` ở stdio) **ngược với** D8 "không có CLI" (V2:50, DEB:57) |
 | Gói nghiệp vụ là dữ liệu (V2:119-126, V2:587) | PACK:13-19: 3 gói, 19 model, 6 process, toàn JSON; apply 100% AN TOÀN; 41/41 ca IAM; SLA leo thang; seed | **Có bằng chứng mạnh** cho "nghiệp vụ là dữ liệu". Nhưng còn 27 khoảng trống engine, 7 mục mức A (PACK:261-305). PACK vẫn chạy bảng dùng chung, không phải namespace theo tenant (PACK:53), nên B4 vẫn còn nguyên |
 
 ---
@@ -252,9 +252,10 @@ Quy ước chung:
 | T0-10 | Script e2e OAuth (dựa trên `spike-mcp-auth/e2e.py`) qua tunnel | DCR với `claude.ai` callback → 201; `evil.example` → 403. Token có `mcp-xt` gọi `whoami` → 200. Token không có `mcp-xt` → 401 |
 | T0-11 | OWNER thêm connector trên Claude Free và hỏi "whoami" | Log xt-api có `tool=whoami`, `azp` là client DCR, `sub` của chủ dự án, `protocolVersion` đã thương lượng. Ghi lại Claude có gửi `scope`/`resource` hay không. Kết quả lưu ở `research/connector-smoke.md` |
 | T0-12 | OWNER thử ChatGPT developer mode | Ghi kết quả thật (thành công, chỉ đọc, hoặc bị từ chối) vào `connector-smoke.md`. Đạt nghĩa là đã ghi, không cần thành công |
-| T0-13 | `ls docs/tool-contracts-v1.md research/spike-hitl.md` | Cả hai tồn tại. Bảng hòa giải B1 nằm trong `architecture-debate.md`. Đã thay placeholder probe |
+| T0-13 | `ls research/spike-hitl.md`; `grep -n confirmation_ref docs/architecture-v2.md`; `grep -n cli_command docs/tool-contracts-v1.md` | `spike-hitl.md` tồn tại. V2 đã áp E1–E12 (§8), grep `confirmation_ref` trong V2 rỗng. `cli_command` luôn `null` hoặc đã bị xóa (B1) |
 | T0-14 | `make release && tar tzf dist/xt-*.tar.gz` | Có số phiên bản. Không có `node_modules`, `.venv`, bundle |
 | T0-15 | `df -h /`; `docker ps -a` | Đĩa trống ≥ 5 GB. Không còn container spike thừa |
+| T0-16 | Đọc báo cáo workflow-v2 spike | G-P3, G-M1, G-M2, G-P8 đã đóng bằng test chạy thật (B6). Có tái hiện lại probe ở PACK:177-191 sau khi sửa: khóa lạ bị từ chối, `return` không còn thành APPROVED |
 
 ### 7.2. v0.1 (27/10, tag v0.1.0 ≤ 28/10)
 
@@ -269,16 +270,67 @@ Quy ước chung:
 | T1-06b | Đổi ngưỡng 5 tr → 10 tr bằng **dữ liệu gói** (đề xuất + duyệt), rồi tạo đơn 8 tr mới | Đơn mới không qua GĐ. `git diff src/` rỗng, tức không đổi code |
 | T1-07 | OWNER chạy kịch bản (1) trên Claude Free qua `$XT_HOST` | Log có chuỗi tool đúng, `azp` của client Claude. Bước duyệt đi qua `/confirm` |
 | T1-08 | Kịch bản (2): `den_ngay < tu_ngay` | Lỗi `RULE_VIOLATION` hoặc `CONSTRAINT_VIOLATION`, thông điệp tiếng Việt nêu "Đến ngày". Lần gọi kế tiếp đã sửa ngày thì thành công (log) |
-| T1-09 | Kịch bản (3): token agent gọi `decide_request` | Trả `confirmation_required` + `confirm_url`. URL không chứa `token=`, `code=` hay `eyJ`. Playwright mở URL khi chưa đăng nhập → bị đưa tới Keycloak. Đúng mật khẩu nhưng thiếu hoặc sai TOTP → không có Decision. Phiên quá 120 s (hoặc mức TCV1 chốt) → buộc đăng nhập lại. Sau khi duyệt, Decision có `auth_time`, `acr`, `azp=xt-desk`. Agent gọi lại cùng `idempotency_key` → nhận receipt replay. Dùng lại xác nhận lần 2 → bị từ chối |
-| T1-10 | SoD | Người đề nghị tự duyệt đơn của mình qua `/confirm` → bị từ chối. Với role `xt_app`, chèn SQL `decisions` có `decider = requester` → trigger báo lỗi |
+| T1-09 | Kịch bản (3): token agent gọi `decide_request` | Trả `confirmation_required` với `confirm_url` = `https://$XT_HOST/desk/confirm/{id}`. URL không chứa `token=`, `code=` hay `eyJ`. Input schema của mọi tool **không** có tham số gate (TCV1:20). Playwright mở URL khi chưa đăng nhập → bị đưa tới Keycloak (`max_age=0`). Đúng mật khẩu nhưng thiếu hoặc sai TOTP → không có Decision. Sau khi người bấm Đồng ý, chính trang thực thi pending operation; Decision có `auth_time`, `acr`, `azp=xt-desk`. Agent gọi lại **y hệt** (cùng `idempotency_key`) → `meta.receipt.replayed=true`. Pending quá TTL 10 phút → `confirmation_declined` hoặc hết hạn, không thực thi |
+| T1-10 | SoD | Agent đại diện người đề nghị gọi `decide_request` trên đơn của chính người đó → `access_denied` kèm `explain_ref`, **không** sinh link xác nhận (TCV1:150-159). Người đề nghị mở `/desk/confirm` đơn của mình → bị từ chối. Với role `xt_app`, chèn SQL `decisions` có `decider = requester` → trigger báo lỗi |
 | T1-11 | Trần tự chủ | Agent DCR mới chỉ được L0. Sau khi người chủ cấp L1 thì tạo/submit được. Hành động L2 không có xác nhận → `confirmation_required`. `decide_request` không bao giờ thực thi bằng token agent, kể cả khi policy tenant cho phép |
-| T1-12 | Kịch bản (4): SLA PT2M; giữa chừng chạy `docker compose restart xt-worker` | Trong ≤ 2 phút 15 s có task leo thang cho GĐ + bản ghi notify. Restart không làm mất timer |
+| T1-12 | Kịch bản (4): SLA PT2M; giữa chừng chạy `docker compose restart xt-worker` | Trong ≤ 2 phút 15 s có task leo thang cho GĐ + bản ghi notify. Restart không làm mất timer. Hành vi theo G-P5 phải khớp đúng bản đã chốt trong workflow-v2 spike: nếu GĐ đã duyệt bước leo thang thì **không** bắt GĐ duyệt lần 2 cho cùng đơn; nếu vẫn chọn hành vi cũ thì phải ghi rõ trong README gói |
 | T1-13 | Kịch bản (5): đề xuất thêm field `ma_du_an` (text, không bắt buộc) | Plan tiếng Việt có `[AN TOÀN]`. Agent không tự apply được. Duyệt ở `/confirm` → worker chạy pha 2 → cột có trong `information_schema.columns`, còn 0 constraint NOT VALID. Tạo bản ghi có field mới thành công. Drop field có dữ liệu mà chỉ 1 người duyệt → bị từ chối |
 | T1-14 | Kịch bản (6): `xt audit verify --tenant A`; superuser tắt trigger và sửa 1 dòng | Trước khi sửa: `(n, null)`. Sau khi sửa: trả đúng seq bị sửa. Tenant B vẫn `(m, null)` |
 | T1-15 | Kịch bản (7) | Bằng T1-05, xanh trong CI |
-| T1-16 | Kịch bản (8): Goose CLI + `qwen3.5:4b` chạy create + submit, 3 lần | Đạt ≥ 2/3, args hợp lệ ngay lần đầu. Ghi latency từng lần. Mọi lần `decide` đều ra `confirmation_required` |
-| T1-17 | `pytest -k "contract"` | `tools/list` của 2 user khác nhau có digest bằng nhau. Mọi tool có `title` + 3 hint, `annotations == derive(effects)`. Mọi example pass. Không có tool app-only nào ghi dữ liệu. Catalog khớp TCV1 |
+| T1-16 | Kịch bản (8): Goose CLI + `qwen3.5:4b`, `num_ctx ≥ 16384` (TCV1:3667), chạy create + submit 3 lần với catalog 17 tool; lặp lại bằng vòng agent Python với hồ sơ core-10 | Đạt ≥ 2/3 ở mỗi cấu hình, args hợp lệ ngay lần đầu. Ghi latency từng lần. Mọi lần `decide` đều ra `confirmation_required` |
+| T1-17 | `pytest -k "contract"` | `tools/list` có đúng **17 tool** theo TCV1:302-322, digest khớp catalog sinh từ contract và giống nhau giữa 2 user. 0 tool destructive, 0 openWorld (TCV1:19,60). Mọi tool có `title` + 3 hint, `annotations == derive(effects)`. Mọi example pass. Không tool app-only nào ghi. Không input nào có `confirmation_ref`, `approval_ref` hay `preview_token` |
 | T1-18 | `pytest -k "spiff_security or reload"` trong CI | Như T0-03 và T0-04, chạy trên image xT |
 | T1-19 | `docker stats --no-stream`; `df -h /` | Ghi tổng RAM của profile `minimal` vào `INSTALL.md`. Đĩa trống ≥ 4 GB sau `make up` |
 | T1-20 | Khởi động xt-api thiếu `XT_OIDC_ISSUER`; ToolContract thiếu `effects` | Exit ≠ 0 kèm thông báo rõ, không chạy bằng giá trị mặc định ngầm. Nếu xt-desk chạy không có LLM hoặc xt-bot không có token thì `xt doctor` báo rõ là đang tắt |
 | T1-21 | `git tag v0.1.0`; nếu đã push thì kiểm release trên forge | Tag trỏ đúng commit của tarball T1-02 |
+| T1-22 | Gọi `upload_file` và `aggregate_records` trên v0.1 | Trả `capability_unavailable` có remediation, không giả thành công (TCV1:3732). Schema tool vẫn đầy đủ |
+| T1-23 | `decide_request(decision="return")` trên W1; gọi engine với quyết định lạ | Hoặc có nhánh trả lại thật (đơn quay về người đề nghị), hoặc `capability_unavailable`. **Không bao giờ** ra APPROVED hay ghi sổ (G-P3). Giá trị ngoài enum → lỗi |
+| T1-24 | Người đề nghị (hoặc agent L1 của họ) `update_record` field `state`, người duyệt, bước hiện tại của đơn đang chờ duyệt | `state` → `precondition_failed` + continuation `transition_record` (TCV1:1779). Field có `managed_by: workflow` → bị từ chối (G-M1) |
+| T1-25 | Cài process-spec có khóa lạ (`slaa`) hoặc biến `when` không khai báo | Bị từ chối lúc validate kèm thông điệp rõ (G-P8), không compile ra BPMN |
+| T1-26 | `describe_model` của model tạm ứng/nhân sự có field `sensitive`; sửa field đó rồi đọc audit | Spec trả `pii`/`sensitive` (G-M2). Audit diff chỉ có hash, không có giá trị (V2:514) |
+
+---
+
+## 8. Sửa bắt buộc trong V2 để khớp TCV1 (TCV1 là nguồn sự thật cho bề mặt tool)
+
+| # | Chỗ trong V2 | Hiện ghi | Sửa thành (nguồn) |
+|---|---|---|---|
+| E1 | V2:111 (§1.3) | "Một tên tham số gate duy nhất `confirmation_ref` (F16)" | "**Không có tham số gate.** Lời gọi thiếu xác nhận tạo PendingOperation (TTL 10 phút) và trả `confirmation_required` {`confirm_url`, `confirmer`, `plan_summary`, `plan_digest`, `expires_at`, `continuation`}. Trang xác nhận tự thực thi; agent gọi lại cùng `idempotency_key` để nhận receipt replay" (TCV1:20,161-177) |
+| E2 | V2:97 (năng lực 1); V2:490 (§5.5.1) | `confirmation_ref` + `details.confirmation_ref` | `details.confirmation_id` (pending) + `confirm_url` + `continuation` (TCV1:3731) |
+| E3 | V2:491 (§5.5.2), V2:185-186, V2:50 | Route `/confirm/{id}` | `/desk/confirm/{id}` qua APISIX → Desk backend, client `xt-desk` không bao giờ là DCR (TCV1:168,181) |
+| E4 | V2:91-92, V2:752, V2:732 ("tập tool đầu tiên theo TCV1 (đọc, tạo/sửa, …)") | Đề xuất 16–17; ≤22 | **17 tool ở v0.1, 21 ở v1.0**, liệt kê theo TCV1:302-322 và §4.2 |
+| E5 | V2:478-484 (§5.4) | L1 không có giao việc; L2 "giao việc cho người khác"; hard gate | Theo TCV1:139-145: L1 gồm giao việc cho cấp dưới trực tiếp (policy mặc định); L2 là giao ngoài tuyến hoặc field `impact: high`; lớp `human_only` tách khỏi thang L |
+| E6 | V2:115, V2:664, V2:707 | Hồ sơ "core-8"; `num_ctx` 8k và 16k | **core-10** (TCV1:3665). Client local dùng catalog đủ phải đặt `num_ctx ≥ 16384`, vì 17 tool tốn 8.155 token (TCV1:3667). Bỏ cấu hình eval 8k với catalog đủ |
+| E7 | V2:659 (§7), V2:732 ("3 skill-prompt") | 2 skill + 3 prompt | 4 skill (`xt-core`, `xt-approvals`, `xt-tasks`, `xt-data-modeling`) + 4 prompt (+`change_model_safely`) (TCV1:3704-3711) |
+| E8 | V2:519-527 (§5.7), V2:156 | `pii ≥ basic`; `local` theo `full\|masked` | Field `pii: true` / `sensitive: true`; `llm_egress ∈ {masked, local_only}`; `cloud` → masked hoặc omitted; dạng `[PII:token]`; ghi token ngược bị từ chối (TCV1:257-272) |
+| E9 | V2:408-416 (§4.3) | Sáu đầu ra gồm OpenAPI | TCV1:49 liệt kê CLI thay cho OpenAPI. Giữ OpenAPI 3.1 (bằng chứng cho đề và CRIT 27), và sửa TCV1:49 cho đủ cả hai. CLI chỉ là CLI vận hành, không phải kênh xác nhận |
+| E10 | V2:93-102 + bảng §10 v0.1 | Sáu năng lực coi như có ở v0.1 | Thêm cột "khả dụng": `upload_file`, `aggregate_records` trả `capability_unavailable` tới v0.2; làn PII ở v0.3 (TCV1:3732) |
+| E11 | V2:498-501 (§5.5 SoD) | SoD ở trigger + delegation | Thêm thứ tự kiểm của TCV1:147-157: IAM/SoD trả `access_denied` **trước** khi tạo xác nhận, nên agent tự duyệt không bao giờ ra link (storyboard S2a) |
+| E12 | V2:187, V2:733 (MCP App thẻ duyệt) | "thẻ duyệt" | Nút "Duyệt" trên thẻ mở `confirm_url` bằng `ui/open-link`; không có tool app-only để ghi; thẻ tốn 2 chạm, Telegram 1 chạm (TCV1:186) |
+
+Ngoài V2 còn phải sửa (không chặn):
+- Storyboard theo TCV1:3719-3725.
+- `cli_command` trong TCV1 (B1).
+- TCV1:49 (E9).
+
+---
+
+## 9. Khoảng trống engine từ PACK: ánh xạ vào mốc
+
+| ID | Mức | Mốc phải đóng | Lý do |
+|---|---|---|---|
+| G-P3 cổng quyết định | A | **v0.1 (B6)** | `decide_request` có "trả lại" ở v0.1; hiện engine duyệt ngầm |
+| G-M1 field do workflow quản | A | **v0.1 (B6)** | `update_record` có ở v0.1 |
+| G-M2 nhãn PII trong FieldSpec | A | **v0.1 (B6)** (chỉ spec + audit hash); làn PII ở v0.3 | TCV1 `describe_model` đã có field này |
+| G-P8 ProcessSpec `extra=forbid` | B | **v0.1 (B6)** | Gói W1 cài qua đề xuất |
+| G-P11 đồng bộ workflow → record | B | v0.1 (runtime dispatcher) | T1-06 kiểm `state=da_duyet` |
+| G-P5 leo thang thay người, GĐ duyệt 2 lần | B | v0.1 (chốt hành vi), v0.2 (boundary không ngắt) | T1-12 |
+| G-P9 lỗi service bị che, G-P10 op không idempotent, G-P12 role chưa escape | B/C | v0.1 (worker) | Trùng VS #6 và bug `call_service` (N5) |
+| G-P1 song song, G-P2 timer khởi tạo, G-P4 lane động, G-I1 SoD theo quan hệ, G-P7 hành động IAM theo bước, G-I2/G-I3 | A/B | v0.2 | Trùng phạm vi `parallel`, `trigger`, resolver, W2 của V2:609 |
+| G-M3 scope participant, G-M4 rule nhiều dòng, G-P6 SLA từ dữ liệu | B | v0.2–v0.3 | W2/W4 |
+| G-M5 namespace gói, G-I7 id statement theo gói | B | **cùng B4** (trước khi chốt định dạng gói) | Đụng D6 namespace theo tenant |
+| G-M6, G-M7, G-M8, G-I4–G-I6 | B/C | v0.3 | Nhập lô, ủy quyền |
+
+Ghi nhận thêm:
+- PACK cho thấy W3 on/offboarding đã chạy được (PACK:163-175), dù V2 xếp ở v0.3. Có thể kéo sớm nếu cần.
+- 3 gói hiện **chưa có `pack.json` nào được engine đọc** (PACK:311). Phải có loader trước khi đếm "W5/W7 chỉ YAML" ở v1.0 (V2:126).

@@ -1,0 +1,37 @@
+{
+  "model": "task_item",
+  "records": [
+    {
+      "task": "@task:CV-2026-0001",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "seq": 1,
+      "content": "Chốt danh sách khách mời",
+      "done": true
+    },
+    {
+      "task": "@task:CV-2026-0001",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "seq": 2,
+      "content": "Đặt hội trường",
+      "done": true
+    },
+    {
+      "task": "@task:CV-2026-0001",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "seq": 3,
+      "content": "Chốt catering",
+      "done": false
+    },
+    {
+      "task": "@task:CV-2026-0001",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "seq": 4,
+      "content": "In và gửi thư mời",
+      "done": false
+    }
+  ]
+}

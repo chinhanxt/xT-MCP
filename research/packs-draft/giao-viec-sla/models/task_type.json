@@ -1,0 +1,115 @@
+{
+  "id": "tsk_type",
+  "name": "task_type",
+  "label": "Loại công việc",
+  "title_field": "name",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "code",
+      "type": "text",
+      "label": "Mã loại",
+      "required": true,
+      "unique": true,
+      "regex": "^[a-z][a-z0-9_]{1,29}$"
+    },
+    {
+      "id": "f2",
+      "name": "name",
+      "type": "text",
+      "label": "Tên loại",
+      "required": true,
+      "max": 120
+    },
+    {
+      "id": "f3",
+      "name": "sla_accept_hours",
+      "type": "number",
+      "label": "SLA xác nhận nhận việc (giờ)",
+      "required": true,
+      "min": 1,
+      "max": 720,
+      "default": 4
+    },
+    {
+      "id": "f4",
+      "name": "sla_complete_hours",
+      "type": "number",
+      "label": "SLA hoàn thành (giờ)",
+      "required": true,
+      "min": 1,
+      "max": 2160,
+      "default": 72
+    },
+    {
+      "id": "f5",
+      "name": "remind_before_hours",
+      "type": "number",
+      "label": "Nhắc trước hạn (giờ)",
+      "min": 0,
+      "max": 720,
+      "default": 8
+    },
+    {
+      "id": "f6",
+      "name": "sla_class",
+      "type": "enum",
+      "label": "Lớp quy trình SLA",
+      "required": true,
+      "default": "normal",
+      "options": [
+        {
+          "value": "normal",
+          "label": "Thường"
+        },
+        {
+          "value": "urgent",
+          "label": "Khẩn"
+        }
+      ]
+    }
+  ],
+  "indexes": [],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "SLA nhắc trước hạn phải nhỏ hơn SLA hoàn thành",
+      "check": {
+        "or": [
+          {
+            "field": "remind_before_hours",
+            "op": "is_null"
+          },
+          {
+            "field": "remind_before_hours",
+            "op": "<",
+            "other_field": "sla_complete_hours"
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "admin": {
+      "actions": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ],
+      "scope": "all"
+    },
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    }
+  }
+}

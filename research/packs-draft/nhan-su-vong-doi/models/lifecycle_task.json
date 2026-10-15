@@ -1,0 +1,173 @@
+{
+  "id": "hr_ltask",
+  "name": "lifecycle_task",
+  "label": "Việc trong hồ sơ vòng đời",
+  "title_field": "name",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "lifecycle_case",
+      "type": "ref",
+      "label": "Hồ sơ",
+      "required": true,
+      "ref": "lifecycle_case"
+    },
+    {
+      "id": "f2",
+      "name": "owner_unit",
+      "type": "enum",
+      "label": "Bộ phận phụ trách",
+      "required": true,
+      "options": [
+        {
+          "value": "hr",
+          "label": "Nhân sự"
+        },
+        {
+          "value": "it",
+          "label": "IT"
+        },
+        {
+          "value": "accounting",
+          "label": "Kế toán"
+        },
+        {
+          "value": "manager",
+          "label": "Quản lý trực tiếp"
+        }
+      ]
+    },
+    {
+      "id": "f3",
+      "name": "name",
+      "type": "text",
+      "label": "Việc cần làm",
+      "required": true,
+      "max": 200
+    },
+    {
+      "id": "f4",
+      "name": "state",
+      "type": "enum",
+      "label": "Trạng thái",
+      "required": true,
+      "default": "waiting",
+      "options": [
+        {
+          "value": "waiting",
+          "label": "Chờ"
+        },
+        {
+          "value": "done",
+          "label": "Xong"
+        },
+        {
+          "value": "skipped",
+          "label": "Bỏ qua có lý do"
+        }
+      ]
+    },
+    {
+      "id": "f5",
+      "name": "due_on",
+      "type": "date",
+      "label": "Hạn"
+    },
+    {
+      "id": "f6",
+      "name": "responsible",
+      "type": "user",
+      "label": "Người phụ trách"
+    },
+    {
+      "id": "f7",
+      "name": "note",
+      "type": "text",
+      "label": "Ghi chú",
+      "max": 1000
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "lifecycle_case",
+        "owner_unit"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Việc bỏ qua phải ghi lý do",
+      "check": {
+        "or": [
+          {
+            "field": "state",
+            "op": "!=",
+            "value": "skipped"
+          },
+          {
+            "field": "note",
+            "op": "not_null"
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "hr": {
+      "actions": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "director": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "it_admin": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "payment_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "chief_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "dept_head": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    }
+  }
+}

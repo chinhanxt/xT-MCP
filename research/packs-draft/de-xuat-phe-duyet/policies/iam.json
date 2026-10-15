@@ -3,20 +3,20 @@
   "tenant": "binhminh",
   "statements": [
     {
-      "id": "dx.nv-own-read",
+      "id": "apv.emp-own-read",
       "effect": "Allow",
       "subjects": [
-        "role:nhan_vien"
+        "role:employee"
       ],
       "actions": [
         "record.read"
       ],
       "resources": [
-        "xrn:binhminh:de_xuat:*",
-        "xrn:binhminh:tam_ung:*",
-        "xrn:binhminh:thanh_toan:*",
-        "xrn:binhminh:hoan_ung:*",
-        "xrn:binhminh:buoc_duyet:*"
+        "xrn:binhminh:proposal:*",
+        "xrn:binhminh:advance_request:*",
+        "xrn:binhminh:payment_request:*",
+        "xrn:binhminh:advance_settlement:*",
+        "xrn:binhminh:approval_step:*"
       ],
       "conditions": [
         {
@@ -29,21 +29,21 @@
       ]
     },
     {
-      "id": "dx.nv-own-create",
+      "id": "apv.emp-own-create",
       "effect": "Allow",
       "subjects": [
-        "role:nhan_vien"
+        "role:employee"
       ],
       "actions": [
         "record.create",
         "record.update"
       ],
       "resources": [
-        "xrn:binhminh:de_xuat:*",
-        "xrn:binhminh:tam_ung:*",
-        "xrn:binhminh:thanh_toan:*",
-        "xrn:binhminh:hoan_ung:*",
-        "xrn:binhminh:buoc_duyet:*"
+        "xrn:binhminh:proposal:*",
+        "xrn:binhminh:advance_request:*",
+        "xrn:binhminh:payment_request:*",
+        "xrn:binhminh:advance_settlement:*",
+        "xrn:binhminh:approval_step:*"
       ],
       "conditions": [
         {
@@ -56,20 +56,20 @@
       ]
     },
     {
-      "id": "dx.tbp-read-dept",
+      "id": "apv.dept-head-read-dept",
       "effect": "Allow",
       "subjects": [
-        "role:truong_bo_phan"
+        "role:dept_head"
       ],
       "actions": [
         "record.read"
       ],
       "resources": [
-        "xrn:binhminh:de_xuat:*",
-        "xrn:binhminh:tam_ung:*",
-        "xrn:binhminh:thanh_toan:*",
-        "xrn:binhminh:hoan_ung:*",
-        "xrn:binhminh:buoc_duyet:*"
+        "xrn:binhminh:proposal:*",
+        "xrn:binhminh:advance_request:*",
+        "xrn:binhminh:payment_request:*",
+        "xrn:binhminh:advance_settlement:*",
+        "xrn:binhminh:approval_step:*"
       ],
       "conditions": [
         {
@@ -82,20 +82,20 @@
       ]
     },
     {
-      "id": "dx.tbp-approve",
+      "id": "apv.dept-head-approve",
       "effect": "Allow",
       "subjects": [
-        "role:truong_bo_phan"
+        "role:dept_head"
       ],
       "actions": [
         "record.approve"
       ],
       "resources": [
-        "xrn:binhminh:de_xuat:*",
-        "xrn:binhminh:tam_ung:*",
-        "xrn:binhminh:thanh_toan:*",
-        "xrn:binhminh:hoan_ung:*",
-        "xrn:binhminh:buoc_duyet:*"
+        "xrn:binhminh:proposal:*",
+        "xrn:binhminh:advance_request:*",
+        "xrn:binhminh:payment_request:*",
+        "xrn:binhminh:advance_settlement:*",
+        "xrn:binhminh:approval_step:*"
       ],
       "conditions": [
         {
@@ -108,67 +108,67 @@
       ]
     },
     {
-      "id": "dx.kttt-read-approve",
+      "id": "apv.payment-acct-read-approve",
       "effect": "Allow",
       "subjects": [
-        "role:ke_toan_thanh_toan"
+        "role:payment_accountant"
       ],
       "actions": [
         "record.read",
         "record.approve"
       ],
       "resources": [
-        "xrn:binhminh:de_xuat:*",
-        "xrn:binhminh:tam_ung:*",
-        "xrn:binhminh:thanh_toan:*",
-        "xrn:binhminh:hoan_ung:*",
-        "xrn:binhminh:buoc_duyet:*"
+        "xrn:binhminh:proposal:*",
+        "xrn:binhminh:advance_request:*",
+        "xrn:binhminh:payment_request:*",
+        "xrn:binhminh:advance_settlement:*",
+        "xrn:binhminh:approval_step:*"
       ],
       "conditions": []
     },
     {
-      "id": "dx.ktt-read-approve",
+      "id": "apv.chief-acct-read-approve",
       "effect": "Allow",
       "subjects": [
-        "role:ke_toan_truong"
+        "role:chief_accountant"
       ],
       "actions": [
         "record.read",
         "record.approve"
       ],
       "resources": [
-        "xrn:binhminh:de_xuat:*",
-        "xrn:binhminh:tam_ung:*",
-        "xrn:binhminh:thanh_toan:*",
-        "xrn:binhminh:hoan_ung:*",
-        "xrn:binhminh:buoc_duyet:*"
+        "xrn:binhminh:proposal:*",
+        "xrn:binhminh:advance_request:*",
+        "xrn:binhminh:payment_request:*",
+        "xrn:binhminh:advance_settlement:*",
+        "xrn:binhminh:approval_step:*"
       ],
       "conditions": []
     },
     {
-      "id": "dx.gd-read-approve",
+      "id": "apv.director-read-approve",
       "effect": "Allow",
       "subjects": [
-        "role:giam_doc"
+        "role:director"
       ],
       "actions": [
         "record.read",
         "record.approve"
       ],
       "resources": [
-        "xrn:binhminh:de_xuat:*",
-        "xrn:binhminh:tam_ung:*",
-        "xrn:binhminh:thanh_toan:*",
-        "xrn:binhminh:hoan_ung:*",
-        "xrn:binhminh:buoc_duyet:*"
+        "xrn:binhminh:proposal:*",
+        "xrn:binhminh:advance_request:*",
+        "xrn:binhminh:payment_request:*",
+        "xrn:binhminh:advance_settlement:*",
+        "xrn:binhminh:approval_step:*"
       ],
       "conditions": []
     },
     {
-      "id": "dx.quan-tri-loai",
+      "id": "apv.admin-types",
       "effect": "Allow",
       "subjects": [
-        "role:quan_tri"
+        "role:admin"
       ],
       "actions": [
         "record.read",
@@ -176,12 +176,12 @@
         "record.update"
       ],
       "resources": [
-        "xrn:binhminh:loai_de_xuat:*"
+        "xrn:binhminh:proposal_type:*"
       ],
       "conditions": []
     },
     {
-      "id": "dx.agent-l0-l1",
+      "id": "apv.agent-l0-l1",
       "effect": "Allow",
       "subjects": [
         "role:agent"
@@ -192,17 +192,17 @@
         "record.update"
       ],
       "resources": [
-        "xrn:binhminh:de_xuat:*",
-        "xrn:binhminh:tam_ung:*",
-        "xrn:binhminh:thanh_toan:*",
-        "xrn:binhminh:hoan_ung:*",
-        "xrn:binhminh:buoc_duyet:*",
-        "xrn:binhminh:loai_de_xuat:*"
+        "xrn:binhminh:proposal:*",
+        "xrn:binhminh:advance_request:*",
+        "xrn:binhminh:payment_request:*",
+        "xrn:binhminh:advance_settlement:*",
+        "xrn:binhminh:approval_step:*",
+        "xrn:binhminh:proposal_type:*"
       ],
       "conditions": []
     },
     {
-      "id": "dx.deny-agent-decide",
+      "id": "apv.deny-agent-decide",
       "effect": "Deny",
       "subjects": [
         "role:agent"
@@ -218,7 +218,7 @@
       "conditions": []
     },
     {
-      "id": "dx.deny-delete-chung-tu",
+      "id": "apv.deny-delete-vouchers",
       "effect": "Deny",
       "subjects": [
         "*"
@@ -227,11 +227,11 @@
         "record.delete"
       ],
       "resources": [
-        "xrn:binhminh:de_xuat:*",
-        "xrn:binhminh:tam_ung:*",
-        "xrn:binhminh:thanh_toan:*",
-        "xrn:binhminh:hoan_ung:*",
-        "xrn:binhminh:buoc_duyet:*"
+        "xrn:binhminh:proposal:*",
+        "xrn:binhminh:advance_request:*",
+        "xrn:binhminh:payment_request:*",
+        "xrn:binhminh:advance_settlement:*",
+        "xrn:binhminh:approval_step:*"
       ],
       "conditions": []
     }

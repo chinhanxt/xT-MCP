@@ -1,0 +1,120 @@
+{
+  "tenant": "binhminh",
+  "tenant_name": "Công ty TNHH Thương mại & Dịch vụ Bình Minh (dữ liệu hư cấu)",
+  "departments": [
+    {
+      "key": "BGD",
+      "name": "Ban Giám đốc",
+      "head": "NV-0001"
+    },
+    {
+      "key": "KD",
+      "name": "Kinh doanh",
+      "head": "NV-0005"
+    },
+    {
+      "key": "KT",
+      "name": "Kế toán - Tài chính",
+      "head": "NV-0002"
+    },
+    {
+      "key": "NS",
+      "name": "Nhân sự - Hành chính",
+      "head": "NV-0009"
+    },
+    {
+      "key": "IT",
+      "name": "Công nghệ thông tin",
+      "head": "NV-0012"
+    }
+  ],
+  "users": [
+    {
+      "key": "NV-0001",
+      "name": "Nguyễn Hoàng Long",
+      "department": "BGD",
+      "roles": [
+        "director",
+        "employee"
+      ],
+      "limit_amount": 0,
+      "synthetic": true
+    },
+    {
+      "key": "NV-0005",
+      "name": "Lê Thị Mai",
+      "department": "KD",
+      "roles": [
+        "dept_head",
+        "employee"
+      ],
+      "limit_amount": 0,
+      "synthetic": true
+    },
+    {
+      "key": "NV-0006",
+      "name": "Trần Quốc Việt",
+      "department": "KD",
+      "roles": [
+        "employee"
+      ],
+      "limit_amount": 30000000,
+      "synthetic": true
+    },
+    {
+      "key": "NV-0007",
+      "name": "Vũ Ngọc Anh",
+      "department": "KD",
+      "roles": [
+        "employee"
+      ],
+      "limit_amount": 30000000,
+      "synthetic": true
+    },
+    {
+      "key": "NV-0008",
+      "name": "Hoàng Gia Khánh",
+      "department": "KD",
+      "roles": [
+        "employee"
+      ],
+      "limit_amount": 30000000,
+      "synthetic": true
+    },
+    {
+      "key": "NV-0012",
+      "name": "Phan Đức Thịnh",
+      "department": "IT",
+      "roles": [
+        "dept_head",
+        "it_admin",
+        "admin",
+        "employee"
+      ],
+      "limit_amount": 0,
+      "synthetic": true
+    },
+    {
+      "key": "xt-workflow",
+      "name": "Danh tính dịch vụ workflow (xt-worker)",
+      "department": "BGD",
+      "roles": [
+        "xt_workflow"
+      ],
+      "kind": "service",
+      "synthetic": true
+    },
+    {
+      "key": "agent-claude",
+      "name": "agent-claude",
+      "kind": "agent",
+      "roles": [
+        "agent"
+      ],
+      "autonomy": 1,
+      "behalf": null,
+      "department": "BGD",
+      "synthetic": true
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "id": "hr_dept",
+  "name": "department",
+  "label": "Phòng ban",
+  "title_field": "name",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "code",
+      "type": "text",
+      "label": "Mã phòng",
+      "required": true,
+      "unique": true,
+      "regex": "^[A-Z]{2,6}$"
+    },
+    {
+      "id": "f2",
+      "name": "name",
+      "type": "text",
+      "label": "Tên phòng ban",
+      "required": true,
+      "max": 120
+    },
+    {
+      "id": "f3",
+      "name": "head",
+      "type": "user",
+      "label": "Trưởng phòng"
+    },
+    {
+      "id": "f4",
+      "name": "active",
+      "type": "bool",
+      "label": "Đang hoạt động",
+      "required": true,
+      "default": true
+    }
+  ],
+  "indexes": [],
+  "rules": [],
+  "permissions": {
+    "hr": {
+      "actions": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ],
+      "scope": "all"
+    },
+    "admin": {
+      "actions": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ],
+      "scope": "all"
+    },
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    }
+  }
+}

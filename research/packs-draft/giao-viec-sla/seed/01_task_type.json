@@ -1,0 +1,32 @@
+{
+  "model": "task_type",
+  "records": [
+    {
+      "_key": "general",
+      "code": "general",
+      "name": "Công việc thường",
+      "sla_accept_hours": 4,
+      "sla_complete_hours": 72,
+      "remind_before_hours": 8,
+      "sla_class": "normal"
+    },
+    {
+      "_key": "event",
+      "code": "event",
+      "name": "Chuẩn bị sự kiện",
+      "sla_accept_hours": 4,
+      "sla_complete_hours": 240,
+      "remind_before_hours": 24,
+      "sla_class": "normal"
+    },
+    {
+      "_key": "incident",
+      "code": "incident",
+      "name": "Xử lý sự cố khẩn",
+      "sla_accept_hours": 1,
+      "sla_complete_hours": 8,
+      "remind_before_hours": 2,
+      "sla_class": "urgent"
+    }
+  ]
+}

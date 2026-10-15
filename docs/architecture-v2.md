@@ -35,6 +35,23 @@ Sửa các mục không chặn trong phạm vi kiến trúc:
 - Đưa pgqueuer vào spike hàng đợi.
 - B4: namespace bảng theo tenant ghi **[chưa kiểm chứng]**, kèm test bắt buộc và quyết định PostgREST trước v0.2.
 
+Đã áp dụng toàn bộ **E1–E12** của VERD §8:
+- Tham số gate, `details.confirmation_id`.
+- Route `/desk/confirm/{id}`.
+- 17/21 tool.
+- Thang L1/L2/`human_only`.
+- core-10.
+- 4 skill + 4 prompt.
+- Làn PII theo TCV1 §3.8.
+- OpenAPI giữ cùng CLI vận hành.
+- Cột khả dụng.
+- Thứ tự IAM/SoD trước xác nhận.
+- Thẻ duyệt mở `confirm_url`.
+
+Thêm §9.1 ánh xạ khoảng trống PACK vào mốc (B6).
+
+**Phán quyết xung đột còn lại:** giữ D8, không có kênh xác nhận bằng CLI. `cli_command` trong TCV1 phải luôn null hoặc bị bỏ (sửa TCV1:183, 3491-3492).
+
 ### Viết tắt nguồn (tất cả nằm trong `research/`, trừ khi ghi khác)
 
 | Mã | Tệp | Mã | Tệp |
@@ -105,7 +122,7 @@ xT là **lõi vận hành số headless, đa năng, tự host được** cho doa
 | Persona | Việc chính | Kênh chính | PP |
 |---|---|---|---|
 | Nhân viên | Xin tạm ứng, nghỉ phép, nhận việc | Desk chat + form; Telegram | PP1, PP2, PP6 |
-| Quản lý/người duyệt | Duyệt, giao việc, theo dõi SLA | Telegram 1 chạm; `/confirm`; thẻ duyệt | PP1, PP2 |
+| Quản lý/người duyệt | Duyệt, giao việc, theo dõi SLA | Telegram 1 chạm; `/desk/confirm`; thẻ duyệt | PP1, PP2 |
 | Kế toán / HR | Kiểm chứng từ, on/offboarding | Desk | PP6, PP7 |
 | Giám đốc | Bản tin, duyệt ngưỡng cao (MFA) | Desk, Telegram | PP5, PP13 |
 | Quản trị nghiệp vụ | Mô tả nghiệp vụ bằng lời → duyệt kế hoạch thay đổi model/process | Desk + app diff | PP12, PP14 |
@@ -122,14 +139,16 @@ xT là **lõi vận hành số headless, đa năng, tự host được** cho doa
   - Tool có tên và schema từ v0.1 nhưng năng lực chưa tới thì trả `capability_unavailable` kèm remediation. Không giả thành công (TCV1 §12.7).
 - **Sáu năng lực bắt buộc** (từ các blocker F1–F5 của TCC):
 
-| # | Năng lực | Lý do |
-|---|---|---|
-| 1 | Luồng confirmation: lỗi `confirmation_required` trả `confirm_url` (chỉ là locator) + `details.confirmation_id` (pending) + continuation. Không có tham số gate trong input | TCC F1, TCV1 C7 |
-| 2 | Chuyển trạng thái Record theo state machine của model | TCC F2 |
-| 3 | Upload file (văn bản nhỏ inline, hoặc URL tải lên một lần) và đọc text đã trích | TCC F3 |
-| 4 | Tổng hợp số liệu phía server, có lineage | TCC F4 |
-| 5 | Tìm xuyên model (gồm danh bạ actor) và truy vấn đặt tên (`views`) | TCC F11, CRIT 26. TCV1: `search_records(query)` + `find_people`; metric có tên; `views` thêm ở v0.3 dưới dạng tham số tùy chọn |
-| 6 | Submit/withdraw đơn của chính người được đại diện ở **L1** | TCC F5. TCV1: `submit_request` + `transition_record(withdrawn)` |
+| # | Năng lực | Lý do | Khả dụng |
+|---|---|---|---|
+| 1 | Luồng confirmation: lỗi `confirmation_required` trả `confirm_url` (chỉ là locator) + `details.confirmation_id` (pending) + continuation. Không có tham số gate trong input | TCC F1, TCV1 C7 | v0.1 |
+| 2 | Chuyển trạng thái Record theo state machine của model | TCC F2 | v0.1 |
+| 3 | Upload file (văn bản nhỏ inline, hoặc URL tải lên một lần) và đọc text đã trích | TCC F3 | Tên tool từ v0.1; `capability_unavailable` tới **v0.2** |
+| 4 | Tổng hợp số liệu phía server, có lineage | TCC F4 | Tên tool từ v0.1; `capability_unavailable` tới **v0.2** |
+| 5 | Tìm xuyên model (gồm danh bạ actor) và truy vấn đặt tên (`views`) | TCC F11, CRIT 26. TCV1: `search_records(query)` + `find_people`; metric có tên; `views` thêm ở v0.3 dưới dạng tham số tùy chọn | v0.1 (`views`: v0.3) |
+| 6 | Submit/withdraw đơn của chính người được đại diện ở **L1** | TCC F5. TCV1: `submit_request` + `transition_record(withdrawn)` | v0.1 |
+
+Làn PII khả dụng từ **v0.3**. Trước v0.3, `meta.pii.mode=full` chỉ được dùng với dữ liệu demo không có PII thật (TCV1:3732).
 
 - **Ba bất biến:**
   1. Catalog không đổi theo dữ liệu hay đăng nhập. Chỉ đổi theo version contract.
@@ -138,7 +157,10 @@ xT là **lõi vận hành số headless, đa năng, tự host được** cho doa
 - **Nguyên tắc contract mà kiến trúc dựa vào** (chi tiết thuộc TCV1):
   - Input đóng, output mở (TCC F14).
   - Phân trang bằng cursor (F15).
-  - **Không có tham số gate.** PendingOperation do server giữ; `/desk/confirm/{id}` thực thi; agent gọi lại cùng `idempotency_key` (F16, TCV1 C7).
+  - **Không có tham số gate** (F16, TCV1 C7, TCV1:20, 161-177).
+    - Lời gọi thiếu xác nhận tạo PendingOperation (TTL 10 phút) và trả `confirmation_required` gồm `confirm_url`, `confirmer`, `plan_summary`, `plan_digest`, `expires_at`, `continuation`.
+    - Trang `/desk/confirm/{id}` tự thực thi operation.
+    - Agent gọi lại cùng `idempotency_key` để nhận receipt replay.
   - `destructiveHint` chỉ khi có thể mất dữ liệu hoặc chạy code ngoài (F6).
   - Dữ liệu doanh nghiệp đặt dưới `data` có `untrusted:true` trong `structuredContent` (F10).
   - Mọi lỗi/số liệu có `explain_ref` (F24).
@@ -177,13 +199,13 @@ PP §3: 8 workflow quy về 3 động cơ là Request/Decision, Task/SLA và Rec
 
 **Ranh giới tầng.**
 - Tầng 1, không UI: `xt-api`, `xt-worker`, Keycloak, APISIX, Postgres, PostgREST, SeaweedFS.
-- Tầng 2: `xt-desk` (gồm `/confirm`), `xt-bot`, MCP Apps, gói nghiệp vụ, skills.
+- Tầng 2: `xt-desk` (gồm `/desk/confirm`), `xt-bot`, MCP Apps, gói nghiệp vụ, skills.
 
 ### 2.2. Tầng 1: hạng mục tùy chọn, phủ tối thiểu (đã cắt theo CRIT 11)
 
 | Hạng mục (DE §2) | Phủ | Profile | Mốc |
 |---|---|---|---|
-| MFA, step-up | TOTP bắt buộc cho approver/admin; `/confirm` dùng `max_age=0` + TOTP; L3 thêm `acr` (**[chưa kiểm chứng]** LoA trên KC 26.8) | minimal | v0.1 |
+| MFA, step-up | TOTP bắt buộc cho approver/admin; `/desk/confirm` dùng `max_age=0` + TOTP; L3 thêm `acr` (**[chưa kiểm chứng]** LoA trên KC 26.8) | minimal | v0.1 |
 | Két sắt bí mật | OpenBao **KV + Transit** (khóa ký); minimal dùng Compose secrets. Credential DB động để sau v1.0 | full | v1.0 |
 | Kiểm dịch tệp | `quarantine/` → ClamAV → `files/`; demo EICAR. Minimal: tệp ở trạng thái `unscanned`, không tải về được | full | v0.2 |
 | Ký số | Ed25519 cho PDF đã duyệt và cho outbox event. **Không dùng chữ "HSM"** trừ khi thêm SoftHSM2 | full | v1.0 |
@@ -219,10 +241,10 @@ PP §3: 8 workflow quy về 3 động cơ là Request/Decision, Task/SLA và Rec
 |---|---|---|
 | **xt-desk frontend** (React/Vite) | Chat (vòng lặp agent, khoảng 60 dòng, SLLM L40), `AppRenderer` cho `ui://`, trang "Agent của tôi" (cấp/thu hồi agent, trần L0–L3), danh sách hội thoại | **Không có màn hình nghiệp vụ viết tay.** Mọi hình ảnh nghiệp vụ là MCP App chạy được cả ở host khác |
 | **xt-desk backend** (Python, Starlette, cùng repo) | OIDC code flow với Keycloak (token người nằm ở server, không ở trình duyệt); proxy tới LLM (`reasoning_effort:"none"`); proxy `/mcp` gắn **token agent `xt-desk-agent` + delegation của người dùng**; serve sandbox ở origin khác kèm CSP từ `_meta.ui.csp`. Sandbox proxy **lấy qua npm** (`@mcp-ui/client` hoặc `@modelcontextprotocol/ext-apps`), **không chép** `sandbox.ts`/`sandbox.html` vào repo (VERD N1). Nếu gói không xuất sẵn sandbox thì tự viết theo spec SEP-1865 **[chưa kiểm chứng gói có export hay không; kiểm ở v0.2]**. Trang **`/desk/confirm/{id}`** server-render, thực thi PendingOperation | Không logic nghiệp vụ. Chỉ gọi API công khai qua APISIX |
-| **MCP Apps** (`apps/`) | v0.2: thẻ duyệt, orgchart (lấy từ spike). v0.3: form sinh từ model, Kanban + SLA, diff kế hoạch thay đổi. v1.0: bản tin có lineage | Không app chỉ hiển thị tĩnh |
+| **MCP Apps** (`apps/`) | v0.2: thẻ duyệt (nút "Duyệt" mở `confirm_url` bằng `ui/open-link`; không có tool app-only để ghi; **2 chạm**, so với Telegram 1 chạm, TCV1:186), orgchart (lấy từ spike). v0.3: form sinh từ model, Kanban + SLA, diff kế hoạch thay đổi. v1.0: bản tin có lineage | Không app chỉ hiển thị tĩnh |
 | **xt-bot** (aiogram, long polling) | Thông báo + nút Duyệt/Từ chối có nonce ký; liên kết tài khoản bằng mã một lần do Desk sinh | Không nhận lệnh tự do |
 
-**Quy tắc chống trượt thành frontend truyền thống** (ghi vào CONTRIBUTING): route mới trong `desk/` chỉ được thuộc 4 loại: host/chat, `/confirm`, đăng nhập, quản trị agent. Tính năng cần màn hình thì phải làm thành MCP App.
+**Quy tắc chống trượt thành frontend truyền thống** (ghi vào CONTRIBUTING): route mới trong `desk/` chỉ được thuộc 4 loại: host/chat, `/desk/confirm/{id}`, đăng nhập, quản trị agent. Tính năng cần màn hình thì phải làm thành MCP App.
 
 **Ma trận client theo tài khoản thật của chủ dự án:**
 
@@ -458,7 +480,7 @@ xT/
 Mỗi contract gồm: `name, description, input_model, output_model, effects, max_autonomy, iam, errors, examples, ui_resource?, rest?`. Từ đó sinh ra:
 1. Đăng ký MCP: title và annotations suy ra tự động.
 2. REST: `/rest/v1/tools/{name}` + route theo dịch vụ (`rest:`).
-3. OpenAPI 3.1, chia tag theo dịch vụ.
+3. OpenAPI 3.1, chia tag theo dịch vụ. Giữ đầu ra này làm bằng chứng cho đề và CRIT 27. TCV1:49 cần bổ sung OpenAPI. **CLI** (`xt tool call`) cũng là một đầu ra, nhưng chỉ phục vụ vận hành và test, **không phải kênh xác nhận**.
 4. Catalog/docs, có CI `--check` chống drift.
 5. Metadata skill (`tool_count`, `catalog_digest`).
 6. Contract test.
@@ -526,10 +548,10 @@ Thiếu effects thì server không khởi động (REA §3.1). Nội dung chi ti
 | Mức | Gồm | Điều kiện |
 |---|---|---|
 | L0 | Đọc | IAM |
-| L1 | Draft, comment, upload, submit/withdraw **đơn của chính người được đại diện**, tự chuyển trạng thái việc của mình, gửi kế hoạch thay đổi model | IAM + idempotency + audit |
+| L1 | Tạo bản ghi/draft/comment, upload, submit/withdraw **đơn của chính người được đại diện**, tự chuyển trạng thái việc của mình, **giao việc cho cấp dưới trực tiếp** (policy mặc định), gửi kế hoạch thay đổi model | IAM + idempotency + audit |
 | L2 | Giao việc ngoài tuyến báo cáo, sửa field `impact: high`, transition khai L2 | Nếu `effective_level` ≤ trần của agent (người chủ cấp, mặc định L1) thì làm được. Nếu không thì cần **một xác nhận của chính người được đại diện** qua `confirm_url` |
 | L3 | Transition khai L3, xóa, start process L3, thu hồi quyền | Luôn cần xác nhận, với `prompt=login` + `acr`. **2 người** chỉ cho model change destructive và xóa PII (`awaiting_second_approver`) |
-| `human_only` | `decide_request`; ký, lệnh chi, activate định nghĩa | Luôn cần **chính người được giao bước** xác nhận, bất kể trần của agent (TCV1 §3.5) |
+| `human_only` (lớp riêng, **không thuộc thang L**) | `decide_request`; ký, lệnh chi, activate định nghĩa | Luôn cần **chính người được giao bước** xác nhận, bất kể trần của agent (TCV1 §3.5) |
 
 Thứ tự kiểm tra theo TCV1 §3.5:
 1. Xác thực.
@@ -561,11 +583,12 @@ Annotations chỉ là gợi ý cho host, không bao giờ là biên bảo mật.
    - Có CSRF và nonce.
    - xt-api chỉ coi token `azp=xt-desk` có `sub = confirmer` là phiên người. Sau đó revalidate CAS/rule và **tự thực thi** PendingOperation trong một transaction (Confirmation + receipt + audit).
    - Giới hạn số PendingOperation đang chờ cho mỗi agent.
-   - Chế độ stdio cũng trả `confirm_url` trỏ tới Desk cục bộ. **Không có `xt confirm` trên TTY** (debate CRIT 17). Yêu cầu TCV1 trả `cli_command=null`.
+   - Chế độ stdio cũng trả `confirm_url` trỏ tới Desk cục bộ. **Không có `xt confirm` trên TTY** (debate CRIT 17). TCV1 v1.0.1 đã bỏ hẳn `cli_command`.
    - Bằng chứng step-up trên Keycloak 26.8.1 là điều kiện **VERD B3** (`research/spike-hitl.md`): chưa có báo cáo đó thì không code `/desk/confirm`.
 3. **Telegram** (v0.2; L2 và dưới ngưỡng): `callback_data` = nonce do xT ký HMAC, gắn `(confirmation_id, chat_id, actor)`, dùng một lần. Callback thực thi PendingOperation giống trang confirm. Bot chạy long polling. Vượt ngưỡng thì nút chuyển thành `confirm_url`.
 4. Confirmation gắn chặt: tenant, người, agent, action, tài nguyên, digest, revision, hạn, nonce. Tiêu thụ cùng transaction với mutation.
 5. **SoD:**
+   - **Thứ tự kiểm** (TCV1:147-157): IAM và SoD chạy **trước** bước tự chủ. Vi phạm trả `access_denied` kèm `explain_ref` và **không bao giờ tạo PendingOperation hay link xác nhận**. Ví dụ storyboard S2a: agent tự duyệt đơn của người đề nghị bị dừng ngay, không ra link.
    - Trigger trên `decisions`: `decider_human ≠ requester_human` (ngoại lệ chỉ khi policy cho `self_approval_allowed`, có audit).
    - Người nhận delegation phải là người, không phải người đề nghị.
    - SoD so theo **effective human**.
@@ -586,26 +609,29 @@ Annotations chỉ là gợi ý cho host, không bao giờ là biên bảo mật.
 - Neo Merkle root hằng ngày vào `s3://anchors/` (v1.0).
 - Nói đúng mức: hash-chain **phát hiện** sửa đổi, không chống được superuser.
 
-### 5.7. Làn PII (CRIT 20)
+### 5.7. Làn PII (CRIT 20, theo TCV1 §3.8 / C12)
 
-- Lớp client:
-  - `cloud`: Claude, ChatGPT, Gemini. Field `pii ≥ basic` **luôn masked**, không có mode `full`.
-  - `local`: Desk với LLM tự host, Goose + Ollama. Theo policy tenant `full | masked`.
-  - `human`: phiên Desk của người. Thấy giá trị thật.
-- Input từ chối giá trị đã che hoặc token hóa.
-- Mọi lần dữ liệu `pii ≠ none` đi ra ngoài đều ghi `egress` vào audit.
-- **Không** hứa làn PII trong host đóng. Dữ liệu che vẫn đi qua backend của nhà cung cấp (Đ.20).
+- **Nhãn field:** `pii: true`, và `sensitive: true` cho loại nhạy cảm như lương, CCCD.
+  - Nhãn có trong FieldSpec **từ v0.1** để audit chỉ ghi hash (G-M2, B6).
+  - Phần che dữ liệu khi trả ra có từ v0.3.
+- **Policy tenant:** `llm_egress ∈ {masked, local_only}`, áp theo lớp client suy từ `azp`.
+  - `cloud` (Claude, ChatGPT, Gemini): field PII luôn **masked** hoặc **omitted**. Không có mode `full`.
+  - `local` (Desk + LLM tự host, Goose + Ollama): theo policy tenant.
+  - `human` (phiên Desk của người): thấy giá trị thật.
+- **Dạng che:** `[PII:token]`. Ghi token ngược vào DB thì bị từ chối.
+- Mọi lần dữ liệu PII ra ngoài đều ghi `egress` vào audit.
+- **Không** hứa làn PII trong host đóng: dữ liệu đã che vẫn đi qua backend của nhà cung cấp (Đ.20).
 - Báo cáo tác động sinh thành Document bởi job.
 
 ### 5.8. Thực thi ở đâu
 
 | Lớp | Thực thi |
 |---|---|
-| APISIX | TLS. `/mcp` + PRM: chỉ rate-limit IP, chặn method lạ, chuyển tiếp. `/rest`, `/data` (chỉ GET), `/files`, `/workflow`: kiểm JWT + rate-limit theo `azp`. `/auth` → Keycloak. Tắt buffering SSE **[chưa kiểm chứng]** |
+| APISIX | TLS. `/mcp` + PRM: chỉ rate-limit IP, chặn method lạ, chuyển tiếp. `/rest`, `/data` (chỉ GET), `/files`, `/workflow`: kiểm JWT + rate-limit theo `azp`. `/auth` → Keycloak. Tắt buffering SSE **[chưa kiểm chứng; kiểm ở v0.1]**. **Chặn từ ngoài:** `/auth/admin`, console master realm, UI master/filer của SeaweedFS. Tầng 1 không lộ UI nào ngoài trang đăng nhập SSO (VERD N10) |
 | xt-api | 401 + `resource_metadata`; verify JWT đầy đủ; tenant; IAM; autonomy; confirmation; SoD; Poka-yoke; CAS; idempotency; PII; audit; untrusted |
 | Postgres | RLS FORCE; CHECK/FK/enum/NOT NULL sinh từ spec; SoD trigger; WORM audit |
 | xt-worker | Lease fencing; SafeEngine; action allowlist; kiểm lại quyền lúc thực thi |
-| xt-desk | Token người ở server; proxy `/mcp` dùng token agent; sandbox + CSP; `/confirm` xác thực tươi |
+| xt-desk | Token người ở server; proxy `/mcp` dùng token agent; sandbox + CSP; `/desk/confirm` xác thực tươi |
 | Keycloak | Mật khẩu/TOTP; DCR Trusted Hosts (`chatgpt.com`, `claude.ai`, loopback) + `client-uris-must-match`; PKCE S256; refresh rotation |
 
 ---
@@ -650,7 +676,7 @@ Annotations chỉ là gợi ý cho host, không bao giờ là biên bảo mật.
 
 **Liên kết với luồng duyệt.**
 - Gửi kế hoạch thay đổi là L1: tạo Proposal + Request quản trị.
-- Duyệt là `decide_request` qua `/confirm`.
+- Duyệt là `decide_request` qua `/desk/confirm`.
 - Activate do worker chạy, sau khi revalidate.
 - Mã DESTRUCTIVE cần confirmation riêng cho từng mã. Drop field có dữ liệu cần 2 người.
 
@@ -678,7 +704,7 @@ Annotations chỉ là gợi ý cho host, không bao giờ là biên bảo mật.
 | v0.1 | Bước tuần tự, `when`, SLA + leo thang |
 | v0.2 | `on_return: requester`; `parallel {mode: all\|any}`; `trigger: manual\|timer(rrule)\|event(type)`; resolver người duyệt `role(x) \| manager_of(requester, levels) \| head_of(org_unit_field) \| field(record.x) \| any_of([...])` |
 
-Resolver chạy lúc tạo bước và lưu vào `approval_steps` kèm lý do chọn người.
+Resolver chạy lúc tạo bước và lưu vào `approval_steps` kèm lý do chọn người. **v0.1 chỉ có `role(x)`.** Seed demo gán trực tiếp role trưởng phòng và giám đốc. `manager_of`/`head_of` có từ v0.2 (VERD N14).
 
 **Tổ chức.** Primitive `org_unit` (dạng cây) + `position` (gán cho actor, có hiệu lực theo thời gian), làm ở v0.2. Đây là nguồn của GUC `xt.department_ids/team_ids` và của resolver.
 
@@ -686,7 +712,8 @@ Resolver chạy lúc tạo bước và lưu vào `approval_steps` kèm lý do ch
 - Bước người chạy **in-process trong `xt-api`**: kiểm quyền + confirmation → `SELECT … FOR UPDATE` instance → `task.run()` → `do_engine_steps()` → lưu → audit → enqueue. Tất cả một transaction.
 - Timer, service task và outbox chạy trong `xt-worker`.
 - State lưu cột **`json`** (giữ thứ tự key, tránh bẫy JSONB của SSPIFF §3) và vẫn giữ `_reorder` làm lớp thứ hai. Test reload cho tuần tự, song song và vòng trả lại.
-- SafeEngine mặc định. Test regression RCE (SSPIFF t4 + bộ tấn công mở rộng của VS) chạy trong CI.
+- SafeEngine mặc định. Test regression RCE (SSPIFF t4 + bộ tấn công mở rộng của VS) chạy trong CI. `check_expr` có trần: độ dài ≤ 1.000 ký tự, ≤ 200 node AST, độ sâu ≤ 8 (VERD N5). Giữ subclass vá bug `call_service` của SpiffWorkflow 3.2.0 (SSPIFF §4) và có test cho bug đó.
+- **Một ngôn ngữ biểu thức** cho rule của model, gateway/tham số của process và condition IAM: module `domain/expr` gồm một AST + một bộ kiểm kiểu, sinh ra (a) CHECK SQL, (b) evaluator logic 3 trị, (c) predicate IAM. Ba nơi không được lệch semantics (VERD N7).
 
 **Action registry (CRIT 25).**
 - Tổng quát: `record.create`, `record.update`, `record.transition` (ánh xạ tham số bằng `expr`, chạy với quyền của process, qua cùng Poka-yoke), `notify`.
@@ -726,12 +753,12 @@ Resolver chạy lúc tạo bước và lưu vào `approval_steps` kèm lý do ch
 
 | Mốc | Skills | Prompts |
 |---|---|---|
-| v0.1 | `xt-core` (router, L0–L3, xử lý `confirmation_ref`/`confirm_url`, không bao giờ giả xác nhận, untrusted), `xt-approvals` | `prepare_request`, `review_pending_requests`, `triage_my_work` |
-| v0.2 | `xt-tasks`, `xt-data-modeling` | `plan_task_with_sla`, `design_data_model` |
-| v0.3 | `xt-process-design`, `xt-onboarding`, `xt-admin-diagnose` | `change_model_safely`, `start_lifecycle_process`, `diagnose_session` |
+| v0.1 (theo TCV1 §11) | `xt-core` (router theo TCV1 §4.3, L0–L3, xử lý `confirmation_required`: đưa link, không tự xác nhận, gọi lại cùng key; untrusted), `xt-approvals`, `xt-tasks`, `xt-data-modeling` | `prepare_request`, `review_pending_requests`, `triage_my_work`, `change_model_safely` |
+| v0.2 | (không thêm skill) | `plan_task_with_sla`, `design_data_model` |
+| v0.3 | `xt-process-design`, `xt-onboarding`, `xt-admin-diagnose` | `start_lifecycle_process`, `diagnose_session` |
 | v1.0 | `xt-reporting` | `weekly_business_report`, `explain_record_history` |
 
-**Desk system prompt** (Tầng 2, không phải lõi): hồ sơ tool rút gọn, `reasoning_effort:"none"`, câu hỏi mẫu tiếng Việt lấy từ `views`. Prompt hiện thành lệnh chọn sẵn cho người không viết prompt (RT Q5).
+**Desk system prompt** (Tầng 2, không phải lõi): hồ sơ core-10, `num_ctx ≥ 16384`, `reasoning_effort:"none"`, câu hỏi mẫu tiếng Việt lấy từ `views`. Prompt hiện thành lệnh chọn sẵn cho người không viết prompt (RT Q5).
 
 ---
 
@@ -741,7 +768,7 @@ Resolver chạy lúc tạo bước và lưu vào `approval_steps` kèm lý do ch
 
 | Profile | Dịch vụ | Mục tiêu |
 |---|---|---|
-| `minimal` | postgres, keycloak (import realm), apisix, postgrest, seaweedfs, xt-migrate (one-shot), xt-api, xt-worker, **xt-desk** (chat tắt nếu không có LLM; `/confirm` luôn bật), xt-bot (tắt nếu thiếu token) | < 4 GB, không LLM. **Đo thật ở v0.2, ghi vào INSTALL.md** |
+| `minimal` | postgres, keycloak (import realm), apisix, postgrest, seaweedfs, xt-migrate (one-shot), xt-api, xt-worker, **xt-desk** (chat tắt nếu không có LLM; `/desk/confirm` luôn bật), xt-bot (tắt nếu thiếu token). Thành phần tắt được `xt doctor` báo rõ | < 4 GB, không LLM. **Đo thật từ v0.1** (`docker stats`, `df -h /`) và ghi vào INSTALL.md (VERD N13). Máy dev hiện còn khoảng 6 GB RAM, 7,5 GB đĩa |
 | `full` | minimal + ollama (qwen3.5:4b, VRAM khoảng 3 GB), nats, clamav, openbao, mailpit | Demo đầy đủ trên máy RTX 3050 |
 | `public` | ghép thêm `cloudflared` **hoặc** APISIX TLS (certbot); `KC_HOSTNAME` công khai; cho phép dải `160.79.104.0/21` (CR §4) | Connector Claude/ChatGPT, instance thử nghiệm |
 
@@ -758,9 +785,17 @@ Resolver chạy lúc tạo bước và lưu vào `approval_steps` kèm lý do ch
 
 ### 8.3. Phát hành
 
-- `make release` (đã có): `uv build` + `git archive` → `dist/xt-<ver>.tar.gz`, chỉ chứa nguồn. Không node_modules, không bundle, không vendor. Kèm SHA256SUMS, SBOM, `THIRD_PARTY_NOTICES.md` sinh tự động.
+- `make release` **hiện chỉ có** `uv build` + `git archive` → `dist/xt-<ver>.tar.gz` (chỉ chứa nguồn).
+  - **v0.1 thêm:** SHA256SUMS, SBOM CycloneDX (`cyclonedx-py`) và kiểm `THIRD_PARTY_NOTICES.md` đủ mọi dep runtime (VERD N8, B5).
+  - Không có node_modules, bundle hay mã vendor.
+- **Bug tracker (CL I.6):** dùng Issues của forge công khai, cùng template đã có trong `.github/ISSUE_TEMPLATE/` (bug_report, feature_request). README và SECURITY.md đã trỏ tới đó. Khi push, bật Issues và ghi URL vào README. Nếu mirror sang Codeberg/Forgejo thì giữ Issues ở một nơi duy nhất.
+- **Cộng đồng (II.11, VERD N12):**
+  - Từ v0.2 có instance công khai và tenant sandbox.
+  - Thêm `CONTRIBUTING`, hướng dẫn viết gói nghiệp vụ, nhãn `good first issue`.
+  - v1.0 có `server.json` (MCP Registry) và mời ≥ 3 nhóm dùng thử.
+  - Ghi số liệu thật (issue/PR từ người ngoài) lên slide.
 - `reuse lint` xanh (180/180 file).
-- **Push:** chủ dự án chọn push sau. Push giữ nguyên ngày commit. Release v0.1.0 và v1.0.0 phải có trên forge công khai trước 06/12 (CL I.3).
+- **Push:** chủ dự án chọn push sau; khuyến nghị push ở v0.1 để I.1 có lịch sử công khai (VERD N9). Push giữ nguyên ngày commit. Release v0.1.0 và v1.0.0 phải có trên forge công khai trước 06/12 (CL I.3).
 
 ---
 
@@ -771,10 +806,10 @@ Resolver chạy lúc tạo bước và lưu vào `approval_steps` kèm lý do ch
 | Unit | IAM: 32 case SIAM + oracle casbin; `expr` (payload RCE/DoS); compiler process (XML injection, XXE); rule DSL 3 trị; regex tập con Rust ↔ PG; SLA/ngày lễ; projection PII |
 | Contract | Catalog đúng TCV1, digest; schema Draft 2020-12 sau khi qua SDK; mọi example pass; annotations == derive(effects); lỗi đúng shape; output mở; budget `tools/list` + hồ sơ rút gọn |
 | Integration, Postgres thật | Toàn bộ kịch bản SME t2–t7 thành test: RLS role thật, pool 1, FK chéo tenant, COPY bị chặn, plan/apply/lock_timeout/2 pha, 18 tên độc hại, verify audit, ghi song song; SoD trigger; CAS; idempotency; queue (fault injection); reload Spiff (tuần tự/song song/trả lại) |
-| Integration, Keycloak thật | Kịch bản SAUTH e2e + mọi ca VS B ra đúng kỳ vọng sau sửa; mapper Organization; `max_age=0`/TOTP/`acr` cho `/confirm` |
+| Integration, Keycloak thật | Kịch bản SAUTH e2e + mọi ca VS B ra đúng kỳ vọng sau sửa; mapper Organization; `max_age=0`/TOTP/`acr` cho `/desk/confirm` |
 | Boundary | 401 + PRM qua APISIX; SSE qua APISIX; PostgREST `aud`, RLS qua HTTP; `resource_constraint` + continuation |
-| E2E | Playwright headless (cấm điều khiển display thật, CLAUDE.md): Desk chat → App inline → `/confirm` → Decision; Telegram bằng bot test; MCP Apps trên basic-host |
-| Agent eval | Kịch bản dương/âm/injection × {qwen3.5:4b hồ sơ rút gọn, qwen3.5:4b catalog đầy đủ, Claude Free, GPT nếu có}; `num_ctx` 8k và 16k; chấm routing, lặp, args hợp lệ ngay lần đầu, đáp án so với oracle DB; công bố số thật |
+| E2E | Playwright headless (cấm điều khiển display thật, CLAUDE.md): Desk chat → App inline → `/desk/confirm` → Decision; Telegram bằng bot test; MCP Apps trên basic-host |
+| Agent eval | Kịch bản dương/âm/injection (30 kịch bản, TCV1 §12.1) × {qwen3.5:4b **core-10**, qwen3.5:4b catalog 17 tool, Claude Free, GPT nếu có}; `num_ctx = 16384`; chấm routing, lặp, args hợp lệ ngay lần đầu, đáp án so với oracle DB; công bố số thật |
 | Client matrix | Claude Free, ChatGPT dev mode (đọc), Goose CLI, Gemini CLI, Desk: OAuth, `tools/list`, một L0, một L1, một gate, render App |
 | Vận hành | Runner sạch; đo RAM `minimal`; backup → restore → verify; `docker kill` tự hồi phục; rút mạng |
 
@@ -787,6 +822,26 @@ Resolver chạy lúc tạo bước và lưu vào `approval_steps` kèm lý do ch
 6. Ranh giới module xanh (gồm `xt.desk` không import `application`).
 7. Đổi hành vi agent thấy được thì chạy lại eval liên quan và ghi số.
 
+### 9.1. Khoảng trống engine phát hiện từ gói nghiệp vụ (PACK), ánh xạ vào mốc (VERD §9, B6)
+
+| ID | Khoảng trống | Mốc đóng | Kiểm bằng |
+|---|---|---|---|
+| G-P3 | Cổng quyết định: `return`/`reject` phải rẽ nhánh thật, không được duyệt ngầm | **v0.1, chặn W1 (B6)** | T0-16: probe PACK:177-191, `return` không còn ra APPROVED |
+| G-M1 | Field do workflow quản (`state`, người duyệt…) không sửa được bằng `update_record` | **v0.1 (B6)** | Contract test: `update_record` ghi field workflow-managed → `access_denied` |
+| G-M2 | Nhãn `pii`/`sensitive` trong FieldSpec (spec + audit chỉ ghi hash) | **v0.1 (B6)**; làn PII v0.3 | Integration: diff audit của field sensitive chỉ có hash |
+| G-P8 | ProcessSpec `extra=forbid` (khóa lạ bị từ chối) | **v0.1 (B6)** | Unit: spec có khóa lạ → `SpecError` |
+| G-P11 | Đồng bộ trạng thái workflow → record | v0.1 (runtime dispatcher) | T1-06: `state=da_duyet` |
+| G-P5 | Leo thang thay người; GĐ không duyệt 2 lần | v0.1 chốt hành vi; v0.2 boundary không ngắt | T1-12 |
+| G-P9 / G-P10 / G-P12 | Lỗi service bị che; op không idempotent; role chưa escape | v0.1 (worker) | Trùng VS #6 và bug `call_service` (§6.2) |
+| G-P1, G-P2, G-P4, G-P7, G-I1–G-I3 | Song song, timer khởi tạo, lane động, IAM theo bước, SoD theo quan hệ | v0.2 | Cùng phạm vi `parallel`/`trigger`/resolver (§6.2) |
+| G-M3, G-M4, G-P6 | Scope participant, rule nhiều dòng, SLA lấy từ dữ liệu | v0.2–v0.3 | W2/W4 |
+| G-M5, G-I7 | Namespace gói, id statement theo gói | **Cùng B4** (trước khi chốt định dạng gói, v0.0) | Test namespace tenant + gói |
+| G-M6–G-M8, G-I4–G-I6 | Nhập lô, ủy quyền | v0.3 | — |
+
+Ghi chú:
+- PACK cho thấy W3 đã chạy được; có thể kéo lên sớm hơn v0.3 nếu dư thời gian.
+- 3 gói hiện **chưa có loader `pack.json`** nào được engine đọc. Loader gói phải có ở **v0.1** (W1 cài qua đề xuất) để tiêu chí "W5/W7 chỉ YAML" ở v1.0 có thể đo được.
+
 ---
 
 ## 10. Mốc phát hành (bắt đầu 15/10/2026)
@@ -798,15 +853,15 @@ Resolver chạy lúc tạo bước và lưu vào `approval_steps` kèm lý do ch
 
 | Mốc | Ngày | Phạm vi | Nghiệm thu (demo được) |
 |---|---|---|---|
-| **v0.0 nền** | 15–18/10 | v2 chốt; TCV1 chốt; spike `procrastinate` (½ ngày); Cloudflare Tunnel + Keycloak `KC_HOSTNAME` công khai; **smoke test Claude Free connector** với server spike (DCR, PKCE, `aud`, scope optional); thử ChatGPT dev mode; đưa code spike (model engine, IAM, Spiff SafeEngine/compiler, verifier) vào `src/xt` thành module có test | Claude Free gọi `whoami` qua tunnel; quyết định hàng đợi có số đo; `make check` xanh |
-| **v0.1 walking skeleton** | **27/10** (tag v0.1.0 ≤ 28/10) | Realm scripted + Organizations; xt-api Streamable HTTP, 401 + PRM, sửa VS #1–#5; role DB + RLS + namespace tenant; model engine (spec JSON, states/transitions, planner, apply 2 pha); W1 tuần tự + SLA trên Spiff (in-process + worker); audit hash-chain; IAM mini; xt-desk **`/confirm`** server-render, xác thực tươi; SoD trigger; tập tool đầu tiên theo TCV1 (đọc, tạo/sửa, submit, decide, inbox, đề xuất model); 3 skill-prompt; tarball | (1) Claude Free: "tạm ứng 8 triệu đi Đà Nẵng 3 ngày" → draft → submit (L1, không hỏi lại) → trưởng phòng mở `/confirm` + TOTP → vượt 5 tr thì sang GĐ. (2) "ngày về trước ngày đi" → lỗi tiếng Việt từ CHECK/rule, agent tự sửa. (3) Agent gọi decide → `confirmation_ref` pending + `confirm_url`; tự mở link trong trình duyệt không qua được TOTP. (4) SLA PT2M → leo thang. (5) Agent đề xuất thêm field → kế hoạch tiếng Việt → duyệt → cột mới có hiệu lực. (6) `verify` OK; superuser sửa một dòng → báo đúng seq. (7) Test RLS 2 tenant có model khác nhau xanh. (8) Goose CLI + qwen3.5:4b chạy (1) bằng LLM local |
+| **v0.0 nền** | 15–18/10 | v2.1 chốt, hòa giải với TCV1 (xong). **Cổng VERD B1–B6:** B6 = báo cáo workflow-v2 spike đóng G-P3/G-M1/G-M2/G-P8 bằng test chạy thật (T0-16); B2 hostname cố định (chủ dự án); B3 `research/spike-hitl.md` chạy thật step-up trên KC 26.8.1; B4a test namespace tenant; B5 quy tắc `THIRD_PARTY_NOTICES`. Spike hàng đợi **procrastinate và pgqueuer** (½ ngày). Cloudflare Tunnel + `KC_HOSTNAME`. **Smoke test Claude Free** (DCR, PKCE, `aud`, scope optional), thử ChatGPT dev mode → `research/connector-smoke.md`. Port code spike (model engine, IAM, Spiff SafeEngine/compiler, verifier) vào `src/xt` kèm test | Danh sách nghiệm thu **T0-01…T0-15** của VERD §7.1 |
+| **v0.1 walking skeleton** | **27/10** (tag v0.1.0 ≤ 28/10) | Realm scripted + Organizations; xt-api Streamable HTTP **qua APISIX passthrough** (tunnel → APISIX → xt-api; kiểm SSE/buffering sớm, VERD N6), 401 + PRM, sửa VS #1–#5; role DB + RLS + namespace tenant; model engine (spec JSON, states/transitions, planner, apply 2 pha); W1 tuần tự + SLA trên Spiff (in-process + worker); audit hash-chain; IAM mini; xt-desk **`/desk/confirm`** server-render: xác thực tươi, thực thi PendingOperation; SoD trigger; **đủ 17 tên tool của TCV1** (`upload_file`, `aggregate_records` trả `capability_unavailable` cho tới v0.2); 4 skill + 4 prompt; `LICENSING.md`; `make release` có SHA256SUMS + SBOM; **đo footprint `minimal` ghi vào INSTALL.md**; tarball | (1) Claude Free: "tạm ứng 8 triệu đi Đà Nẵng 3 ngày" → draft → submit (L1, không hỏi lại) → trưởng phòng mở `/desk/confirm` + TOTP → vượt 5 tr thì sang GĐ. (2) "ngày về trước ngày đi" → lỗi tiếng Việt từ CHECK/rule, agent tự sửa. (3) Agent gọi decide → `confirmation_required` + `confirm_url`; tự mở link trong trình duyệt không qua được TOTP; người duyệt xong thì agent gọi lại cùng key và nhận receipt replay. (4) SLA PT2M → leo thang. (5) Agent đề xuất thêm field → kế hoạch tiếng Việt → duyệt → cột mới có hiệu lực. (6) `verify` OK; superuser sửa một dòng → báo đúng seq. (7) Test RLS 2 tenant có model khác nhau xanh. (8) Goose CLI + qwen3.5:4b chạy (1) bằng LLM local. Danh sách đầy đủ: **T1-01…T1-21** của VERD §7.2 |
 | **v0.2** | **09/11** | APISIX 4 namespace; PostgREST (`aud xt-data`, `security_invoker`); SeaweedFS + upload + ClamAV (full); Telegram nonce ký; W2 + recurrence; process-spec `on_return`/`parallel`/triggers/resolver + BPMNDI; `org_unit`/`position`; aggregate; `sequence`; action `record.*`/`notify`; MCP Apps: thẻ duyệt + orgchart; `docs/headless-demo.sh`; INSTALL có số đo thật; instance công khai qua tunnel | (1) `curl` từng dịch vụ; W1 chạy không cần MCP. (2) Duyệt bằng Telegram 1 chạm. (3) BPMN mở trong Camunda Modeler. (4) "Trưởng phòng của người đề nghị" được resolve đúng; trả lại để bổ sung. (5) Token client lạ bị chặn. (6) Thẻ duyệt và orgchart render trong Claude (nếu gói Free cho phép) và trên basic-host |
 | **v0.3** | **21/11** | **xt-desk đầy đủ**: React + AppRenderer + chat qwen3.5:4b (hồ sơ rút gọn, `reasoning_effort:none`) + trang Agent + delegation; Apps: form, Kanban + SLA, diff; W3 (thu hồi Keycloak có gate L3) + W4 Ledger; `children`/`computed`/quyền theo field/`views`; làn PII (`cloud` luôn masked); nhập lô; eval v1 có số; kiểm thử rút mạng + split-horizon | (1) "1 nghiệp vụ, 4 client": Desk local, Claude Free, Goose, ChatGPT (đọc). (2) Rút mạng: Desk + LLM local + workflow vẫn chạy. (3) Người không biết prompt tạo đơn bằng form và duyệt 1 chạm. (4) Cùng câu hỏi lương: Claude thấy dữ liệu che, Desk thấy số thật, audit ghi `egress`. (5) "Ai báo cáo cho Minh?" đúng nhờ `views` |
 | **v1.0** | Tính năng 22–28/11 (mỗi mục ≤ 1 ngày), **đóng băng 28/11**; 29/11–02/12 test, video, tài liệu VN/EN; **tag v1.0.0 03/12**; nộp ≤ 05/12 (hạn 17:00 06/12); diễn tập 07–09/12; chung kết 10/12 | Bản tin + lineage; DuckDB lake; Snapshot; Ed25519 cho văn bản (W6 rút gọn) + outbox; neo audit; backup/restore; **W7 + W5 chỉ YAML**; webhook; NATS/MQTT IT/OT tối thiểu; `server.json` MCP Registry | 6 màn demo ST S1–S6 + video dự phòng; CI chứng minh gói W5/W7 không có code mới; PoF tự kiểm CL §2 đạt toàn bộ |
 
 **Thứ tự cắt khi trễ:** IT/OT → UI lineage → OpenBao → NATS → ký W6 → cảnh ChatGPT → Gemini CLI.
 
-**Không bao giờ cắt:** 4 dịch vụ Tầng 1, Desk + `/confirm`, PoF, test RLS/SoD, kênh LLM local.
+**Không bao giờ cắt:** 4 dịch vụ Tầng 1, Desk + `/desk/confirm`, PoF, test RLS/SoD, kênh LLM local.
 
 **Đường găng:**
 1. Smoke test Claude Free + tunnel (v0.0).
@@ -818,8 +873,8 @@ Resolver chạy lúc tạo bước và lưu vào `approval_steps` kèm lý do ch
 ## 11. Câu hỏi mở cho chủ dự án (chỉ những gì chưa quyết)
 
 1. **Đội thi.** Đề yêu cầu tối đa 3 sinh viên và 1 giảng viên hướng dẫn, đăng ký qua trường (CL §1). Ai đứng tên và trường nào? Không đủ điều kiện thì cả bài không được xếp hạng.
-2. **Tên miền cho Cloudflare Tunnel.** Cần một domain quản lý trên Cloudflare để làm hostname cố định (Keycloak `KC_HOSTNAME`, URL connector, split-horizon khi rút mạng). Dùng domain nào? Có chấp nhận ghi rõ trên slide rằng instance thử nghiệm đi qua Cloudflare không?
-3. **Số tool và câu chữ trong CLAUDE.md.** TCV1 đang chốt catalog, dự kiến 16–17 tool ở v0.1 và tối đa 22 ở v1.0. CLAUDE.md đang ghi "~15". Đồng ý sửa CLAUDE.md theo con số của TCV1, hay giữ trần cứng 15 và chấp nhận gộp authority?
+2. **Tên miền cho Cloudflare Tunnel** (VERD B2, chặn v0.1, cần trước 18/10; smoke test v0.0 dùng quick tunnel được). Cần một domain quản lý trên Cloudflare để làm hostname cố định (Keycloak `KC_HOSTNAME`, URL connector, split-horizon khi rút mạng). Dùng domain nào? Có chấp nhận ghi rõ trên slide rằng instance thử nghiệm đi qua Cloudflare không?
+3. ~~Số tool trong CLAUDE.md~~: **đã đóng.** CLAUDE.md đã ghi 17/21 theo TCV1.
 
 ---
 
@@ -830,7 +885,7 @@ Trang 2:
 | Ô | Sửa thành |
 |---|---|
 | `p2_21` | "xT Core API · catalog tool cố định (ToolContract) · MCP + REST theo 4 dịch vụ · không Code Mode" |
-| `p2_22` | "Model engine: spec → bảng thật + CHECK/FK + RLS · planner AN TOÀN/RỦI RO/PHÁ HỦY/BỊ CHẶN · agent đề xuất, người duyệt `/confirm`" (bỏ "tool", bỏ `de_xuat_mo_hinh`) |
+| `p2_22` | "Model engine: spec → bảng thật + CHECK/FK + RLS · planner AN TOÀN/RỦI RO/PHÁ HỦY/BỊ CHẶN · agent đề xuất, người duyệt `/desk/confirm`" (bỏ "tool", bỏ `de_xuat_mo_hinh`) |
 | `p2_24` | "SeaweedFS (S3) · quarantine → ClamAV" (bỏ MinIO) |
 | `p2_25` | "SpiffWorkflow 3.2 (LGPL-3.0) · bước người in-process + xt-worker timer/SLA · BPMN 2.0 có DI" (bỏ Flowable) |
 | `p2_28` | "Compose minimal/full/public · Docker Engine/Podman · **Apache-2.0**" (bỏ AGPL) |
@@ -839,13 +894,13 @@ Trang 2:
 | `p2_15` | "Bản tin điều hành [D] · MCP App + aggregate có lineage · DuckDB lake" (bỏ Metabase) |
 | `p2_16` | "Cổng quản trị agent [I] · danh tính, L0–L3, delegation, audit" |
 | `p2_19` | "APISIX · 4 namespace dịch vụ · JWT cho /rest /data /files /workflow · /mcp chuyển tiếp (401+PRM ở xT)" |
-| `p2_20` | "Keycloak realm xt · Organizations = tenant · DCR + PKCE · TOTP + xác thực tươi cho `/confirm`" |
+| `p2_20` | "Keycloak realm xt · Organizations = tenant · DCR + PKCE · TOTP + xác thực tươi cho `/desk/confirm`" |
 | `p2_26` | "Audit hash-chain theo tenant · append-only · `verify` · neo Merkle" |
 | `p2_27` | "Định nghĩa có phiên bản trong DB · git cho cấu hình nền" |
 | `p2_14` | "Thẻ duyệt · Orgchart · Form từ model · Kanban+SLA · Diff kế hoạch · Bản tin" |
 | `p2_12` | "e-Office [P]: Đề xuất & duyệt + Giao việc/SLA; Nhân sự/Thu–chi là gói dữ liệu" |
 | Cạnh `p2_42`/`p2_43` | "apply 2 pha (DDL)" tới Postgres; bỏ "commit" |
-| **Thêm** | xt-worker; xt-desk (chat + `/confirm`); xt-bot; PostgREST; Ollama (Tầng 2, ngoài lõi); NATS/ClamAV/OpenBao (full); làn PII; Cloudflare Tunnel (public, tùy chọn) |
+| **Thêm** | xt-worker; xt-desk (chat + `/desk/confirm`); xt-bot; PostgREST; Ollama (Tầng 2, ngoài lõi); NATS/ClamAV/OpenBao (full); làn PII; Cloudflare Tunnel (public, tùy chọn) |
 
 Trang 1:
 - `p1_30`: nhãn "Redpanda BSL · MinIO archived · ImmuDB BSL".

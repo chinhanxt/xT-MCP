@@ -15,6 +15,7 @@ path = [
   "**/*.md",
   ".github/**",
   "src/xt/py.typed",
+  "src/xt/contracts/prompts/*.json",
   "scripts/check_spdx.sh",
   "**/__pycache__/**",
 ]

@@ -17,7 +17,7 @@ for i in range(1, 4):
     print(f"=== catalog v{i}: packs={PACKS[:i]} models={len(cat.models)} DDL statements={len(steps)}")
     p = P.plan(P.load_current(m), cat, m, rehearse=True)
     print(p.render_vi())
-    res = P.apply(m, cat, p.hash, set(), proposed_by="agent:claude", approved_by="user:giam_doc")
+    res = P.apply(m, cat, p.hash, set(), proposed_by="agent:claude", approved_by="user:director")
     print("APPLY:", {k: res[k] for k in ("version", "plan_hash", "tx_steps")}, "post:", len(res["post"]), "post_ok:", all(x["ok"] for x in res["post"]))
 for r in m.execute("select table_name from information_schema.tables where table_schema='xt_data' order by 1"):
     pass

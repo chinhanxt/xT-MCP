@@ -84,3 +84,61 @@ Không mục nào bị bác toàn bộ. Có 3 chỗ tôi giữ lập trường r
 - **COPY không chạy được khi có RLS** (SME §2). Nhập lô phải dùng `executemany`, khoảng 4.200 dòng/s.
 - **Bẫy YAML 1.1** (SME §2.4). Agent gửi spec bằng JSON. Gói YAML đọc bằng loader chỉ chấp nhận `true/false` cho kiểu bool.
 - **Regex trong spec**: chỉ nhận tập con biên dịch được bằng engine Rust của pydantic-core (không backreference, không lookaround) và có test vi sai với Postgres ARE (SME §8.6).
+
+---
+
+# Vòng 3: hòa giải với `tool-contracts-v1.md` (VERD B1, §8 E1–E12)
+
+Ngày: 15/10/2026.
+- Phán quyết của judge cho v2: **GO-WITH-CONDITIONS** (`docs/architecture-v2-verdict.md`).
+- TCV1 (17 tool ở v0.1, 21 tool ở v1.0) là nguồn có thẩm quyền về bề mặt tool.
+- Đã sửa `architecture-v2.md` tại chỗ thành v2.1 (changelog ở đầu tệp).
+
+## Năm điểm lệch của B1
+
+| # | Điểm | v2.0 | TCV1 | Chốt v2.1 | Lý do |
+|---|---|---|---|---|---|
+| 1 | Cơ chế xác nhận | Tham số `confirmation_ref` | Không có tham số gate. PendingOperation, trang `/desk/confirm/{id}` tự thực thi, agent gọi lại cùng key | **Theo TCV1** | Agent không giữ bằng chứng nên không giả được. Bỏ được một artifact (TCC F16) |
+| 2 | Transport v0.1 | HTTP + `/confirm`, không CLI | §3.5 "Mốc": `/confirm` ở v0.1; dòng stdio dùng `xt confirm` trên TTY | **HTTP + `/desk/confirm` ở v0.1.** Stdio chỉ để dev; xác nhận vẫn qua `confirm_url` của Desk cục bộ | CRIT 17: TTY và CLI nằm trong vùng agent điều khiển được. Judge giữ D8 |
+| 3 | Skill/prompt v0.1 | 2 skill + 3 prompt | 4 skill + 4 prompt | **Theo TCV1** | Nghiệm thu (4)(5) của v0.1 cần `xt-tasks`, `xt-data-modeling`, `change_model_safely` |
+| 4 | Hồ sơ model nhỏ | 8 tool | core-10, đo được 3.916 token | **core-10, `num_ctx ≥ 16384`** | Có số đo thật, smoke test 22/22 chọn đúng tool. Bỏ cấu hình eval 8k |
+| 5 | Độ tươi xác thực | 120 s | 5 phút | **5 phút** từ `auth_time`. Re-auth `max_age=0` + TOTP lúc mở trang. PendingOperation TTL 10 phút | 120 s quá chặt khi người duyệt cần đọc plan. Rủi ro tăng thêm nhỏ vì mỗi lần mở trang đều phải đăng nhập lại |
+
+## Sửa TCV1 theo phán quyết của judge (giữ D8: không có kênh xác nhận CLI)
+
+Các dòng TCV1 phải sửa. Không breaking, vì trường vốn đã nullable:
+- `docs/tool-contracts-v1.md:183`, dòng "Chế độ stdio (dev/offline)". Sửa thành: "Chế độ stdio: `confirm_url` trỏ tới Desk cục bộ (`http://<host>/desk/confirm/{id}`); không có `cli_command`; xác nhận luôn qua Desk hoặc Telegram."
+- `docs/tool-contracts-v1.md:3491`: bỏ "null in stdio mode (use cli_command)". `confirm_url` luôn có giá trị khi `status=pending`.
+- `docs/tool-contracts-v1.md:3492`: bỏ property `cli_command` (hoặc khai `{"type":"null"}` nếu cần giữ tương thích).
+- `docs/tool-contracts-v1.md:49`: bổ sung "OpenAPI 3.1" vào danh sách đầu ra (E9). CLI ghi rõ là CLI vận hành, không phải kênh xác nhận.
+
+## E1–E12 (VERD §8): đã áp dụng toàn bộ vào v2.1
+
+E1 không có tham số gate · E2 `details.confirmation_id` · E3 `/desk/confirm/{id}`, client `xt-desk` không bao giờ là DCR · E4 17/21 tool liệt kê theo TCV1 · E5 L1 gồm giao việc cho cấp dưới trực tiếp, L2 là ngoài tuyến hoặc `impact: high`, `human_only` tách khỏi thang L · E6 core-10, `num_ctx ≥ 16384`, bỏ eval 8k · E7 4 skill + 4 prompt · E8 `pii`/`sensitive`, `llm_egress ∈ {masked, local_only}`, `[PII:token]`, từ chối ghi token ngược · E9 giữ OpenAPI, sửa TCV1:49 · E10 cột "Khả dụng" (`upload_file`/`aggregate_records` `capability_unavailable` tới v0.2; PII ở v0.3) · E11 IAM/SoD trước xác nhận, agent tự duyệt không ra link · E12 thẻ duyệt mở `confirm_url` bằng `ui/open-link`, 2 chạm.
+
+## Mục không chặn trong phạm vi kiến trúc (đã sửa)
+
+- N1: sandbox lấy qua npm, không vendor.
+- N2: allowlist `azp`.
+- N3: introspection.
+- N4: dùng `PyJWKClient` cấu hình trước.
+- N5: trần cho `check_expr` + vá `call_service`.
+- N6: APISIX passthrough ngay v0.1.
+- N7: một module `domain/expr`.
+- N8: `cyclonedx-py` + SHA256SUMS; bỏ câu "đã có".
+- N9: bug tracker = Issues + template sẵn có; khuyến nghị push ở v0.1.
+- N10: chặn `/auth/admin` và UI SeaweedFS.
+- N12: kế hoạch cộng đồng.
+- N13: đo footprint ngay v0.1.
+- N14: `role(x)` ở v0.1.
+- B4: namespace tenant ghi [chưa kiểm chứng]; phương án PostgREST `api_t<seq>` + `Accept-Profile`, dự phòng `/data/v1` tự sinh, chốt trước v0.2.
+- B5: quy tắc `THIRD_PARTY_NOTICES` cùng commit.
+- B6: §9.1 ánh xạ khoảng trống PACK vào mốc; G-P3/G-M1/G-M2/G-P8 chặn W1 v0.1; loader `pack.json` ở v0.1.
+- `LICENSING.md` có ở v0.1.
+- Hàng đợi: spike cả procrastinate lẫn pgqueuer.
+
+## Câu hỏi mở còn lại cho chủ dự án
+
+- Đội thi.
+- Tên miền tunnel (B2).
+- Câu hỏi số tool **đã đóng**: CLAUDE.md đã ghi 17/21.

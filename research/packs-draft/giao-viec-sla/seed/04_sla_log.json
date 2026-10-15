@@ -1,0 +1,21 @@
+{
+  "model": "sla_log",
+  "records": [
+    {
+      "task": "@task:CV-2026-0002",
+      "owner_id": "@user:NV-0007",
+      "department_id": "@dept:KD",
+      "event": "escalated",
+      "to_role": "dept_head",
+      "at_time": "2026-10-12T17:00:00+07:00",
+      "note": "Quá hạn SLA hoàn thành, leo thang trưởng phòng"
+    },
+    {
+      "task": "@task:CV-2026-0004",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "event": "completed_on_time",
+      "at_time": "2026-10-09T16:20:00+07:00"
+    }
+  ]
+}

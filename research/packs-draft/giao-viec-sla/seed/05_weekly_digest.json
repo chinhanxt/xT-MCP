@@ -1,0 +1,28 @@
+{
+  "model": "weekly_digest",
+  "records": [
+    {
+      "code": "BT-2026-W41",
+      "from_date": "2026-10-05",
+      "to_date": "2026-10-11",
+      "department": null,
+      "total_assigned": 2,
+      "total_completed": 1,
+      "total_overdue": 1,
+      "total_blocked": 1,
+      "content": "Tuần 41: giao mới 2, hoàn thành 1, quá hạn 1 (CV-2026-0002), đang bị chặn 1 (CV-2026-0003).",
+      "detail": {
+        "overdue": [
+          "CV-2026-0002"
+        ],
+        "blocked": [
+          "CV-2026-0003"
+        ],
+        "done": [
+          "CV-2026-0004"
+        ]
+      },
+      "sent": true
+    }
+  ]
+}

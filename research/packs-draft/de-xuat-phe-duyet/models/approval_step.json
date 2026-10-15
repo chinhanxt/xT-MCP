@@ -1,0 +1,176 @@
+{
+  "id": "apv_step",
+  "name": "approval_step",
+  "label": "Bước duyệt",
+  "title_field": "step_code",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "proposal",
+      "type": "ref",
+      "label": "Đề xuất",
+      "required": true,
+      "ref": "proposal"
+    },
+    {
+      "id": "f2",
+      "name": "seq",
+      "type": "number",
+      "label": "Thứ tự",
+      "required": true,
+      "min": 1
+    },
+    {
+      "id": "f3",
+      "name": "step_code",
+      "type": "text",
+      "label": "Mã bước",
+      "required": true,
+      "max": 40
+    },
+    {
+      "id": "f4",
+      "name": "role",
+      "type": "text",
+      "label": "Vai trò phải duyệt",
+      "required": true,
+      "max": 40
+    },
+    {
+      "id": "f5",
+      "name": "approver",
+      "type": "user",
+      "label": "Người duyệt"
+    },
+    {
+      "id": "f6",
+      "name": "decision",
+      "type": "enum",
+      "label": "Quyết định",
+      "required": true,
+      "default": "waiting",
+      "options": [
+        {
+          "value": "waiting",
+          "label": "Chờ"
+        },
+        {
+          "value": "approve",
+          "label": "Duyệt"
+        },
+        {
+          "value": "reject",
+          "label": "Từ chối"
+        },
+        {
+          "value": "escalated",
+          "label": "Quá hạn, leo thang"
+        },
+        {
+          "value": "skipped",
+          "label": "Bỏ qua theo điều kiện"
+        }
+      ]
+    },
+    {
+      "id": "f7",
+      "name": "reason",
+      "type": "text",
+      "label": "Lý do/ghi chú",
+      "max": 1000
+    },
+    {
+      "id": "f8",
+      "name": "due_at",
+      "type": "datetime",
+      "label": "Hạn xử lý (SLA)"
+    },
+    {
+      "id": "f9",
+      "name": "decided_at",
+      "type": "datetime",
+      "label": "Thời điểm quyết định"
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "proposal",
+        "seq"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Đã duyệt/từ chối thì phải ghi người duyệt và thời điểm",
+      "check": {
+        "or": [
+          {
+            "not": {
+              "field": "decision",
+              "op": "in",
+              "value": [
+                "approve",
+                "reject"
+              ]
+            }
+          },
+          {
+            "and": [
+              {
+                "field": "approver",
+                "op": "not_null"
+              },
+              {
+                "field": "decided_at",
+                "op": "not_null"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "dept_head": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "payment_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "chief_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "director": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

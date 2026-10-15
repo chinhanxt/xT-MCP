@@ -1,0 +1,22 @@
+{
+  "id": "proposal_approval",
+  "name": "Đề xuất và phê duyệt đa cấp (Tạm ứng / Thanh toán / Hoàn ứng)",
+  "version": 1,
+  "roles": ["dept_head", "payment_accountant", "chief_accountant", "director"],
+  "steps": [
+    {"id": "chk_overdue", "type": "service", "name": "Kiểm tra công nợ tạm ứng quá hạn", "op": "check_overdue_advances",
+     "params": {"requester": "requester"}, "when": "kind == 'advance_request'"},
+    {"id": "dept_head", "type": "approve", "name": "Trưởng bộ phận duyệt", "role": "dept_head",
+     "when": "not requester_is_dept_head", "sla": {"after": "PT24H", "escalate_to": "director"}},
+    {"id": "pay_acct", "type": "approve", "name": "Kế toán thanh toán kiểm chứng từ", "role": "payment_accountant",
+     "when": "kind in ('payment_request', 'advance_settlement')", "sla": {"after": "PT24H", "escalate_to": "chief_accountant"}},
+    {"id": "chief_acct_overdue", "type": "approve", "name": "Kế toán trưởng xem xét nợ tạm ứng quá hạn", "role": "chief_accountant",
+     "when": "kind == 'advance_request' and chk_overdue_result['overdue'] > 0", "sla": {"after": "PT24H", "escalate_to": "director"}},
+    {"id": "chief_acct", "type": "approve", "name": "Kế toán trưởng duyệt", "role": "chief_accountant",
+     "when": "amount > 50000000", "sla": {"after": "PT24H", "escalate_to": "director"}},
+    {"id": "director", "type": "approve", "name": "Giám đốc duyệt", "role": "director",
+     "when": "amount > 5000000"},
+    {"id": "post", "type": "service", "name": "Ghi sổ đề xuất đã duyệt", "op": "post_to_ledger",
+     "params": {"amount": "amount", "requester": "requester"}}
+  ]
+}

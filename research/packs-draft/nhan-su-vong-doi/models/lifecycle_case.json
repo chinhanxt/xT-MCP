@@ -1,0 +1,181 @@
+{
+  "id": "hr_case",
+  "name": "lifecycle_case",
+  "label": "Hồ sơ vòng đời nhân sự",
+  "title_field": "code",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "code",
+      "type": "text",
+      "label": "Mã hồ sơ",
+      "required": true,
+      "unique": true,
+      "regex": "^(ON|OF)-[0-9]{4}-[0-9]{4}$"
+    },
+    {
+      "id": "f2",
+      "name": "employee",
+      "type": "ref",
+      "label": "Nhân viên",
+      "required": true,
+      "ref": "employee"
+    },
+    {
+      "id": "f3",
+      "name": "kind",
+      "type": "enum",
+      "label": "Loại",
+      "required": true,
+      "options": [
+        {
+          "value": "onboarding",
+          "label": "Tiếp nhận nhân sự mới"
+        },
+        {
+          "value": "offboarding",
+          "label": "Nghỉ việc"
+        }
+      ]
+    },
+    {
+      "id": "f4",
+      "name": "effective_on",
+      "type": "date",
+      "label": "Ngày hiệu lực",
+      "required": true
+    },
+    {
+      "id": "f5",
+      "name": "state",
+      "type": "enum",
+      "label": "Trạng thái",
+      "required": true,
+      "default": "processing",
+      "options": [
+        {
+          "value": "processing",
+          "label": "Đang xử lý"
+        },
+        {
+          "value": "completed",
+          "label": "Hoàn tất"
+        },
+        {
+          "value": "cancelled",
+          "label": "Hủy"
+        }
+      ]
+    },
+    {
+      "id": "f6",
+      "name": "current_step",
+      "type": "text",
+      "label": "Bước đang chờ",
+      "max": 40
+    },
+    {
+      "id": "f7",
+      "name": "initiated_by",
+      "type": "user",
+      "label": "Người khởi tạo",
+      "required": true
+    },
+    {
+      "id": "f8",
+      "name": "closed_at",
+      "type": "datetime",
+      "label": "Thời điểm hoàn tất"
+    },
+    {
+      "id": "f9",
+      "name": "process_instance_id",
+      "type": "text",
+      "label": "Mã tiến trình workflow",
+      "max": 64
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "employee",
+        "kind"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Hồ sơ hoàn tất phải có thời điểm hoàn tất",
+      "check": {
+        "or": [
+          {
+            "field": "state",
+            "op": "!=",
+            "value": "completed"
+          },
+          {
+            "field": "closed_at",
+            "op": "not_null"
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "hr": {
+      "actions": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "director": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "it_admin": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "payment_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "chief_accountant": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "dept_head": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    }
+  }
+}

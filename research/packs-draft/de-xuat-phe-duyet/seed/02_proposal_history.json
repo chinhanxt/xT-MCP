@@ -1,0 +1,50 @@
+{
+  "model": "proposal",
+  "records": [
+    {
+      "_key": "TU-2026-0021",
+      "proposal_no": "TU-2026-0021",
+      "kind": "@proposal_type:advance_request",
+      "requester": "@user:NV-0006",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "department": "KD",
+      "amount": 6500000,
+      "amount_in_words": null,
+      "reason": "Tạm ứng công tác Đà Nẵng",
+      "state": "paid",
+      "final_approver": "@user:NV-0001",
+      "approved_at": "2026-07-08T09:30:00+07:00"
+    },
+    {
+      "_key": "TU-2026-0027",
+      "proposal_no": "TU-2026-0027",
+      "kind": "@proposal_type:advance_request",
+      "requester": "@user:NV-0006",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "department": "KD",
+      "amount": 7000000,
+      "amount_in_words": null,
+      "reason": "Tạm ứng công tác Hà Nội",
+      "state": "paid",
+      "final_approver": "@user:NV-0001",
+      "approved_at": "2026-08-12T09:30:00+07:00"
+    },
+    {
+      "_key": "TU-2026-0033",
+      "proposal_no": "TU-2026-0033",
+      "kind": "@proposal_type:advance_request",
+      "requester": "@user:NV-0006",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "department": "KD",
+      "amount": 8100000,
+      "amount_in_words": null,
+      "reason": "Tạm ứng công tác Cần Thơ",
+      "state": "paid",
+      "final_approver": "@user:NV-0001",
+      "approved_at": "2026-09-09T09:30:00+07:00"
+    }
+  ]
+}

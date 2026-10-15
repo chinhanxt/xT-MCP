@@ -1,0 +1,15 @@
+{
+  "id": "task_normal",
+  "name": "Giao việc có SLA (lớp thường)",
+  "version": 1,
+  "roles": ["assignee", "assigner", "dept_head"],
+  "steps": [
+    {"id": "accept", "type": "approve", "name": "Xác nhận nhận việc", "role": "assignee",
+     "sla": {"after": "PT4H", "escalate_to": "assigner"}},
+    {"id": "work", "type": "approve", "name": "Hoàn thành và nộp kết quả", "role": "assignee",
+     "sla": {"after": "PT72H", "escalate_to": "dept_head"}},
+    {"id": "acceptance", "type": "approve", "name": "Nghiệm thu kết quả", "role": "assigner",
+     "sla": {"after": "PT48H", "escalate_to": "dept_head"}},
+    {"id": "close", "type": "service", "name": "Đóng công việc", "op": "close_task", "params": {"task_id": "task_id"}}
+  ]
+}

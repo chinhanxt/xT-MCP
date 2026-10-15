@@ -1,0 +1,71 @@
+{
+  "model": "approval_step",
+  "records": [
+    {
+      "proposal": "@proposal:TU-2026-0021",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "seq": 1,
+      "step_code": "dept_head",
+      "role": "dept_head",
+      "approver": "@user:NV-0005",
+      "decision": "approve",
+      "decided_at": "2026-07-08T08:50:00+07:00"
+    },
+    {
+      "proposal": "@proposal:TU-2026-0021",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "seq": 2,
+      "step_code": "director",
+      "role": "director",
+      "approver": "@user:NV-0001",
+      "decision": "approve",
+      "decided_at": "2026-07-08T09:30:00+07:00"
+    },
+    {
+      "proposal": "@proposal:TU-2026-0027",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "seq": 1,
+      "step_code": "dept_head",
+      "role": "dept_head",
+      "approver": "@user:NV-0005",
+      "decision": "approve",
+      "decided_at": "2026-08-12T08:50:00+07:00"
+    },
+    {
+      "proposal": "@proposal:TU-2026-0027",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "seq": 2,
+      "step_code": "director",
+      "role": "director",
+      "approver": "@user:NV-0001",
+      "decision": "approve",
+      "decided_at": "2026-08-12T09:30:00+07:00"
+    },
+    {
+      "proposal": "@proposal:TU-2026-0033",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "seq": 1,
+      "step_code": "dept_head",
+      "role": "dept_head",
+      "approver": "@user:NV-0005",
+      "decision": "approve",
+      "decided_at": "2026-09-09T08:50:00+07:00"
+    },
+    {
+      "proposal": "@proposal:TU-2026-0033",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "seq": 2,
+      "step_code": "director",
+      "role": "director",
+      "approver": "@user:NV-0001",
+      "decision": "approve",
+      "decided_at": "2026-09-09T09:30:00+07:00"
+    }
+  ]
+}
