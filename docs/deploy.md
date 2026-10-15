@@ -120,3 +120,12 @@ scope=openid mcp-xt   -> aud=['xt-api-introspect','https://xt-mcp.freepro.online
 ```
 
 Idempotent: chạy `provision.py` nhiều lần liên tiếp, export không đổi nội dung có nghĩa. Số liệu DCR phía trên là của bản chưa có schema gateway/client policy; kết quả hiện hành nằm ở mục Kiểm thử an ninh. Bộ nhớ lúc chạy: Keycloak 542 MiB, Postgres 51 MiB, APISIX 254 MiB (có page cache; `footprint.md` đo ổn định ~88 MiB), placeholder 0.5 MiB; `docker inspect` APISIX: không OOM, 0 restart.
+
+## Log Postgres an toàn
+
+Theo `docs/model-engine.md` §8 và `docs/integration-notes.md`: câu lệnh và tham số bind (mật khẩu role, PII) không được vào log.
+
+- `deploy/compose.yaml`, service `postgres`: `command` có `-c log_statement=none -c log_parameter_max_length=0 -c log_parameter_max_length_on_error=0 -c log_error_verbosity=terse -c log_min_duration_statement=-1 -c log_min_duration_sample=-1 -c log_transaction_sample_rate=0`; không nạp `auto_explain` (không đặt `shared_preload_libraries`).
+- `deploy/scripts/init_db.py` (idempotent): kết nối superuser `SET log_statement='none'` trước `bootstrap()`, sau đó `ALTER ROLE xt_app` và `xt_migrator` `SET` 4 tham số `log_statement`, `log_parameter_max_length`, `log_parameter_max_length_on_error`, `log_error_verbosity`.
+- Test offline: `deploy/tests/offline/test_postgres_logging.py`.
+- Smoke sau triển khai: `SHOW log_statement;` (none), `SHOW log_parameter_max_length;` (0), `SHOW log_error_verbosity;` (terse), `SELECT current_setting('shared_preload_libraries') NOT LIKE '%auto_explain%';` (t).

@@ -2,3 +2,4 @@
 - 2026-10-15T10:17:22+07:00 codex gpt-6.1-sol (IAM spike): usage limit tới 11:45; 75 test pass nhưng chưa ghi spike-iam.md → chuyển Opus hoàn tất
 - 2026-10-15T10:49:44+07:00 Opus agent kiểm thử đối kháng (spike PII lane): output bị bộ lọc an toàn cắt, không có kết quả → giao lại Opus với brief hẹp (test hồi quy masking), thành công
 - 2026-10-15T14:01:07+07:00 codex gpt-6.1-sol (integrator): usage limit tới 18:18, tích hợp dở dang → chuyển Opus
+- 2026-10-16T01:08:11+07:00 codex (astra log PG + sol /workflow): usage limit tới 05:25 → chuyển Claude

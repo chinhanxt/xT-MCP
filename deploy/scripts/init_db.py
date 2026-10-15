@@ -3,7 +3,7 @@
 """Khởi tạo DB cho xT, idempotent. Chạy bằng service `xt-init` (ảnh xt, mount tệp này).
 
 1. `bootstrap()` (role xt_migrator/xt_app, schema nền, dấu vân tay khóa audit) nếu DB chưa có.
-2. Đặt lại mật khẩu xt_migrator/xt_app/xt_control theo .env; tạo xt_control (queue) và nhóm xt_job nếu thiếu.
+2. Đặt lại mật khẩu xt_migrator/xt_app/xt_control, `ALTER ROLE xt_app/xt_migrator SET` 4 tham số log an toàn theo .env; tạo xt_control (queue) và nhóm xt_job nếu thiếu.
 3. `xt db migrate` (role xt_migrator) và `xt worker --install-schema` (schema hàng đợi) nếu chưa có.
 Thiếu biến thì thoát mã 2 với danh sách lỗi.
 """
@@ -18,6 +18,15 @@ import psycopg
 from psycopg import sql
 
 from xt.adapters.db.tenancy import bootstrap
+
+# docs/model-engine.md §8: không để câu lệnh/tham số (mật khẩu, PII) vào log Postgres.
+ROLE_LOG_SETTINGS = (
+    ("log_statement", "'none'"),
+    ("log_parameter_max_length", "0"),
+    ("log_parameter_max_length_on_error", "0"),
+    ("log_error_verbosity", "'terse'"),
+)
+LOG_ROLES = ("xt_app", "xt_migrator")
 
 NEED = (
     "XT_INIT_SUPERUSER_URL", "XT_DB_APP_PASSWORD", "XT_DB_MIGRATOR_PASSWORD", "XT_DB_CONTROL_PASSWORD",
@@ -38,6 +47,9 @@ def main() -> int:
         return 2
     db = psycopg.conninfo.conninfo_to_dict(env["XT_INIT_SUPERUSER_URL"]).get("dbname", "xt")
     with psycopg.connect(env["XT_INIT_SUPERUSER_URL"], autocommit=True) as su:
+        su.execute("SET log_statement = 'none'")
+        su.execute("SET log_parameter_max_length = 0")
+        su.execute("SET log_parameter_max_length_on_error = 0")
         made = bootstrap(
             su,
             migrator_password=env["XT_DB_MIGRATOR_PASSWORD"],
@@ -48,6 +60,9 @@ def main() -> int:
         print("xt-init: bootstrap", "đã chạy" if made else "đã có từ trước")
         for role, pw in (("xt_migrator", "XT_DB_MIGRATOR_PASSWORD"), ("xt_app", "XT_DB_APP_PASSWORD")):
             su.execute(sql.SQL("ALTER ROLE {} PASSWORD {}").format(sql.Identifier(role), sql.Literal(env[pw])))
+        for role in LOG_ROLES:
+            for name, val in ROLE_LOG_SETTINGS:
+                su.execute(sql.SQL("ALTER ROLE {} SET {} = " + val).format(sql.Identifier(role), sql.SQL(name)))
         exists = su.execute("SELECT 1 FROM pg_roles WHERE rolname='xt_control'").fetchone()
         verb = "ALTER" if exists else "CREATE"
         su.execute(sql.SQL(verb + " ROLE xt_control LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD {}").format(
