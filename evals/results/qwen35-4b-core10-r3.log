@@ -172,3 +172,6 @@
 [172/384] FAIL tasks.self_task_priority skills=none rep=1 5.44s calls=1
 [173/384] PASS tasks.unknown_task_ref skills=none rep=1 6.89s calls=1
 [174/384] PASS universal.find_manager skills=none rep=1 4.76s calls=1
+[175/384] PASS universal.find_direct_reports skills=none rep=1 6.0s calls=1
+[176/384] PASS universal.find_role skills=none rep=1 4.19s calls=1
+[177/384] PASS universal.find_unit_members skills=none rep=1 6.74s calls=1
