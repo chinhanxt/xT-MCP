@@ -130,3 +130,12 @@ Sau phản biện bằng Codex gpt-6-astra: dùng API cộng thêm `install_data
 - **D-E2E-8. E11 tamper** sửa một dòng `xt_audit.event` bằng superuser rồi hoàn nguyên sau khi kiểm (stack còn dùng được nếu `E2E_KEEP=1`).
 - **Bổ sung sau audit (WA-02/WA-03):** đích ủy quyền phải qua đúng luật của người duyệt (PEP `request.decide` trên đề nghị, SoD, active trong tenant, khác người gọi/người đề nghị) và bị kiểm **lúc plan**, trước PendingOperation: không bắt người duyệt step-up cho thao tác chắc chắn thất bại. Đường gỡ bước kẹt chọn là **người đề nghị rút** (`transition_record` / REST withdraw), không mở quyền "quản trị gán lại" vì composition chưa có `admin_role` theo dữ liệu (không cài cứng vai trò).
 | 16/10/2026 | D-INT-7. Vai trò nào được ĐỀ XUẤT thay đổi model; agent có duyệt được không? | Đề xuất (`model.propose`, L1, không cần cổng người): `dept_head`, `director`, `it`; agent (`role:agent`) đề xuất thay mặt người có một trong các vai trò này (guard còn kiểm quyền của người được đại diện, nên nhân viên thường qua agent vẫn bị `behalf_permission`). Duyệt (`request.decide` trên `model_proposal`): chỉ `director`, `it`; agent chỉ mở bước xác nhận (`mdl.agent-open-confirmation`), hiệu lực do người có vai trò duyệt xác nhận ở /desk/confirm; PHÁ HỦY cần hai người khác nhau. Người đề xuất không tự duyệt (SoD, `self_approval`) | Dữ liệu policy của gói `quan-tri-mo-hinh`, không cài cứng; khớp tool-contracts-v1 (L1 đề xuất, human_only quyết định). | 
+
+## DPoP cho Desk trước v1.0 (16/10/2026, chủ dự án – Opus 5.5)
+
+- **Câu hỏi:** audit `/pii/reveal` vòng 2 nêu rủi ro tồn dư: ai cầm access token `xt-desk-agent` ngoài trình duyệt vẫn xem được PII trong phạm vi mình đọc được. Gắn với `sid` không đủ.
+- **Quyết định:**
+  - Áp DPoP (RFC 9449) cho `xt-desk-agent`: khóa non-extractable trong trình duyệt, token gắn `cnf.jkt`, vé PII gắn `jkt`, và `/pii/reveal` phải được ký bằng chính khóa DPoP đó.
+  - Làm ngay sau khi qua cổng e2e E0–E11, trước khi tag v1.0.0 (bản nộp OLP).
+  - Cho tới khi xong: chấp nhận rủi ro ở v0.1, kèm điều kiện production không có redirect loopback, CSP chặt, và ghi rủi ro trong SECURITY.md.
+- **Lý do:** v1.0 là bản giám khảo chấm. Proof-of-possession biến token bị lộ thành vô dụng nếu không có khóa riêng của trình duyệt. Keycloak 26 hỗ trợ DPoP, nên không phải tự xây.

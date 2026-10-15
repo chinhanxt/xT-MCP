@@ -178,3 +178,63 @@ Mọi xfail đã chạy `--runxfail` để chắc chắn fail đúng lý do (kh�
 | PIIR-08 | Kiểm `Content-Length` + đọc stream có trần trước khi parse; worker xóa vé hết hạn > 1 giờ; migration đổi số `0007_pii_reveal.sql` (idempotent cho DB đã áp `0006_pii_reveal.sql`); integration-notes §2/§4 sửa theo code | `test_request_body_strictness` |
 
 Đổi hành vi test PASS cũ cho khớp PIIR-02: người xin vé phải tự nhận token trước (giám đốc mở bản ghi trên Desk chat; người ngoài cuộc dùng email qua `org_person_details`); token chèn tay không có nguồn/"đã thấy" không còn xin được vé.
+
+## Vòng 2 — kiểm lại sau sửa (Opus tester, 16/10/2026)
+
+Commit `e294c4e`. Chạy lại: `tests/integration/pii_audit` (bộ vòng 1 đã được tác giả cập nhật) 26 passed;
+**mới** `test_pii_reveal_round2.py` 6 passed + 2 xfail strict (chạy riêng, một container PG17 tên/cổng ngẫu nhiên);
+`desk` vitest pii + bridge 33 passed. Gateway đang chạy: preflight `/pii/reveal` trên host Desk → 204, origin lạ → 403
+(container xt-api đang chạy còn bản cũ: vé lạ trả `STALE_REQUEST` thay vì `TICKET_INVALID`, cần build lại image).
+
+| Thử vượt | KQ | Ghi chú |
+|---|---|---|
+| Token A nhận, B dùng (HR, nhân viên ngoài cuộc, và cả giám đốc đọc được bản ghi nhưng chưa nhận token) | PASS | `PII_TOKEN_UNKNOWN` (`pii_token_seen` theo người + client) |
+| Đổi client: nhận token qua client cloud rồi xin vé ở Desk; token Desk dùng qua client cloud/local | PASS | không xin được vé; client khác `client_not_allowed` |
+| Mất quyền đọc bản ghi sau khi đã nhận token (mint trước, đổi sau; mint sau) | PASS | `denied` (IAM + RLS chạy lại lúc đổi vé) |
+| Chính chủ không có `pii.reveal` mở field sensitive của mình | PASS | `denied` |
+| Phát lại vé đã dùng với khóa mới / khóa cũ | PASS | `TICKET_INVALID` |
+| Dùng lại khóa khung bằng base64url không chuẩn tắc | **FAIL (Low)** | R2-02 |
+| Vượt quota vé bằng mint song song (3 × 40) | **FAIL (Low)** | R2-01: 74 vé khi quota 60/phút |
+| Vượt quota bằng nhiều client | PASS | quota tính theo người; chỉ client Desk xin được vé |
+| Migration `0007` áp lại | PASS | idempotent |
+| PIIR-01, 03, 05, 06, 07 (`APP_DENYLIST`), 08 | PASS | đúng như mục 5 |
+
+### R2-01 — LOW — Quota vé là check-then-insert, không chịu được song song
+- `mint` đếm `pii_tickets_since` rồi mới `pii_ticket_put` trong hai câu lệnh riêng, không khóa, nên N lời gọi song song cùng
+  qua được bước đếm. Repro: `test_ticket_quota_holds_under_concurrency` (xfail strict). Gateway `limit-req` 5 r/s theo IP
+  chỉ chặn một phần (nhiều IP vẫn vượt). Tác động thấp: mỗi vé vẫn bị kiểm "đã thấy" + IAM/RLS.
+- **Sửa:** `SELECT pg_advisory_xact_lock(hashtextextended('xt:pii-quota:' || tenant || person, 0))` trước khi đếm, trong cùng
+  transaction với INSERT (hoặc đếm và chèn bằng một câu `INSERT … SELECT … WHERE (SELECT count(*) …) < quota`).
+
+### R2-02 — LOW — `KEY_REUSED` vượt được bằng mã hóa base64url không chuẩn tắc
+- Thumbprint = `sha256("{x}.{y}")` trên chuỗi; 43 ký tự base64url mang 258 bit nên ký tự cuối có 2 bit thừa: cùng một điểm có
+  4 cách viết `x` (và 4 cách viết `y`), mỗi cách được coi là khóa mới. Repro: `test_key_reuse_check_not_bypassed_by_noncanonical_base64`.
+  Chỉ phá lớp phòng thủ "mỗi lần xem một khóa mới", không mở thêm dữ liệu.
+- **Sửa:** tính thumbprint trên tọa độ đã giải mã (`x.to_bytes(32) + y.to_bytes(32)`, hoặc RFC 7638 sau khi mã hóa lại chuẩn
+  tắc), và lưu `pubkey` ở dạng đã chuẩn hóa.
+
+### Hạ tầng test (không thuộc phạm vi PII)
+- `tests/integration/composition/pgfixture.py::stop()` gọi `docker rm -f` không có `-v`: container `--rm` bị xóa cưỡng bức để lại
+  volume ẩn danh mỗi lần chạy. Đã dọn 6 volume treo do các lần chạy hôm nay. **Sửa:** `["docker", "rm", "-f", "-v", CONTAINER]`.
+
+### Đánh giá rủi ro còn lại (token `xt-desk-agent` dùng ngoài trình duyệt)
+- **Hiện trạng:** ai cầm access token `xt-desk-agent` tự sinh khóa, xin vé và đổi được giá trị **trong phạm vi chính người
+  đó đọc được + có `pii.reveal`** (PIIR-02 đã chặn token của người khác). Đây là đường để một agent chạy code lấy được giá
+  trị sensitive mà kênh MCP che đi.
+- **Vì sao chấp nhận được cho v0.1:** (1) production không có redirect loopback cho `xt-desk-agent` (`provision.py`: mặc
+  định là production), nên chỉ lấy được token bằng cách tự trích từ phiên Desk của chính mình hoặc qua XSS ở Desk; (2) token
+  sống 300 s, phạm vi giới hạn theo chính người dùng, mọi lần xin/đổi vé đều ghi `pii_egress` (người, token, bản ghi, kết
+  quả); (3) đường headless hợp lệ `xt-cli` + `/data` vốn đã trả field `basic` dạng văn bản cho chính người đó, chỉ ẩn
+  `sensitive`. Vì vậy phần rủi ro còn lại chỉ là field sensitive mà chính người dùng được phép xem.
+- **Điều kiện kèm theo (làm ngay, rẻ):** `xt serve`/`provision.py` từ chối khởi động production nếu `xt-desk-agent` có redirect
+  loopback; CSP của Desk chặt (`script-src 'self'`, không inline) để thu hẹp XSS; ghi rõ rủi ro trong `SECURITY.md`.
+- **Bắt buộc trước v1.0 (đề xuất cụ thể):** ràng token với khóa của trình duyệt bằng **DPoP (RFC 9449)** cho client
+  `xt-desk-agent` (Keycloak 26 hỗ trợ "DPoP bound access tokens" ở mức client). Desk sinh cặp khóa ECDSA **non-extractable**
+  bằng WebCrypto, lưu trong IndexedDB; mọi request `/mcp` gửi kèm DPoP proof; xT kiểm `cnf.jkt` của token. `pii_reveal_ticket`
+  chỉ cấp vé khi có DPoP proof hợp lệ, và `/pii/reveal` yêu cầu chữ ký bằng **chính khóa DPoP đó** (vé gắn `jkt`, không
+  nhận `pubkey_jwk` tùy ý). Khi đó token bị trích ra khỏi trình duyệt là vô dụng vì thiếu khóa riêng không xuất được. Ràng
+  `sid` đơn thuần **không đủ**: `sid` nằm trong chính token, ai cầm token là có `sid`.
+
+**Verdict vòng 2: PASS có điều kiện.** PIIR-01…08 đã sửa và kiểm bằng tấn công thật; không còn lỗi HIGH/MEDIUM. Còn
+R2-01, R2-02 (LOW, có xfail strict) và lỗi dọn volume của fixture: sửa trước khi nộp nhưng không chặn demo. Rủi ro token
+ngoài trình duyệt chấp nhận cho v0.1 với các điều kiện trên; DPoP là việc bắt buộc của v1.0.
