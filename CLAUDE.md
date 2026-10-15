@@ -13,6 +13,7 @@ xT là MCP server đa năng cho mọi doanh nghiệp. Lõi headless (Tầng 1) g
   - Đề thi: `research/de_thi_OLP2026.txt`
   - Sơ đồ kiến trúc: `/home/chinhan/xT_DXOS_OLP2026.drawio`
   - Kết quả nghiên cứu: `research/*.md`
+  - Hostname công khai qua Cloudflare Tunnel `xt`: `xt.freepro.online` (Desk), `xt-mcp.freepro.online` (MCP), `xt-api.freepro.online` (Tầng 1), `xt-auth.freepro.online` (Keycloak), tất cả đi qua APISIX `127.0.0.1:9080`. Chi tiết: `docs/deployment-public.md`. Bí mật nằm trong `~/.config/xt/` (không commit).
 - **Bám đề thi:**
   - Tầng 1 headless bắt buộc đủ 4 dịch vụ: SSO, API Gateway, Data, Workflow.
   - Tầng 2: ít nhất 1 ứng dụng có giao diện (MCP Apps hiển thị trong chat).
