@@ -12,7 +12,9 @@ Mã nguồn ở `deploy/`. Nguồn quyết định: `architecture-v2.md` D10/D12
 | `public` | + cloudflared 2025.9.1 | Đọc `TUNNEL_TOKEN` từ `deploy/.env`; chạy chung netns với APISIX nên `127.0.0.1:9080` đúng như `deployment-public.md` |
 | `placeholder` | `xt-api-placeholder` | Tạm thời, xem dưới |
 
-**Tình trạng xt-api:** `xt serve --transport http` đã có; `make up-minimal` phát hiện và chạy `--profile minimal` (xt-api, xt-worker, xt-desk). xt-api cần `XT_MCP_SERVICES` (module:factory trả `ToolServices`) trong `deploy/.env`; chưa đặt thì tiến trình dừng với thông báo lỗi cấu hình, không có mặc định giả. Container tạm `xt-api-placeholder` (profile `placeholder`, trả 503 "chưa triển khai") vẫn dùng được để kiểm hạ tầng: `docker compose --env-file .env --profile placeholder up -d postgres keycloak apisix xt-api-placeholder`. Đã build thật `xt-desk` (đã thêm 3 build-arg `DESK_APP_MAX_ARGS_BYTES`, `DESK_APP_GLOBAL_CALLS_PER_SEC`, `DESK_APP_GLOBAL_BURST`) và phục vụ qua APISIX (200); **chưa chạy** xt-api/xt-worker thật.
+**Tình trạng xt-api (16/10/2026):** `xt serve` + composition thật chạy được: `make up-minimal` dựng `xt-init` (một lần: `bootstrap` role/schema, `xt db migrate`, schema hàng đợi, đặt mật khẩu `xt_app/xt_migrator/xt_control`), rồi `xt-api` và `xt-worker` (`depends_on: service_completed_successfully`). Cấu hình đủ nằm trong `deploy/.env.example`/`compose.yaml`: `make env` tự sinh mật khẩu DB (`XT_DB_*_PASSWORD`) vào `.env` và khóa tệp (`audit.key`, `cursor.key`, `pii.key`, `receipt-ed25519.pem`) vào `${XT_SECRETS_DIR:-~/.config/xt}/app` (ngoài repo, mount `/run/secrets/xt` chỉ đọc). Thiếu cấu hình: compose dừng với `${VAR:?}`, hoặc `xt serve`/`xt worker` in danh sách lỗi và thoát; `restart: on-failure:5` nên không lặp vô hạn. Container tạm `xt-api-placeholder` (profile `placeholder`) chỉ còn để kiểm hạ tầng khi chưa có `xt`. `postgrest` cần thêm `make pgrst-jwks` và role `xt_pgrst` (chưa có bước tạo role trong `xt-init`), nên các lần kiểm 16/10 chạy `postgres keycloak apisix xt-init xt-api xt-worker`, không có `postgrest`/`xt-desk`.
+
+**Ảnh `xt/xt`:** python:3.13-slim + `libpq5` hệ thống (psycopg thuần Python, không `psycopg-binary`; xem `decisions.md`), uid 10001 không shell/home, rootfs `read_only` + tmpfs `/tmp`, `cap_drop ALL`, `no-new-privileges`.
 
 ## Lệnh
 
@@ -32,6 +34,7 @@ make down              # dừng; make -C deploy clean để xóa cả volume
 | Host | Đường dẫn | Đích |
 |---|---|---|
 | `xt-*` Desk | `/desk/*` | xt-api (trang confirm) |
+| | `/mcp`, `/mcp/*` | xt-api (route `desk-mcp`, passthrough như host MCP, không bearer, SSE không đệm; Desk gọi cùng origin) |
 | | `/*` | xt-desk (tĩnh) |
 | xt-mcp | `/mcp`, `/mcp/*`, `/.well-known/*` | xt-api, **không plugin xác thực**, `proxy-buffering` tắt (SSE), `limit-req` theo IP, timeout đọc 3600 s. xt-api tự trả 401 + PRM |
 | xt-api | `/data/*` | `503` có thông báo "chưa triển khai (PostgREST, v0.2)" |
@@ -47,7 +50,8 @@ Không route nào chèn `Authorization`/bearer tĩnh (mục LOW của `audit-des
 
 - Organizations bật; mật khẩu tối thiểu 12 ký tự + hoa/thường/số, không trùng username/email, nhớ 3 mật khẩu gần nhất; `accessTokenLifespan` 300 s; refresh token xoay vòng; brute-force bật.
 - Role realm lấy từ `research/packs-draft/*/policies`: `employee, dept_head, director, chief_accountant, payment_accountant, hr, hr_pii, it_admin, admin, agent`.
-- Client scope `mcp-xt`: mapper audience `aud = https://<xt-mcp>/mcp`, mapper audience `xt-api-introspect` (nếu thiếu, introspection Keycloak 26 trả `active:false`, `identity.md`), mapper Organization. **Không** nằm trong default của realm; là *default optional* để connector xin `scope=mcp-xt`. `offline_access` bị gỡ khỏi optional mặc định.
+- Client scope `mcp-xt`: mapper audience `aud = https://<xt-mcp>/mcp`, mapper audience `xt-api-introspect` (bắt buộc giữ; nếu thiếu, introspection Keycloak 26 trả `active:false`, `identity.md`), mapper Organization. **Không** nằm trong default của realm; là *default optional* để connector xin `scope=mcp-xt`. `offline_access` bị gỡ khỏi optional mặc định.
+- Access token chỉ mang `aud = [resource MCP, xt-api-introspect]`: provision gỡ mapper `audience resolve` khỏi scope `roles` nên không còn `account`.
 - Client: `xt-desk` (public, PKCE S256, nhận `mcp-xt` mặc định, `XT_MCP_HUMAN_CLIENTS`), `xt-desk-confirm` (public, PKCE S256, flow `xt-stepup`: LoA1 mật khẩu, LoA2 OTP với `loa-max-age=0`, `minimum.acr.value=urn:xt:acr:otp`, `acr.loa.map` ở realm, mapper `amr` tuổi tối đa 300 s theo `spike-hitl`), `xt-api-introspect` (confidential, chỉ để introspection, secret lấy từ `.env`).
 - DCR ẩn danh (sửa BUG-D1/D2 của `audit-deploy.md`), nhiều lớp:
   - Gateway (xem bảng): schema chặn `client_credentials`/`password`/`implicit`, client confidential, wildcard, http không-loopback, >2 redirect URI, `javascript:` (400 thay vì 500).

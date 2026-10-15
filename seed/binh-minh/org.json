@@ -1,0 +1,853 @@
+{
+  "departments": [
+    {
+      "id": "D01",
+      "name": "Ban Giám đốc",
+      "parent_id": null
+    },
+    {
+      "id": "D02",
+      "name": "Kế toán",
+      "parent_id": "D01"
+    },
+    {
+      "id": "D03",
+      "name": "Kinh doanh",
+      "parent_id": "D01"
+    },
+    {
+      "id": "D04",
+      "name": "Nhân sự",
+      "parent_id": "D01"
+    },
+    {
+      "id": "D05",
+      "name": "Kỹ thuật/IT",
+      "parent_id": "D01"
+    },
+    {
+      "id": "D06",
+      "name": "Marketing",
+      "parent_id": "D01"
+    },
+    {
+      "id": "D07",
+      "name": "Vận hành",
+      "parent_id": "D01"
+    }
+  ],
+  "positions": [
+    {
+      "id": "P01",
+      "name": "Tổng Giám đốc",
+      "level": 5
+    },
+    {
+      "id": "P02",
+      "name": "Trưởng phòng",
+      "level": 4
+    },
+    {
+      "id": "P03",
+      "name": "Phó Trưởng phòng",
+      "level": 3
+    },
+    {
+      "id": "P04",
+      "name": "Chuyên viên chính",
+      "level": 3
+    },
+    {
+      "id": "P05",
+      "name": "Chuyên viên",
+      "level": 2
+    },
+    {
+      "id": "P06",
+      "name": "Nhân viên",
+      "level": 1
+    }
+  ],
+  "employees": [
+    {
+      "id": "NV-0001",
+      "full_name": "Nguyễn Hữu Trí",
+      "email": "tri.nguyenhuu@binhminh.example",
+      "department_id": "D01",
+      "position_id": "P01",
+      "manager_id": null,
+      "hire_date": "2015-03-15",
+      "active": true,
+      "roles": [
+        "director"
+      ]
+    },
+    {
+      "id": "NV-0002",
+      "full_name": "Trần Thị Bích Thảo",
+      "email": "thao.tranthibich@binhminh.example",
+      "department_id": "D01",
+      "position_id": "P02",
+      "manager_id": "NV-0001",
+      "hire_date": "2016-05-10",
+      "active": true,
+      "roles": [
+        "dept_head"
+      ]
+    },
+    {
+      "id": "NV-0003",
+      "full_name": "Lê Hoàng Phúc",
+      "email": "phuc.lehoang@binhminh.example",
+      "department_id": "D01",
+      "position_id": "P05",
+      "manager_id": "NV-0002",
+      "hire_date": "2020-08-01",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0004",
+      "full_name": "Phạm Kim Oanh",
+      "email": "oanh.phamkim@binhminh.example",
+      "department_id": "D02",
+      "position_id": "P02",
+      "manager_id": "NV-0001",
+      "hire_date": "2015-06-20",
+      "active": true,
+      "roles": [
+        "dept_head"
+      ]
+    },
+    {
+      "id": "NV-0005",
+      "full_name": "Đỗ Thục Quyên",
+      "email": "quyen.dothuc@binhminh.example",
+      "department_id": "D02",
+      "position_id": "P04",
+      "manager_id": "NV-0004",
+      "hire_date": "2017-02-14",
+      "active": true,
+      "roles": [
+        "accountant"
+      ]
+    },
+    {
+      "id": "NV-0006",
+      "full_name": "Bùi Hải Nam",
+      "email": "nam.buihai@binhminh.example",
+      "department_id": "D02",
+      "position_id": "P05",
+      "manager_id": "NV-0004",
+      "hire_date": "2019-09-01",
+      "active": true,
+      "roles": [
+        "accountant"
+      ]
+    },
+    {
+      "id": "NV-0007",
+      "full_name": "Vũ Ánh Tuyết",
+      "email": "tuyet.vuanh@binhminh.example",
+      "department_id": "D02",
+      "position_id": "P05",
+      "manager_id": "NV-0004",
+      "hire_date": "2021-04-12",
+      "active": true,
+      "roles": [
+        "accountant"
+      ]
+    },
+    {
+      "id": "NV-0008",
+      "full_name": "Trịnh Hoài An",
+      "email": "an.trinhhoai@binhminh.example",
+      "department_id": "D02",
+      "position_id": "P06",
+      "manager_id": "NV-0004",
+      "hire_date": "2023-11-05",
+      "active": true,
+      "roles": [
+        "accountant"
+      ]
+    },
+    {
+      "id": "NV-0009",
+      "full_name": "Lý Minh Triết",
+      "email": "triet.lyminh@binhminh.example",
+      "department_id": "D02",
+      "position_id": "P06",
+      "manager_id": "NV-0004",
+      "hire_date": "2025-06-18",
+      "active": true,
+      "roles": [
+        "accountant"
+      ]
+    },
+    {
+      "id": "NV-0010",
+      "full_name": "Hoàng Quốc Bảo",
+      "email": "bao.hoangquoc@binhminh.example",
+      "department_id": "D03",
+      "position_id": "P02",
+      "manager_id": "NV-0001",
+      "hire_date": "2015-09-01",
+      "active": true,
+      "roles": [
+        "dept_head"
+      ]
+    },
+    {
+      "id": "NV-0011",
+      "full_name": "Ngô Thành Đạt",
+      "email": "dat.ngothanh@binhminh.example",
+      "department_id": "D03",
+      "position_id": "P03",
+      "manager_id": "NV-0010",
+      "hire_date": "2017-04-01",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0012",
+      "full_name": "Đặng Phương Linh",
+      "email": "linh.dangphuong@binhminh.example",
+      "department_id": "D03",
+      "position_id": "P04",
+      "manager_id": "NV-0010",
+      "hire_date": "2018-01-15",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0013",
+      "full_name": "Phan Tiến Dũng",
+      "email": "dung.phantien@binhminh.example",
+      "department_id": "D03",
+      "position_id": "P05",
+      "manager_id": "NV-0010",
+      "hire_date": "2018-10-20",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0014",
+      "full_name": "Dương Bảo Trâm",
+      "email": "tram.duongbao@binhminh.example",
+      "department_id": "D03",
+      "position_id": "P05",
+      "manager_id": "NV-0010",
+      "hire_date": "2019-03-12",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0015",
+      "full_name": "Lương Gia Huy",
+      "email": "huy.luonggia@binhminh.example",
+      "department_id": "D03",
+      "position_id": "P05",
+      "manager_id": "NV-0011",
+      "hire_date": "2020-02-15",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0016",
+      "full_name": "Hồ Đăng Khoa",
+      "email": "khoa.hodang@binhminh.example",
+      "department_id": "D03",
+      "position_id": "P05",
+      "manager_id": "NV-0011",
+      "hire_date": "2020-07-22",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0017",
+      "full_name": "Võ Khánh Duy",
+      "email": "duy.vokhanh@binhminh.example",
+      "department_id": "D03",
+      "position_id": "P05",
+      "manager_id": "NV-0011",
+      "hire_date": "2021-03-10",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0018",
+      "full_name": "Đinh Nhật Minh",
+      "email": "minh.dinhnhat@binhminh.example",
+      "department_id": "D03",
+      "position_id": "P06",
+      "manager_id": "NV-0011",
+      "hire_date": "2022-05-18",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0019",
+      "full_name": "Nguyễn Thảo Nguyên",
+      "email": "nguyen.nguyenthao@binhminh.example",
+      "department_id": "D03",
+      "position_id": "P06",
+      "manager_id": "NV-0011",
+      "hire_date": "2022-09-01",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0020",
+      "full_name": "Trần Bá Tùng",
+      "email": "tung.tranba@binhminh.example",
+      "department_id": "D03",
+      "position_id": "P06",
+      "manager_id": "NV-0011",
+      "hire_date": "2023-02-14",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0021",
+      "full_name": "Lê Diễm My",
+      "email": "my.lediem@binhminh.example",
+      "department_id": "D03",
+      "position_id": "P06",
+      "manager_id": "NV-0011",
+      "hire_date": "2023-08-20",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0022",
+      "full_name": "Phạm Thái Sơn",
+      "email": "son.phamthai@binhminh.example",
+      "department_id": "D03",
+      "position_id": "P06",
+      "manager_id": "NV-0011",
+      "hire_date": "2024-04-10",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0023",
+      "full_name": "Bùi Lan Hương",
+      "email": "huong.builan@binhminh.example",
+      "department_id": "D03",
+      "position_id": "P06",
+      "manager_id": "NV-0011",
+      "hire_date": "2024-11-25",
+      "active": false,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0024",
+      "full_name": "Đỗ Văn Hùng",
+      "email": "hung.dovan@binhminh.example",
+      "department_id": "D03",
+      "position_id": "P06",
+      "manager_id": "NV-0011",
+      "hire_date": "2026-03-15",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0025",
+      "full_name": "Vũ Cẩm Tú",
+      "email": "tu.vucam@binhminh.example",
+      "department_id": "D04",
+      "position_id": "P02",
+      "manager_id": "NV-0001",
+      "hire_date": "2016-01-15",
+      "active": true,
+      "roles": [
+        "dept_head"
+      ]
+    },
+    {
+      "id": "NV-0026",
+      "full_name": "Nguyễn Yến Nhi",
+      "email": "nhi.nguyenyen@binhminh.example",
+      "department_id": "D04",
+      "position_id": "P04",
+      "manager_id": "NV-0025",
+      "hire_date": "2018-06-01",
+      "active": true,
+      "roles": [
+        "hr"
+      ]
+    },
+    {
+      "id": "NV-0027",
+      "full_name": "Trần Thế Anh",
+      "email": "anh.tranthe@binhminh.example",
+      "department_id": "D04",
+      "position_id": "P05",
+      "manager_id": "NV-0025",
+      "hire_date": "2020-10-15",
+      "active": true,
+      "roles": [
+        "hr"
+      ]
+    },
+    {
+      "id": "NV-0028",
+      "full_name": "Lê Thu Hà",
+      "email": "ha.lethu@binhminh.example",
+      "department_id": "D04",
+      "position_id": "P05",
+      "manager_id": "NV-0025",
+      "hire_date": "2022-04-05",
+      "active": true,
+      "roles": [
+        "hr"
+      ]
+    },
+    {
+      "id": "NV-0029",
+      "full_name": "Phạm Hạ Vy",
+      "email": "vy.phamha@binhminh.example",
+      "department_id": "D04",
+      "position_id": "P06",
+      "manager_id": "NV-0025",
+      "hire_date": "2024-09-12",
+      "active": true,
+      "roles": [
+        "hr"
+      ]
+    },
+    {
+      "id": "NV-0030",
+      "full_name": "Phan Tuấn Kiệt",
+      "email": "kiet.phantuan@binhminh.example",
+      "department_id": "D05",
+      "position_id": "P02",
+      "manager_id": "NV-0001",
+      "hire_date": "2015-11-01",
+      "active": true,
+      "roles": [
+        "dept_head"
+      ]
+    },
+    {
+      "id": "NV-0031",
+      "full_name": "Đặng Minh Khang",
+      "email": "khang.dangminh@binhminh.example",
+      "department_id": "D05",
+      "position_id": "P03",
+      "manager_id": "NV-0030",
+      "hire_date": "2017-08-15",
+      "active": true,
+      "roles": [
+        "it"
+      ]
+    },
+    {
+      "id": "NV-0032",
+      "full_name": "Bùi Quang Vinh",
+      "email": "vinh.buiquang@binhminh.example",
+      "department_id": "D05",
+      "position_id": "P04",
+      "manager_id": "NV-0030",
+      "hire_date": "2018-03-20",
+      "active": true,
+      "roles": [
+        "it"
+      ]
+    },
+    {
+      "id": "NV-0033",
+      "full_name": "Hồ Trường Giang",
+      "email": "giang.hotruong@binhminh.example",
+      "department_id": "D05",
+      "position_id": "P04",
+      "manager_id": "NV-0030",
+      "hire_date": "2019-01-10",
+      "active": true,
+      "roles": [
+        "it"
+      ]
+    },
+    {
+      "id": "NV-0034",
+      "full_name": "Ngô Hải Đăng",
+      "email": "dang.ngohai@binhminh.example",
+      "department_id": "D05",
+      "position_id": "P05",
+      "manager_id": "NV-0031",
+      "hire_date": "2019-11-15",
+      "active": true,
+      "roles": [
+        "it"
+      ]
+    },
+    {
+      "id": "NV-0035",
+      "full_name": "Dương Trung Kiên",
+      "email": "kien.duongtrung@binhminh.example",
+      "department_id": "D05",
+      "position_id": "P05",
+      "manager_id": "NV-0031",
+      "hire_date": "2020-05-20",
+      "active": true,
+      "roles": [
+        "it"
+      ]
+    },
+    {
+      "id": "NV-0036",
+      "full_name": "Lương Duy Mạnh",
+      "email": "manh.luongduy@binhminh.example",
+      "department_id": "D05",
+      "position_id": "P05",
+      "manager_id": "NV-0031",
+      "hire_date": "2021-02-18",
+      "active": true,
+      "roles": [
+        "it"
+      ]
+    },
+    {
+      "id": "NV-0037",
+      "full_name": "Võ Trọng Hiếu",
+      "email": "hieu.votrong@binhminh.example",
+      "department_id": "D05",
+      "position_id": "P05",
+      "manager_id": "NV-0031",
+      "hire_date": "2021-08-01",
+      "active": true,
+      "roles": [
+        "it"
+      ]
+    },
+    {
+      "id": "NV-0038",
+      "full_name": "Đinh Việt Cường",
+      "email": "cuong.dinhviet@binhminh.example",
+      "department_id": "D05",
+      "position_id": "P05",
+      "manager_id": "NV-0031",
+      "hire_date": "2022-03-15",
+      "active": true,
+      "roles": [
+        "it"
+      ]
+    },
+    {
+      "id": "NV-0039",
+      "full_name": "Nguyễn Tấn Phát",
+      "email": "phat.nguyentan@binhminh.example",
+      "department_id": "D05",
+      "position_id": "P06",
+      "manager_id": "NV-0031",
+      "hire_date": "2023-01-10",
+      "active": true,
+      "roles": [
+        "it"
+      ]
+    },
+    {
+      "id": "NV-0040",
+      "full_name": "Trần Huy Hoàng",
+      "email": "hoang.tranhuy@binhminh.example",
+      "department_id": "D05",
+      "position_id": "P06",
+      "manager_id": "NV-0031",
+      "hire_date": "2023-07-25",
+      "active": true,
+      "roles": [
+        "it"
+      ]
+    },
+    {
+      "id": "NV-0041",
+      "full_name": "Lê Đăng Quân",
+      "email": "quan.ledang@binhminh.example",
+      "department_id": "D05",
+      "position_id": "P06",
+      "manager_id": "NV-0031",
+      "hire_date": "2024-02-12",
+      "active": true,
+      "roles": [
+        "it"
+      ]
+    },
+    {
+      "id": "NV-0042",
+      "full_name": "Phạm Hồng Phúc",
+      "email": "phuc.phamhong@binhminh.example",
+      "department_id": "D05",
+      "position_id": "P06",
+      "manager_id": "NV-0031",
+      "hire_date": "2024-10-01",
+      "active": true,
+      "roles": [
+        "it"
+      ]
+    },
+    {
+      "id": "NV-0043",
+      "full_name": "Hoàng Bảo Lâm",
+      "email": "lam.hoangbao@binhminh.example",
+      "department_id": "D05",
+      "position_id": "P06",
+      "manager_id": "NV-0031",
+      "hire_date": "2026-02-20",
+      "active": true,
+      "roles": [
+        "it"
+      ]
+    },
+    {
+      "id": "NV-0044",
+      "full_name": "Đỗ Mai Lan",
+      "email": "lan.domai@binhminh.example",
+      "department_id": "D06",
+      "position_id": "P02",
+      "manager_id": "NV-0001",
+      "hire_date": "2016-08-01",
+      "active": true,
+      "roles": [
+        "dept_head"
+      ]
+    },
+    {
+      "id": "NV-0045",
+      "full_name": "Trịnh Quỳnh Chi",
+      "email": "chi.trinhquynh@binhminh.example",
+      "department_id": "D06",
+      "position_id": "P04",
+      "manager_id": "NV-0044",
+      "hire_date": "2018-05-10",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0046",
+      "full_name": "Lý Thùy Dương",
+      "email": "duong.lythuy@binhminh.example",
+      "department_id": "D06",
+      "position_id": "P05",
+      "manager_id": "NV-0044",
+      "hire_date": "2019-12-01",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0047",
+      "full_name": "Vũ Thanh Hằng",
+      "email": "hang.vuthanh@binhminh.example",
+      "department_id": "D06",
+      "position_id": "P05",
+      "manager_id": "NV-0044",
+      "hire_date": "2021-06-15",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0048",
+      "full_name": "Nguyễn Ngọc Bích",
+      "email": "bich.nguyenngoc@binhminh.example",
+      "department_id": "D06",
+      "position_id": "P06",
+      "manager_id": "NV-0044",
+      "hire_date": "2022-10-20",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0049",
+      "full_name": "Trần Mỹ Duyên",
+      "email": "duyen.tranmy@binhminh.example",
+      "department_id": "D06",
+      "position_id": "P06",
+      "manager_id": "NV-0044",
+      "hire_date": "2024-03-01",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0050",
+      "full_name": "Lê Khánh Linh",
+      "email": "linh.lekhanh@binhminh.example",
+      "department_id": "D06",
+      "position_id": "P06",
+      "manager_id": "NV-0044",
+      "hire_date": "2025-08-15",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0051",
+      "full_name": "Bùi Đức Trọng",
+      "email": "trong.buiduc@binhminh.example",
+      "department_id": "D07",
+      "position_id": "P02",
+      "manager_id": "NV-0001",
+      "hire_date": "2015-12-01",
+      "active": true,
+      "roles": [
+        "dept_head"
+      ]
+    },
+    {
+      "id": "NV-0052",
+      "full_name": "Nguyễn Văn Đạt",
+      "email": "dat.nguyenvan@binhminh.example",
+      "department_id": "D07",
+      "position_id": "P03",
+      "manager_id": "NV-0051",
+      "hire_date": "2017-06-15",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0053",
+      "full_name": "Trần Hữu Phước",
+      "email": "phuoc.tranhuu@binhminh.example",
+      "department_id": "D07",
+      "position_id": "P04",
+      "manager_id": "NV-0051",
+      "hire_date": "2018-09-01",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0054",
+      "full_name": "Lê Hồng Nhung",
+      "email": "nhung.lehong@binhminh.example",
+      "department_id": "D07",
+      "position_id": "P05",
+      "manager_id": "NV-0052",
+      "hire_date": "2019-04-10",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0055",
+      "full_name": "Phạm Vĩnh Thụy",
+      "email": "thuy.phamvinh@binhminh.example",
+      "department_id": "D07",
+      "position_id": "P05",
+      "manager_id": "NV-0052",
+      "hire_date": "2020-11-20",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0056",
+      "full_name": "Hoàng Trúc Mai",
+      "email": "mai.hoangtruc@binhminh.example",
+      "department_id": "D07",
+      "position_id": "P05",
+      "manager_id": "NV-0052",
+      "hire_date": "2021-07-15",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0057",
+      "full_name": "Phan Thúy Nga",
+      "email": "nga.phanthuy@binhminh.example",
+      "department_id": "D07",
+      "position_id": "P06",
+      "manager_id": "NV-0052",
+      "hire_date": "2022-12-05",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0058",
+      "full_name": "Vũ Bích Ngọc",
+      "email": "ngoc.vubich@binhminh.example",
+      "department_id": "D07",
+      "position_id": "P06",
+      "manager_id": "NV-0052",
+      "hire_date": "2023-09-18",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0059",
+      "full_name": "Đặng Tố Uyên",
+      "email": "uyen.dangto@binhminh.example",
+      "department_id": "D07",
+      "position_id": "P06",
+      "manager_id": "NV-0052",
+      "hire_date": "2024-05-22",
+      "active": true,
+      "roles": [
+        "employee"
+      ]
+    },
+    {
+      "id": "NV-0060",
+      "full_name": "Đỗ Như Quỳnh",
+      "email": "quynh.donhu@binhminh.example",
+      "department_id": "D07",
+      "position_id": "P06",
+      "manager_id": "NV-0052",
+      "hire_date": "2025-11-10",
+      "active": false,
+      "roles": [
+        "employee"
+      ]
+    }
+  ]
+}

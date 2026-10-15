@@ -6,8 +6,14 @@ version = 1
 [[annotations]]
 path = [
   "research/**",
+  "deploy/**/*.json",
   "docs/**",
   "uv.lock",
+  "desk/package.json",
+  "desk/package-lock.json",
+  "desk/tsconfig.json",
+  "desk/.env.example",
+  "desk/.gitignore",
   ".gitignore",
   ".editorconfig",
   "LICENSE",
@@ -17,8 +23,17 @@ path = [
   "src/xt/py.typed",
   "src/xt/contracts/prompts/*.json",
   "scripts/check_spdx.sh",
+  "tests/fixtures/process/**/*.json",
+  "packages/**/*.json",
+  "tests/integration/process/bpmn_viewer/package.json",
+  "tests/integration/process/bpmn_viewer/package-lock.json",
   "**/__pycache__/**",
 ]
 precedence = "override"
+SPDX-FileCopyrightText = "2026 xT contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = "seed/**"
 SPDX-FileCopyrightText = "2026 xT contributors"
 SPDX-License-Identifier = "Apache-2.0"

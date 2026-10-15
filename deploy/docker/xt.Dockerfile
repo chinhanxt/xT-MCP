@@ -10,9 +10,13 @@ COPY src ./src
 RUN uv sync --frozen --no-dev
 
 FROM python:3.13-slim@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f
-RUN useradd --system --uid 10001 --create-home xt
+# libpq5 hệ thống (Debian; PostgreSQL License) cho psycopg bản thuần Python; không dùng psycopg-binary (THIRD_PARTY_NOTICES.md)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpq5 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --uid 10001 --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin xt
 COPY --from=build /app /app
-ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
+ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
 USER 10001
 EXPOSE 8000

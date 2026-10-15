@@ -155,6 +155,19 @@ def upsert_mapper(kc: KC, base: str, mapper: dict[str, Any]) -> None:
         kc.call("POST", f"{base}/protocol-mappers/models", mapper)
 
 
+def drop_account_audience(kc: KC, realm: str) -> None:
+    """Gỡ mapper `audience resolve` khỏi client scope `roles`: nguồn của aud `account` (và `realm-management`)
+    trong access token. aud còn lại chỉ do mapper tường minh của `mcp-xt` (resource MCP + xt-api-introspect)."""
+    sid = scope_id(kc, realm, "roles")
+    if not sid:
+        return
+    base = f"/realms/{realm}/client-scopes/{sid}/protocol-mappers/models"
+    for m in kc.get(base):
+        if m.get("protocolMapper") == "oidc-audience-resolve-mapper":
+            kc.call("DELETE", f"{base}/{m['id']}", ok=(404,))
+            print(f"scope roles: đã gỡ mapper {m['name']} (không còn aud account)")
+
+
 def ensure_mcp_scope(kc: KC, realm: str, resource: str, introspect_client: str) -> str:
     rep = {
         "name": "mcp-xt",
@@ -338,6 +351,7 @@ def provision(kc: KC, env: dict[str, str]) -> None:
     upsert_realm(kc, realm, env)
     ensure_roles(kc, realm)
     mcp_sid = ensure_mcp_scope(kc, realm, resource, intro)
+    drop_account_audience(kc, realm)
     flow_id = build_stepup_flow(kc, realm)
 
     desk = f"https://{env['XT_DOMAIN_DESK']}"

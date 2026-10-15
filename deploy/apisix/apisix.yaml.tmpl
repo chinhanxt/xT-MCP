@@ -15,6 +15,28 @@ routes:
     upstream:
       type: roundrobin
       nodes: {"xt-api:8000": 1}
+  - id: desk-mcp                # Desk gọi /mcp cùng origin (decisions.md 16/10/2026): passthrough tới xt-api, không xác thực, không chèn bearer
+    hosts: ["@@XT_DOMAIN_DESK@@"]
+    uris: ["/mcp", "/mcp/*"]
+    priority: 10
+    plugins:
+      real-ip:
+        source: http_cf_connecting_ip
+        trusted_addresses: ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+      client-control:
+        max_body_size: 1048576
+      proxy-buffering:            # SSE (Streamable HTTP) không bị đệm
+        disable_proxy_buffering: true
+      limit-req:
+        rate: 30
+        burst: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+    upstream:
+      type: roundrobin
+      nodes: {"xt-api:8000": 1}
+      timeout: {connect: 5, send: 3600, read: 3600}
   - id: desk-static
     hosts: ["@@XT_DOMAIN_DESK@@"]
     uri: "/*"
@@ -50,15 +72,28 @@ routes:
       timeout: {connect: 5, send: 3600, read: 3600}
 
   # ---------- xt-api.freepro.online : Tầng 1 headless ----------
-  - id: api-data                # PostgREST chưa dựng: trả 503 rõ ràng, không giả lập dữ liệu
+  - id: api-data                # PostgREST: bỏ tiền tố /data, giữ nguyên Authorization + Accept-Profile (JWT/profile kiểm ở PostgREST + xt.pgrst_pre)
     hosts: ["@@XT_DOMAIN_API@@"]
     uris: ["/data", "/data/*"]
+    methods: ["GET", "HEAD", "OPTIONS"]   # view chỉ GRANT SELECT cho xt_web; ghi đi qua MCP
     plugins:
-      fault-injection:
-        abort:
-          http_status: 503
-          body: '{"error":"chua_trien_khai","message":"Dịch vụ /data (PostgREST) chưa triển khai; dự kiến v0.2 (architecture-v2.md, D12)."}'
-          headers: {Content-Type: "application/json; charset=utf-8"}
+      real-ip:
+        source: http_cf_connecting_ip
+        trusted_addresses: ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+      client-control:
+        max_body_size: 1024
+      limit-req:
+        rate: 30
+        burst: 60
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+      proxy-rewrite:              # không có `headers`: Authorization/Accept-Profile đi nguyên; query string giữ nguyên
+        regex_uri: ["^/data/?(.*)$", "/$1"]
+    upstream:
+      type: roundrobin
+      nodes: {"postgrest:3000": 1}
+      timeout: {connect: 5, send: 30, read: 30}
   - id: api-workflow
     hosts: ["@@XT_DOMAIN_API@@"]
     uris: ["/workflow", "/workflow/*"]
