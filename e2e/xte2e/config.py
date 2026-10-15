@@ -87,7 +87,10 @@ class Settings:
 
 @cache
 def settings() -> Settings:
-    env = {**load_env_file(DEPLOY / ".env"), **{k: v for k, v in os.environ.items() if k.startswith(("XT_", "KC_", "APISIX_"))}}
+    env = {
+        **load_env_file(DEPLOY / ".env"),
+        **{k: v for k, v in os.environ.items() if k.startswith(("XT_", "KC_", "APISIX_"))},
+    }
     env.update({k: v for k, v in STACK_OVERRIDES.items() if k not in os.environ})
     sdir = Path(env.get("XT_SECRETS_DIR") or Path.home() / ".config" / "xt")
     return Settings(
@@ -113,7 +116,11 @@ def _password() -> str:
     alphabet = string.ascii_letters + string.digits
     while True:
         p = "".join(secrets.choice(alphabet) for _ in range(20))
-        if any(c.isupper() for c in p) and any(c.islower() for c in p) and any(c.isdigit() for c in p):
+        if (
+            any(c.isupper() for c in p)
+            and any(c.islower() for c in p)
+            and any(c.isdigit() for c in p)
+        ):
             return p
 
 

@@ -24,7 +24,9 @@ from xte2e.report import Checks, Evidence
 SCENARIO = "E5"
 pytestmark = pytest.mark.e2e
 ACCT = "0123456789012"
-TOKEN_RE = re.compile(r"\[PII:[a-z2-7]{8,}\]|⟨[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.[a-z][a-z0-9_]{0,63}⟩")
+TOKEN_RE = re.compile(
+    r"\[PII:[a-z2-7]{8,}\]|⟨[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.[a-z][a-z0-9_]{0,63}⟩"
+)
 
 
 def _is_error(r: Any) -> bool:
@@ -37,7 +39,12 @@ def _b64u(b: bytes) -> str:
 
 def _jwk(pub: ec.EllipticCurvePublicKey) -> dict[str, Any]:
     n = pub.public_numbers()
-    return {"kty": "EC", "crv": "P-256", "x": _b64u(n.x.to_bytes(32, "big")), "y": _b64u(n.y.to_bytes(32, "big"))}
+    return {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": _b64u(n.x.to_bytes(32, "big")),
+        "y": _b64u(n.y.to_bytes(32, "big")),
+    }
 
 
 def _sign(priv: ec.EllipticCurvePrivateKey, msg: str) -> str:
@@ -48,8 +55,15 @@ def _sign(priv: ec.EllipticCurvePrivateKey, msg: str) -> str:
 def test_masked_then_reveal(ev: Evidence, world) -> None:  # type: ignore[no-untyped-def]
     c = Checks(ev)
     u = world.by_key(A, REQUESTER)
-    made = world.call(u, "create_record", {"model_id": "advance_request", "idempotency_key": key("pii"),
-                                           "values": advance(4_000_000, payout_method="bank_transfer", bank_account=ACCT)})
+    made = world.call(
+        u,
+        "create_record",
+        {
+            "model_id": "advance_request",
+            "idempotency_key": key("pii"),
+            "values": advance(4_000_000, payout_method="bank_transfer", bank_account=ACCT),
+        },
+    )
     ev.step("create_record có số tài khoản (client cloud/public)", made)
     assert made.get("ok"), dumps(made)[:500]
     acct = str(made["data"]["record"]["values"].get("bank_account"))
@@ -66,11 +80,25 @@ def test_masked_then_reveal(ev: Evidence, world) -> None:  # type: ignore[no-unt
     c.check(vis == ["app"], f"pii_reveal_ticket chỉ hiện cho App (visibility={vis})")
 
     priv = ec.generate_private_key(ec.SECP256R1())
-    raw = mcpc.call_raw(tok, "pii_reveal_ticket", {"tokens": [acct], "pubkey_jwk": _jwk(priv.public_key())})
+    raw = mcpc.call_raw(
+        tok, "pii_reveal_ticket", {"tokens": [acct], "pubkey_jwk": _jwk(priv.public_key())}
+    )
     meta = (getattr(raw, "meta", None) or {}).get("xt/reveal") or {}
     body_text = raw.content[0].text if raw.content else ""
-    ev.step("pii_reveal_ticket", {"isError": _is_error(raw), "content": body_text[:400], "meta_keys": sorted(meta)})
-    c.check(not _is_error(raw) and bool(meta.get("ticket")) and bool(meta.get("url")), "vé nằm ở _meta['xt/reveal']")
+    ev.step(
+        "pii_reveal_ticket",
+        {"isError": _is_error(raw), "content": body_text[:400], "meta_keys": sorted(meta)},
+    )
+    srv = mcpc.envelope(raw)
+    c.check(
+        not _is_error(raw) and bool(meta.get("ticket")) and bool(meta.get("url")),
+        "W4 pii_reveal_ticket cấp vé ở _meta['xt/reveal']"
+        + (
+            f" (server: {err(srv).get('code')} trace {(srv.get('meta') or {}).get('trace_id')})"
+            if _is_error(raw)
+            else ""
+        ),
+    )
     c.check(meta.get("ticket", "x") not in body_text, "vé không nằm trong content")
     if not meta.get("ticket"):
         c.done()
@@ -80,27 +108,62 @@ def test_masked_then_reveal(ev: Evidence, world) -> None:  # type: ignore[no-unt
     payload = {"ticket": meta["ticket"], "ts": ts, "sig": _sign(priv, f"{meta['ticket']}.{ts}")}
     hdr = {"Origin": world.s.desk, "Content-Type": "application/json"}
     with net.client() as h:
-        pre = h.options(url, headers={**hdr, "Access-Control-Request-Method": "POST",
-                                      "Access-Control-Request-Headers": "content-type"})
+        pre = h.options(
+            url,
+            headers={
+                **hdr,
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
         r1 = h.post(url, content=json.dumps(payload), headers=hdr)
         r2 = h.post(url, content=json.dumps(payload), headers=hdr)
-        bad_origin = h.post(url, content=json.dumps(payload), headers={**hdr, "Origin": "https://evil.example"})
-    ev.step("POST /pii/reveal", {"preflight": pre.status_code, "first": r1.status_code, "replay": r2.status_code,
-                                 "replay_body": r2.text[:200], "cache": r1.headers.get("cache-control"),
-                                 "bad_origin": bad_origin.status_code})
+        bad_origin = h.post(
+            url, content=json.dumps(payload), headers={**hdr, "Origin": "https://evil.example"}
+        )
+    ev.step(
+        "POST /pii/reveal",
+        {
+            "preflight": pre.status_code,
+            "first": r1.status_code,
+            "replay": r2.status_code,
+            "replay_body": r2.text[:200],
+            "cache": r1.headers.get("cache-control"),
+            "bad_origin": bad_origin.status_code,
+        },
+    )
     c.check(pre.status_code == 204, f"preflight CORS 204 ({pre.status_code})")
-    vals = r1.json().get("values", {}) if r1.headers.get("content-type", "").startswith("application/json") else {}
-    c.check(r1.status_code == 200 and vals.get(acct) == ACCT, f"đổi vé lần đầu -> giá trị thật ({r1.status_code})")
+    vals = (
+        r1.json().get("values", {})
+        if r1.headers.get("content-type", "").startswith("application/json")
+        else {}
+    )
+    c.check(
+        r1.status_code == 200 and vals.get(acct) == ACCT,
+        f"đổi vé lần đầu -> giá trị thật ({r1.status_code})",
+    )
     c.check("no-store" in (r1.headers.get("cache-control") or ""), "Cache-Control: no-store")
     c.check(r2.status_code == 403, f"dùng lại vé -> 403 ({r2.status_code})")
-    c.check(bad_origin.status_code in (400, 403), f"Origin lạ bị từ chối ({bad_origin.status_code})")
-    egress = compose.psql("SELECT count(*) FROM xt_meta.pii_egress WHERE mode::text ILIKE '%human%'"
-                          " OR client_class::text ILIKE '%human%'")
+    c.check(
+        bad_origin.status_code in (400, 403), f"Origin lạ bị từ chối ({bad_origin.status_code})"
+    )
+    egress = compose.psql(
+        "SELECT count(*) FROM xt_meta.pii_egress WHERE mode::text ILIKE '%human%'"
+        " OR client_class::text ILIKE '%human%'"
+    )
     c.check(int(egress or 0) >= 1, f"pii_egress ghi lượt xem tier human ({egress})")
 
     got = world.call(u, "get_record", {"ref": ref})
-    up = world.call(u, "update_record", {"ref": ref, "expected_revision": got["data"]["record"]["revision"],
-                                         "values": {"bank_account": acct, "destination": "Huế"}, "idempotency_key": key("pii-w")})
+    up = world.call(
+        u,
+        "update_record",
+        {
+            "ref": ref,
+            "expected_revision": got["data"]["record"]["revision"],
+            "values": {"bank_account": acct, "destination": "Huế"},
+            "idempotency_key": key("pii-w"),
+        },
+    )
     ev.step("ghi ngược token PII", up)
     c.check(up.get("ok") is False, f"ghi token PII vào field bị từ chối ({err(up).get('code')})")
     c.done()

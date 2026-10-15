@@ -162,7 +162,9 @@ def _install_business_schema(database: WorkerDatabase) -> None:
         )
         connection.execute("GRANT CONNECT ON DATABASE xt_worker_it TO xt_control")
         # Group of all tenant job roles: tenant policies apply TO xt_app, xt_job.
-        connection.execute("CREATE ROLE xt_job NOLOGIN NOBYPASSRLS")
+        # bootstrap() đã tạo nhóm xt_job (CSDL mới); giữ idempotent cho CSDL cũ.
+        if not connection.execute("SELECT 1 FROM pg_roles WHERE rolname='xt_job'").fetchone():
+            connection.execute("CREATE ROLE xt_job NOLOGIN NOBYPASSRLS")
         # Handlers read the model-engine context like any tenant code (provisioning grant).
         connection.execute("GRANT USAGE ON SCHEMA xt TO xt_job")
         connection.execute("GRANT EXECUTE ON FUNCTION xt.cur(), xt.tenant() TO xt_job")

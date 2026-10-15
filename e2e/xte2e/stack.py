@@ -28,9 +28,14 @@ def available_gib() -> float:
 
 def other_heavy() -> list[str]:
     proj = settings().project
-    out = subprocess.run(["docker", "ps", "--format", "{{.Names}}\t{{.Image}}"], capture_output=True, text=True).stdout
-    return [ln.split("\t")[0] for ln in out.splitlines()
-            if any(k in ln for k in ("keycloak", "ollama/ollama")) and not ln.startswith(f"{proj}-")]
+    out = subprocess.run(
+        ["docker", "ps", "--format", "{{.Names}}\t{{.Image}}"], capture_output=True, text=True
+    ).stdout
+    return [
+        ln.split("\t")[0]
+        for ln in out.splitlines()
+        if any(k in ln for k in ("keycloak", "ollama/ollama")) and not ln.startswith(f"{proj}-")
+    ]
 
 
 def preflight(wait: float = 600) -> None:
@@ -41,7 +46,9 @@ def preflight(wait: float = 600) -> None:
             print(f"[stack] RAM available {avail:.1f} GiB, không có stack nặng khác")
             return
         if time.time() > end:
-            sys.exit(f"[stack] không đủ điều kiện heavy-stack: available={avail:.1f} GiB, đang chạy: {heavy}")
+            sys.exit(
+                f"[stack] không đủ điều kiện heavy-stack: available={avail:.1f} GiB, đang chạy: {heavy}"
+            )
         print(f"[stack] chờ: available={avail:.1f} GiB, stack nặng khác: {heavy}")
         time.sleep(30)
 
@@ -52,11 +59,16 @@ def up() -> None:
     subprocess.run([sys.executable, "scripts/render_apisix.py"], cwd=DEPLOY, check=True)
     print("[stack] build + up (volume mới)")
     compose.dc(["build"], timeout=1800, capture=False)
-    compose.dc(["up", "-d", *compose.CORE], timeout=900, capture=False)
+    r = compose.dc(["up", "-d", *compose.CORE], timeout=900, capture=False, check=False)
+    if r.returncode != 0:
+        # Không dừng: kịch bản E0 báo dịch vụ nào hỏng kèm log (báo cáo vẫn được sinh).
+        print(f"[stack] CẢNH BÁO: docker compose up rc={r.returncode}\n{compose.ps()}")
 
 
 def down() -> None:
-    compose.dc(["--profile", "*", "down", "--remove-orphans", "--volumes"], check=False, capture=False)
+    compose.dc(
+        ["--profile", "*", "down", "--remove-orphans", "--volumes"], check=False, capture=False
+    )
 
 
 def main(argv: list[str]) -> int:

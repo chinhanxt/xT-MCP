@@ -485,6 +485,14 @@ class PgIntegrationStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def pii_lock_person(self, actor: ModelActor, person: UUID) -> None:
+        """Khóa giao dịch theo (tenant, người): quota vé không bị vượt khi xin song song."""
+        with self.uow.tenant_tx(actor) as cur:
+            cur.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (f"xt:pii-ticket:{actor.tenant.id}:{person}",),
+            )
+
     def pii_tickets_since(self, actor: ModelActor, person: UUID, seconds: int) -> int:
         with self.uow.tenant_tx(actor) as cur:
             row = cur.execute(
@@ -738,8 +746,8 @@ def installed_pack(
 def bind_queue_tenant(owner: psycopg.Connection[Any], tenant: TenantRef) -> str:
     """Gắn tenant vào hàng đợi (docs/integration-notes.md "Job queue" §4): job role NOLOGIN riêng
     `xt_job_t<seq>` (thành viên nhóm xt_job), xt_app được SET ROLE sang nó, chỉ USAGE schema
-    tenant của chính nó, và dòng `xt_queue.tenant_bindings`. Cần role có CREATEROLE (owner/DBA);
-    idempotent."""
+    tenant của chính nó, và dòng `xt_queue.tenant_bindings`. Quyền relay outbox `xt_meta` đến từ
+    nhóm xt_job (migration 0008, kiểm ở đây). Cần role có CREATEROLE (owner/DBA); idempotent."""
     schema, role = f"xt_t{tenant.seq}", f"xt_job_t{tenant.seq}"
     with owner.transaction():
         if not owner.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role,)).fetchone():
@@ -747,6 +755,18 @@ def bind_queue_tenant(owner: psycopg.Connection[Any], tenant: TenantRef) -> str:
                 sql.SQL("CREATE ROLE {} NOLOGIN NOBYPASSRLS IN ROLE xt_job").format(
                     sql.Identifier(role)
                 )
+            )
+        # Quyền relay outbox xt_meta cấp cho nhóm xt_job (migration 0008): role phải thừa hưởng.
+        owner.execute(sql.SQL("GRANT xt_job TO {} WITH INHERIT TRUE").format(sql.Identifier(role)))
+        ok = owner.execute(
+            "SELECT has_column_privilege(%s, 'xt_meta.workflow_timer_outbox', 'dispatched_at',"
+            " 'UPDATE') AND has_column_privilege(%s, 'xt_meta.model_change_request',"
+            " 'dispatched_at', 'UPDATE')",
+            (role, role),
+        ).fetchone()
+        if not ok or not ok[0]:
+            raise AdminError(
+                f"{role} chưa có quyền relay outbox xt_meta: chạy `xt db migrate` (0008) trước"
             )
         owner.execute(
             sql.SQL("GRANT {} TO xt_app WITH INHERIT FALSE, SET TRUE").format(sql.Identifier(role))

@@ -1,0 +1,148 @@
+{
+  "version": "1",
+  "tenant": "binhminh",
+  "statements": [
+    {
+      "id": "file.emp-create",
+      "effect": "Allow",
+      "subjects": [
+        "role:employee"
+      ],
+      "actions": [
+        "file.create"
+      ],
+      "resources": [
+        "xrn:binhminh:file:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "file.owner-read-delete",
+      "effect": "Allow",
+      "subjects": [
+        "role:employee"
+      ],
+      "actions": [
+        "file.read",
+        "file.delete"
+      ],
+      "resources": [
+        "xrn:binhminh:file:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.owner",
+          "op": "eq",
+          "right": {
+            "ref": "subject.id"
+          }
+        }
+      ]
+    },
+    {
+      "id": "file.reviewer-read",
+      "effect": "Allow",
+      "subjects": [
+        "role:dept_head",
+        "role:director",
+        "role:chief_accountant",
+        "role:accountant",
+        "role:hr"
+      ],
+      "actions": [
+        "file.read"
+      ],
+      "resources": [
+        "xrn:binhminh:file:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "file.agent-l1",
+      "effect": "Allow",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "file.create",
+        "file.read",
+        "file.delete"
+      ],
+      "resources": [
+        "xrn:binhminh:file:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "doc.emp-own",
+      "effect": "Allow",
+      "subjects": [
+        "role:employee"
+      ],
+      "actions": [
+        "record.read",
+        "record.create",
+        "record.update"
+      ],
+      "resources": [
+        "xrn:binhminh:tai_lieu:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.owner",
+          "op": "eq",
+          "right": {
+            "ref": "subject.id"
+          }
+        }
+      ]
+    },
+    {
+      "id": "doc.reviewer-read",
+      "effect": "Allow",
+      "subjects": [
+        "role:dept_head",
+        "role:director"
+      ],
+      "actions": [
+        "record.read",
+        "record.search"
+      ],
+      "resources": [
+        "xrn:binhminh:tai_lieu:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "doc.emp-search",
+      "effect": "Allow",
+      "subjects": [
+        "role:employee"
+      ],
+      "actions": [
+        "record.search"
+      ],
+      "resources": [
+        "xrn:binhminh:tai_lieu:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "doc.agent-l1",
+      "effect": "Allow",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "record.read",
+        "record.create",
+        "record.update",
+        "record.search"
+      ],
+      "resources": [
+        "xrn:binhminh:tai_lieu:*"
+      ],
+      "conditions": []
+    }
+  ]
+}

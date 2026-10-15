@@ -28,8 +28,15 @@ def test_sla_escalation_survives_worker_restart(ev: Evidence, world) -> None:  #
     if not rows.get("xt-worker", "").startswith("running"):
         ev.gap("xt-worker chạy trên stack", rows.get("xt-worker", "không có"))
     u = world.by_key(B, B_EMPLOYEE)
-    made = world.call(u, "create_record", {"model_id": "advance_request", "values": advance(3_000_000),
-                                           "idempotency_key": key("sla")})
+    made = world.call(
+        u,
+        "create_record",
+        {
+            "model_id": "advance_request",
+            "values": advance(3_000_000),
+            "idempotency_key": key("sla"),
+        },
+    )
     assert made.get("ok"), dumps(made)[:400]
     ref = made["data"]["record"]["ref"]
     t0 = time.time()
@@ -37,38 +44,64 @@ def test_sla_escalation_survives_worker_restart(ev: Evidence, world) -> None:  #
     ev.step("submit_request", sub)
     assert sub.get("ok"), dumps(sub)[:400]
     iid = str(sub["data"]["process_instance"]).split(":", 1)[-1]
-    due = compose.psql(f"SELECT due FROM xt_meta.workflow_timer_outbox WHERE instance_id::text = '{iid}' ORDER BY due LIMIT 1")
+    due = compose.psql(
+        f"SELECT due FROM xt_meta.workflow_timer_outbox WHERE instance_id::text = '{iid}' ORDER BY due LIMIT 1"
+    )
     ev.step("timer outbox (due)", due)
     c.check(bool(due), "SLA ghi timer outbox cùng transaction với submit")
     time.sleep(20)
     r = compose.dc(["restart", "xt-worker"], check=False)
-    ev.step("docker compose restart xt-worker", {"rc": r.returncode, "t": round(time.time() - t0, 1)})
+    ev.step(
+        "docker compose restart xt-worker", {"rc": r.returncode, "t": round(time.time() - t0, 1)}
+    )
     esc = ""
     while time.time() - t0 < DEADLINE:
-        esc = compose.psql(f"SELECT created_at FROM xt_meta.process_event WHERE instance_id::text = '{iid}'"
-                           " AND type = 'assignment.escalated' LIMIT 1")
+        esc = compose.psql(
+            f"SELECT created_at FROM xt_meta.process_event WHERE instance_id::text = '{iid}'"
+            " AND type = 'assignment.escalated' LIMIT 1"
+        )
         if esc:
             break
         time.sleep(5)
     took = round(time.time() - t0, 1)
     ev.step("leo thang", {"escalated_at": esc, "giây từ lúc gửi": took})
-    events = compose.psql(f"SELECT type, created_at FROM xt_meta.process_event WHERE instance_id::text = '{iid}' ORDER BY created_at")
-    jobs = compose.psql("SELECT j.status, count(*) FROM xt_queue.requests r JOIN procrastinate_jobs j ON j.id = r.job_id"
-                        f" WHERE r.idempotency_key LIKE 'workflow.timer:%' AND r.tenant_id = '{world.tenants[B]['id']}' GROUP BY 1")
-    ev.step("process_event / job timer", {"events": events.splitlines(), "timer_jobs": jobs.splitlines()})
-    relay = compose.psql("SELECT j.status, left(coalesce(r.last_error, ''), 200) FROM xt_queue.requests r"
-                         " JOIN procrastinate_jobs j ON j.id = r.job_id WHERE r.idempotency_key LIKE 'workflow.relay:%'"
-                         f" AND r.tenant_id = '{world.tenants[B]['id']}' ORDER BY j.id DESC LIMIT 1")
+    events = compose.psql(
+        f"SELECT type, created_at FROM xt_meta.process_event WHERE instance_id::text = '{iid}' ORDER BY created_at"
+    )
+    jobs = compose.psql(
+        "SELECT j.status, count(*) FROM xt_queue.requests r JOIN procrastinate_jobs j ON j.id = r.job_id"
+        f" WHERE r.idempotency_key LIKE 'workflow.timer:%' AND r.tenant_id = '{world.tenants[B]['id']}' GROUP BY 1"
+    )
+    ev.step(
+        "process_event / job timer",
+        {"events": events.splitlines(), "timer_jobs": jobs.splitlines()},
+    )
+    relay = compose.psql(
+        "SELECT j.status, left(coalesce(r.last_error, ''), 200) FROM xt_queue.requests r"
+        " JOIN procrastinate_jobs j ON j.id = r.job_id WHERE r.idempotency_key LIKE 'workflow.relay:%'"
+        f" AND r.tenant_id = '{world.tenants[B]['id']}' ORDER BY j.id DESC LIMIT 1"
+    )
     ev.step("chuỗi relay hẹn giờ (job mới nhất)", relay)
-    c.check(not relay.startswith(("failed", "cancelled", "aborted")), f"chuỗi relay hẹn giờ còn sống ({relay!r})")
-    c.check(bool(esc), f"assignment.escalated trong <= {DEADLINE} s dù worker restart (đã chờ {took} s)")
-    notes = compose.psql(f"SELECT count(*) FROM xt_meta.notification WHERE dedupe_key LIKE 'esc:{iid}:%'")
+    c.check(
+        not relay.startswith(("failed", "cancelled", "aborted")),
+        f"chuỗi relay hẹn giờ còn sống ({relay!r})",
+    )
+    c.check(
+        bool(esc), f"assignment.escalated trong <= {DEADLINE} s dù worker restart (đã chờ {took} s)"
+    )
+    notes = compose.psql(
+        f"SELECT count(*) FROM xt_meta.notification WHERE dedupe_key LIKE 'esc:{iid}:%'"
+    )
     c.check(int(notes or 0) >= 1, f"có bản ghi thông báo leo thang ({notes})")
     if esc:
         h = world.by_key(B, B_HEAD)
         got = world.call(h, "get_record", {"ref": ref})
-        args = {"ref": ref, "decision": "approve", "expected_revision": got["data"]["record"]["revision"],
-                "idempotency_key": key("sla-d")}
+        args = {
+            "ref": ref,
+            "decision": "approve",
+            "expected_revision": got["data"]["record"]["revision"],
+            "idempotency_key": key("sla-d"),
+        }
         p = world.call(h, "decide_request", args)
         url = (err(p).get("details") or {}).get("confirm_url")
         if url:
@@ -76,5 +109,7 @@ def test_sla_escalation_survives_worker_restart(ev: Evidence, world) -> None:  #
         fin = world.call(h, "decide_request", args)
         ev.step("quyết định", fin)
         state = ((fin.get("data") or {}).get("request") or {}).get("state")
-        c.check(fin.get("ok") is True and state == "approved", f"duyệt một lần là xong (state={state})")
+        c.check(
+            fin.get("ok") is True and state == "approved", f"duyệt một lần là xong (state={state})"
+        )
     c.done()

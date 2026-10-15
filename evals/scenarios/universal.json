@@ -832,32 +832,33 @@
    }
   },
   {
-   "id": "universal.org_headcount_accounting",
+   "id": "universal.org_headcount_marketing",
    "category": "aggregate",
-   "title": "Danh bạ 60 người (seed org.json): đếm nhân viên đang làm phòng Kế toán",
+   "title": "Danh bạ 60 người (seed org.json): đếm nhân viên đang làm phòng Marketing",
    "actor": "tam",
    "seed": "binhminh+org",
    "skills": [
     "xt-core"
    ],
    "turns": [
-    "Phòng Kế toán hiện có bao nhiêu nhân viên đang làm việc (không tính người đã nghỉ)? Trả lời cuối cùng chỉ gồm một JSON {\"ke_toan\": số}."
+    "Phòng Marketing hiện có bao nhiêu nhân viên đang làm việc (không tính người đã nghỉ)? Trả lời cuối cùng chỉ gồm một JSON {\"marketing\": số}."
    ],
    "expected": {
     "required": [
      {
-      "tool": "aggregate_records",
-      "args": {
-       "model_id": "employee"
-      }
+      "tool": [
+       "aggregate_records",
+       "find_people",
+       "search_records"
+      ]
      }
     ],
     "answer": [
      {
       "json": {
-       "ke_toan": {
+       "marketing": {
         "oracle": "org_active_by_dept",
-        "key": "Kế toán"
+        "key": "Marketing"
        }
       }
      }
@@ -879,10 +880,10 @@
    "expected": {
     "required": [
      {
-      "tool": "search_records",
-      "args": {
-       "model_id": "employee"
-      }
+      "tool": [
+       "find_people",
+       "search_records"
+      ]
      }
     ],
     "answer": [

@@ -180,6 +180,14 @@ def constraint_map(catalog: Catalog) -> dict[str, ConstraintInfo]:
                     f"'{f.label}' tham chiếu tới bản ghi không tồn tại hoặc không thuộc đơn vị"
                     " của bạn",
                 )
+            elif f.type == "file":
+                out[fk_name(m, f)] = ConstraintInfo(
+                    m.name,
+                    "fk",
+                    (f.name,),
+                    f"'{f.label}' tham chiếu tới tệp không tồn tại hoặc không thuộc tổ chức"
+                    " của bạn (tải lên bằng upload_file trước)",
+                )
             out[notnull_check_name(m, f)] = ConstraintInfo(
                 m.name, "nn", (f.name,), f"'{f.label}' là trường bắt buộc"
             )

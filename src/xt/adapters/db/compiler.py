@@ -182,15 +182,24 @@ def _alter(lay: Layout, m: ModelSpec, body: sql.Composable) -> sql.Composed:
     return sql.SQL("ALTER TABLE {} {}").format(lay.table(m.name), body)
 
 
+FILE_TABLE = sql.SQL("xt_meta.file_object")
+FK_TYPES = ("ref", "file")
+
+
 def fk_sql(lay: Layout, m: ModelSpec, f: FieldSpec) -> sql.Composed:
     # FK ghép (tenant_id, col) → đích(tenant_id, id): chặn tham chiếu chéo tenant ở mức DB.
-    assert f.ref is not None
+    # Field `file` trỏ vào metadata tệp của nền tảng (migration 0009_files.sql).
+    if f.type == "file":
+        target: sql.Composable = FILE_TABLE
+    else:
+        assert f.ref is not None
+        target = lay.table(f.ref)
     return _alter(
         lay,
         m,
         sql.SQL("ADD CONSTRAINT {} FOREIGN KEY (tenant_id, {}) REFERENCES {} (tenant_id, id)"
                 " ON DELETE RESTRICT").format(
-            sql.Identifier(fk_name(m, f)), sql.Identifier(f.name), lay.table(f.ref)
+            sql.Identifier(fk_name(m, f)), sql.Identifier(f.name), target
         ),
     )  # fmt: skip
 
@@ -401,8 +410,8 @@ def create_model_steps(lay: Layout, m: ModelSpec) -> list[Step]:
     )
     steps += [unique_index(lay, m, f, False) for f in m.fields if f.unique]
     steps += [index_step(lay, m, ix, False) for ix in m.indexes]
-    steps += [Step(fk_sql(lay, m, f), order=60) for f in m.fields if f.type == "ref"]
-    steps += [ref_index(lay, m, f, False) for f in m.fields if f.type == "ref"]
+    steps += [Step(fk_sql(lay, m, f), order=60) for f in m.fields if f.type in FK_TYPES]
+    steps += [ref_index(lay, m, f, False) for f in m.fields if f.type in FK_TYPES]
     steps += [
         Step(
             sql.SQL(
@@ -450,7 +459,7 @@ def _add_field_steps(lay: Layout, n: ModelSpec, f: FieldSpec) -> list[Step]:
         steps += _check_add(lay, n, c)
     if f.unique:
         steps.append(unique_index(lay, n, f, True))
-    if f.type == "ref":
+    if f.type in FK_TYPES:
         steps += [
             Step(sql.SQL("{} NOT VALID").format(fk_sql(lay, n, f)), order=60),
             Step(

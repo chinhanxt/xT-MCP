@@ -20,16 +20,42 @@ CORE = ["postgres", "keycloak", "apisix", "xt-init", "xt-api", "xt-worker", "xt-
 
 def base_cmd() -> list[str]:
     s = settings()
-    return ["docker", "compose", "-p", s.project, "--env-file", str(DEPLOY / ".env"), "--profile", "minimal"]
+    return [
+        "docker",
+        "compose",
+        "-p",
+        s.project,
+        "--env-file",
+        str(DEPLOY / ".env"),
+        "--profile",
+        "minimal",
+    ]
 
 
-def dc(args: Sequence[str], *, env: Mapping[str, str] | None = None, check: bool = True,
-       capture: bool = True, timeout: float | None = 900, input: str | None = None) -> subprocess.CompletedProcess[str]:
+def dc(
+    args: Sequence[str],
+    *,
+    env: Mapping[str, str] | None = None,
+    check: bool = True,
+    capture: bool = True,
+    timeout: float | None = 900,
+    input: str | None = None,
+) -> subprocess.CompletedProcess[str]:
     e = {**settings().compose_env(), **(env or {})}
-    r = subprocess.run([*base_cmd(), *args], cwd=DEPLOY, env=e, text=True, input=input,
-                       capture_output=capture, timeout=timeout, check=False)
+    r = subprocess.run(
+        [*base_cmd(), *args],
+        cwd=DEPLOY,
+        env=e,
+        text=True,
+        input=input,
+        capture_output=capture,
+        timeout=timeout,
+        check=False,
+    )
     if check and r.returncode != 0:
-        raise RuntimeError(f"docker compose {' '.join(args[:3])} rc={r.returncode}\n{(r.stderr or '')[-2000:]}")
+        raise RuntimeError(
+            f"docker compose {' '.join(args[:3])} rc={r.returncode}\n{(r.stderr or '')[-2000:]}"
+        )
     return r
 
 
@@ -38,11 +64,17 @@ def superuser_dsn() -> str:
     return f"postgresql://{e.get('POSTGRES_USER') or 'xt'}:{e['POSTGRES_PASSWORD']}@postgres:5432/{e.get('POSTGRES_DB') or 'xt'}"
 
 
-def xt(args: Sequence[str], *, service: str = "xt-api", secret_env: Mapping[str, str] | None = None,
-       mounts: Sequence[tuple[Path, str]] = (), timeout: float = 600) -> tuple[int, str]:
+def xt(
+    args: Sequence[str],
+    *,
+    service: str = "xt-api",
+    secret_env: Mapping[str, str] | None = None,
+    mounts: Sequence[tuple[Path, str]] = (),
+    timeout: float = 600,
+) -> tuple[int, str]:
     """`xt <args>` trong ảnh xt/xt:dev, cùng mạng compose (DSN nội bộ `postgres:5432`)."""
     flags: list[str] = ["run", "--rm", "--no-deps", "-T", "--entrypoint", "xt"]
-    for name in (secret_env or {}):
+    for name in secret_env or {}:
         flags += ["-e", name]
     for src, dst in mounts:
         flags += ["-v", f"{src}:{dst}:ro"]
@@ -53,15 +85,36 @@ def xt(args: Sequence[str], *, service: str = "xt-api", secret_env: Mapping[str,
 def psql(sql: str, *, db: str | None = None) -> str:
     """Truy vấn bằng superuser trong container postgres (chỉ để kiểm chứng/tamper của kịch bản)."""
     e = settings().env
-    r = dc(["exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-U", e.get("POSTGRES_USER") or "xt",
-            "-d", db or e.get("POSTGRES_DB") or "xt", "-At", "-F", "\t", "-f", "-"], input=sql, check=False)
+    r = dc(
+        [
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            e.get("POSTGRES_USER") or "xt",
+            "-d",
+            db or e.get("POSTGRES_DB") or "xt",
+            "-At",
+            "-F",
+            "\t",
+            "-f",
+            "-",
+        ],
+        input=sql,
+        check=False,
+    )
     if r.returncode != 0:
         raise RuntimeError(f"psql lỗi: {(r.stderr or '')[-800:]}")
     return r.stdout.strip()
 
 
 def ps() -> str:
-    return dc(["ps", "--all", "--format", "{{.Service}}\t{{.State}}\t{{.Status}}"], check=False).stdout
+    return dc(
+        ["ps", "--all", "--format", "{{.Service}}\t{{.State}}\t{{.Status}}"], check=False
+    ).stdout
 
 
 def logs(service: str, tail: int = 80) -> str:

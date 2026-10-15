@@ -244,6 +244,7 @@ class World:
         self.pending: dict[str, dict] = {}
         self.calls: list[dict] = []
         self.explains: dict[str, dict] = {}
+        self.extra: list[tuple] = []  # người nền từ seed org.json (biến thể +org), cùng dạng PEOPLE
         self.seq = {"tu": 45, "cv": 5, "r": 0, "cf": 0, "ex": 0, "ps": 0, "mc": 0, "f": 0, "emp": 15}
         self.notifications = {"viet": [{"title": "Việc CV-2026-0001 hạn 15/11/2026", "ref": "task:cv-2026-0001"}]}
         self._seed_people()
@@ -384,6 +385,10 @@ class World:
         pname = {p["id"]: p["name"] for p in org["positions"]}
         for e in org["employees"]:
             n = e["id"].lower().replace("nv-", "")
+            if e["active"]:
+                mg = e["manager_id"].lower().replace("nv-", "") if e["manager_id"] else None
+                self.extra.append((f"org-{n}", f"ORG-{n}", e["full_name"], pname.get(e["position_id"], e["position_id"]),
+                                   dname[e["department_id"]], f"org-{mg}" if mg else None, e["roles"]))
             self._add("employee", f"org-{n}", None, "permanent" if e["active"] else "resigned",
                       {"full_name": e["full_name"], "job_title": pname.get(e["position_id"], e["position_id"]),
                        "department": dname[e["department_id"]], "manager": None, "hired_on": e["hire_date"],
@@ -410,7 +415,7 @@ class World:
 
     # ------------------------------------------------------------ helpers
     def person(self, slug):
-        return next((p for p in PEOPLE if p[0] == slug), None)
+        return next((p for p in [*PEOPLE, *self.extra] if p[0] == slug), None)
 
     def pname(self, slug):
         p = self.person(slug)
@@ -657,7 +662,7 @@ class World:
 
     def _people_view(self, slug):
         p = self.person(slug)
-        d = {"ref": person_ref(slug), "employee_ref": f"employee:{p[1].lower()}", "name": p[2], "title": p[3], "org_unit": DEPTS[p[4]], "roles": p[6]}
+        d = {"ref": person_ref(slug), "employee_ref": f"employee:{p[1].lower()}", "name": p[2], "title": p[3], "org_unit": DEPTS.get(p[4], p[4]), "roles": p[6]}
         if p[5]:
             d["manager"] = self.pref_obj(p[5])
         return d
@@ -671,8 +676,8 @@ class World:
         toks = fold(text).replace("anh ", " ").replace("chi ", " ").split()
         toks = [t for t in toks if t not in ("anh", "chi", "ong", "ba", "ban", "bac")]
         out = []
-        for p in PEOPLE:
-            hay = fold(" ".join([p[2], p[3], DEPTS[p[4]], p[4], p[1], " ".join(p[6])]))
+        for p in [*PEOPLE, *self.extra]:
+            hay = fold(" ".join([p[2], p[3], DEPTS.get(p[4], p[4]), p[4], p[1], " ".join(p[6])]))
             namewords = fold(p[2]).split()
             if toks and all(t in hay for t in toks) and (any(t in namewords for t in toks) or len(toks) > 1):
                 out.append(p[0])
@@ -685,7 +690,7 @@ class World:
             if len(hits) != 1:
                 return self._people_ambiguous(a["direct_reports_of"], hits)
             anchor, rel = hits[0], "direct_reports_of"
-            people = [p[0] for p in PEOPLE if p[5] == anchor]
+            people = [p[0] for p in [*PEOPLE, *self.extra] if p[5] == anchor]
         elif a.get("manager_of"):
             hits = self._find_person(a["manager_of"], actor)
             if len(hits) != 1:
@@ -698,6 +703,7 @@ class World:
             u = fold(a["org_unit"])
             code = next((k for k, v in DEPTS.items() if fold(k) == u or u in fold(v)), None)
             people = [p[0] for p in PEOPLE if p[4] == code]
+            people += [p[0] for p in self.extra if u in fold(p[4])]
         elif a.get("role"):
             rel = "role"
             r = fold(a["role"])

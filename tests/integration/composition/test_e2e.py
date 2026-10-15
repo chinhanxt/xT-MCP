@@ -546,7 +546,6 @@ def worker(stack: Stack, pg: pgfixture.Pg) -> Worker:
                 )
             )
             su.execute("GRANT CONNECT ON DATABASE xt TO xt_control")
-            su.execute("CREATE ROLE xt_job NOLOGIN NOBYPASSRLS")
         else:
             su.execute(sql.SQL("ALTER ROLE xt_control PASSWORD {}").format(sql.Literal(control_pw)))
     owner = _url("xt_owner", pg.owner_password)
@@ -1109,3 +1108,268 @@ def test_fresh_db_has_full_pii_schema(stack: Stack, pg: pgfixture.Pg) -> None:
             "denied"} <= cols, cols  # fmt: skip
     assert {"pii_token", "pii_token_source", "pii_token_seen", "pii_reveal_ticket",
             "pii_egress"} <= tables, tables  # fmt: skip
+
+
+# ------------------------------- job role của worker trên outbox xt_meta (E6/E7 thật) ----
+def _sla_pack(d: Path, after: str) -> Path:
+    """Bản sao gói đề xuất phê duyệt với mọi `sla.after` = `after` (chỉ dữ liệu gói, D-E2E-4)."""
+    import shutil
+
+    dst = d / PACK.name
+    shutil.copytree(PACK, dst)
+    for f in (dst / "processes").glob("*.json"):
+        f.write_text(
+            re.sub(r'"after":\s*"PT[0-9]+[HMS]"', f'"after": "{after}"', f.read_text("utf-8")),
+            encoding="utf-8",
+        )
+    return dst
+
+
+def _new_tenant(s: Stack, d: Path, alias: str, name: str, pack: Path) -> Any:
+    """Tenant + tổ chức seed + gói (đúng lệnh vận hành, như fixture `stack`)."""
+    env = s.env
+    rc, out = run_admin(
+        [
+            "tenant", "create", "--alias", alias, "--name", name,
+            "--timezone", "Asia/Ho_Chi_Minh", "--llm-egress", "masked",
+        ],
+        env,
+    )  # fmt: skip
+    assert rc == 0, out
+    links = {
+        "subjects": {k: sub(alias, k) for k in LINKED},
+        "agent_grants": [
+            {"person": k, "client_id": AGENT_CLIENT, "autonomy": 1, "roles": ["agent"]}
+            for k in LINKED
+        ],
+    }
+    lf = d / f"links-{alias}.json"
+    lf.write_text(json.dumps(links), encoding="utf-8")
+    rc, out = run_admin(
+        ["org", "import", "--tenant", alias, str(ORG), "--links", str(lf),
+         "--base-roles", "employee"],
+        env,
+    )  # fmt: skip
+    assert rc == 0, out
+    who = ["--proposed-by", "agent:it", "--approved-by", "person:admin"]
+    for p in (pack, MODEL_PACK):
+        cmd = ["pack", "install", "--tenant", alias, str(p), *who]
+        rc, plan = run_admin(cmd, env)
+        assert rc == 0, plan
+        digest = re.search(r"\(digest\): (sha256:[0-9a-f]{64})", plan)
+        assert digest, plan
+        rc, out = run_admin([*cmd, "--confirm", digest.group(1)], env)
+        assert rc == 0, out
+    with connect(env["XT_DB_MIGRATOR_URL"]) as c:
+        t = tenant_of_alias(c, alias)
+    s.tenants[alias] = t
+    return t
+
+
+@pytest.mark.anyio
+async def test_worker_job_role_relays_timer_escalation_and_model_apply(
+    stack: Stack, pg: pgfixture.Pg, worker: Worker, tmp_path: Path
+) -> None:
+    """E6 + E7 qua runtime `xt worker` thật (không gọi `jobs.relay` trực tiếp bằng xt_app): job
+    `workflow.relay_timers` chạy với `xt_job_t<seq>` đọc/đánh dấu `workflow_timer_outbox` và
+    `model_change_request` -> job `workflow.tick` leo thang SLA (PT2S) + job `model.apply`
+    (pha 1 + pha 2) -> cột mới có trong information_schema."""
+    import subprocess
+
+    import anyio.to_thread
+
+    s = stack
+    t = await anyio.to_thread.run_sync(
+        lambda: _new_tenant(s, tmp_path, "gamma", "Gamma (C)", _sla_pack(tmp_path, "PT2S"))
+    )
+    # Đề xuất model đã duyệt (outbox model_change_request: approved, chưa dispatch).
+    add = {
+        "model_id": "advance_request",
+        "operations": [
+            {"op": "add_field", "field": {"id": "ma_cong_trinh", "label": "Mã công trình",
+                                          "type": "string"}}
+        ],
+        "rationale": "Theo dõi tạm ứng theo công trình",
+        "idempotency_key": "it-key-jr-add",
+        "dry_run": False,
+    }  # fmt: skip
+    proposed = await s.call("gamma", DEPT_HEAD, "propose_model_change", add)
+    assert proposed["ok"], proposed
+    pref = proposed["data"]["proposal"]
+    args = {
+        "ref": pref,
+        "decision": "approve",
+        "expected_revision": 1,
+        "idempotency_key": "it-key-jr-ok",
+    }
+    pending = await s.call("gamma", DIRECTOR, "decide_request", args)
+    assert pending["error"]["code"] == "confirmation_required", pending
+    url = pending["error"]["details"]["confirm_url"]
+    r = await anyio.to_thread.run_sync(lambda: confirm_in_desk(s, url, sub("gamma", DIRECTOR)))
+    assert r.status_code == 200 and "Đã thực hiện" in r.text, r.text
+    done = await s.call("gamma", DIRECTOR, "decide_request", args)
+    assert done["ok"] and done["data"]["outcome"] == "request_approved", done
+    # Đề nghị có SLA PT2S -> timer outbox.
+    c = await s.call(
+        "gamma",
+        REQUESTER,
+        "create_record",
+        {
+            "model_id": "advance_request",
+            "values": advance(2_000_000),
+            "idempotency_key": "it-key-jr-c",
+        },
+    )
+    assert c["ok"], c
+    sm = await s.call(
+        "gamma", REQUESTER, "submit_request", {"ref": c["data"]["record"]["ref"],
+                                               "idempotency_key": "it-key-jr-s"}
+    )  # fmt: skip
+    assert sm["ok"], sm
+    iid = sm["data"]["process_instance"].split(":", 1)[1]
+    with pg.su() as su:
+        assert su.execute(
+            "SELECT 1 FROM xt_meta.workflow_timer_outbox WHERE tenant_id=%s AND instance_id=%s"
+            " AND dispatched_at IS NULL",
+            (t.id, iid),
+        ).fetchone()
+        assert su.execute(
+            "SELECT 1 FROM xt_meta.model_change_request WHERE tenant_id=%s AND state='approved'"
+            " AND dispatched_at IS NULL",
+            (t.id,),
+        ).fetchone()
+    assert not _column_exists(pg, t.seq, "advance_request", "ma_cong_trinh")
+
+    # Vận hành thật: bind-queue (job role + chuỗi relay) rồi `xt worker`.
+    rc, out = await anyio.to_thread.run_sync(
+        run_admin, ["tenant", "bind-queue", "--tenant", "gamma"], worker.env
+    )
+    assert rc == 0 and f"xt_job_t{t.seq}" in out, out
+    proc = subprocess.Popen(
+        [worker.xt_bin, "worker", "--name", f"it-jr-{uuid.uuid4().hex[:8]}"],
+        env={**worker.env, "PYTHONPATH": str(ROOT)},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    state: dict[str, Any] = {}
+    try:
+        deadline = time.monotonic() + 90
+        while time.monotonic() < deadline:
+            with pg.su() as su:
+                state["escalated"] = su.execute(
+                    "SELECT count(*) FROM xt_meta.process_event WHERE tenant_id=%s"
+                    " AND instance_id=%s AND type='assignment.escalated'",
+                    (t.id, iid),
+                ).fetchone()[0]
+                state["notified"] = su.execute(
+                    "SELECT count(*) FROM xt_meta.notification WHERE tenant_id=%s"
+                    " AND dedupe_key LIKE %s",
+                    (t.id, f"esc:{iid}:%"),
+                ).fetchone()[0]
+                state["change"] = su.execute(
+                    "SELECT state, dispatched_at IS NOT NULL, error"
+                    " FROM xt_meta.model_change_request WHERE tenant_id=%s",
+                    (t.id,),
+                ).fetchall()
+                state["relay"] = su.execute(
+                    "SELECT j.status, r.last_error FROM xt_queue.requests r"
+                    " JOIN procrastinate_jobs j ON j.id = r.job_id WHERE r.tenant_id=%s"
+                    " AND r.idempotency_key LIKE 'workflow.relay:%%' ORDER BY j.id",
+                    (t.id,),
+                ).fetchall()
+            state["column"] = _column_exists(pg, t.seq, "advance_request", "ma_cong_trinh")
+            if (
+                state["escalated"]
+                and state["column"]
+                and state["change"] == [("applied", True, None)]
+            ):
+                break
+            time.sleep(1)
+    finally:
+        proc.terminate()
+        log_out = proc.communicate(timeout=30)[0].decode()
+    detail = f"{state}\n--- worker log ---\n{log_out[-4000:]}"
+    assert state["relay"] and state["relay"][0][0] == "succeeded", detail
+    assert all(st != "failed" for st, _ in state["relay"]), detail
+    assert state["escalated"] >= 1 and state["notified"] >= 1, detail
+    assert state["change"] == [("applied", True, None)], detail
+    assert state["column"], detail
+    s.outputs["job-role-relay"] = json.dumps(
+        {k: v for k, v in state.items() if k != "relay"}, default=str, ensure_ascii=False
+    )
+
+
+def test_job_role_cannot_touch_other_tenant_outbox(
+    stack: Stack, pg: pgfixture.Pg, worker: Worker
+) -> None:
+    """Job role tenant B (ngữ cảnh B, đúng như dispatcher) không đọc/sửa outbox hay
+    model_change_request của tenant A; ngữ cảnh A + role B (ghép sai) cũng 0 dòng; không INSERT,
+    không cột/bảng xt_meta ngoài phần relay cần."""
+    import psycopg
+
+    rc, out = run_admin(["tenant", "bind-queue", "--tenant", "beta"], worker.env)
+    assert rc == 0, out
+    a, b = stack.tenants["acme"], stack.tenants["beta"]
+    role_a, role_b = f"xt_job_t{a.seq}", f"xt_job_t{b.seq}"
+    with pg.su() as su:  # dữ liệu của A chắc chắn có
+        su.execute(
+            "INSERT INTO xt_meta.workflow_timer_outbox (tenant_id, instance_id, process_id, due)"
+            " VALUES (%s, %s, 'proposal_approval', now() + interval '1 day')",
+            (a.id, f"it-jr-{uuid.uuid4().hex[:8]}"),
+        )
+        assert (
+            su.execute(
+                "SELECT count(*) FROM xt_meta.model_change_request WHERE tenant_id=%s", (a.id,)
+            ).fetchone()[0]
+            >= 1
+        ), "W2 phải để lại model_change_request của acme"
+
+    def as_job(tenant: Any, role: str, query: str, params: tuple[Any, ...] = ()) -> Any:
+        with psycopg.connect(pg.app_dsn, autocommit=True) as c, c.transaction():
+            c.execute(
+                "SELECT xt.set_context(%s::uuid, NULL, '{}'::text[], '{}'::uuid[], '{}'::uuid[],"
+                " NULL, NULL, NULL)",
+                (tenant.id,),
+            )
+            c.execute(f'SET LOCAL ROLE "{role}"')
+            cur = c.execute(query, params)
+            return cur.fetchall() if cur.description else cur.rowcount
+
+    outbox = "SELECT count(*) FROM xt_meta.workflow_timer_outbox WHERE tenant_id=%s"
+    changes = "SELECT count(*) FROM xt_meta.model_change_request WHERE tenant_id=%s"
+    # Đối chứng: job role của A, ngữ cảnh A thấy dòng của chính A.
+    assert as_job(a, role_a, outbox, (a.id,))[0][0] >= 1
+    assert as_job(a, role_a, changes, (a.id,))[0][0] >= 1
+    # B (ngữ cảnh B) và ghép sai (ngữ cảnh A, role B): 0 dòng, UPDATE 0 dòng.
+    for ctx in (b, a):
+        assert as_job(ctx, role_b, outbox, (a.id,)) == [(0,)]
+        assert as_job(ctx, role_b, changes, (a.id,)) == [(0,)]
+        assert as_job(
+            ctx, role_b,
+            "UPDATE xt_meta.workflow_timer_outbox SET dispatched_at = now() WHERE tenant_id=%s",
+            (a.id,),
+        ) == 0  # fmt: skip
+        assert as_job(
+            ctx, role_b,
+            "UPDATE xt_meta.model_change_request SET dispatched_at = now() WHERE tenant_id=%s",
+            (a.id,),
+        ) == 0  # fmt: skip
+    denied = [
+        ("INSERT INTO xt_meta.workflow_timer_outbox (tenant_id, instance_id, process_id, due)"
+         " VALUES (%s, 'x', 'p', now())", (b.id,)),
+        ("UPDATE xt_meta.model_change_request SET state = 'applied' WHERE tenant_id=%s", (b.id,)),
+        ("DELETE FROM xt_meta.workflow_timer_outbox WHERE tenant_id=%s", (b.id,)),
+        ("SELECT plan_hash FROM xt_meta.model_change_request WHERE tenant_id=%s", (b.id,)),
+        ("SELECT count(*) FROM xt_meta.person WHERE tenant_id=%s", (b.id,)),
+        ("SELECT count(*) FROM xt_meta.workflow_instance WHERE tenant_id=%s", (b.id,)),
+    ]  # fmt: skip
+    for q, p in denied:
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            as_job(b, role_b, q, p)
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):  # không tự đổi ngữ cảnh
+        as_job(
+            b, role_b,
+            "SELECT xt.set_context(%s::uuid, NULL, '{}'::text[], '{}'::uuid[], '{}'::uuid[],"
+            " NULL, NULL, NULL)",
+            (a.id,),
+        )  # fmt: skip

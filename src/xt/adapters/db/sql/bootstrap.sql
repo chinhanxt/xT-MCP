@@ -9,6 +9,7 @@
 --   xt_audit_owner NOLOGIN; chủ xt_audit + hàm SECURITY DEFINER ghi audit
 --   xt_api_owner   NOLOGIN, NOBYPASSRLS; chủ schema/view api_t<seq> (security_invoker=false)
 --   xt_web         NOLOGIN; role JWT của PostgREST, chỉ SELECT view api_t<seq>; KHÔNG là thành viên xt_app
+--   xt_job         NOLOGIN, NOBYPASSRLS; nhóm job role xt_job_t<seq> của hàng đợi (quyền: migration 0008)
 -- Không role nào ngoài code xT là thành viên của xt_app.
 
 DO $$
@@ -19,7 +20,7 @@ BEGIN
       EXECUTE format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB', r);
     END IF;
   END LOOP;
-  FOREACH r IN ARRAY ARRAY['xt_workflow', 'xt_audit_owner', 'xt_api_owner', 'xt_web'] LOOP
+  FOREACH r IN ARRAY ARRAY['xt_workflow', 'xt_audit_owner', 'xt_api_owner', 'xt_web', 'xt_job'] LOOP
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
       EXECUTE format('CREATE ROLE %I NOLOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB', r);
     END IF;
@@ -30,6 +31,7 @@ ALTER ROLE xt_app NOBYPASSRLS;
 ALTER ROLE xt_api_owner NOBYPASSRLS;
 ALTER ROLE xt_workflow NOBYPASSRLS;
 ALTER ROLE xt_web NOBYPASSRLS;
+ALTER ROLE xt_job NOBYPASSRLS;
 GRANT xt_workflow TO xt_app WITH INHERIT FALSE, SET TRUE;
 GRANT xt_api_owner TO xt_migrator WITH INHERIT FALSE, SET TRUE;
 DO $$ BEGIN EXECUTE format('GRANT CREATE ON DATABASE %I TO xt_migrator', current_database()); END $$;

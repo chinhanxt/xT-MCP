@@ -43,11 +43,17 @@ def _rewrite(mod: Any, request: Any, ip: str) -> Any:
         headers["cf-connecting-ip"] = ip
         headers["x-forwarded-proto"] = "https"
         return mod.Request(
-            request.method, url, headers=headers, stream=request.stream, extensions=request.extensions
+            request.method,
+            url,
+            headers=headers,
+            stream=request.stream,
+            extensions=request.extensions,
         )
     if host in LOOPBACK:
         return request
-    raise mod.ConnectError(f"e2e: host {host!r} không được ánh xạ (chặn ra mạng thật)", request=request)
+    raise mod.ConnectError(
+        f"e2e: host {host!r} không được ánh xạ (chặn ra mạng thật)", request=request
+    )
 
 
 class Mapped(httpx.BaseTransport):
@@ -111,12 +117,23 @@ class HostProxy:
             def _go(self) -> None:
                 n = int(self.headers.get("content-length") or 0)
                 body = self.rfile.read(n) if n else None
-                hdr = {k: v for k, v in self.headers.items() if k.lower() not in ("host", "content-length", "connection")}
+                hdr = {
+                    k: v
+                    for k, v in self.headers.items()
+                    if k.lower() not in ("host", "content-length", "connection")
+                }
                 with client() as c:
-                    r = c.request(self.command, f"https://{outer.host}{self.path}", headers=hdr, content=body)
+                    r = c.request(
+                        self.command, f"https://{outer.host}{self.path}", headers=hdr, content=body
+                    )
                 self.send_response(r.status_code)
                 for k, v in r.headers.multi_items():
-                    if k.lower() not in ("content-length", "transfer-encoding", "connection", "content-encoding"):
+                    if k.lower() not in (
+                        "content-length",
+                        "transfer-encoding",
+                        "connection",
+                        "content-encoding",
+                    ):
                         self.send_header(k, v)
                 self.send_header("content-length", str(len(r.content)))
                 self.end_headers()
@@ -161,18 +178,31 @@ class TlsGateway:
         key = ec.generate_private_key(ec.SECP256R1())
         name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "xt-e2e-local")])
         now = datetime.datetime.now(datetime.UTC)
-        cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
-                .serial_number(x509.random_serial_number()).not_valid_before(now - datetime.timedelta(minutes=5))
-                .not_valid_after(now + datetime.timedelta(hours=2))
-                .add_extension(x509.SubjectAlternativeName([x509.DNSName(h) for h in hosts]), critical=False)
-                .sign(key, hashes.SHA256()))
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - datetime.timedelta(minutes=5))
+            .not_valid_after(now + datetime.timedelta(hours=2))
+            .add_extension(
+                x509.SubjectAlternativeName([x509.DNSName(h) for h in hosts]), critical=False
+            )
+            .sign(key, hashes.SHA256())
+        )
         self.dir = tempfile.mkdtemp(prefix="xt-e2e-tls-")
         cf, kf = f"{self.dir}/c.pem", f"{self.dir}/k.pem"
         with open(cf, "wb") as f:
             f.write(cert.public_bytes(serialization.Encoding.PEM))
         with open(kf, "wb") as f:
-            f.write(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
-                                      serialization.NoEncryption()))
+            f.write(
+                key.private_bytes(
+                    serialization.Encoding.PEM,
+                    serialization.PrivateFormat.PKCS8,
+                    serialization.NoEncryption(),
+                )
+            )
 
         class H(http.server.BaseHTTPRequestHandler):
             def _go(self) -> None:
@@ -183,12 +213,23 @@ class TlsGateway:
                     return
                 n = int(self.headers.get("content-length") or 0)
                 body = self.rfile.read(n) if n else None
-                hdr = {k: v for k, v in self.headers.items() if k.lower() not in ("host", "content-length", "connection")}
+                hdr = {
+                    k: v
+                    for k, v in self.headers.items()
+                    if k.lower() not in ("host", "content-length", "connection")
+                }
                 with client() as c:
-                    r = c.request(self.command, f"https://{host}{self.path}", headers=hdr, content=body)
+                    r = c.request(
+                        self.command, f"https://{host}{self.path}", headers=hdr, content=body
+                    )
                 self.send_response(r.status_code)
                 for k, v in r.headers.multi_items():
-                    if k.lower() not in ("content-length", "transfer-encoding", "connection", "content-encoding"):
+                    if k.lower() not in (
+                        "content-length",
+                        "transfer-encoding",
+                        "connection",
+                        "content-encoding",
+                    ):
                         self.send_header(k, v)
                 self.send_header("content-length", str(len(r.content)))
                 self.end_headers()

@@ -139,3 +139,17 @@ Sau phản biện bằng Codex gpt-6-astra: dùng API cộng thêm `install_data
   - Làm ngay sau khi qua cổng e2e E0–E11, trước khi tag v1.0.0 (bản nộp OLP).
   - Cho tới khi xong: chấp nhận rủi ro ở v0.1, kèm điều kiện production không có redirect loopback, CSP chặt, và ghi rủi ro trong SECURITY.md.
 - **Lý do:** v1.0 là bản giám khảo chấm. Proof-of-possession biến token bị lộ thành vô dụng nếu không có khóa riêng của trình duyệt. Keycloak 26 hỗ trợ DPoP, nên không phải tự xây.
+
+## Quyền của job role trên outbox xt_meta (16/10/2026, chủ dự án – Opus 5.5)
+
+- **Câu hỏi:** job `workflow.relay_timers` chạy với `xt_job_t<seq>` (AQ-05) nhưng bị `permission denied for schema xt_meta` khi đọc `workflow_timer_outbox`, và không có quyền/policy trên `model_change_request` (policy chỉ `TO xt_app`). Hậu quả trên stack thật: SLA không leo thang, model không bao giờ được áp (E6/E7). Test W2 gọi `jobs.relay` trực tiếp bằng xt_app nên không thấy lỗi. Chọn (a) GRANT tối thiểu + RLS cho job role, hay (b) hàm SECURITY DEFINER bọc thao tác relay?
+- **Quyết định: (a), cấp cho NHÓM `xt_job`** (migration `0008_job_role_relay.sql`):
+  - `USAGE` schema `xt`, `xt_meta`; `EXECUTE` `xt.cur()`, `xt.tenant()`, `xt.tenant_seq()` (hàm ngữ cảnh mà policy cần).
+  - `SELECT` đúng các cột relay đọc, `UPDATE (dispatched_at)` trên `workflow_timer_outbox` và `model_change_request`. Không INSERT/DELETE, không cột khác (`state`, `plan_hash`...), không bảng `xt_meta` nào khác.
+  - `model_change_request.tenant_isolation` mở thành `TO xt_app, xt_job`. Thêm policy RESTRICTIVE `job_role_tenant ... TO xt_job` trên cả hai bảng: `current_user = 'xt_job_t' || xt.tenant_seq()`. Role của tenant A với ngữ cảnh B (ghép sai) cũng thấy 0 dòng.
+  - Nhóm `xt_job` nay được tạo ngay trong `bootstrap.sql` (CSDL mới). CSDL cũ đã có nhóm này nhờ `xt-init`. Migration báo lỗi rõ ràng nếu thiếu nhóm (giống 0006). `xt tenant bind-queue` bảo đảm `GRANT xt_job TO xt_job_t<seq> WITH INHERIT TRUE` và từ chối chạy nếu chưa có quyền của 0008. Tenant mới không cần DDL riêng.
+- **Lý do:**
+  - Đúng thiết kế đã ghi (`integration-notes.md` §2: "GRANT cho nhóm xt_job, policy TO xt_app, xt_job").
+  - Cô lập vẫn do RLS + ngữ cảnh mà dispatcher đặt. Job role không EXECUTE được `xt.set_context`, còn `GuardedCursor` chặn đổi role/GUC.
+  - (b) cần hàm definer thuộc một role vượt được FORCE RLS (xt_migrator có BYPASSRLS), tức tự kiểm tenant bằng tay trong mỗi hàm. Bề mặt đặc quyền lớn hơn, lại phải sửa luồng `SELECT … FOR UPDATE SKIP LOCKED` + enqueue cùng transaction.
+  - Kiểm chứng: `test_worker_job_role_relays_timer_escalation_and_model_apply` chạy `xt worker` thật (relay bằng `xt_job_t<seq>` → tick leo thang SLA + `model.apply` pha 1/2 → có cột mới). `test_job_role_cannot_touch_other_tenant_outbox` là test âm.

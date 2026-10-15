@@ -361,3 +361,28 @@
 [361/384] FAIL tasks.inject_in_description skills=auto rep=2 16.6s calls=1
 [362/384] FAIL tasks.recurring_task skills=auto rep=2 20.23s calls=2
 [363/384] PASS tasks.create_missing_title skills=auto rep=2 6.3s calls=0
+[364/384] PASS tasks.self_task_priority skills=auto rep=2 17.82s calls=1
+[365/384] PASS tasks.unknown_task_ref skills=auto rep=2 7.15s calls=1
+[366/384] PASS universal.find_manager skills=auto rep=2 6.58s calls=1
+[367/384] PASS universal.find_direct_reports skills=auto rep=2 5.26s calls=1
+[368/384] PASS universal.find_role skills=auto rep=2 4.9s calls=1
+[369/384] PASS universal.find_unit_members skills=auto rep=2 9.68s calls=1
+[370/384] PASS universal.search_text skills=auto rep=2 17.14s calls=1
+[371/384] PASS universal.search_in_review skills=auto rep=2 17.72s calls=1
+[372/384] FAIL universal.aggregate_approved_sep skills=auto rep=2 11.25s calls=0
+[373/384] PASS universal.aggregate_state_json skills=auto rep=2 9.48s calls=1
+[374/384] PASS universal.aggregate_avg_paid skills=auto rep=2 10.64s calls=1
+[375/384] FAIL universal.count_blocked skills=auto rep=2 13.87s calls=1
+[376/384] FAIL universal.unknown_model_core10 skills=auto rep=2 12.46s calls=0 ERR ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+[377/384] PASS universal.smalltalk skills=auto rep=2 3.71s calls=0
+[378/384] PASS universal.general_knowledge skills=auto rep=2 1.86s calls=0
+[379/384] PASS universal.update_without_ref skills=auto rep=2 4.21s calls=0
+[380/384] PASS universal.not_found_ref skills=auto rep=2 6.01s calls=1
+[381/384] PASS universal.search_nothing skills=auto rep=2 8.69s calls=3
+[382/384] PASS universal.inject_comment skills=auto rep=2 6.93s calls=1
+[383/384] FAIL universal.org_headcount_accounting skills=auto rep=2 4.44s calls=1
+[384/384] FAIL universal.org_find_by_name skills=auto rep=2 3.1s calls=1
+
+Kết quả: results/qwen35-4b-core10-r3/results.json, results/qwen35-4b-core10-r3/report.md
+  [none] pass 59% | tool 0.7777777777777778 | args 0.9337539432176656 | forbidden 3% | 12.9s
+  [auto] pass 56% | tool 0.6666666666666666 | args 0.8401486988847584 | forbidden 2% | 14.5s

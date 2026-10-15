@@ -42,11 +42,21 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):  
         ev: Evidence | None = getattr(item, "_xt_ev", None)
         msg = ""
         if rep.outcome != "passed":
-            msg = str(getattr(rep.longrepr, "reprcrash", None) and rep.longrepr.reprcrash.message or rep.longreprtext)  # type: ignore[union-attr]
-        _results[scenario_of(item)].append({
-            "test": item.name, "outcome": rep.outcome, "duration": rep.duration, "message": msg,
-            "steps": ev.steps if ev else [], "gaps": ev.gaps if ev else [],
-        })
+            msg = str(
+                getattr(rep.longrepr, "reprcrash", None)
+                and rep.longrepr.reprcrash.message
+                or rep.longreprtext
+            )  # type: ignore[union-attr]
+        _results[scenario_of(item)].append(
+            {
+                "test": item.name,
+                "outcome": rep.outcome,
+                "duration": rep.duration,
+                "message": msg,
+                "steps": ev.steps if ev else [],
+                "gaps": ev.gaps if ev else [],
+            }
+        )
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
@@ -80,22 +90,37 @@ class World:
                 return u
         raise KeyError(f"demo-seed không có {tenant}/{key}")
 
-    def session(self, user: dict[str, Any], client: str = AGENT_CLIENT, scope: str = "openid mcp-xt",
-                redirect: str | None = None) -> oidc.Session:
+    def session(
+        self,
+        user: dict[str, Any],
+        client: str = AGENT_CLIENT,
+        scope: str = "openid mcp-xt",
+        redirect: str | None = None,
+    ) -> oidc.Session:
         k = (user["username"], client, scope)
         if k not in self._sessions:
-            self._sessions[k] = oidc.Session(user, client, redirect or f"{self.s.desk}/auth/callback", scope)
+            self._sessions[k] = oidc.Session(
+                user, client, redirect or f"{self.s.desk}/auth/callback", scope
+            )
         return self._sessions[k]
 
     def token(self, user: dict[str, Any], **kw: Any) -> str:
         return self.session(user, **kw).access()
 
-    def call(self, user: dict[str, Any], tool: str, args: dict[str, Any], **kw: Any) -> dict[str, Any]:
+    def call(
+        self, user: dict[str, Any], tool: str, args: dict[str, Any], **kw: Any
+    ) -> dict[str, Any]:
         return mcpc.call(self.token(user, **kw), tool, args)
 
     # ------------------------------------------------------ /desk/confirm ----
-    def confirm(self, url: str, approver: dict[str, Any], decision: str = "approve", *,
-                with_totp: bool = True) -> dict[str, Any]:
+    def confirm(
+        self,
+        url: str,
+        approver: dict[str, Any],
+        decision: str = "approve",
+        *,
+        with_totp: bool = True,
+    ) -> dict[str, Any]:
         """Người duyệt mở confirm_url trên host Desk -> Keycloak step-up (mật khẩu + TOTP) -> trang
         xác nhận server-render -> bấm Đồng ý/Từ chối. Trả bằng chứng (không có token)."""
         b = oidc.Browser()
@@ -103,12 +128,23 @@ class World:
         out: dict[str, Any] = {"approver": approver["username"]}
         try:
             step = b.get(url, stop=cb)
-            if step.kind == "page" and "kc-form-login" not in step.page and "kc-otp-login-form" not in step.page:
+            if (
+                step.kind == "page"
+                and "kc-form-login" not in step.page
+                and "kc-otp-login-form" not in step.page
+            ):
                 out.update(stage="start", status=step.status, body=_text(step.page)[:600])
                 return out
             totp_raw = approver.get("totp") if with_totp else None
             try:
-                step = b.login_pages(step, approver["username"], approver["password"], totp_raw, stop=cb, consent=False)
+                step = b.login_pages(
+                    step,
+                    approver["username"],
+                    approver["password"],
+                    totp_raw,
+                    stop=cb,
+                    consent=False,
+                )
             except oidc.LoginError as e:
                 out.update(stage="idp", error=str(e))
                 return out
@@ -121,7 +157,9 @@ class World:
                 out.update(stage="no_form")
                 return out
             f = fs[0]
-            action = f["action"] if f["action"].startswith("http") else f"{self.s.desk}{f['action']}"
+            action = (
+                f["action"] if f["action"].startswith("http") else f"{self.s.desk}{f['action']}"
+            )
             r2 = b.c.post(action, data={**f["inputs"], "decision": decision})
             out.update(stage="decided", status=r2.status_code, body=_text(r2.text)[:800])
             return out
@@ -141,22 +179,30 @@ def _text(page: str) -> str:
 def world() -> World:
     state = load_users()
     if not state.get("tenants") or not state.get("users"):
-        pytest.fail("THIẾU demo-seed: chạy `make demo-seed` trên stack minimal trước (E0)", pytrace=False)
+        pytest.fail(
+            "THIẾU demo-seed: chạy `make demo-seed` trên stack minimal trước (E0)", pytrace=False
+        )
     w = World(state)
     # xt-api phải trả lời qua gateway; nếu không, mọi kịch bản MCP FAIL với đúng lý do (không lỗi mơ hồ).
     from xte2e import compose, net
 
     with net.client() as h:
         try:
-            r = h.post(w.s.mcp_url, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
-                       headers={"Accept": "application/json, text/event-stream"})
+            r = h.post(
+                w.s.mcp_url,
+                json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+                headers={"Accept": "application/json, text/event-stream"},
+            )
             code = r.status_code
         except Exception as e:  # noqa: BLE001
             code = f"lỗi kết nối {e}"
     if code != 401:
-        last = (compose.logs("xt-api", 6).strip().splitlines() or ["(không có log)"])
-        pytest.fail(f"THIẾU xt-api chạy được trên stack (POST /mcp không token -> {code}, mong đợi 401). "
-                    f"Log xt-api: {' / '.join(x[-200:] for x in last[-3:])}", pytrace=False)
+        last = compose.logs("xt-api", 6).strip().splitlines() or ["(không có log)"]
+        pytest.fail(
+            f"THIẾU xt-api chạy được trên stack (POST /mcp không token -> {code}, mong đợi 401). "
+            f"Log xt-api: {' / '.join(x[-200:] for x in last[-3:])}",
+            pytrace=False,
+        )
     return w
 
 
@@ -167,5 +213,7 @@ def uniq() -> str:
 
 def pytest_report_header(config: pytest.Config) -> list[str]:
     s = settings()
-    return [f"xT e2e: project={s.project} gateway={s.gateway[0]}:{s.gateway[1]} report={run_dir()}",
-            f"kịch bản: {', '.join(SCENARIOS)}"]
+    return [
+        f"xT e2e: project={s.project} gateway={s.gateway[0]}:{s.gateway[1]} report={run_dir()}",
+        f"kịch bản: {', '.join(SCENARIOS)}",
+    ]

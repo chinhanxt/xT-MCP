@@ -90,14 +90,36 @@ def _verify(jwk: Mapping[str, Any], message: bytes, sig_b64u: str) -> bool:
         return False
 
 
-def _valid_jwk(jwk: Mapping[str, Any]) -> bool:
+def _canonical_coord(v: Any) -> str | None:
+    """Toạ độ P-256 base64url chuẩn tắc (32 byte, không đệm, bit thừa = 0) hoặc None."""
     try:
-        x = int.from_bytes(_b64u(str(jwk["x"])), "big")
-        y = int.from_bytes(_b64u(str(jwk["y"])), "big")
-        ec.EllipticCurvePublicNumbers(x, y, ec.SECP256R1()).public_key()
-        return True
-    except (ValueError, KeyError, TypeError):
-        return False
+        raw = _b64u(str(v))
+    except (ValueError, TypeError):
+        return None
+    canon = base64.urlsafe_b64encode(raw).decode().rstrip("=")
+    return canon if len(raw) == 32 and canon == v else None
+
+
+def canonical_jwk(jwk: Mapping[str, Any]) -> dict[str, str] | None:
+    """JWK công khai P-256 hợp lệ ở dạng chuẩn tắc, hoặc None (R2-02)."""
+    x, y = _canonical_coord(jwk.get("x")), _canonical_coord(jwk.get("y"))
+    if x is None or y is None:
+        return None
+    try:
+        ec.EllipticCurvePublicNumbers(
+            int.from_bytes(_b64u(x), "big"), int.from_bytes(_b64u(y), "big"), ec.SECP256R1()
+        ).public_key()
+    except ValueError:
+        return None
+    return {"crv": "P-256", "kty": "EC", "x": x, "y": y}
+
+
+def jwk_thumbprint(jwk: Mapping[str, str]) -> bytes:
+    """RFC 7638: SHA-256 của JSON thành viên bắt buộc, sắp theo tên, không khoảng trắng."""
+    members = {k: jwk[k] for k in ("crv", "kty", "x", "y")}
+    return hashlib.sha256(
+        json.dumps(members, separators=(",", ":"), sort_keys=True).encode()
+    ).digest()
 
 
 class PiiReveal:
@@ -138,10 +160,12 @@ class PiiReveal:
                 )
             caller = self.rt.caller(ctx)
             tokens = list(dict.fromkeys(str(t) for t in args["tokens"]))
-            jwk = dict(args["pubkey_jwk"])
-            if not _valid_jwk(jwk):
+            jwk = canonical_jwk(dict(args["pubkey_jwk"]))
+            if jwk is None:
                 raise invalid_request("Khóa công khai không hợp lệ (EC P-256).", "BAD_PUBKEY")
             store, person = self.rt.store, caller.person.id
+            # R2-01: đếm quota + INSERT vé tuần tự theo (tenant, người) trong cùng transaction.
+            store.pii_lock_person(caller.actor, person)
             if (
                 store.pii_tickets_since(caller.actor, person, 60)
                 >= self.settings.tickets_per_minute
@@ -174,7 +198,7 @@ class PiiReveal:
                 tokens=tokens,
                 pubkey=point,
                 ttl_s=self.settings.ttl_s,
-                key_thumbprint=hashlib.sha256(f"{jwk['x']}.{jwk['y']}".encode()).digest(),
+                key_thumbprint=jwk_thumbprint(jwk),
             )
             if not ok:  # PIIR-07: mỗi lần xem phải là khóa mới của khung Desk
                 self._audit_mint(ctx, caller, "key_reused", [], tokens)

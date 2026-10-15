@@ -199,11 +199,6 @@ def _noncanonical(b64u: str) -> str:
 
 
 @pytest.mark.anyio
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-02: KEY_REUSED so thumbprint trên chuỗi x.y, không trên điểm đã chuẩn hóa -> "
-    "dùng lại cùng khóa bằng base64url không chuẩn tắc",
-)
 async def test_key_reuse_check_not_bypassed_by_noncanonical_base64(s: Stack) -> None:
     tok, ref = await requester_record(s)
     await s.call("acme", DIRECTOR, "get_record", {"ref": ref}, client=DESK_AGENT)
@@ -214,15 +209,14 @@ async def test_key_reuse_check_not_bypassed_by_noncanonical_base64(s: Stack) -> 
     )
     f.jwk = {**f.jwk, "x": _noncanonical(f.jwk["x"])}
     r = await mint(s, DIRECTOR, [tok], f)
-    assert r.is_error and "KEY_REUSED" in r.content[0].text, "khóa cũ được nhận lại"
+    # Sửa R2-02: base64url không chuẩn tắc bị từ chối (BAD_PUBKEY); thumbprint RFC 7638 trên toạ độ
+    # đã giải mã nên cùng điểm ở dạng chuẩn tắc là KEY_REUSED.
+    text = r.content[0].text
+    assert r.is_error and ("BAD_PUBKEY" in text or "KEY_REUSED" in text), "khóa cũ được nhận lại"
 
 
 # --------------------------------------------- 5. quota vé: song song / nhiều client ----
 @pytest.mark.anyio
-@pytest.mark.xfail(
-    strict=True,
-    reason="R2-01: quota vé/người đếm rồi mới INSERT (không khóa) -> mint song song vượt quota",
-)
 async def test_ticket_quota_holds_under_concurrency(s: Stack) -> None:
     pref = f"person:{person_id(s.tenants['acme'].id, REQUESTER)}"
     async with s.app.session(s.token("acme", IT_ADMIN, DESK_AGENT)) as sess:

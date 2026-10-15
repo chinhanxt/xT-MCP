@@ -113,4 +113,4 @@ def start() -> Pg:
 
 
 def stop() -> None:
-    subprocess.run(["docker", "rm", "-f", CONTAINER], capture_output=True, check=False)
+    subprocess.run(["docker", "rm", "-f", "-v", CONTAINER], capture_output=True, check=False)

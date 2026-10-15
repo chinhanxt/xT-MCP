@@ -21,7 +21,9 @@ from xte2e.config import settings
 @asynccontextmanager
 async def session(token: str, url: str | None = None) -> AsyncIterator[ClientSession]:
     async with (
-        httpx2.AsyncClient(transport=net.AsyncMapped2(), headers={"Authorization": f"Bearer {token}"}, timeout=60) as http,
+        httpx2.AsyncClient(
+            transport=net.AsyncMapped2(), headers={"Authorization": f"Bearer {token}"}, timeout=60
+        ) as http,
         streamable_http_client(url or settings().mcp_url, http_client=http) as (read, write),
         ClientSession(read, write) as s,
     ):
@@ -43,7 +45,9 @@ def envelope(result: Any) -> dict[str, Any]:
     return env
 
 
-def call(token: str | Callable[[], str], tool: str, args: dict[str, Any], url: str | None = None) -> dict[str, Any]:
+def call(
+    token: str | Callable[[], str], tool: str, args: dict[str, Any], url: str | None = None
+) -> dict[str, Any]:
     tok = token() if callable(token) else token
 
     async def go() -> dict[str, Any]:

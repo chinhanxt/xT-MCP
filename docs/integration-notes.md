@@ -36,7 +36,7 @@ Ngày: 15/10/2026. Phạm vi: `src/xt/adapters/queue/*`. Không sửa `src/xt/en
 
 ### 2. Thay đổi hành vi handler (quan trọng cho workflow/SLA)
 
-- Handler **không còn chạy với `current_user = xt_app`** mà với job role của tenant (`xt_job_t<seq>`), `search_path = xt_t<seq>, pg_temp`. Mọi đối tượng handler cần (hàm `xt.*`, bảng `xt_meta`, bảng workflow, …) phải được GRANT cho nhóm `xt_job` (hoặc cho job role), và policy RLS của bảng tenant phải gồm `TO xt_app, xt_job` (hoặc PUBLIC + RESTRICTIVE).
+- Handler **không còn chạy với `current_user = xt_app`** mà với job role của tenant (`xt_job_t<seq>`), `search_path = xt_t<seq>, pg_temp`. Mọi đối tượng handler cần (hàm `xt.*`, bảng `xt_meta`, bảng workflow, …) phải được GRANT cho nhóm `xt_job` (hoặc cho job role), và policy RLS của bảng tenant phải gồm `TO xt_app, xt_job` (hoặc PUBLIC + RESTRICTIVE). Đã nối cho relay (migration `0008_job_role_relay.sql`, decisions.md "Quyền của job role trên outbox xt_meta"): nhóm `xt_job` có USAGE `xt`/`xt_meta`, EXECUTE `xt.cur/tenant/tenant_seq`, SELECT cột cần + `UPDATE (dispatched_at)` trên `workflow_timer_outbox` và `model_change_request`, kèm policy RESTRICTIVE `job_role_tenant` (job role phải khớp tenant của ngữ cảnh).
 - Dispatcher đặt ngữ cảnh bằng `xt.set_context(tenant, NULL, …)` (không còn `set_config('xt.tenant_id')`); worker từ chối khởi động nếu xt_app không EXECUTE được hàm này. Handler muốn đọc `xt.cur()`/`xt.tenant()` cần provisioning cấp `USAGE ON SCHEMA xt` + `EXECUTE ON FUNCTION xt.cur(), xt.tenant()` cho nhóm `xt_job`.
 - Handler không được đổi role/tenant/search_path qua `SET/RESET ROLE`, `set_config('xt.%'|'role'|'search_path')`, `xt.set_context` (bị `GuardedCursor` chặn); `SET LOCAL search_path` vẫn được, dispatcher ghim lại sau handler.
 - `SET LOCAL ROLE xt_workflow` trong handler vẫn hợp lệ (membership xét theo session_user xt_app).
@@ -63,7 +63,7 @@ Ngày: 15/10/2026. Phạm vi: `src/xt/adapters/queue/*`. Không sửa `src/xt/en
 Mỗi `provision_tenant` (chạy bằng role có CREATEROLE: bootstrap/DBA, vì xt_migrator không có CREATEROLE):
 
 ```sql
-CREATE ROLE xt_job NOLOGIN NOBYPASSRLS;                         -- một lần, ở bootstrap
+CREATE ROLE xt_job NOLOGIN NOBYPASSRLS;                         -- bootstrap.sql (CSDL mới) / xt-init; quyền relay: migration 0008
 CREATE ROLE xt_job_t<seq> NOLOGIN NOBYPASSRLS IN ROLE xt_job;
 GRANT xt_job_t<seq> TO xt_app WITH INHERIT FALSE, SET TRUE;
 GRANT USAGE ON SCHEMA xt_t<seq> TO xt_job_t<seq>;

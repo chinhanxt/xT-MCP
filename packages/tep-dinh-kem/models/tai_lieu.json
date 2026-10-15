@@ -1,0 +1,53 @@
+{
+  "id": "doc_reg",
+  "name": "tai_lieu",
+  "label": "Tài liệu",
+  "title_field": "tieu_de",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "tieu_de",
+      "type": "text",
+      "label": "Tiêu đề",
+      "required": true,
+      "max": 200
+    },
+    {
+      "id": "f2",
+      "name": "tep",
+      "type": "file",
+      "label": "Tệp",
+      "required": true
+    },
+    {
+      "id": "f3",
+      "name": "loai",
+      "type": "enum",
+      "label": "Loại tài liệu",
+      "required": true,
+      "default": "khac",
+      "options": [
+        {"value": "hop_dong", "label": "Hợp đồng"},
+        {"value": "hoa_don", "label": "Hóa đơn / chứng từ"},
+        {"value": "cong_van", "label": "Công văn"},
+        {"value": "bien_ban", "label": "Biên bản"},
+        {"value": "khac", "label": "Khác"}
+      ]
+    },
+    {
+      "id": "f4",
+      "name": "ghi_chu",
+      "type": "text",
+      "label": "Ghi chú",
+      "max": 2000
+    }
+  ],
+  "indexes": [],
+  "rules": [],
+  "permissions": {
+    "employee": {"actions": ["create", "read", "update"], "scope": "own"},
+    "dept_head": {"actions": ["read"], "scope": "department"},
+    "director": {"actions": ["read"], "scope": "all"},
+    "xt_workflow": {"actions": ["read"], "scope": "all"}
+  }
+}

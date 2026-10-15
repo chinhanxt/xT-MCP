@@ -280,6 +280,13 @@ class TransitionRecord(_RecordWrite):
 class UploadFile(WriteHandler):
     name = "upload_file"
 
+    def access(self, s: ToolServices, ctx: CallContext, args: Args) -> AccessCheck:
+        """IAM `file.create` trên `xrn:<tenant>:file:*`; không đưa nội dung tệp vào thuộc tính."""
+        attrs = {"model_id": "file", "source": args["source"]}
+        if "content_type" in args:
+            attrs["content_type"] = args["content_type"]
+        return AccessCheck(self.name, self.contract.iam[0], None, attrs)
+
     def precheck(self, s: ToolServices, ctx: CallContext, args: Args) -> None:
         source = args["source"]
         for fieldname in ("text", "base64"):

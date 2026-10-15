@@ -111,7 +111,7 @@ e2e-run:   # chạy kịch bản trên stack đang có (đã demo-seed)
 	$(E2E) pytest -c pytest.ini -m "e2e and not llm" $(E2E_ARGS)
 
 e2e:
-	@rc=0; $(MAKE) e2e-up && $(MAKE) demo-seed && $(MAKE) e2e-run || rc=$$?; \
+	@rc=0; $(MAKE) e2e-up; $(MAKE) demo-seed; $(MAKE) e2e-run || rc=$$?; \
 	  [ "$${E2E_KEEP:-0}" = 1 ] || $(MAKE) e2e-down; exit $$rc
 
 e2e-llm:   # E1: Desk + Ollama qwen3.5:4b (slot heavy riêng); cần stack đã up + demo-seed

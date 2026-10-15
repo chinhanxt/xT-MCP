@@ -47,6 +47,9 @@ DEFAULT_ACTION_LEVELS: ActionCatalog = MappingProxyType(
         "history.read": _L.L0,
         "record.transition": _L.L3,
         "file.create": _L.L1,
+        # REST /files/v1 (docs/files-api.md): đọc metadata/tải về; xóa mềm (khôi phục được).
+        "file.read": _L.L0,
+        "file.delete": _L.L1,
         "request.submit": _L.L2,
         "request.decide": _L.HUMAN_ONLY,
         "task.create": _L.L2,
