@@ -133,15 +133,26 @@ routes:
       type: roundrobin
       nodes: {"xt-api:8000": 1}
       timeout: {connect: 5, send: 30, read: 30}
-  - id: api-files
+  - id: api-files               # REST /files/v1 (docs/files-api.md): xt-api kiểm JWT aud=xt-files + IAM; presigned PUT (/files/v1/uploads/<token>) không Bearer, chữ ký HMAC kiểm ở xt-api. SeaweedFS không có route nào
     hosts: ["@@XT_DOMAIN_API@@"]
-    uris: ["/files", "/files/*"]
+    uris: ["/files/v1", "/files/v1/*"]
+    methods: ["GET", "HEAD", "POST", "PUT", "DELETE"]
     plugins:
+      real-ip:
+        source: http_cf_connecting_ip
+        trusted_addresses: ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
       client-control:
-        max_body_size: 67108864   # upload tối đa 64 MiB; tinh chỉnh theo hạn mức thật khi có
+        max_body_size: 27262976   # = XT_FILES_MAX_BYTES (25 MiB) + 1 MiB overhead multipart
+      limit-req:
+        rate: 10
+        burst: 20
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
     upstream:
       type: roundrobin
       nodes: {"xt-api:8000": 1}
+      timeout: {connect: 5, send: 300, read: 300}
   - id: api-sandbox             # origin khác Desk cho sandbox MCP Apps
     hosts: ["@@XT_DOMAIN_API@@"]
     uris: ["/sandbox.html", "/assets/*"]

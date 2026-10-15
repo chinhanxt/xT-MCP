@@ -82,8 +82,11 @@ def _decide(world, ev: Evidence, u: dict[str, Any], ref: str) -> dict[str, Any]:
 
 
 def test_add_field_apply(ev: Evidence, world) -> None:  # type: ignore[no-untyped-def]
+    global FIELD
     c = Checks(ev)
     schema = world.tenants[A]["schema"]
+    if _column_exists(schema):  # chạy lại trên stack giữ lại (E2E_KEEP=1): field mới cho lần này
+        FIELD = f"ma_du_an_{key('f')[-8:]}"
     proposer = world.by_key(A, DEPT_HEAD)
     ops = [
         {
@@ -150,7 +153,7 @@ def test_add_field_apply(ev: Evidence, world) -> None:  # type: ignore[no-untype
     ev.step("sau khi người duyệt xác nhận", done)
     c.check(done.get("ok") is True, f"duyệt đề xuất ok ({err(done).get('code')})")
     state = ""
-    for _ in range(40):  # worker: relay -> model.apply (pha 1 + 2)
+    for _ in range(80):  # worker: relay (chu kỳ XT_WORKFLOW_RELAY_SECONDS) -> model.apply (pha 1 + 2)
         st = world.call(approver, "get_record", {"ref": ref})
         state = str(
             ((st.get("data") or {}).get("record") or {}).get("state")

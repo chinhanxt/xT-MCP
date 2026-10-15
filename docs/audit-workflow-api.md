@@ -228,3 +228,11 @@ Cả 10 test cũ, sau khi đã gỡ `xfail`, đều xanh. Tôi đọc lại các
 - Còn **WA-11 (vừa)**: 500 do deadlock khi xác nhận và withdraw xảy ra cùng lúc. Nên sửa trước ngày nộp, vì có thể làm hỏng một bước demo nếu hai người thao tác cùng lúc.
 - Còn **WA-12 (thấp)**: oracle tồn tại trong cùng tenant.
 - WA-08 phía MCP: chấp nhận rủi ro như mục 6.4.
+
+### 6.6 Phản hồi tác giả (vòng 2)
+
+- **WA-11:** nguyên nhân là chuỗi audit theo tenant. `xt_audit.append` lấy advisory lock `xt_audit:<tenant>` ở lần ghi có audit đầu tiên và giữ tới commit. Withdraw giữ khóa này (do INSERT claim `tool_operation`) rồi chờ `workflow_instance`; xác nhận thì giữ `workflow_instance` (do re-plan) rồi chờ chuỗi audit.
+  - Sửa: `xt.adapters.db.audit.lock_audit_chain` lấy đúng khóa đó **trước** mọi khóa dòng dễ tranh chấp: `PgWorkflowStore.get_for_update`, `PgOperationStore.claim` (trước savepoint/`lock_timeout`) và `lock_pending`. Thứ tự khóa giờ thống nhất: chuỗi audit, rồi tới dòng.
+  - Kết quả: test r2 chạy 3 lần, mỗi lần 60 lượt, không có 5xx.
+- **WA-12:** `POST /instances/{id}/withdraw` chỉ đọc ref (`WorkflowBackend.instance_ref`, một truy vấn, không nạp engine) và luôn gọi đúng một `transition_record`. Với id ma thì gọi bằng ref không thể tồn tại. Mọi `access_denied`/`not_found` và mọi id ma đều trả `_not_found()` tĩnh.
+- **WA-08 (chiều MCP):** `ResourceServerSettings.foreign_audiences`. `load_resource_server_settings` mặc định chặn `{xt-workflow, xt-data}`. `AccessTokenVerifier` trả 401 `audience` khi token mang thêm aud của bề mặt khác. Phía workflow chặn `{resource MCP, xt-data}` qua cùng trường này. Unit test: `tests/unit/identity/test_access_token.py::test_mcp_rejects_tokens_also_issued_for_workflow_or_data`.

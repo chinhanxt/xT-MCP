@@ -238,8 +238,12 @@ def test_auth_boundaries_and_openapi(fstack: Stack) -> None:
         paths
     )
     # Token MCP / workflow không dùng được cho files; token files không mở được /mcp.
-    for tok in (s.token(A, REQUESTER), s.idp.access_token(
-            sub(A, REQUESTER), org=A, aud=["xt-workflow"], scope="openid xt-workflow")):
+    for tok in (
+        s.token(A, REQUESTER),
+        s.idp.access_token(
+            sub(A, REQUESTER), org=A, aud=["xt-workflow"], scope="openid xt-workflow"
+        ),
+    ):
         with http(s, tok) as c:
             assert c.get(F).status_code == 401
     mcp = httpx.post(
@@ -344,8 +348,12 @@ def test_checksum_mismatch_rejected_then_reupload(fstack: Stack, pg: pgfixture.P
         assert put(s, it["put_url"], PDF).status_code == 200  # PUT lại trong hạn
         ok = c.post(f"{F}/{fid}/finalize", json={"sha256": sha(PDF)})
     assert ok.status_code == 200
-    acts = [r[0] for r in su_rows(
-        pg, "SELECT action FROM xt_meta.file_event WHERE file_id = %s ORDER BY at, id", fid)]
+    acts = [
+        r[0]
+        for r in su_rows(
+            pg, "SELECT action FROM xt_meta.file_event WHERE file_id = %s ORDER BY at, id", fid
+        )
+    ]
     assert acts == ["created", "uploaded", "rejected", "uploaded", "finalized"]
 
 
@@ -505,8 +513,12 @@ async def test_mcp_upload_file_and_record_file_field(fstack: Stack) -> None:
         "name": "x.pdf", "source": "base64", "base64": base64.b64encode(b"MZ\x90").decode(),
         "idempotency_key": "it-files-mcp-b64-1"})  # fmt: skip
     assert not bad["ok"] and bad["error"]["details"]["reason"] == "content_type_not_allowed"
-    denied = await s.call(B, REQUESTER, "upload_file", {
-        "name": "a.md", "source": "text", "text": "x", "idempotency_key": "it-files-mcp-b-1"})
+    denied = await s.call(
+        B,
+        REQUESTER,
+        "upload_file",
+        {"name": "a.md", "source": "text", "text": "x", "idempotency_key": "it-files-mcp-b-1"},
+    )
     assert not denied["ok"] and denied["error"]["code"] == "access_denied"
     # Field kiểu `file` của model tai_lieu nhận ref của tệp vừa tải.
     rec = await s.call(A, REQUESTER, "create_record", {
@@ -530,3 +542,32 @@ async def test_mcp_upload_file_and_record_file_field(fstack: Stack) -> None:
 def test_upload_file_capability_listed(fstack: Stack) -> None:
     assert fstack.prepared.dispatcher.settings.available("upload_file")
     assert Path(FILES_PACK / "pack.json").exists()
+
+
+def test_headless_demo_files_step(fstack: Stack, tmp_path: Path) -> None:
+    """Bước 5 của docs/headless-demo.sh (curl thật) trên stack này: ý định -> PUT -> finalize ->
+    tải về -> multipart. Các bước 1-4 cần Keycloak/PostgREST thật (e2e E8), ở đây bỏ qua."""
+    import os
+    import subprocess
+
+    s = fstack
+    tok = tmp_path / "files_token"
+    tok.write_text(ftoken(s, A, REQUESTER), encoding="utf-8")
+    env = {
+        **os.environ,
+        "XT_AUTH_BASE": "http://127.0.0.1:9",  # SSO không có ở đây: bước 1 "chưa triển khai"
+        "XT_API_BASE": s.app.base,
+        "XT_FILES_TOKEN_FILE": str(tok),
+    }
+    r = subprocess.run(
+        ["bash", str(ROOT / "docs" / "headless-demo.sh")],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=120,
+    )
+    out = r.stdout
+    assert "5a không token: 401" in out, out
+    assert "5e GET .../content: 200" in out and "sha256 khớp" in out, out
+    assert "5f multipart một bước: 201" in out, out
+    assert re.search(r"5 Files\s+OK", out), out

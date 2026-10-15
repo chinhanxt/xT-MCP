@@ -55,7 +55,7 @@ def test_sla_escalation_survives_worker_restart(ev: Evidence, world) -> None:  #
         "docker compose restart xt-worker", {"rc": r.returncode, "t": round(time.time() - t0, 1)}
     )
     esc = ""
-    while time.time() - t0 < DEADLINE:
+    while time.time() - t0 < DEADLINE + 90:  # chờ thêm để ghi được độ trễ thật nếu trễ hạn
         esc = compose.psql(
             f"SELECT created_at FROM xt_meta.process_event WHERE instance_id::text = '{iid}'"
             " AND type = 'assignment.escalated' LIMIT 1"
@@ -86,8 +86,15 @@ def test_sla_escalation_survives_worker_restart(ev: Evidence, world) -> None:  #
         not relay.startswith(("failed", "cancelled", "aborted")),
         f"chuỗi relay hẹn giờ còn sống ({relay!r})",
     )
+    lat = compose.psql(
+        f"SELECT round(extract(epoch FROM created_at) - {t0:.3f}) FROM xt_meta.process_event"
+        f" WHERE instance_id::text = '{iid}' AND type = 'assignment.escalated' LIMIT 1"
+    )
+    ev.step("độ trễ leo thang (giây từ lúc gửi)", lat)
     c.check(
-        bool(esc), f"assignment.escalated trong <= {DEADLINE} s dù worker restart (đã chờ {took} s)"
+        bool(esc) and float(lat or 1e9) <= DEADLINE,
+        f"assignment.escalated trong <= {DEADLINE} s dù worker restart (thực tế: "
+        f"{lat + ' s' if lat else f'chưa có sau {took} s'}; SLA PT2M + chu kỳ relay XT_WORKFLOW_RELAY_SECONDS)",
     )
     notes = compose.psql(
         f"SELECT count(*) FROM xt_meta.notification WHERE dedupe_key LIKE 'esc:{iid}:%'"
@@ -96,10 +103,12 @@ def test_sla_escalation_survives_worker_restart(ev: Evidence, world) -> None:  #
     if esc:
         h = world.by_key(B, B_HEAD)
         got = world.call(h, "get_record", {"ref": ref})
+        ev.step("người nhận leo thang get_record", got)
+        rev = ((got.get("data") or {}).get("record") or {}).get("revision") or sub["data"]["request"]["revision"]
         args = {
             "ref": ref,
             "decision": "approve",
-            "expected_revision": got["data"]["record"]["revision"],
+            "expected_revision": rev,
             "idempotency_key": key("sla-d"),
         }
         p = world.call(h, "decide_request", args)

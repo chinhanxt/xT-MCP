@@ -54,7 +54,11 @@ def call(
         async with session(tok, url) as s:
             return envelope(await s.call_tool(tool, args))
 
-    return anyio.run(go)
+    try:
+        return anyio.run(go)
+    except Exception as e:  # noqa: BLE001 - lỗi JSON-RPC của server: thành envelope để kịch bản báo đúng
+        inner = e.exceptions[0] if isinstance(e, BaseExceptionGroup) and e.exceptions else e
+        return {"ok": False, "error": {"code": "mcp_protocol_error", "message": f"{tool}: {type(inner).__name__}: {inner}"}}
 
 
 def call_raw(token: str, tool: str, args: dict[str, Any]) -> Any:

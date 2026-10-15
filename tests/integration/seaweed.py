@@ -95,4 +95,6 @@ def start() -> Seaweed:
         time.sleep(0.5)
     logs = subprocess.run(["docker", "logs", "--tail", "40", name], capture_output=True, text=True)
     sw.stop()
-    raise RuntimeError(f"SeaweedFS không lên trong 90 s: {logs.stdout[-2000:]}{logs.stderr[-2000:]}")
+    raise RuntimeError(
+        f"SeaweedFS không lên trong 90 s: {logs.stdout[-2000:]}{logs.stderr[-2000:]}"
+    )

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-# Ảnh pin theo digest (tag giữ để đọc). Profile: minimal (mặc định) | full (= minimal + ollama, nats, seaweedfs, clamav, openbao) | public (+ cloudflared).
+# Ảnh pin theo digest (tag giữ để đọc). Profile: minimal (mặc định, gồm seaweedfs) | full (= minimal + ollama, nats, clamav, openbao) | public (+ cloudflared).
 #   docker compose --env-file .env --profile minimal up -d
 #   docker compose --env-file .env --profile minimal --profile full --profile public up -d
 # `xt serve` chưa có: dùng service `xt-api-placeholder` (profile placeholder) thay `xt-api`; Makefile tự chọn.
@@ -173,6 +173,18 @@ services:
       XT_WORKFLOW_ALLOWED_CLIENTS: ${XT_WORKFLOW_CLIENTS:-xt-cli}
       XT_WORKFLOW_AUDIENCE: xt-workflow
       XT_WORKFLOW_PUBLIC_URL: https://${XT_DOMAIN_API}
+      # Dữ liệu phi cấu trúc /files/v1 + tool upload_file (docs/files-api.md): SeaweedFS S3 nội bộ
+      XT_MCP_CAPABILITIES: ${XT_MCP_CAPABILITIES:-upload_file}
+      XT_FILES_S3_ENDPOINT: http://seaweedfs:8333
+      XT_FILES_S3_BUCKET: ${XT_FILES_S3_BUCKET:-xt-files}
+      XT_FILES_S3_ACCESS_KEY: ${XT_FILES_S3_ACCESS_KEY:?chạy make env}
+      XT_FILES_S3_SECRET_KEY: ${XT_FILES_S3_SECRET_KEY:?chạy make env}
+      XT_FILES_PUBLIC_URL: https://${XT_DOMAIN_API}
+      XT_FILES_ALLOWED_CLIENTS: ${XT_FILES_CLIENTS:-xt-cli}
+      XT_FILES_MAX_BYTES: ${XT_FILES_MAX_BYTES:-26214400}
+      XT_FILES_UPLOAD_TTL_SECONDS: ${XT_FILES_UPLOAD_TTL_SECONDS:-900}
+      XT_FILES_UNSCANNED_DOWNLOAD: ${XT_FILES_UNSCANNED_DOWNLOAD:-uploader}
+      XT_FILES_CLAMD: ${XT_FILES_CLAMD:-}   # profile full: clamav:3310 (tệp ở trạng thái scanning tới khi ClamAV trả lời)
       XT_IDP_ADMIN_API_URL: http://keycloak:8080/admin/realms/${XT_REALM:-xt}
       XT_IDP_ADMIN_TOKEN_URL: http://keycloak:8080/realms/${XT_REALM:-xt}/protocol/openid-connect/token
       XT_IDP_ADMIN_CLIENT_ID: ${XT_IDP_ADMIN_CLIENT_ID:-xt-client-registry}
@@ -214,6 +226,7 @@ services:
       postgres: {condition: service_healthy}
       keycloak: {condition: service_healthy}
       xt-init: {condition: service_completed_successfully}
+      seaweedfs: {condition: service_healthy}
 
   # Chỉ dùng khi `xt serve` chưa tồn tại: trả 503 + thông báo rõ ràng, KHÔNG giả lập API.
   xt-api-placeholder:
@@ -367,14 +380,30 @@ services:
     volumes: [nats:/data]
     mem_limit: 128m
 
+  # Tầng 1 "dữ liệu phi cấu trúc" (docs/files-api.md): một `weed server` (master+volume+filer+S3).
+  # Không publish cổng, không route APISIX tới SeaweedFS (UI master/filer bị chặn, N10): chỉ xt-api
+  # gọi S3 nội bộ (SigV4, danh tính duy nhất từ .env). User `seaweed` (uid 1000), không root.
   seaweedfs:
-    <<: [*restart, *nopriv]
+    <<: [*restart, *hardened]
+    user: "1000:1000"
+    read_only: true
+    tmpfs: [/tmp]
     cpus: 1.0
-    image: chrislusf/seaweedfs:4.00@sha256:dcbccdc9f33689d43ca3d1fb73d2baa319f8307c59d7923191b993ddc85ba6f8       # Apache-2.0
-    profiles: [full]
-    command: ["server", "-dir=/data", "-s3", "-s3.port=8333", "-master.volumeSizeLimitMB=64", "-volume.max=8"]
+    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d       # Apache-2.0
+    profiles: [minimal, full, public]
+    # research/footprint.md: volume 64 MB, tối đa 8 volume; đo 86-233 MiB RSS (sau PUT 20 MB).
+    command: ["server", "-dir=/data", "-s3", "-s3.port=8333", "-s3.config=/etc/xt-s3/s3.json",
+              "-master.volumeSizeLimitMB=64", "-volume.max=8", "-ip=127.0.0.1", "-ip.bind=0.0.0.0"]
+    configs:
+      - source: seaweed-s3
+        target: /etc/xt-s3/s3.json
+        mode: 0444
     volumes: [seaweed:/data]
     mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9333/cluster/healthz && nc -z 127.0.0.1 8333"]
+      interval: 5s
+      retries: 30
 
   clamav:
     <<: [*restart, *nopriv]
@@ -418,3 +447,9 @@ volumes:
   nats:
   seaweed:
   clamav:
+
+# Danh tính S3 duy nhất của SeaweedFS (xt-api); giá trị từ deploy/.env (envfile.py tự sinh).
+configs:
+  seaweed-s3:
+    content: |
+      {"identities": [{"name": "xt-api", "credentials": [{"accessKey": "${XT_FILES_S3_ACCESS_KEY:?chạy make env}", "secretKey": "${XT_FILES_S3_SECRET_KEY:?chạy make env}"}], "actions": ["Admin", "Read", "Write", "List", "Tagging"]}]}

@@ -18,7 +18,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
 from xte2e import compose, mcpc, net
-from xte2e.flows import A, REQUESTER, advance, dumps, err, key
+from xte2e.flows import A, DIRECTOR, REQUESTER, advance, dumps, err, key
 from xte2e.report import Checks, Evidence
 
 SCENARIO = "E5"
@@ -27,6 +27,15 @@ ACCT = "0123456789012"
 TOKEN_RE = re.compile(
     r"\[PII:[a-z2-7]{8,}\]|⟨[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.[a-z][a-z0-9_]{0,63}⟩"
 )
+
+
+def _shape(r: Any) -> Any:
+    """Cấu trúc phản hồi /pii/reveal không kèm giá trị thật (bằng chứng không chứa PII)."""
+    try:
+        body = r.json()
+    except ValueError:
+        return r.text[:80]
+    return {k: (sorted(v) if isinstance(v, dict) else v) for k, v in body.items()}
 
 
 def _is_error(r: Any) -> bool:
@@ -71,7 +80,14 @@ def test_masked_then_reveal(ev: Evidence, world) -> None:  # type: ignore[no-unt
     c.check(bool(TOKEN_RE.fullmatch(acct)), f"field PII trả token ({acct})")
     ref = made["data"]["record"]["ref"]
 
-    tok = world.token(u)
+    # Người xem: giám đốc (kenh-pii: pii.reveal cho field sensitive); token PII gắn với người nhận,
+    # nên người xem lấy token của chính mình qua get_record.
+    viewer = world.by_key(A, DIRECTOR)
+    seen = world.call(viewer, "get_record", {"ref": ref})
+    ev.step("giám đốc get_record (masked)", seen)
+    vtok = str(((seen.get("data") or {}).get("record") or {}).get("values", {}).get("bank_account"))
+    c.check(bool(TOKEN_RE.fullmatch(vtok)) and ACCT not in dumps(seen), f"giám đốc cũng chỉ thấy token ({vtok})")
+    tok = world.token(viewer)
     tools = {t.name: t for t in mcpc.list_tools(tok)}
     t = tools.get("pii_reveal_ticket")
     if t is None:
@@ -81,7 +97,7 @@ def test_masked_then_reveal(ev: Evidence, world) -> None:  # type: ignore[no-unt
 
     priv = ec.generate_private_key(ec.SECP256R1())
     raw = mcpc.call_raw(
-        tok, "pii_reveal_ticket", {"tokens": [acct], "pubkey_jwk": _jwk(priv.public_key())}
+        tok, "pii_reveal_ticket", {"tokens": [vtok], "pubkey_jwk": _jwk(priv.public_key())}
     )
     meta = (getattr(raw, "meta", None) or {}).get("xt/reveal") or {}
     body_text = raw.content[0].text if raw.content else ""
@@ -130,6 +146,7 @@ def test_masked_then_reveal(ev: Evidence, world) -> None:  # type: ignore[no-unt
             "replay_body": r2.text[:200],
             "cache": r1.headers.get("cache-control"),
             "bad_origin": bad_origin.status_code,
+            "first_keys": _shape(r1),
         },
     )
     c.check(pre.status_code == 204, f"preflight CORS 204 ({pre.status_code})")
@@ -139,7 +156,7 @@ def test_masked_then_reveal(ev: Evidence, world) -> None:  # type: ignore[no-unt
         else {}
     )
     c.check(
-        r1.status_code == 200 and vals.get(acct) == ACCT,
+        r1.status_code == 200 and vals.get(vtok) == ACCT,
         f"đổi vé lần đầu -> giá trị thật ({r1.status_code})",
     )
     c.check("no-store" in (r1.headers.get("cache-control") or ""), "Cache-Control: no-store")
@@ -160,10 +177,10 @@ def test_masked_then_reveal(ev: Evidence, world) -> None:  # type: ignore[no-unt
         {
             "ref": ref,
             "expected_revision": got["data"]["record"]["revision"],
-            "values": {"bank_account": acct, "destination": "Huế"},
+            "set": {"bank_account": acct, "destination": "Huế"},
             "idempotency_key": key("pii-w"),
         },
     )
     ev.step("ghi ngược token PII", up)
-    c.check(up.get("ok") is False, f"ghi token PII vào field bị từ chối ({err(up).get('code')})")
+    c.check(up.get("ok") is False and "schema" not in dumps(up), f"ghi token PII vào field bị từ chối, không phải lỗi schema ({err(up).get('code')})")
     c.done()

@@ -38,6 +38,7 @@ from tests.integration.composition.test_e2e import (  # noqa: F401  (fixture `st
     advance,
     run_admin,
     stack,
+    stack_base,
     sub,
 )
 from xt.adapters.db.integration import person_id
@@ -498,7 +499,8 @@ async def test_vault_field_follows_sensitive_source(s: Stack, pg: pgfixture.Pg) 
 async def test_mint_and_reveal_are_rate_limited(s: Stack) -> None:
     tok = await see_email(s, OUTSIDER)  # người riêng: quota theo người, không ảnh hưởng test khác
     throttled = 0
-    for _ in range(70):  # XT_PII_REVEAL_TICKETS_PER_MINUTE=60 trong stack test
+    limit = int(s.env["XT_PII_REVEAL_TICKETS_PER_MINUTE"])
+    for _ in range(limit + 10):  # quota theo người của stack test
         f = DeskFrame()
         r = await mint(s, OUTSIDER, [tok], f)
         if r.is_error:

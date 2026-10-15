@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Cấp scope headless riêng: xt-data (XT_DATA_CLIENTS) và xt-workflow (XT_WORKFLOW_CLIENTS, mặc định xt-cli).
+"""Cấp scope headless riêng: xt-data (XT_DATA_CLIENTS), xt-workflow (XT_WORKFLOW_CLIENTS) và xt-files
+(XT_FILES_CLIENTS), hai scope sau mặc định cấp cho xt-cli.
 
 Không gán scope cho toàn realm/DCR. Chạy sau provision.py; không bật password grant.
 """
@@ -22,7 +23,8 @@ from provision import DEPLOY, KC, mcp_client_ids, scope_id, set_client_scope, up
 
 SCOPE = "xt-data"
 WORKFLOW_SCOPE = "xt-workflow"
-HEADLESS_SCOPES = (SCOPE, WORKFLOW_SCOPE)
+FILES_SCOPE = "xt-files"
+HEADLESS_SCOPES = (SCOPE, WORKFLOW_SCOPE, FILES_SCOPE)
 CLIENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
@@ -92,6 +94,16 @@ def provision_workflow(kc: KC, realm: str, clients: list[str]) -> None:
     ], clients)
 
 
+def provision_files(kc: KC, realm: str, clients: list[str]) -> None:
+    """REST /files/v1 (docs/files-api.md): aud riêng xt-files, như xt-workflow."""
+    common = {"access.token.claim": "true", "id.token.claim": "false", "introspection.token.claim": "false"}
+    provision_scope(kc, realm, FILES_SCOPE, "REST tệp xT (aud xt-files)", [
+        {"name": "files-audience", "protocolMapper": "oidc-audience-mapper",
+         "config": {**common, "included.custom.audience": "xt-files"}},
+        organization_mapper(),
+    ], clients)
+
+
 def assert_mcp_clean(kc: KC, realm: str) -> None:
     """Token MCP không được mang aud xt-data/xt-workflow: scope mcp-xt không có mapper audience đó và hai scope
     headless không nằm trong default/optional của realm."""
@@ -107,7 +119,7 @@ def assert_mcp_clean(kc: KC, realm: str) -> None:
         for kind in ("default", "optional"):
             if hid and any(x.get("id") == hid for x in kc.get(f"/realms/{realm}/default-{kind}-client-scopes")):
                 raise SystemExit(f"scope {name} đang là realm {kind}")
-    print("token MCP sạch: mcp-xt không có aud xt-data/xt-workflow; hai scope không phải realm default/optional")
+    print("token MCP sạch: mcp-xt không có aud xt-data/xt-workflow/xt-files; scope headless không phải realm default/optional")
 
 
 def provision_scope(kc: KC, realm: str, scope: str, description: str, wanted: list[dict], clients: list[str]) -> None:
@@ -160,6 +172,7 @@ def main() -> None:
     forbidden = mcp_client_ids(env)
     clients = parse_clients(env.get("XT_DATA_CLIENTS", ""), forbidden)
     wf_clients = parse_clients(env.get("XT_WORKFLOW_CLIENTS") or env.get("XT_CLI_CLIENT_ID") or "xt-cli", forbidden, "XT_WORKFLOW_CLIENTS")
+    files_clients = parse_clients(env.get("XT_FILES_CLIENTS") or env.get("XT_CLI_CLIENT_ID") or "xt-cli", forbidden, "XT_FILES_CLIENTS")
     base = env.get("KC_ADMIN_URL") or f"http://127.0.0.1:{env.get('KC_HTTP_PORT') or '18080'}"
     u = urlparse(base)
     if u.scheme != "https" and u.hostname not in ("127.0.0.1", "localhost", "::1"):
@@ -170,6 +183,7 @@ def main() -> None:
         realm = env.get("XT_REALM") or "xt"
         provision_data(kc, realm, clients)
         provision_workflow(kc, realm, wf_clients)
+        provision_files(kc, realm, files_clients)
         assert_mcp_clean(kc, realm)
     except (OSError, KeyError, ValueError) as e:  # mạng/đăng nhập/JSON hỏng: báo gọn, không traceback
         raise SystemExit(f"provision_data: lỗi gọi Keycloak ({type(e).__name__}): {e}") from None

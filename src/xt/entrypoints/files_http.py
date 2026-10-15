@@ -36,6 +36,7 @@ import hashlib
 import hmac
 import json
 import threading
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
@@ -61,6 +62,7 @@ from xt.adapters.identity.access_token import AccessTokenVerifier
 from xt.adapters.identity.config import ResourceServerSettings
 from xt.adapters.mcp import ClientClassifier
 from xt.application.files import (
+    BlobError,
     FileManager,
     FilePolicy,
     FileRow,
@@ -294,7 +296,15 @@ class FilesStack:
             cfg.endpoint, cfg.bucket, cfg.access_key, cfg.secret_key, region=cfg.region
         )
         if ensure_bucket:
-            store.ensure_bucket()
+            # SeaweedFS vừa khởi động: filer/S3 có thể chưa nhận bucket trong vài giây đầu.
+            for attempt in range(20):
+                try:
+                    store.ensure_bucket()
+                    break
+                except BlobError:
+                    if attempt == 19:
+                        raise
+                    time.sleep(0.5)
         scanner = ClamdScanner(*cfg.clamd) if cfg.clamd else None
         return cls(cfg, FileManager(cfg.policy, store, scanner), UploadTokens(cfg.url_key), store)
 

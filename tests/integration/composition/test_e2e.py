@@ -59,7 +59,7 @@ def sub(alias: str, key: str) -> str:
     return f"kc-{alias}-{key}"
 
 
-def run_admin(argv: list[str], env: dict[str, str]) -> tuple[int, str]:
+def _run_admin(argv: list[str], env: dict[str, str]) -> tuple[int, str]:
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         try:
@@ -67,6 +67,15 @@ def run_admin(argv: list[str], env: dict[str, str]) -> tuple[int, str]:
         except AdminError as e:  # như `xt` (admin.main): rc 2 + thông điệp
             return 2, str(e)
     return rc, buf.getvalue()
+
+
+def run_admin(argv: list[str], env: dict[str, str]) -> tuple[int, str]:
+    """`xt <lệnh quản trị>` trong thread riêng: lệnh dùng `asyncio.run` (bind-queue) chạy được cả
+    khi fixture được dựng từ test async (đã có event loop ở thread hiện tại)."""
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(1) as ex:
+        return ex.submit(_run_admin, argv, env).result()
 
 
 @dataclass
@@ -94,10 +103,20 @@ def _write(path: Path, data: bytes) -> str:
     return str(path)
 
 
-@pytest.fixture(scope="module")
-def stack(
+@dataclass
+class StackBase:
+    """Phần dùng chung cả phiên pytest: DB đã migrate, khóa, tenant acme/beta + tổ chức + gói.
+    Dựng MỘT lần cho mọi module dùng `stack` (make test-integration chạy tất cả một lượt)."""
+
+    env: dict[str, str]
+    tenants: dict[str, Any]
+    outputs: dict[str, str]
+
+
+@pytest.fixture(scope="session")
+def stack_base(
     pg: pgfixture.Pg, idp: LocalIdp, mcp_port: int, tmp_path_factory: pytest.TempPathFactory
-) -> Iterator[Stack]:
+) -> StackBase:
     d = tmp_path_factory.mktemp("xt-e2e")
     with pg.migrator() as m:
         migrate(m)
@@ -131,7 +150,7 @@ def stack(
         "XT_MCP_ALLOWED_CLIENTS": f"{AGENT_CLIENT},{LOCAL_AGENT},{DESK_AGENT}",
         "XT_PII_REVEAL_ORIGINS": base,
         "XT_PII_REVEAL_CLIENTS": DESK_AGENT,
-        "XT_PII_REVEAL_TICKETS_PER_MINUTE": "60",
+        "XT_PII_REVEAL_TICKETS_PER_MINUTE": "100",
         "XT_MCP_HUMAN_CLIENTS": DESK_CLIENT,
         "XT_MCP_LOCAL_CLIENTS": LOCAL_AGENT,
         "XT_MCP_CONFIDENTIAL_CLIENTS": LOCAL_AGENT,
@@ -189,6 +208,13 @@ def stack(
             assert rc == 0, out
         with connect(pg.migrator_dsn) as c:
             tenants[alias] = tenant_of_alias(c, alias)
+    return StackBase(env, tenants, outputs)
+
+
+@pytest.fixture(scope="module")
+def stack(stack_base: StackBase, idp: LocalIdp, mcp_port: int) -> Iterator[Stack]:
+    """Server xT (uvicorn) cho từng module trên nền `stack_base` dùng chung."""
+    env, tenants, outputs = stack_base.env, stack_base.tenants, stack_base.outputs
     ns = argparse.Namespace(transport="http", host="127.0.0.1", port=mcp_port, profile="full")
     prepared = prepare(env, ns)
     app = serve(prepared.http_app(), mcp_port)
@@ -528,8 +554,8 @@ class Worker:
     xt_bin: str
 
 
-@pytest.fixture(scope="module")
-def worker(stack: Stack, pg: pgfixture.Pg) -> Worker:
+@pytest.fixture(scope="session")
+def worker(stack_base: StackBase, pg: pgfixture.Pg) -> Worker:
     """Hàng đợi thật: role xt_control/xt_job, `xt worker --install-schema`, `xt tenant
     bind-queue` (job role + chuỗi relay) cho tenant acme."""
     import subprocess
@@ -550,7 +576,7 @@ def worker(stack: Stack, pg: pgfixture.Pg) -> Worker:
             su.execute(sql.SQL("ALTER ROLE xt_control PASSWORD {}").format(sql.Literal(control_pw)))
     owner = _url("xt_owner", pg.owner_password)
     wenv = {
-        **stack.env,
+        **stack_base.env,
         "XT_WORKER_DATABASE_URL": _url("xt_app", pg.app_password),
         "XT_QUEUE_DATABASE_URL": _url("xt_control", control_pw),
         "XT_QUEUE_MIGRATOR_DATABASE_URL": owner,
@@ -570,7 +596,7 @@ def worker(stack: Stack, pg: pgfixture.Pg) -> Worker:
     assert inst.returncode == 0, inst.stderr.decode()
     rc, out = run_admin(["tenant", "bind-queue", "--tenant", "acme"], wenv)
     assert rc == 0, out
-    stack.outputs["bind-queue"] = out
+    stack_base.outputs["bind-queue"] = out
     return Worker(wenv, xt_bin)
 
 

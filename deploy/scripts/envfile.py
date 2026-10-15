@@ -20,6 +20,8 @@ SECRET_KEYS = (
     "XT_DB_MIGRATOR_PASSWORD",
     "XT_DB_CONTROL_PASSWORD",
     "OPENBAO_DEV_TOKEN",
+    "XT_FILES_S3_ACCESS_KEY",
+    "XT_FILES_S3_SECRET_KEY",
 )
 _LINE = re.compile(r"^([A-Z][A-Z0-9_]*)=(.*)$")
 

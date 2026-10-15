@@ -194,20 +194,27 @@ def test_workflow_rest_w1(ev: Evidence, world) -> None:  # type: ignore[no-untyp
 
 def test_files(ev: Evidence, world) -> None:  # type: ignore[no-untyped-def]
     u = world.by_key(A, REQUESTER)
-    tok = _cli(world, u, "workflow")
+    tok = _cli(world, u, "files")  # aud xt-files riêng (docs/decisions.md "REST /files/v1")
+    body = b"xT e2e"
     with net.client() as h:
         r = h.post(
             f"{world.s.api}/files/v1",
             headers={"Authorization": f"Bearer {tok}"},
-            files={"file": ("e2e.txt", b"xT e2e", "text/plain")},
+            files={"file": ("e2e.txt", body, "text/plain")},
         )
         ev.step("POST /files/v1", {"status": r.status_code, "body": r.text[:300]})
-    if r.status_code in (404, 405, 501, 502, 503) or "unavailable" in r.text:
-        ev.gap(
-            "W8 dữ liệu phi cấu trúc /files (SeaweedFS ở profile minimal)",
-            f"POST /files/v1 -> {r.status_code}",
+        if r.status_code in (404, 405, 501, 502, 503) or "unavailable" in r.text:
+            ev.gap(
+                "W8 dữ liệu phi cấu trúc /files (SeaweedFS ở profile minimal)",
+                f"POST /files/v1 -> {r.status_code}",
+            )
+        assert r.status_code in (200, 201), r.text[:300]
+        fid = r.json()["data"]["file"]["id"]
+        dl = h.get(
+            f"{world.s.api}/files/v1/{fid}/content", headers={"Authorization": f"Bearer {tok}"}
         )
-    assert r.status_code in (200, 201), r.text[:300]
+        ev.step("GET /files/v1/{id}/content", {"status": dl.status_code, "bytes": len(dl.content)})
+    assert dl.status_code == 200 and dl.content == body, dl.text[:300]
 
 
 def _get_token(kind: str, user: dict, proxy: net.HostProxy, out: Path, ev: Evidence) -> int:  # type: ignore[type-arg]
@@ -274,10 +281,12 @@ def test_headless_demo_script(ev: Evidence, world) -> None:  # type: ignore[no-u
             rc_d = _get_token("data", u, proxy, d / "data_token", ev)
             rc_w = _get_token("workflow", u, proxy, d / "wf_token", ev)
             rc_a = _get_token("workflow", dh, proxy, d / "apr_token", ev)
+            rc_f = _get_token("files", u, proxy, d / "files_token", ev)
         c.check(
             rc_d == 0 and (d / "data_token").exists(), f"--get-token data (PKCE loopback) rc={rc_d}"
         )
         c.check(rc_w == 0 and rc_a == 0, f"--get-token workflow rc={rc_w}/{rc_a}")
+        c.check(rc_f == 0, f"--get-token files rc={rc_f}")
         start = d / "start.json"
         start.write_text(
             dumps(
@@ -294,6 +303,7 @@ def test_headless_demo_script(ev: Evidence, world) -> None:  # type: ignore[no-u
             "XT_ACCESS_TOKEN_FILE": str(d / "data_token"),
             "XT_WORKFLOW_TOKEN_FILE": str(d / "wf_token"),
             "XT_WORKFLOW_APPROVER_TOKEN_FILE": str(d / "apr_token"),
+            "XT_FILES_TOKEN_FILE": str(d / "files_token"),
             "XT_DATA_MODEL": "advance_request",
             "XT_DATA_PROFILE": world.tenants[A]["profile"],
             "XT_DATA_FOREIGN_PROFILE": world.tenants[B]["profile"],

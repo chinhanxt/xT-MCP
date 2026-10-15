@@ -312,3 +312,6 @@ Test: `tests/integration/model_audit/test_audit_meta_pg.py`, 6 test, PG17 thật
 - `ToolAccessGuard.can_read(caller, ref, now)` (IAM + RLS) dùng chung cho kiểm quyền lúc đổi vé.
 - Env mới bắt buộc của `xt serve`: `XT_PII_REVEAL_TICKETS_PER_MINUTE` (1..600).
 - Rủi ro còn lại (PIIR-07): khóa khung do client Desk sinh; ai cầm access token `xt-desk-agent` ngoài trình duyệt vẫn đổi được giá trị của chính bản ghi mình đọc được (không hơn quyền đọc của người đó). Ràng với `sid`/DPoP của phiên Desk cần mang `sid` qua `Principal` (lớp danh tính) — để sau.
+| Vòng 2: `lock_audit_chain(cur, tenant_id)` (`adapters/db/audit.py`) gọi đầu `get_for_update`, `claim`, `lock_pending` | Mọi đoạn code mới khóa dòng rồi mới ghi bảng có audit phải gọi hàm này trước (thứ tự: chuỗi audit, rồi tới dòng) |
+| Vòng 2: `WorkflowBackend.instance_ref(actor, trace_id, instance_id)` (mới, bắt buộc) | Backend khác của REST phải hiện thực |
+| Vòng 2: `ResourceServerSettings.foreign_audiences` (mặc định MCP `{xt-workflow, xt-data}`; đổi được qua `XT_WORKFLOW_AUDIENCE`/`XT_DATA_AUDIENCE`) | Token nhiều aud bị 401 ở cả `/mcp` và `/workflow` |
