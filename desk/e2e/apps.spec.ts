@@ -127,7 +127,8 @@ test("approval-card: chỉ mở confirm_url đúng origin xT; không có nút du
     await expect.poll(async () => (await appFrame(page, "#open")).locator("#open").isDisabled()).toBe(true);
     const evil = await appFrame(page, "#open");
     await expect(evil.locator("#msg")).toContainText("không thuộc xT");
-    await expect(page.locator("[data-testid=confirm-card]")).toHaveCount(0); // origin lạ: Desk không dựng thẻ xác nhận
+    await expect(page.locator("[data-testid=confirm-card]")).toHaveCount(1); // chỉ còn thẻ lượt 1; origin lạ (lượt 2): Desk không dựng thẻ
+    await expect(page.locator("[data-testid=tool-item]").nth(1).locator("[data-testid=confirm-card]")).toHaveCount(0);
     const pages = context.pages().length;
     await evil.locator("#open").click({ force: true, timeout: 1500 }).catch(() => {});
     await page.waitForTimeout(500);
