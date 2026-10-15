@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 xT contributors
+
+version = 1
+
+# JSON (scenario, schema, tools snapshot, kết quả chạy) không có chú thích nên không gắn header SPDX trong file.
+[[annotations]]
+path = ["scenarios/*.json", "data/*.json", "results/**", "requirements.txt", "pytest.ini"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 xT contributors"
+SPDX-License-Identifier = "Apache-2.0"

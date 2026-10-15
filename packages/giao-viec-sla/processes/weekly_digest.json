@@ -1,15 +1,49 @@
 {
   "id": "weekly_digest",
   "name": "Bản tin công việc hằng tuần",
-  "version": 1,
-  "roles": [],
-  "trigger": {"kind": "schedule", "cron": "0 8 * * 1", "tz": "Asia/Ho_Chi_Minh",
-              "input": {"from_date": "last_week.start", "to_date": "last_week.end_date", "department": ""},
-              "note": "Compiler/engine chưa có timer start event: lịch này do xt-worker đọc, không phải đặc tả đã được engine kiểm chứng."},
+  "version": 2,
+  "inputs": {
+    "from_date": {
+      "type": "date"
+    },
+    "to_date": {
+      "type": "date"
+    },
+    "department": {
+      "type": "str"
+    }
+  },
+  "trigger": {
+    "kind": "timer",
+    "rrule": "FREQ=WEEKLY;BYDAY=MO;BYHOUR=8;BYMINUTE=0",
+    "tz": "Asia/Ho_Chi_Minh",
+    "input": {
+      "from_date": "period_start_date",
+      "to_date": "period_end_date",
+      "department": "''"
+    },
+    "catchup": "latest"
+  },
   "steps": [
-    {"id": "rollup", "type": "service", "name": "Tổng hợp công việc tuần", "op": "weekly_rollup",
-     "params": {"from_date": "from_date", "to_date": "to_date", "department": "department"}},
-    {"id": "send", "type": "service", "name": "Gửi bản tin cho trưởng bộ phận và giám đốc", "op": "notify",
-     "params": {"msg": "rollup_result['summary']"}}
+    {
+      "id": "rollup",
+      "type": "service",
+      "name": "Tổng hợp công việc tuần",
+      "op": "weekly_rollup",
+      "params": {
+        "from_date": "from_date",
+        "to_date": "to_date",
+        "department": "department"
+      }
+    },
+    {
+      "id": "send",
+      "type": "service",
+      "name": "Gửi bản tin cho trưởng bộ phận và giám đốc",
+      "op": "notify",
+      "params": {
+        "msg": "rollup_result['summary']"
+      }
+    }
   ]
 }

@@ -74,8 +74,10 @@ class FakeKC(BaseHTTPRequestHandler):
 
             cid = unquote(m.group(1))
             return self._send(200, [c for c in st["clients"].values() if c["clientId"] == cid])
-        if p == "/realms/xt/clients?max=2000":
-            return self._send(200, list(st["clients"].values()))
+        m = re.fullmatch(r"/realms/xt/clients\?first=(\d+)&max=(\d+)", p)
+        if m:
+            first, size = map(int, m.groups())
+            return self._send(200, list(st["clients"].values())[first:first + size])
         if p == "/realms/xt/client-scopes":
             if method == "GET":
                 return self._send(200, [{"id": i, "name": s["name"]} for i, s in st["scopes"].items()])

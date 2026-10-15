@@ -9,7 +9,7 @@
       "name": "proposal",
       "type": "ref",
       "label": "Đề xuất",
-      "required": true,
+      "required": false,
       "unique": true,
       "ref": "proposal"
     },
@@ -95,6 +95,42 @@
       "label": "Đã hoàn ứng",
       "required": true,
       "default": false
+    },
+    {
+      "id": "f12",
+      "name": "state",
+      "type": "enum",
+      "label": "Trạng thái",
+      "required": true,
+      "default": "draft",
+      "managed_by": "workflow",
+      "pii": "none",
+      "options": [
+        {
+          "value": "draft",
+          "label": "Nháp"
+        },
+        {
+          "value": "in_review",
+          "label": "Đang duyệt"
+        },
+        {
+          "value": "returned",
+          "label": "Trả lại bổ sung"
+        },
+        {
+          "value": "approved",
+          "label": "Đã duyệt"
+        },
+        {
+          "value": "rejected",
+          "label": "Từ chối"
+        },
+        {
+          "value": "withdrawn",
+          "label": "Đã rút"
+        }
+      ]
     }
   ],
   "indexes": [
@@ -146,7 +182,9 @@
   "permissions": {
     "employee": {
       "actions": [
-        "read"
+        "create",
+        "read",
+        "update"
       ],
       "scope": "own"
     },

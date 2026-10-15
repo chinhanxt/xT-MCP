@@ -1,0 +1,32 @@
+{
+  "id": "employee_offboarding",
+  "name": "Nghỉ việc (HR, Quản lý, IT, Kế toán, đóng hồ sơ)",
+  "version": 2,
+  "roles": ["hr", "it_admin", "payment_accountant", "chief_accountant", "director"],
+  "inputs": {"case_id": {"type": "str"}, "employee_id": {"type": "str"}, "employee_user": {"type": "user"}},
+  "fallback_assignee": "role(director)",
+  "steps": [
+    {"id": "init", "type": "service", "name": "Sinh checklist nghỉ việc", "op": "create_lifecycle_tasks",
+     "params": {"case_id": "case_id", "kind": "'offboarding'"}},
+    {"id": "hr_confirm", "type": "task", "name": "Nhân sự: xác nhận ngày nghỉ và đơn thôi việc", "assignee": "role(hr)",
+     "sla": {"after": "PT24H", "escalate_to": "department_head('NS')"}},
+    {"id": "handover", "type": "parallel", "name": "Bàn giao, thu hồi, quyết toán song song", "branches": [
+      [{"id": "manager", "type": "task", "name": "Quản lý: xác nhận bàn giao công việc, khách hàng, tài liệu", "assignee": "employee_user.manager",
+        "sla": {"after": "PT48H", "escalate_to": "department_head(department(employee_user))"}}],
+      [{"id": "it", "type": "task", "name": "IT: thu hồi toàn bộ quyền truy cập và thiết bị", "assignee": "role(it_admin)",
+        "sla": {"after": "PT4H", "escalate_to": "department_head('IT')"}},
+       {"id": "chk_assets", "type": "service", "name": "Kiểm tra tài sản và quyền còn lại", "op": "check_unreturned_assets",
+        "params": {"employee_id": "employee_id"}}],
+      [{"id": "chk_overdue", "type": "service", "name": "Kiểm tra tạm ứng chưa hoàn", "op": "check_overdue_advances",
+        "params": {"requester": "employee_user"}},
+       {"id": "accounting", "type": "task", "name": "Kế toán: quyết toán lương, phép, tạm ứng", "assignee": "role(payment_accountant)",
+        "sla": {"after": "PT24H", "escalate_to": "role(chief_accountant)"}}]
+    ]},
+    {"id": "chief_acct_overdue", "type": "approve", "name": "Kế toán trưởng xử lý khoản còn nợ hoặc tài sản chưa trả", "assignee": "role(chief_accountant)",
+     "when": "chk_overdue_result['overdue'] > 0 or chk_assets_result['unreturned'] > 0", "outcomes": ["approve", "reject", "request_info"]},
+    {"id": "hr_close", "type": "task", "name": "Nhân sự: ẩn danh dữ liệu theo thời hạn, đóng hồ sơ", "assignee": "role(hr)",
+     "sla": {"after": "PT24H", "escalate_to": "department_head('NS')"}},
+    {"id": "close_case", "type": "service", "name": "Đóng hồ sơ nghỉ việc", "op": "close_lifecycle_case",
+     "params": {"case_id": "case_id"}}
+  ]
+}

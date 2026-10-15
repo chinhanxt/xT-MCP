@@ -90,6 +90,10 @@ def valid_signing_key(k: object) -> dict | None:
     kid, kty, alg = k.get("kid"), k.get("kty"), k.get("alg")
     if not isinstance(kid, str) or not kid or k.get("use", "sig") != "sig" or alg not in ALLOWED_ALG:
         return None
+    # Không xóa giới hạn của JWK rồi biến khóa chỉ dùng ký/mã hóa thành khóa xác minh.
+    operations = k.get("key_ops", ["verify"])
+    if not isinstance(operations, list) or "verify" not in operations:
+        return None
     try:
         if kty == "RSA" and alg == "RS256":
             if _bits(k["n"]) < 2048 or _bits(k["e"]) < 2:

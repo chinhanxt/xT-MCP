@@ -568,6 +568,7 @@ Thiếu effects thì server không khởi động (REA §3.1). Nội dung chi ti
 | `xt_web` | Role JWT của PostgREST; SELECT trên `api_t<seq>`; **không** là thành viên `xt_app` | PostgREST |
 | `xt_pgrst` | SELECT schema `api` | PostgREST |
 | `xt_control` | Claim job, đọc `next_due` | Scheduler |
+| `xt_job` / `xt_job_t<seq>` | NOLOGIN, NOBYPASSRLS; mỗi tenant một role, chỉ USAGE + DML trên `xt_t<seq>`; `xt_app` được `GRANT … WITH INHERIT FALSE, SET TRUE`; binding trong `xt_queue.tenant_bindings` | Handler của xt-worker chạy `SET LOCAL ROLE xt_job_t<seq>` (audit AQ-05, `docs/worker-queue.md`) |
 
 - Mọi bảng tenant có policy RESTRICTIVE theo tenant cộng PERMISSIVE theo role/scope, và bật FORCE.
 - FK ghép `(tenant_id, ref)`.

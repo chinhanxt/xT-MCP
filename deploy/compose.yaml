@@ -224,7 +224,7 @@ services:
         done
     mem_limit: 16m
 
-  # PostgREST: /data (Tầng 1 Data). Không publish cổng; chỉ APISIX gọi được. Không chạy với role DB nào ngoài xt_pgrst → xt_web.
+  # PostgREST: /data (Tầng 1 Data). Không publish cổng; APISIX gọi qua mạng compose. Login xt_authenticator → xt_web.
   # JWKS (khóa công khai Keycloak) nằm ngoài repo: make pgrst-jwks (scripts/fetch_jwks.py) ghi ${XT_SECRETS_DIR}/pgrst/jwks.json.
   # Thiếu tệp / JWKS hỏng thì PostgREST không khởi động (fail-closed). Không đặt db-anon-role: không token = 401 (PGRST302).
   # Danh sách schema (api_t<seq>) và pre-request lấy từ DB: xt.pgrst_config() / xt.pgrst_pre() (src/xt/adapters/db/sql).
@@ -241,6 +241,7 @@ services:
       PGRST_DB_PRE_CONFIG: ${XT_PGRST_PRE_CONFIG:-xt.pgrst_config}
       PGRST_DB_PRE_REQUEST: ${XT_PGRST_PRE_REQUEST:-xt.pgrst_pre}
       PGRST_DB_SCHEMAS: ${XT_PGRST_BOOT_SCHEMAS:-xt_api_none}   # xt_api_none (khớp postgrest.sql) = schema rỗng luôn đứng đầu; xt.pgrst_config() thêm api_t<seq>
+      PGRST_DB_EXTRA_SEARCH_PATH: ""                # không thêm public/extensions vào search_path của request
       PGRST_DB_POOL: "8"
       PGRST_DB_MAX_ROWS: "1000"
       PGRST_DB_PLAN_ENABLED: "false"

@@ -27,6 +27,8 @@ Gate kiểm session authenticator/role xt_web, token Bearer, sub, aud xt-data, e
 
 `xt_authenticator` LOGIN NOINHERIT, NOBYPASSRLS, chỉ được SET ROLE xt_web; không thuộc xt_app/xt_workflow/xt_api_owner. `xt_web` chỉ SELECT view, không được EXECUTE setter (cả hai chữ ký), backend_cur hay gate. Chỉ pre-request được gọi bởi xt_web; pre-config được gọi bởi authenticator. Mọi hàm mới thu quyền PUBLIC.
 
+Cài lại `postgrest.sql` chuẩn hóa thuộc tính của hai role, thu membership theo từng grantor (kể cả ADMIN OPTION và grant phụ thuộc), rồi chỉ cấp `xt_web` cho authenticator với `ADMIN FALSE, INHERIT FALSE, SET TRUE`. Test PostgreSQL 17 thật đã kiểm cấu hình sai từ trước với nhiều grantor; không chỉ kiểm role tạo mới.
+
 Keycloak scope optional `xt-data`: aud xt-data, claim hằng `data_role=xt_web`, organization. Không gán realm-default hoặc DCR; `XT_DATA_CLIENTS` phải khớp allowlist DB. PostgREST dùng `.data_role`, không có anon-role. JWKS chỉ gồm khóa công khai của realm, nạp qua file; xoay khóa phải cập nhật file và reload.
 
 Ranh giới tin cậy: người có mật khẩu authenticator và kết nối SQL trực tiếp có thể giả ngữ cảnh. Giới hạn pg_hba/mạng vào PostgREST, giữ secret ngoài repo; không đưa credentials superuser/runtime khác vào service này. GUC local không phải chữ ký xác thực và không dùng để chống người đã chiếm credentials authenticator.

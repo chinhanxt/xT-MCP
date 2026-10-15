@@ -1,43 +1,99 @@
 {
-  "_note": "Manifest đề xuất của pack. KHÔNG engine nào trong spike đọc file này (xem REPORT.md).",
+  "format": "xt-pack/1",
   "pack": "nhan-su-vong-doi",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "title": "Vòng đời nhân sự liên phòng ban: tiếp nhận và nghỉ việc",
-  "tenant_demo": "binhminh",
   "depends_on": [],
-  "models": ["department", "employee", "employee_pii", "lifecycle_case", "lifecycle_task", "asset_issue", "access_grant", "offboarding_settlement"],
-  "processes": ["employee_onboarding", "employee_offboarding"],
-  "policies": ["iam"],
-  "roles": {
-    "hr": "HR: hồ sơ, xác nhận ngày nghỉ, đóng hồ sơ",
-    "hr_pii": "Chỉ người này đọc/sửa CCCD, SĐT, STK, lương (model employee_pii tách riêng)",
-    "it_admin": "Cấp và thu hồi tài khoản, thiết bị",
-    "payment_accountant": "Mã lương, quyết toán nghỉ việc",
-    "chief_accountant": "Xử lý khoản còn nợ hoặc tài sản chưa trả",
-    "dept_head": "Quản lý trực tiếp: kế hoạch 30-60-90, bàn giao",
-    "director": "Nhận leo thang",
-    "employee": "Đọc hồ sơ của chính mình",
-    "xt_workflow": "Danh tính dịch vụ ghi hồ sơ vòng đời, checklist, kích hoạt, đóng hồ sơ",
-    "agent": "Danh tính agent (L0-L1); đọc PII qua làn PII của contract (cloud: masked, local: full), không bị Deny riêng"
-  },
-  "step_actions": {"*": "record.approve"},
-  "pii_lane": {"llm_egress": "masked", "employee_pii": {"national_id": "sensitive", "phone": "pii", "bank_account": "sensitive", "base_salary": "sensitive"}, "_note": "Đề xuất: nhãn pii/sensitive theo tool-contracts-v1.md §3.8; engine spike chưa có nhãn này (G-M2) nên tạm khai ở manifest."},
-  "iam_resource_mapping": {"owner": "nhân viên đang vào/ra (user_id)", "creator": "lifecycle_case.initiated_by", "department": "phòng của nhân viên đó"},
+  "models": [
+    "department",
+    "employee",
+    "employee_pii",
+    "lifecycle_case",
+    "lifecycle_task",
+    "asset_issue",
+    "access_grant",
+    "offboarding_settlement"
+  ],
+  "processes": [
+    "employee_onboarding",
+    "employee_offboarding"
+  ],
+  "policies": [
+    "iam"
+  ],
   "allowed_ops": {
-    "create_lifecycle_tasks": {"params": ["case_id", "kind"], "returns": {"task_count": "số mục checklist sinh ra"}},
-    "activate_employee": {"params": ["employee_id"], "returns": {"state": "probation"}},
-    "check_unreturned_assets": {"params": ["employee_id"], "returns": {"unreturned": "số tài sản chưa thu hồi", "active_grants": "số quyền chưa thu hồi"}},
-    "check_overdue_advances": {"params": ["requester"], "returns": {"overdue": "số khoản tạm ứng quá hạn"}},
-    "close_lifecycle_case": {"params": ["case_id"], "returns": {"closed": "case_id"}, "_guard": "phải raise nếu còn tài sản/quyền chưa thu hồi"}
+    "create_lifecycle_tasks": [
+      "case_id",
+      "kind"
+    ],
+    "activate_employee": [
+      "employee_id"
+    ],
+    "check_unreturned_assets": [
+      "employee_id"
+    ],
+    "check_overdue_advances": [
+      "requester"
+    ],
+    "close_lifecycle_case": [
+      "case_id"
+    ]
   },
-  "process_inputs": {
-    "employee_onboarding": ["case_id", "employee_id"],
-    "employee_offboarding": ["case_id", "employee_id", "employee_user"]
-  },
-  "autonomy": {
-    "L0": ["đọc danh bạ/ sơ đồ tổ chức; đọc PII theo làn PII (masked với client cloud)", "liệt kê việc, tài sản, quyền người nghỉ đang nắm"],
-    "L1": ["soạn nháp hồ sơ vòng đời và đề xuất người nhận bàn giao", "nhắc bước đang trễ SLA"],
-    "L2": [],
-    "L3": []
+  "bindings": {},
+  "notes": {
+    "tenant_demo": "binhminh",
+    "roles": {
+      "hr": "HR: hồ sơ, xác nhận ngày nghỉ, đóng hồ sơ",
+      "hr_pii": "Chỉ người này đọc/sửa CCCD, SĐT, STK, lương (model employee_pii tách riêng)",
+      "it_admin": "Cấp và thu hồi tài khoản, thiết bị",
+      "payment_accountant": "Mã lương, quyết toán nghỉ việc",
+      "chief_accountant": "Xử lý khoản còn nợ hoặc tài sản chưa trả",
+      "dept_head": "Quản lý trực tiếp: kế hoạch 30-60-90, bàn giao",
+      "director": "Nhận leo thang",
+      "employee": "Đọc hồ sơ của chính mình",
+      "xt_workflow": "Danh tính dịch vụ ghi hồ sơ vòng đời, checklist, kích hoạt, đóng hồ sơ",
+      "agent": "Danh tính agent (L0-L1); đọc PII qua làn PII của contract (cloud: masked, local: full), không bị Deny riêng"
+    },
+    "step_actions": {
+      "*": "record.approve"
+    },
+    "pii_lane": {
+      "llm_egress": "masked",
+      "employee_pii": {
+        "national_id": "sensitive",
+        "phone": "pii",
+        "bank_account": "sensitive",
+        "base_salary": "sensitive"
+      },
+      "_note": "Đề xuất: nhãn pii/sensitive theo tool-contracts-v1.md §3.8; engine spike chưa có nhãn này (G-M2) nên tạm khai ở manifest."
+    },
+    "iam_resource_mapping": {
+      "owner": "nhân viên đang vào/ra (user_id)",
+      "creator": "lifecycle_case.initiated_by",
+      "department": "phòng của nhân viên đó"
+    },
+    "process_inputs": {
+      "employee_onboarding": [
+        "case_id",
+        "employee_id"
+      ],
+      "employee_offboarding": [
+        "case_id",
+        "employee_id",
+        "employee_user"
+      ]
+    },
+    "autonomy": {
+      "L0": [
+        "đọc danh bạ/ sơ đồ tổ chức; đọc PII theo làn PII (masked với client cloud)",
+        "liệt kê việc, tài sản, quyền người nghỉ đang nắm"
+      ],
+      "L1": [
+        "soạn nháp hồ sơ vòng đời và đề xuất người nhận bàn giao",
+        "nhắc bước đang trễ SLA"
+      ],
+      "L2": [],
+      "L3": []
+    }
   }
 }

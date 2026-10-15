@@ -1,35 +1,89 @@
 {
-  "_note": "Manifest đề xuất của pack. KHÔNG engine nào trong spike đọc file này; các khóa allowed_ops, lane_bindings, step_actions là thứ runtime xT phải nạp (xem REPORT.md, mục khoảng trống).",
+  "format": "xt-pack/1",
   "pack": "de-xuat-phe-duyet",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "title": "Đề xuất và phê duyệt đa cấp (Tạm ứng, Thanh toán, Hoàn ứng)",
-  "tenant_demo": "binhminh",
   "depends_on": [],
-  "models": ["proposal_type", "proposal", "advance_request", "payment_request", "advance_settlement", "approval_step"],
-  "processes": ["proposal_approval"],
-  "policies": ["iam"],
-  "roles": {
-    "employee": "Người đề nghị; chỉ đọc đề xuất của chính mình qua DB, tạo/sửa qua workflow",
-    "dept_head": "Duyệt bước 1 cho đề xuất của phòng mình",
-    "payment_accountant": "Kiểm chứng từ thanh toán/hoàn ứng",
-    "chief_accountant": "Duyệt trên 50 triệu; xem xét nợ tạm ứng quá hạn",
-    "director": "Duyệt cuối khi trên 5 triệu",
-    "admin": "Cấu hình loại đề xuất",
-    "xt_workflow": "Danh tính dịch vụ duy nhất được ghi vào proposal, advance_request, payment_request, advance_settlement, approval_step",
-    "agent": "Danh tính agent (L0-L1); không bao giờ duyệt"
-  },
+  "models": [
+    "proposal_type",
+    "proposal",
+    "advance_request",
+    "payment_request",
+    "advance_settlement",
+    "approval_step"
+  ],
+  "processes": [
+    "proposal_approval"
+  ],
+  "policies": [
+    "iam"
+  ],
   "allowed_ops": {
-    "check_overdue_advances": {"params": ["requester"], "returns": {"overdue": "số khoản tạm ứng quá hạn hoàn ứng"}},
-    "post_to_ledger": {"params": ["amount", "requester"], "returns": {"so": "số chứng từ ghi sổ"}},
-    "notify": {"params": ["msg"], "returns": {"ok": 1}}
+    "check_overdue_advances": [
+      "requester"
+    ],
+    "notify": [
+      "msg"
+    ]
   },
-  "process_inputs": {"proposal_approval": ["kind", "amount", "requester", "requester_is_dept_head"]},
-  "step_actions": {"*": "record.approve"},
-  "confirm_step_up": {"field": "amount", "gt": 50000000, "effect": "nút Telegram 1 chạm chuyển thành confirm_url (/desk/confirm: xác thực tươi + TOTP)", "_note": "Ngưỡng step-up trùng ngưỡng bước chief_accountant của process proposal_approval; không gắn với bước director."},
-  "autonomy": {
-    "L0": ["đọc, tìm, giải thích đề xuất và lịch sử tương tự", "tóm tắt cho người duyệt"],
-    "L1": ["tạo nháp đề xuất và giấy tờ kèm theo thay người dùng (qua xt_submit)", "nhắc người duyệt"],
-    "L2": [],
-    "L3": []
+  "bindings": {
+    "advance_request": {
+      "primitive": "request",
+      "process": "proposal_approval",
+      "state_field": "state",
+      "inputs": {
+        "kind": {
+          "const": "advance_request"
+        },
+        "amount": {
+          "field": "amount"
+        },
+        "note": {
+          "arg": "note"
+        }
+      }
+    }
+  },
+  "notes": {
+    "roles": {
+      "employee": "Người đề nghị; chỉ đọc đề xuất của chính mình qua DB, tạo/sửa qua workflow",
+      "dept_head": "Duyệt bước 1 cho đề xuất của phòng mình",
+      "payment_accountant": "Kiểm chứng từ thanh toán/hoàn ứng",
+      "chief_accountant": "Duyệt trên 50 triệu; xem xét nợ tạm ứng quá hạn",
+      "director": "Duyệt cuối khi trên 5 triệu",
+      "admin": "Cấu hình loại đề xuất",
+      "xt_workflow": "Danh tính dịch vụ duy nhất được ghi vào proposal, advance_request, payment_request, advance_settlement, approval_step",
+      "agent": "Danh tính agent (L0-L1); không bao giờ duyệt"
+    },
+    "step_actions": {
+      "*": "record.approve"
+    },
+    "confirm_step_up": {
+      "field": "amount",
+      "gt": 50000000,
+      "effect": "nút Telegram 1 chạm chuyển thành confirm_url (/desk/confirm: xác thực tươi + TOTP)",
+      "_note": "Ngưỡng step-up trùng ngưỡng bước chief_accountant của process proposal_approval; không gắn với bước director."
+    },
+    "autonomy": {
+      "L0": [
+        "đọc, tìm, giải thích đề xuất và lịch sử tương tự",
+        "tóm tắt cho người duyệt"
+      ],
+      "L1": [
+        "tạo nháp đề xuất và giấy tờ kèm theo thay người dùng (qua xt_submit)",
+        "nhắc người duyệt"
+      ],
+      "L2": [],
+      "L3": []
+    },
+    "tenant_demo": "binhminh",
+    "process_inputs": {
+      "proposal_approval": [
+        "kind",
+        "amount",
+        "requester",
+        "requester_is_dept_head"
+      ]
+    }
   }
 }

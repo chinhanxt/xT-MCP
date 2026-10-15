@@ -1,0 +1,18 @@
+{
+  "id": "weekly_digest",
+  "name": "Bản tin công việc hằng tuần",
+  "version": 2,
+  "inputs": {
+    "from_date": {"type": "date"},
+    "to_date": {"type": "date"},
+    "department": {"type": "str"}
+  },
+  "trigger": {"kind": "timer", "rrule": "FREQ=WEEKLY;BYDAY=MO;BYHOUR=8;BYMINUTE=0", "tz": "Asia/Ho_Chi_Minh",
+              "input": {"from_date": "period_start_date", "to_date": "period_end_date", "department": "''"}, "catchup": "latest"},
+  "steps": [
+    {"id": "rollup", "type": "service", "name": "Tổng hợp công việc tuần", "op": "weekly_rollup",
+     "params": {"from_date": "from_date", "to_date": "to_date", "department": "department"}},
+    {"id": "send", "type": "service", "name": "Gửi bản tin cho trưởng bộ phận và giám đốc", "op": "notify",
+     "params": {"msg": "rollup_result['summary']"}}
+  ]
+}

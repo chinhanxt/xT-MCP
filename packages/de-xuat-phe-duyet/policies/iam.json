@@ -234,6 +234,131 @@
         "xrn:binhminh:approval_step:*"
       ],
       "conditions": []
+    },
+    {
+      "id": "apv.tool-read",
+      "effect": "Allow",
+      "subjects": [
+        "role:employee",
+        "role:dept_head",
+        "role:payment_accountant",
+        "role:chief_accountant",
+        "role:director"
+      ],
+      "actions": [
+        "workspace.read",
+        "model.read",
+        "process.read",
+        "person.read",
+        "record.search",
+        "inbox.read",
+        "history.read"
+      ],
+      "resources": [
+        "xrn:binhminh:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "apv.emp-submit-own",
+      "effect": "Allow",
+      "subjects": [
+        "role:employee"
+      ],
+      "actions": [
+        "request.submit",
+        "record.transition"
+      ],
+      "resources": [
+        "xrn:binhminh:advance_request:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.owner",
+          "op": "eq",
+          "right": {
+            "ref": "subject.id"
+          }
+        }
+      ]
+    },
+    {
+      "id": "apv.dept-head-decide",
+      "effect": "Allow",
+      "subjects": [
+        "role:dept_head"
+      ],
+      "actions": [
+        "request.decide"
+      ],
+      "resources": [
+        "xrn:binhminh:advance_request:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.department",
+          "op": "eq",
+          "right": {
+            "ref": "subject.department"
+          }
+        }
+      ]
+    },
+    {
+      "id": "apv.finance-decide",
+      "effect": "Allow",
+      "subjects": [
+        "role:payment_accountant",
+        "role:chief_accountant",
+        "role:director"
+      ],
+      "actions": [
+        "request.decide"
+      ],
+      "resources": [
+        "xrn:binhminh:advance_request:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "apv.approver-read",
+      "effect": "Allow",
+      "subjects": [
+        "role:dept_head",
+        "role:payment_accountant",
+        "role:chief_accountant",
+        "role:director"
+      ],
+      "actions": [
+        "record.read"
+      ],
+      "resources": [
+        "xrn:binhminh:advance_request:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "apv.agent-tools",
+      "effect": "Allow",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "workspace.read",
+        "model.read",
+        "process.read",
+        "person.read",
+        "record.search",
+        "inbox.read",
+        "history.read",
+        "request.submit",
+        "request.decide",
+        "record.transition"
+      ],
+      "resources": [
+        "xrn:binhminh:*"
+      ],
+      "conditions": []
     }
   ]
 }

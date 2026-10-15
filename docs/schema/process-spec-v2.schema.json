@@ -1,0 +1,857 @@
+{
+  "$defs": {
+    "ApproveStep": {
+      "additionalProperties": false,
+      "description": "Bước quyết định. Chỉ outcome khai ở đây mới có nhánh; giá trị khác bị từ chối.",
+      "properties": {
+        "id": {
+          "description": "Định danh: a-z, 0-9, '_', bắt đầu bằng chữ, tối đa 41 ký tự",
+          "pattern": "^[a-z][a-z0-9_]{0,40}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "description": "Tên hiển thị (tiếng Việt), ≤200 ký tự",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "assignee": {
+          "anyOf": [
+            {
+              "description": "cú pháp người nhận hợp lệ: role(x) | role(x) in department(requester) | role(x) in 'KD' | requester.manager | manager(requester, 2) | department_head(department(requester)) | department_head('KD') | department_head(bien_phong_ban) | user(bien_nguoi_dung)",
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Assignee"
+            }
+          ],
+          "description": "Người nhận: chuỗi rút gọn hoặc object Assignee",
+          "title": "Assignee"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "description": "Biểu thức an toàn: so sánh, and/or/not, in, chỉ mục, + - /; không gọi hàm, không thuộc tính",
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        },
+        "sla": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Sla"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "approve",
+          "title": "Type",
+          "type": "string"
+        },
+        "outcomes": {
+          "items": {
+            "enum": [
+              "approve",
+              "reject",
+              "return_for_revision",
+              "delegate",
+              "request_info"
+            ],
+            "type": "string"
+          },
+          "maxItems": 5,
+          "minItems": 1,
+          "title": "Outcomes",
+          "type": "array"
+        },
+        "on_return": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OnReturn"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sod": {
+          "$ref": "#/$defs/SoD"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "assignee",
+        "type"
+      ],
+      "title": "ApproveStep",
+      "type": "object"
+    },
+    "Assignee": {
+      "additionalProperties": false,
+      "description": "Người nhận bước, giải lúc chạy từ dữ liệu tổ chức qua resolver đã đăng ký.",
+      "properties": {
+        "kind": {
+          "description": "role: theo vai trò; manager: quản lý của người trong biến; department_head: trưởng phòng; user: người trong biến",
+          "enum": [
+            "role",
+            "manager",
+            "department_head",
+            "user"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "description": "Định danh: a-z, 0-9, '_', bắt đầu bằng chữ, tối đa 41 ký tự",
+              "pattern": "^[a-z][a-z0-9_]{0,40}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Vai trò (kind=role), phải có trong roles",
+          "title": "Role"
+        },
+        "department": {
+          "anyOf": [
+            {
+              "description": "Mã phòng ban, ví dụ KD",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,40}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mã phòng cố định",
+          "title": "Department"
+        },
+        "department_of": {
+          "anyOf": [
+            {
+              "description": "Định danh: a-z, 0-9, '_', bắt đầu bằng chữ, tối đa 41 ký tự",
+              "pattern": "^[a-z][a-z0-9_]{0,40}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Biến người dùng; lấy phòng của người đó (ví dụ requester)",
+          "title": "Department Of"
+        },
+        "department_var": {
+          "anyOf": [
+            {
+              "description": "Định danh: a-z, 0-9, '_', bắt đầu bằng chữ, tối đa 41 ký tự",
+              "pattern": "^[a-z][a-z0-9_]{0,40}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Biến chứa mã phòng (input kiểu department)",
+          "title": "Department Var"
+        },
+        "user_var": {
+          "anyOf": [
+            {
+              "description": "Định danh: a-z, 0-9, '_', bắt đầu bằng chữ, tối đa 41 ký tự",
+              "pattern": "^[a-z][a-z0-9_]{0,40}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Biến chứa người dùng (kind=user/manager)",
+          "title": "User Var"
+        },
+        "levels": {
+          "default": 1,
+          "description": "Số cấp quản lý (kind=manager)",
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Levels",
+          "type": "integer"
+        },
+        "fallback": {
+          "description": "Chuỗi thay thế khi không giải được (leo thang, không bao giờ bỏ qua bước)",
+          "items": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Assignee"
+              }
+            ]
+          },
+          "maxItems": 5,
+          "title": "Fallback",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Assignee",
+      "type": "object"
+    },
+    "InputSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "str",
+            "int",
+            "number",
+            "bool",
+            "user",
+            "department",
+            "date",
+            "object"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "editable_on_revision": {
+          "default": false,
+          "description": "Người đề nghị được sửa giá trị này khi bị trả lại bổ sung",
+          "title": "Editable On Revision",
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "description": "Tên hiển thị (tiếng Việt), ≤200 ký tự",
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "default": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Giá trị khi input tùy chọn bị bỏ trống. Bắt buộc nếu input tùy chọn được dùng trong biểu thức (when/params); chỉ cho kiểu str/int/number/bool/date",
+          "title": "Default"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "InputSpec",
+      "type": "object"
+    },
+    "ManualTrigger": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "manual",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ManualTrigger",
+      "type": "object"
+    },
+    "OnReturn": {
+      "additionalProperties": false,
+      "properties": {
+        "resume": {
+          "default": "restart",
+          "description": "restart: chạy lại từ bước đầu (định tuyến lại theo dữ liệu đã sửa); same_step: quay lại đúng bước đã trả",
+          "enum": [
+            "restart",
+            "same_step"
+          ],
+          "title": "Resume",
+          "type": "string"
+        },
+        "max_rounds": {
+          "default": 3,
+          "description": "Số lần trả lại tối đa; quá số này runtime từ chối",
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Max Rounds",
+          "type": "integer"
+        },
+        "to_step": {
+          "anyOf": [
+            {
+              "description": "Định danh: a-z, 0-9, '_', bắt đầu bằng chữ, tối đa 41 ký tự",
+              "pattern": "^[a-z][a-z0-9_]{0,40}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Trả về một bước người ở trước (cùng cấp, ví dụ nghiệm thu không đạt -> làm lại), thay vì về người đề nghị",
+          "title": "To Step"
+        }
+      },
+      "title": "OnReturn",
+      "type": "object"
+    },
+    "ParallelStep": {
+      "additionalProperties": false,
+      "description": "Các nhánh chạy song song, gộp khi tất cả xong (mode all). Từ chối ở một nhánh kết thúc\ncả quy trình (terminate end).",
+      "properties": {
+        "type": {
+          "const": "parallel",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "description": "Định danh: a-z, 0-9, '_', bắt đầu bằng chữ, tối đa 41 ký tự",
+          "pattern": "^[a-z][a-z0-9_]{0,40}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "description": "Tên hiển thị (tiếng Việt), ≤200 ký tự",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "description": "Biểu thức an toàn: so sánh, and/or/not, in, chỉ mục, + - /; không gọi hàm, không thuộc tính",
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        },
+        "mode": {
+          "const": "all",
+          "default": "all",
+          "description": "Chỉ hỗ trợ 'all' (join đủ mọi nhánh)",
+          "title": "Mode",
+          "type": "string"
+        },
+        "branches": {
+          "items": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "approve": "#/$defs/ApproveStep",
+                  "service": "#/$defs/ServiceStep",
+                  "task": "#/$defs/TaskStep"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/ApproveStep"
+                },
+                {
+                  "$ref": "#/$defs/TaskStep"
+                },
+                {
+                  "$ref": "#/$defs/ServiceStep"
+                }
+              ]
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "maxItems": 8,
+          "minItems": 2,
+          "title": "Branches",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "name",
+        "branches"
+      ],
+      "title": "ParallelStep",
+      "type": "object"
+    },
+    "ServiceStep": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "service",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "description": "Định danh: a-z, 0-9, '_', bắt đầu bằng chữ, tối đa 41 ký tự",
+          "pattern": "^[a-z][a-z0-9_]{0,40}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "description": "Tên hiển thị (tiếng Việt), ≤200 ký tự",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "op": {
+          "description": "Tên op trong allowlist của deployment",
+          "pattern": "^[a-z][a-z0-9_]{0,40}$",
+          "title": "Op",
+          "type": "string"
+        },
+        "params": {
+          "maxProperties": 20,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,40}$": {
+              "description": "Biểu thức an toàn: so sánh, and/or/not, in, chỉ mục, + - /; không gọi hàm, không thuộc tính",
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "propertyNames": {
+            "description": "Định danh: a-z, 0-9, '_', bắt đầu bằng chữ, tối đa 41 ký tự"
+          },
+          "title": "Params",
+          "type": "object"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "description": "Biểu thức an toàn: so sánh, and/or/not, in, chỉ mục, + - /; không gọi hàm, không thuộc tính",
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "name",
+        "op"
+      ],
+      "title": "ServiceStep",
+      "type": "object"
+    },
+    "Sla": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "description": "ISO 8601, ví dụ PT24H, P2D",
+          "maxLength": 24,
+          "title": "After",
+          "type": "string"
+        },
+        "escalate_to": {
+          "anyOf": [
+            {
+              "description": "cú pháp người nhận hợp lệ: role(x) | role(x) in department(requester) | role(x) in 'KD' | requester.manager | manager(requester, 2) | department_head(department(requester)) | department_head('KD') | department_head(bien_phong_ban) | user(bien_nguoi_dung)",
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Assignee"
+            }
+          ],
+          "description": "Người nhận: chuỗi rút gọn hoặc object Assignee",
+          "title": "Escalate To"
+        }
+      },
+      "required": [
+        "after",
+        "escalate_to"
+      ],
+      "title": "Sla",
+      "type": "object"
+    },
+    "SoD": {
+      "additionalProperties": false,
+      "properties": {
+        "not_requester": {
+          "default": true,
+          "description": "Người đề nghị không được tự làm bước này",
+          "title": "Not Requester",
+          "type": "boolean"
+        },
+        "distinct_from": {
+          "description": "Người làm bước này phải khác người đã làm các bước được liệt kê",
+          "items": {
+            "description": "Định danh: a-z, 0-9, '_', bắt đầu bằng chữ, tối đa 41 ký tự",
+            "pattern": "^[a-z][a-z0-9_]{0,40}$",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Distinct From",
+          "type": "array"
+        }
+      },
+      "title": "SoD",
+      "type": "object"
+    },
+    "TaskStep": {
+      "additionalProperties": false,
+      "description": "Bước công việc (không phải duyệt): nhận việc, làm, bàn giao.",
+      "properties": {
+        "id": {
+          "description": "Định danh: a-z, 0-9, '_', bắt đầu bằng chữ, tối đa 41 ký tự",
+          "pattern": "^[a-z][a-z0-9_]{0,40}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "description": "Tên hiển thị (tiếng Việt), ≤200 ký tự",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "assignee": {
+          "anyOf": [
+            {
+              "description": "cú pháp người nhận hợp lệ: role(x) | role(x) in department(requester) | role(x) in 'KD' | requester.manager | manager(requester, 2) | department_head(department(requester)) | department_head('KD') | department_head(bien_phong_ban) | user(bien_nguoi_dung)",
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Assignee"
+            }
+          ],
+          "description": "Người nhận: chuỗi rút gọn hoặc object Assignee",
+          "title": "Assignee"
+        },
+        "when": {
+          "anyOf": [
+            {
+              "description": "Biểu thức an toàn: so sánh, and/or/not, in, chỉ mục, + - /; không gọi hàm, không thuộc tính",
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "When"
+        },
+        "sla": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Sla"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "task",
+          "title": "Type",
+          "type": "string"
+        },
+        "outcomes": {
+          "items": {
+            "enum": [
+              "done",
+              "delegate",
+              "request_info"
+            ],
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Outcomes",
+          "type": "array"
+        },
+        "sod": {
+          "$ref": "#/$defs/SoD"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "assignee",
+        "type"
+      ],
+      "title": "TaskStep",
+      "type": "object"
+    },
+    "TimerTrigger": {
+      "additionalProperties": false,
+      "description": "Khởi tạo định kỳ. Poller tạo đúng 1 instance cho mỗi kỳ (khóa duy nhất process + kỳ).",
+      "properties": {
+        "kind": {
+          "const": "timer",
+          "title": "Kind",
+          "type": "string"
+        },
+        "rrule": {
+          "description": "RFC 5545 rút gọn, ví dụ FREQ=WEEKLY;BYDAY=MO;BYHOUR=8;BYMINUTE=0",
+          "maxLength": 200,
+          "title": "Rrule",
+          "type": "string"
+        },
+        "tz": {
+          "description": "Múi giờ IANA, ví dụ Asia/Ho_Chi_Minh",
+          "maxLength": 64,
+          "title": "Tz",
+          "type": "string"
+        },
+        "input": {
+          "description": "Ánh xạ input <- biểu thức trên biến kỳ ['fire_at', 'fire_date', 'period_end_date', 'period_start', 'period_start_date']",
+          "maxProperties": 20,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,40}$": {
+              "description": "Biểu thức an toàn: so sánh, and/or/not, in, chỉ mục, + - /; không gọi hàm, không thuộc tính",
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "propertyNames": {
+            "description": "Định danh: a-z, 0-9, '_', bắt đầu bằng chữ, tối đa 41 ký tự"
+          },
+          "title": "Input",
+          "type": "object"
+        },
+        "catchup": {
+          "default": "latest",
+          "description": "latest: bỏ lỡ nhiều kỳ chỉ chạy kỳ gần nhất; none: bỏ kỳ đã trễ quá grace",
+          "enum": [
+            "latest",
+            "none"
+          ],
+          "title": "Catchup",
+          "type": "string"
+        },
+        "grace": {
+          "default": "PT1H",
+          "maxLength": 24,
+          "title": "Grace",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "rrule",
+        "tz"
+      ],
+      "title": "TimerTrigger",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Đặc tả quy trình xT v2. Agent chỉ nộp JSON theo schema này, không bao giờ nộp XML.",
+  "properties": {
+    "id": {
+      "description": "Định danh: a-z, 0-9, '_', bắt đầu bằng chữ, tối đa 41 ký tự",
+      "pattern": "^[a-z][a-z0-9_]{0,40}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "name": {
+      "description": "Tên hiển thị (tiếng Việt), ≤200 ký tự",
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "version": {
+      "maximum": 100000,
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "roles": {
+      "items": {
+        "description": "Định danh: a-z, 0-9, '_', bắt đầu bằng chữ, tối đa 41 ký tự",
+        "pattern": "^[a-z][a-z0-9_]{0,40}$",
+        "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Roles",
+      "type": "array"
+    },
+    "inputs": {
+      "maxProperties": 50,
+      "patternProperties": {
+        "^[a-z][a-z0-9_]{0,40}$": {
+          "$ref": "#/$defs/InputSpec"
+        }
+      },
+      "propertyNames": {
+        "description": "Định danh: a-z, 0-9, '_', bắt đầu bằng chữ, tối đa 41 ký tự"
+      },
+      "title": "Inputs",
+      "type": "object"
+    },
+    "trigger": {
+      "discriminator": {
+        "mapping": {
+          "manual": "#/$defs/ManualTrigger",
+          "timer": "#/$defs/TimerTrigger"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ManualTrigger"
+        },
+        {
+          "$ref": "#/$defs/TimerTrigger"
+        }
+      ],
+      "title": "Trigger"
+    },
+    "fallback_assignee": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "description": "cú pháp người nhận hợp lệ: role(x) | role(x) in department(requester) | role(x) in 'KD' | requester.manager | manager(requester, 2) | department_head(department(requester)) | department_head('KD') | department_head(bien_phong_ban) | user(bien_nguoi_dung)",
+              "maxLength": 120,
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Assignee"
+            }
+          ],
+          "description": "Người nhận: chuỗi rút gọn hoặc object Assignee"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Bắt buộc khi có người nhận động: nơi leo thang khi không giải được người nhận",
+      "title": "Fallback Assignee"
+    },
+    "steps": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "approve": "#/$defs/ApproveStep",
+            "parallel": "#/$defs/ParallelStep",
+            "service": "#/$defs/ServiceStep",
+            "task": "#/$defs/TaskStep"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/ApproveStep"
+          },
+          {
+            "$ref": "#/$defs/TaskStep"
+          },
+          {
+            "$ref": "#/$defs/ServiceStep"
+          },
+          {
+            "$ref": "#/$defs/ParallelStep"
+          }
+        ]
+      },
+      "maxItems": 60,
+      "minItems": 1,
+      "title": "Steps",
+      "type": "array"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "version",
+    "steps"
+  ],
+  "title": "ProcessSpec",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xt.local/schema/process-spec-v2.json"
+}

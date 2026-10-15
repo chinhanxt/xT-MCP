@@ -8,6 +8,7 @@ make lint      # ruff check + ruff format --check + mypy (strict)
 make boundaries# import-linter: domain <- contracts <- application <- adapters/entrypoints
 make reuse     # reuse lint (REUSE.toml bao file không có header)
 make test      # pytest + coverage
+make test-integration # Keycloak 26.6.3 thật trong docker (cổng 19400), tự xóa container
 make check     # tất cả các bước trên + scripts/check_spdx.sh
 make release   # uv build (sdist + wheel) + git archive -> dist/xt-<version>.tar.gz
 ```

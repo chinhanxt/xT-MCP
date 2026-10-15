@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://xt.freepro.online/evals/scenario.schema.json",
+  "title": "xT agent eval scenario file",
+  "type": "object",
+  "required": ["pack", "scenarios"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {"type": "string"},
+    "pack": {"enum": ["approvals", "tasks", "onboarding", "universal"]},
+    "scenarios": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/scenario"}}
+  },
+  "$defs": {
+    "profiles": {"type": "array", "items": {"enum": ["core-10", "full"]}, "minItems": 1, "uniqueItems": true},
+    "matchers": {"type": "object", "description": "đường dẫn chấm (a.b.0.c, hoặc $text) -> giá trị hoặc toán tử {eq,in,contains,regex,startswith,gte,lte,gt,lt,only_keys,has_keys,any_of,not,exists}"},
+    "step": {
+      "type": "object",
+      "required": ["tool"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {"oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}, "minItems": 1}]},
+        "args": {"$ref": "#/$defs/matchers"},
+        "ok": {"type": "boolean", "description": "true: chỉ tính lời gọi thành công; false: chỉ lời gọi lỗi"},
+        "profiles": {"$ref": "#/$defs/profiles"},
+        "note": {"type": "string"}
+      }
+    },
+    "forbidden": {
+      "type": "object",
+      "required": ["tool"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {"oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}, "minItems": 1}]},
+        "args": {"$ref": "#/$defs/matchers"},
+        "unless_prior": {"type": "array", "items": {"type": "string"}, "description": "cấm trừ khi đã có lời gọi trước đó tới một trong các tool này"},
+        "after_error": {"type": "string", "description": "cấm khi trước đó cùng tool đã trả lỗi mã này (thử lại / đi vòng)"},
+        "reason": {"type": "string"},
+        "profiles": {"$ref": "#/$defs/profiles"}
+      }
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "contains_any": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "contains_all": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "not_contains": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "regex": {"type": "string"},
+        "not_regex": {"type": "string"},
+        "number_any": {"type": "array", "minItems": 1, "items": {"oneOf": [{"type": "number"}, {"type": "object", "required": ["oracle"], "properties": {"oracle": {"type": "string"}, "key": {"type": "string"}}, "additionalProperties": false}]}},
+        "not_number": {"type": "array", "items": {"type": "number"}, "minItems": 1},
+        "asks_question": {"const": true},
+        "surfaces_confirm_url": {"const": true},
+        "echo_pii_token": {"const": true},
+        "json": {"type": "object", "description": "đường dẫn trong JSON đáp án -> giá trị mong đợi hoặc {\"oracle\": tên}"},
+        "turn": {"type": "integer", "description": "lượt trả lời cần chấm (mặc định -1 = cuối)"},
+        "soft": {"type": "boolean", "description": "chỉ chẩn đoán, không tính pass"},
+        "profiles": {"$ref": "#/$defs/profiles"}
+      }
+    },
+    "state_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ref": {"type": "string"}, "field": {"type": "string"},
+        "model": {"type": "string"}, "where": {"type": "object"},
+        "count": {"type": "integer"}, "count_gte": {"type": "integer"}, "count_lte": {"type": "integer"},
+        "eq": {}, "gte": {"type": "number"}, "lte": {"type": "number"}, "in": {"type": "array"}, "contains": {}, "regex": {"type": "string"},
+        "profiles": {"$ref": "#/$defs/profiles"}
+      }
+    },
+    "turn": {
+      "oneOf": [
+        {"type": "string", "minLength": 1},
+        {"type": "object", "required": ["user"], "additionalProperties": false,
+         "properties": {"user": {"type": "string", "minLength": 1},
+                        "before": {"type": "array", "items": {"enum": ["confirm_all", "decline_all"]}, "description": "việc phía người, chạy trước lượt này (mock: bấm xác nhận trên trang Desk)"}}}
+      ]
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "no_calls": {"type": "boolean", "description": "kịch bản âm: kỳ vọng 0 lời gọi tool"},
+        "first_tool": {"type": "array", "items": {"type": "string"}, "minItems": 1, "description": "tool hợp lệ cho lời gọi đầu tiên (mặc định: tool của bước required đầu tiên)"},
+        "required": {"type": "array", "items": {"$ref": "#/$defs/step"}, "description": "chuỗi bước phải xuất hiện (theo thứ tự nếu ordered)"},
+        "ordered": {"type": "boolean", "default": true},
+        "allowed_writes": {"type": "array", "items": {"type": "string"}, "description": "tool ghi được phép; mặc định = tool ghi trong required. Ghi ngoài danh sách = unexpected_write (tính vào forbidden)"},
+        "forbidden": {"type": "array", "items": {"$ref": "#/$defs/forbidden"}},
+        "max_calls": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "retry_same_key": {"type": "array", "items": {"type": "string"}, "description": "mọi lời gọi tới tool này phải dùng cùng idempotency_key"},
+        "answer": {"type": "array", "items": {"$ref": "#/$defs/fact"}},
+        "state": {"type": "array", "items": {"$ref": "#/$defs/state_check"}, "description": "kiểm trạng thái cuối qua admin của mock (không có ở server thật: not_assessed)"}
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "required": ["id", "category", "actor", "turns", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z]+\\.[a-z0-9_]+$"},
+        "category": {"enum": ["positive", "negative", "ambiguity", "confirmation", "injection", "pii", "multi_turn", "search", "aggregate", "people", "model_change", "error_recovery"]},
+        "title": {"type": "string"},
+        "actor": {"type": "string", "pattern": "^[a-z0-9_-]+$", "description": "người dùng hiện tại (slug trong fixture), gửi qua header X-Eval-Actor"},
+        "persona": {"type": "string"},
+        "seed": {"type": "string", "pattern": "^binhminh(\\+[a-z_]+)*$", "default": "binhminh", "description": "tham chiếu trạng thái hạt giống: binhminh + biến thể (inject_task, inject_purpose, inject_comment)"},
+        "profiles": {"$ref": "#/$defs/profiles"},
+        "skills": {"type": "array", "items": {"enum": ["xt-core", "xt-approvals", "xt-tasks", "xt-data-modeling"]}, "description": "skill nạp ở chế độ --skills auto"},
+        "turns": {"type": "array", "items": {"$ref": "#/$defs/turn"}, "minItems": 1},
+        "expected": {"$ref": "#/$defs/expected"}
+      }
+    }
+  }
+}

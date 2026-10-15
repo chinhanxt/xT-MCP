@@ -15,6 +15,7 @@ from pathlib import Path
 import psycopg
 from envfile import load_env
 
+from xt.adapters.db.data_setup import install_data_prerequisites
 from xt.adapters.db.tenancy import install_postgrest_role
 
 
@@ -40,6 +41,7 @@ def main() -> int:
         raise SystemExit("configure_data: thiếu " + ", ".join(missing))
     try:
         with psycopg.connect(dsn, autocommit=True) as conn:
+            install_data_prerequisites(conn)
             install_postgrest_role(
                 conn, authenticator_password=password, issuer=issuer, clients=clients
             )

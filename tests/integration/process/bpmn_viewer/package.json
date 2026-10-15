@@ -1,0 +1,10 @@
+{
+  "name": "xt-bpmn-moddle-check",
+  "private": true,
+  "description": "Kiểm cấu trúc BPMN 2.0 + BPMNDI do compiler xT sinh ra bằng bpmn-moddle (chỉ dùng cho test tích hợp)",
+  "license": "Apache-2.0",
+  "type": "module",
+  "dependencies": {
+    "bpmn-moddle": "9.0.4"
+  }
+}

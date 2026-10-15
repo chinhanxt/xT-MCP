@@ -75,7 +75,7 @@ routes:
   - id: api-data                # PostgREST: bỏ tiền tố /data, giữ nguyên Authorization + Accept-Profile (JWT/profile kiểm ở PostgREST + xt.pgrst_pre)
     hosts: ["@@XT_DOMAIN_API@@"]
     uris: ["/data", "/data/*"]
-    methods: ["GET", "HEAD", "OPTIONS"]   # view chỉ GRANT SELECT cho xt_web; ghi đi qua MCP
+    methods: ["GET", "HEAD"]   # OPTIONS bỏ qua pre-request ở PostgREST, nên không công khai metadata theo đường đó
     plugins:
       real-ip:
         source: http_cf_connecting_ip

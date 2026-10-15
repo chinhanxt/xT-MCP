@@ -49,6 +49,18 @@ def resolve_clients(kc: KC, realm: str, clients: list[str]) -> list[str]:
     return ids
 
 
+def all_clients(kc: KC, realm: str) -> list[dict]:
+    """Đọc hết trang: client ngoài trang đầu vẫn phải bị thu hồi scope data."""
+    clients = []
+    first, size = 0, 200
+    while True:
+        page = kc.get(f"/realms/{realm}/clients?first={first}&max={size}")
+        clients.extend(page)
+        if len(page) < size:
+            return clients
+        first += size
+
+
 def provision_data(kc: KC, realm: str, clients: list[str]) -> None:
     ids = resolve_clients(kc, realm, clients)
     rep = {
@@ -99,7 +111,7 @@ def provision_data(kc: KC, realm: str, clients: list[str]) -> None:
         set_client_scope(kc, realm, cid, sid, "optional")
     # Allowlist là tuyệt đối: client nào khác đang giữ scope (cấp tay/lần chạy cũ) bị thu hồi.
     revoked = 0
-    for c in kc.get(f"/realms/{realm}/clients?max=2000"):
+    for c in all_clients(kc, realm):
         if c["id"] in ids:
             continue
         for kind in ("default", "optional"):

@@ -1,0 +1,1663 @@
+{
+ "_source": "src/xt/contracts/tools (ToolContract catalog), regenerate with tools/export_tools.py",
+ "_catalog_digest": "sha256:8cbd078a4901aacf565fdeda2f51111ac7bb58668031df6868c739c88122b249",
+ "core10": [
+  "find_people",
+  "search_records",
+  "aggregate_records",
+  "get_record",
+  "get_inbox",
+  "create_record",
+  "create_task",
+  "submit_request",
+  "transition_record",
+  "decide_request"
+ ],
+ "tools": [
+  {
+   "name": "inspect_workspace",
+   "since": "0.1",
+   "max_autonomy": "L0",
+   "description": "Who am I, which tenant/workspace, what business models, processes, task types and policies exist, which tools I can use and the server limits. Use first in a new session or after access errors. VD: 'Hệ thống có những loại đề xuất nào?'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "include": {
+      "type": "array",
+      "items": {
+       "enum": [
+        "me",
+        "models",
+        "processes",
+        "task_types",
+        "policies",
+        "tools",
+        "limits"
+       ]
+      },
+      "description": "Sections to return. Omit for all (summaries only)."
+     },
+     "workspace": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "description": "Workspace id. Omit to use the session's default workspace."
+     }
+    },
+    "required": [],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "describe_model",
+   "since": "0.1",
+   "max_autonomy": "L0",
+   "description": "Fields, types, required/PII flags, lifecycle states and transitions, rules and named metrics of one model (also request types and task types). Call before create_record/update_record to know valid fields. VD: 'Đề nghị tạm ứng cần những thông tin gì?'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "model_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "description": "Model id from inspect_workspace, e.g. advance_request."
+     },
+     "include_values_schema": {
+      "type": "boolean",
+      "default": false,
+      "description": "Also return the exact JSON Schema used to validate `values`."
+     }
+    },
+    "required": [
+     "model_id"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "describe_process",
+   "since": "0.1",
+   "max_autonomy": "L0",
+   "description": "Steps, approver rules, SLA, human gates and trigger of one process. Use to explain who will approve and how long it takes. Not for a running instance -> get_record(process_instance ref). VD: 'Tạm ứng 8 triệu thì ai duyệt?'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "process_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "description": "Process id, e.g. advance_approval."
+     },
+     "for_values": {
+      "type": "object",
+      "description": "Optional request values to evaluate the route for, e.g. {\"amount\":\"8000000\"}.",
+      "propertyNames": {
+       "pattern": "^[a-z][a-z0-9_]{0,62}$"
+      },
+      "additionalProperties": {
+       "type": [
+        "string",
+        "number",
+        "boolean",
+        "null",
+        "array"
+       ],
+       "items": {
+        "type": [
+         "string",
+         "number",
+         "boolean"
+        ]
+       },
+       "maxItems": 100
+      },
+      "maxProperties": 200
+     }
+    },
+    "required": [
+     "process_id"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "find_people",
+   "since": "0.1",
+   "max_autonomy": "L0",
+   "description": "Company directory and org chart. Answers 'who reports to X' (direct_reports_of), 'who is X's manager' (manager_of), members of a unit or role, or finds a person by name to get their ref for assigning work. VD: 'Ai báo cáo cho Minh?', 'Anh Bình bên IT là ai?'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "query": {
+      "type": "string",
+      "description": "Name, email or title to search, e.g. 'Bình IT'.",
+      "maxLength": 200
+     },
+     "direct_reports_of": {
+      "type": "string",
+      "description": "Person name or ref. Returns the people who report directly to this person.",
+      "maxLength": 200
+     },
+     "manager_of": {
+      "type": "string",
+      "description": "Person name or ref. Returns this person's manager.",
+      "maxLength": 200
+     },
+     "org_unit": {
+      "type": "string",
+      "description": "Unit name or ref. Returns members of the unit.",
+      "maxLength": 200
+     },
+     "role": {
+      "type": "string",
+      "description": "Role id or name, e.g. 'director'. Returns people holding it.",
+      "maxLength": 100
+     },
+     "include_inactive": {
+      "type": "boolean",
+      "default": false,
+      "description": "Also return people who left."
+     },
+     "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200,
+      "default": 20,
+      "description": "Max items per page (default 20)."
+     },
+     "cursor": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "Opaque next_cursor from the previous page. Omit for the first page; keep other params unchanged."
+     }
+    },
+    "required": [],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "search_records",
+   "since": "0.1",
+   "max_autonomy": "L0",
+   "description": "Find records. Either filter one model with `where` (typed, exact), or full-text `query` across all models you can see (requests, tasks, documents, customers...). Not for totals/counts -> aggregate_records. Not for people -> find_people. VD: 'Các đề xuất tạm ứng đang chờ duyệt của tôi'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "model_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "description": "Model to filter. Omit to full-text search all models (query required)."
+     },
+     "query": {
+      "type": "string",
+      "description": "Full-text words, e.g. 'khách sạn Đà Nẵng'.",
+      "maxLength": 200
+     },
+     "where": {
+      "type": "object",
+      "description": "Filter by field: {\"state\":\"submitted\",\"amount\":{\"gte\":\"5000000\"},\"owner\":\"me\"}. Plain value = equals. All keys AND.",
+      "propertyNames": {
+       "pattern": "^[a-z][a-z0-9_]{0,62}$"
+      },
+      "additionalProperties": {
+       "anyOf": [
+        {
+         "type": [
+          "string",
+          "number",
+          "boolean",
+          "null"
+         ]
+        },
+        {
+         "type": "object",
+         "description": "Operator object, e.g. {\"gte\":\"5000000\"}. Several keys = AND.",
+         "properties": {
+          "eq": {
+           "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+           ],
+           "description": "equals"
+          },
+          "ne": {
+           "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+           ],
+           "description": "not equal"
+          },
+          "gt": {
+           "type": [
+            "string",
+            "number"
+           ],
+           "description": ">"
+          },
+          "gte": {
+           "type": [
+            "string",
+            "number"
+           ],
+           "description": ">="
+          },
+          "lt": {
+           "type": [
+            "string",
+            "number"
+           ],
+           "description": "<"
+          },
+          "lte": {
+           "type": [
+            "string",
+            "number"
+           ],
+           "description": "<="
+          },
+          "in": {
+           "type": "array",
+           "items": {
+            "type": [
+             "string",
+             "number",
+             "boolean"
+            ]
+           },
+           "maxItems": 100,
+           "description": "any of"
+          },
+          "contains": {
+           "type": "string",
+           "maxLength": 200,
+           "description": "text contains"
+          },
+          "is_null": {
+           "type": "boolean",
+           "description": "true = empty"
+          }
+         },
+         "additionalProperties": false,
+         "minProperties": 1
+        }
+       ]
+      },
+      "maxProperties": 20
+     },
+     "sort": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+       "type": "string",
+       "pattern": "^-?[a-z][a-z0-9_]{0,62}$"
+      },
+      "description": "Field names; prefix '-' for descending, e.g. [\"-created_at\"]."
+     },
+     "fields": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+       "type": "string",
+       "pattern": "^[a-z][a-z0-9_]{0,62}$"
+      },
+      "description": "Fields to include in values. Omit for summary fields."
+     },
+     "workspace": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "description": "Workspace id. Omit to use the session's default workspace."
+     },
+     "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200,
+      "default": 20,
+      "description": "Max items per page (default 20)."
+     },
+     "cursor": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "Opaque next_cursor from the previous page. Omit for the first page; keep other params unchanged."
+     }
+    },
+    "required": [],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "aggregate_records",
+   "since": "0.1",
+   "max_autonomy": "L0",
+   "description": "Server-side numbers: count/sum/avg/min/max, optional group_by fields, period filter and time_bucket, or a named metric defined in the model. Always use this for totals; never add numbers yourself. VD: 'Tổng tạm ứng tháng 11 theo phòng ban?'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "model_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "description": "Model to aggregate."
+     },
+     "metric": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "description": "Named metric from describe_model.metrics, e.g. advance_total."
+     },
+     "metrics": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+       "type": "string",
+       "pattern": "^(count|(sum|avg|min|max):[a-z][a-z0-9_]{0,62})$"
+      },
+      "description": "Ad-hoc metrics: 'count' or 'sum:<field>', 'avg:<field>', 'min:<field>', 'max:<field>'."
+     },
+     "where": {
+      "type": "object",
+      "description": "Filter by field: {\"state\":\"submitted\",\"amount\":{\"gte\":\"5000000\"},\"owner\":\"me\"}. Plain value = equals. All keys AND.",
+      "propertyNames": {
+       "pattern": "^[a-z][a-z0-9_]{0,62}$"
+      },
+      "additionalProperties": {
+       "anyOf": [
+        {
+         "type": [
+          "string",
+          "number",
+          "boolean",
+          "null"
+         ]
+        },
+        {
+         "type": "object",
+         "description": "Operator object, e.g. {\"gte\":\"5000000\"}. Several keys = AND.",
+         "properties": {
+          "eq": {
+           "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+           ],
+           "description": "equals"
+          },
+          "ne": {
+           "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+           ],
+           "description": "not equal"
+          },
+          "gt": {
+           "type": [
+            "string",
+            "number"
+           ],
+           "description": ">"
+          },
+          "gte": {
+           "type": [
+            "string",
+            "number"
+           ],
+           "description": ">="
+          },
+          "lt": {
+           "type": [
+            "string",
+            "number"
+           ],
+           "description": "<"
+          },
+          "lte": {
+           "type": [
+            "string",
+            "number"
+           ],
+           "description": "<="
+          },
+          "in": {
+           "type": "array",
+           "items": {
+            "type": [
+             "string",
+             "number",
+             "boolean"
+            ]
+           },
+           "maxItems": 100,
+           "description": "any of"
+          },
+          "contains": {
+           "type": "string",
+           "maxLength": 200,
+           "description": "text contains"
+          },
+          "is_null": {
+           "type": "boolean",
+           "description": "true = empty"
+          }
+         },
+         "additionalProperties": false,
+         "minProperties": 1
+        }
+       ]
+      },
+      "maxProperties": 20
+     },
+     "group_by": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+       "type": "string",
+       "pattern": "^[a-z][a-z0-9_]{0,62}$"
+      },
+      "description": "Category fields to group by, e.g. [\"department\"]. For time use time_bucket."
+     },
+     "period": {
+      "type": "string",
+      "pattern": "^\\d{4}(-(0[1-9]|1[0-2])|-Q[1-4])?$|^\\d{4}-\\d{2}-\\d{2}\\.\\.\\d{4}-\\d{2}-\\d{2}$",
+      "description": "Time filter on date_field: '2026', '2026-11', '2026-Q4' or '2026-11-01..2026-11-30'."
+     },
+     "time_bucket": {
+      "enum": [
+       "day",
+       "week",
+       "month",
+       "quarter",
+       "year"
+      ],
+      "description": "Also group by this time unit of date_field."
+     },
+     "date_field": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "default": "created_at",
+      "description": "Date field used by period and time_bucket (default created_at)."
+     },
+     "sort": {
+      "type": "string",
+      "pattern": "^-?[a-z][a-z0-9_:]{0,80}$",
+      "description": "Sort rows by a group or metric key; '-' = descending."
+     },
+     "workspace": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "description": "Workspace id. Omit to use the session's default workspace."
+     },
+     "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200,
+      "default": 20,
+      "description": "Max items per page (default 20)."
+     },
+     "cursor": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "Opaque next_cursor from the previous page. Omit for the first page; keep other params unchanged."
+     }
+    },
+    "required": [
+     "model_id"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "get_record",
+   "since": "0.1",
+   "max_autonomy": "L0",
+   "description": "Read one item by ref: any record, request (with route and current step), task, process instance (steps and status), document or file (with extracted text). Shows the revision and allowed transitions you need before changing it. VD: 'Đề xuất TU-2026-0042 đang ở bước nào?'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "ref": {
+      "type": "string",
+      "pattern": "^(xrn:[a-z0-9][a-z0-9_-]{0,63}:)?[a-z][a-z0-9_]{0,62}:[a-z0-9][a-z0-9_-]{0,63}$",
+      "description": "Ref from a previous result, e.g. 'advance_request:tu-2026-0042'."
+     },
+     "fields": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+       "type": "string",
+       "pattern": "^[a-z][a-z0-9_]{0,62}$"
+      },
+      "description": "Only these fields. Omit for all you may see."
+     },
+     "include": {
+      "type": "array",
+      "items": {
+       "enum": [
+        "text",
+        "steps",
+        "related"
+       ]
+      },
+      "description": "text = file/document content; steps = approval/process steps; related = linked records."
+     },
+     "text_cursor": {
+      "type": "string",
+      "description": "next_text_cursor from a previous call, to read the next part of a long text.",
+      "maxLength": 2048
+     }
+    },
+    "required": [
+     "ref"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "get_inbox",
+   "since": "0.1",
+   "max_autonomy": "L0",
+   "description": "My work queue: tasks assigned to me, requests waiting for my decision, notifications and mentions, with SLA status. Always the current user's own inbox. VD: 'Có gì cần tôi duyệt không?', 'Hôm nay tôi phải làm gì?'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "kinds": {
+      "type": "array",
+      "items": {
+       "enum": [
+        "task",
+        "approval",
+        "notification",
+        "mention"
+       ]
+      },
+      "description": "Filter item kinds. Omit for all."
+     },
+     "status": {
+      "enum": [
+       "open",
+       "all"
+      ],
+      "default": "open",
+      "description": "open = still needs action / unread."
+     },
+     "due_before": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:\\d{2}))?$",
+      "description": "Only items due before this date."
+     },
+     "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200,
+      "default": 20,
+      "description": "Max items per page (default 20)."
+     },
+     "cursor": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "Opaque next_cursor from the previous page. Omit for the first page; keep other params unchanged."
+     }
+    },
+    "required": [],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "get_history",
+   "since": "0.1",
+   "max_autonomy": "L0",
+   "description": "Timeline of one item (who did what, when, on whose behalf), its audit trail, or an explanation: why an action was denied or where a number came from (pass explain_ref/lineage_ref). VD: 'Vì sao agent bị chặn?', 'Đề xuất này đã qua tay ai?'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "ref": {
+      "type": "string",
+      "pattern": "^(explain:[a-z0-9][a-z0-9_-]{0,63}|(xrn:[a-z0-9][a-z0-9_-]{0,63}:)?[a-z][a-z0-9_]{0,62}:[a-z0-9][a-z0-9_-]{0,63})$",
+      "description": "Item ref, or an explain_ref / lineage_ref ('explain:...') from an error or aggregate result."
+     },
+     "view": {
+      "enum": [
+       "timeline",
+       "audit",
+       "explain"
+      ],
+      "default": "timeline",
+      "description": "timeline = business events; audit = hash-chained log (needs audit.read); explain = reasons/rules/lineage."
+     },
+     "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200,
+      "default": 20,
+      "description": "Max items per page (default 20)."
+     },
+     "cursor": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "Opaque next_cursor from the previous page. Omit for the first page; keep other params unchanged."
+     }
+    },
+    "required": [
+     "ref"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "create_record",
+   "since": "0.1",
+   "max_autonomy": "L2",
+   "description": "Create a record of any model: business record, request DRAFT (then submit_request), document, comment (model 'comment', values {subject, body}). Values are a flat object of field->value, checked against describe_model. Not for tasks -> create_task. VD: 'Tạo đề nghị tạm ứng 8 triệu đi Đà Nẵng'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "model_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "description": "Model id, e.g. advance_request."
+     },
+     "values": {
+      "type": "object",
+      "description": "Field -> value, e.g. {\"amount\":\"8000000\",\"trip_start\":\"2026-11-20\"}. Money as string. Refs as 'model:id'.",
+      "propertyNames": {
+       "pattern": "^[a-z][a-z0-9_]{0,62}$"
+      },
+      "additionalProperties": {
+       "type": [
+        "string",
+        "number",
+        "boolean",
+        "null",
+        "array"
+       ],
+       "items": {
+        "type": [
+         "string",
+         "number",
+         "boolean"
+        ]
+       },
+       "maxItems": 100
+      },
+      "maxProperties": 200
+     },
+     "workspace": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "description": "Workspace id. Omit to use the session's default workspace."
+     },
+     "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+      "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+     }
+    },
+    "required": [
+     "model_id",
+     "values",
+     "idempotency_key"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "update_record",
+   "since": "0.1",
+   "max_autonomy": "L2",
+   "description": "Change field values of one record, including a task's assignee or due date. `set` is a flat object; null clears a field. Cannot change state -> transition_record. Previous values stay in history. VD: 'Sửa số tiền thành 7,5 triệu', 'Chuyển việc này cho Bình'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "ref": {
+      "type": "string",
+      "pattern": "^(xrn:[a-z0-9][a-z0-9_-]{0,63}:)?[a-z][a-z0-9_]{0,62}:[a-z0-9][a-z0-9_-]{0,63}$",
+      "description": "Record to change."
+     },
+     "set": {
+      "type": "object",
+      "description": "Fields to change -> new value; null clears. E.g. {\"amount\":\"7500000\"} or {\"assignee\":\"person:binh\"}.",
+      "propertyNames": {
+       "pattern": "^[a-z][a-z0-9_]{0,62}$"
+      },
+      "additionalProperties": {
+       "type": [
+        "string",
+        "number",
+        "boolean",
+        "null",
+        "array"
+       ],
+       "items": {
+        "type": [
+         "string",
+         "number",
+         "boolean"
+        ]
+       },
+       "maxItems": 100
+      },
+      "maxProperties": 200,
+      "minProperties": 1
+     },
+     "expected_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Revision you last read (from get_record/search). Mismatch -> revision_conflict; re-read, do not guess."
+     },
+     "reason": {
+      "type": "string",
+      "description": "Why, in the user's words. Shown to humans and stored in audit.",
+      "maxLength": 1000
+     },
+     "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+      "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+     }
+    },
+    "required": [
+     "ref",
+     "set",
+     "expected_revision",
+     "idempotency_key"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "transition_record",
+   "since": "0.1",
+   "max_autonomy": "L3",
+   "description": "Move a record to another lifecycle state allowed by its model: start/finish/return a task, withdraw a request, return a borrowed device, mark a notification read, put an employee into offboarding. See available_transitions in get_record. Not for approving -> decide_request; not for first sending a request -> submit_request. VD: 'Đánh dấu việc này đã xong'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "ref": {
+      "type": "string",
+      "pattern": "^(xrn:[a-z0-9][a-z0-9_-]{0,63}:)?[a-z][a-z0-9_]{0,62}:[a-z0-9][a-z0-9_-]{0,63}$",
+      "description": "Record to move."
+     },
+     "to_state": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "description": "Target state id from available_transitions, e.g. done."
+     },
+     "values": {
+      "type": "object",
+      "description": "Fields required by this transition, e.g. {\"returned_at\":\"2026-12-01\"}.",
+      "propertyNames": {
+       "pattern": "^[a-z][a-z0-9_]{0,62}$"
+      },
+      "additionalProperties": {
+       "type": [
+        "string",
+        "number",
+        "boolean",
+        "null",
+        "array"
+       ],
+       "items": {
+        "type": [
+         "string",
+         "number",
+         "boolean"
+        ]
+       },
+       "maxItems": 100
+      },
+      "maxProperties": 200
+     },
+     "expected_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Revision you last read (from get_record/search). Mismatch -> revision_conflict; re-read, do not guess."
+     },
+     "reason": {
+      "type": "string",
+      "description": "Why, in the user's words. Shown to humans and stored in audit.",
+      "maxLength": 1000
+     },
+     "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+      "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+     }
+    },
+    "required": [
+     "ref",
+     "to_state",
+     "expected_revision",
+     "idempotency_key"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "upload_file",
+   "since": "0.1",
+   "max_autonomy": "L1",
+   "description": "Store a file and get a file ref to put into a record field (attachment, invoice, contract). source=text for content you wrote; base64 for small binaries you actually hold; upload_link when the USER must attach a file (returns a one-time link for them). Read file text later with get_record(include=['text']). VD: 'Đính kèm hóa đơn khách sạn'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "File name with extension, e.g. 'hoadon_khachsan.pdf'.",
+      "minLength": 1,
+      "maxLength": 255
+     },
+     "source": {
+      "enum": [
+       "text",
+       "base64",
+       "upload_link"
+      ],
+      "description": "Where the bytes come from (see tool description)."
+     },
+     "text": {
+      "type": "string",
+      "description": "File content when source=text (UTF-8).",
+      "maxLength": 262144
+     },
+     "base64": {
+      "type": "string",
+      "description": "Base64 bytes when source=base64 (limit in inspect_workspace.limits.max_inline_upload_bytes).",
+      "maxLength": 1398104,
+      "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+     },
+     "content_type": {
+      "type": "string",
+      "description": "MIME type, e.g. application/pdf. Server re-detects it.",
+      "maxLength": 127
+     },
+     "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+      "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+     }
+    },
+    "required": [
+     "name",
+     "source",
+     "idempotency_key"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "submit_request",
+   "since": "0.1",
+   "max_autonomy": "L2",
+   "description": "Send a request draft (or a returned request) for approval. The server computes the approval route from policy; you do not choose approvers. Withdraw -> transition_record(to_state='withdrawn'). VD: 'Gửi đề xuất đi duyệt'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "ref": {
+      "type": "string",
+      "pattern": "^(xrn:[a-z0-9][a-z0-9_-]{0,63}:)?[a-z][a-z0-9_]{0,62}:[a-z0-9][a-z0-9_-]{0,63}$",
+      "description": "Request draft ref from create_record."
+     },
+     "note": {
+      "type": "string",
+      "description": "Message to approvers.",
+      "maxLength": 1000
+     },
+     "expected_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional. Revision you reviewed; omit to submit the current one."
+     },
+     "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+      "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+     }
+    },
+    "required": [
+     "ref",
+     "idempotency_key"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "decide_request",
+   "since": "0.1",
+   "max_autonomy": "L3",
+   "description": "Approve, reject, return or delegate a request step assigned to the current user. Always needs that human's own click on the xT confirmation page: the first call returns confirmation_required with confirm_url; show it to the user, then retry the same call. Never claim approval without it. VD: 'Duyệt đề xuất của Việt'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "ref": {
+      "type": "string",
+      "pattern": "^(xrn:[a-z0-9][a-z0-9_-]{0,63}:)?[a-z][a-z0-9_]{0,62}:[a-z0-9][a-z0-9_-]{0,63}$",
+      "description": "Request ref, e.g. from get_inbox."
+     },
+     "decision": {
+      "enum": [
+       "approve",
+       "reject",
+       "return",
+       "delegate"
+      ],
+      "description": "return = send back to requester for changes."
+     },
+     "reason": {
+      "type": "string",
+      "description": "Required for reject/return. Shown to the requester.",
+      "maxLength": 1000
+     },
+     "delegate_to": {
+      "type": "string",
+      "pattern": "^(me|(xrn:[a-z0-9][a-z0-9_-]{0,63}:)?person:[a-z0-9][a-z0-9_-]{0,63})$",
+      "description": "Human who takes over this step when decision=delegate."
+     },
+     "expected_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Revision you last read (from get_record/search). Mismatch -> revision_conflict; re-read, do not guess."
+     },
+     "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+      "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+     }
+    },
+    "required": [
+     "ref",
+     "decision",
+     "expected_revision",
+     "idempotency_key"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "create_task",
+   "since": "0.1",
+   "max_autonomy": "L2",
+   "description": "Assign work to one responsible person with an optional deadline, subtasks (parent_ref), dependencies and weekly/monthly recurrence. SLA defaults from the task type. Find the person's ref with find_people first. Change later with update_record / transition_record. VD: 'Giao anh Bình làm báo cáo trước thứ 6'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "title": {
+      "type": "string",
+      "description": "Short outcome-style title, e.g. 'Gửi báo cáo doanh số tuần 46'.",
+      "minLength": 1,
+      "maxLength": 200
+     },
+     "assignee": {
+      "type": "string",
+      "pattern": "^(me|(xrn:[a-z0-9][a-z0-9_-]{0,63}:)?person:[a-z0-9][a-z0-9_-]{0,63})$",
+      "description": "Responsible person: 'me' or a person ref from find_people."
+     },
+     "description": {
+      "type": "string",
+      "description": "Details, expected deliverable.",
+      "maxLength": 5000
+     },
+     "due_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:\\d{2}))?$",
+      "description": "Deadline: YYYY-MM-DD or RFC 3339. Omit to use the task type SLA."
+     },
+     "task_type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "default": "task",
+      "description": "Task type from inspect_workspace.task_types."
+     },
+     "priority": {
+      "enum": [
+       "low",
+       "normal",
+       "high",
+       "urgent"
+      ],
+      "default": "normal",
+      "description": "Priority."
+     },
+     "parent_ref": {
+      "type": "string",
+      "pattern": "^(xrn:[a-z0-9][a-z0-9_-]{0,63}:)?[a-z][a-z0-9_]{0,62}:[a-z0-9][a-z0-9_-]{0,63}$",
+      "description": "Parent task when this is a subtask."
+     },
+     "depends_on": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+       "type": "string",
+       "pattern": "^(xrn:[a-z0-9][a-z0-9_-]{0,63}:)?[a-z][a-z0-9_]{0,62}:[a-z0-9][a-z0-9_-]{0,63}$"
+      },
+      "description": "Tasks that must be done before this one can start."
+     },
+     "recurrence": {
+      "type": "string",
+      "description": "RFC 5545 RRULE for repeating work, e.g. 'FREQ=WEEKLY;BYDAY=MO'.",
+      "maxLength": 200,
+      "pattern": "^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;[A-Z]+=[A-Z0-9,+-]+)*$"
+     },
+     "source_ref": {
+      "type": "string",
+      "pattern": "^(xrn:[a-z0-9][a-z0-9_-]{0,63}:)?[a-z][a-z0-9_]{0,62}:[a-z0-9][a-z0-9_-]{0,63}$",
+      "description": "Record this task came from (request, meeting minutes, ticket)."
+     },
+     "watchers": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+       "type": "string",
+       "pattern": "^(me|(xrn:[a-z0-9][a-z0-9_-]{0,63}:)?person:[a-z0-9][a-z0-9_-]{0,63})$"
+      },
+      "description": "People to keep informed."
+     },
+     "values": {
+      "type": "object",
+      "description": "Extra fields defined by the task type.",
+      "propertyNames": {
+       "pattern": "^[a-z][a-z0-9_]{0,62}$"
+      },
+      "additionalProperties": {
+       "type": [
+        "string",
+        "number",
+        "boolean",
+        "null",
+        "array"
+       ],
+       "items": {
+        "type": [
+         "string",
+         "number",
+         "boolean"
+        ]
+       },
+       "maxItems": 100
+      },
+      "maxProperties": 200
+     },
+     "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+      "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+     }
+    },
+    "required": [
+     "title",
+     "assignee",
+     "idempotency_key"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "propose_model_change",
+   "since": "0.1",
+   "max_autonomy": "L1",
+   "description": "Design a new business model or change one (fields, states, transitions, rules, metrics). dry_run=true (default) returns the diff, risk class and affected record count without saving; dry_run=false files it for human approval. Never active until a human approves. VD: 'Thêm quản lý mượn trả thiết bị'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "model_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,62}$",
+      "description": "Existing model id, or new id when the first op is create_model."
+     },
+     "operations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+       "type": "object",
+       "properties": {
+        "op": {
+         "enum": [
+          "create_model",
+          "add_field",
+          "update_field",
+          "remove_field",
+          "add_state",
+          "add_transition",
+          "remove_transition",
+          "add_rule",
+          "remove_rule",
+          "add_metric"
+         ],
+         "description": "Operation; fill only the matching property below."
+        },
+        "field": {
+         "type": "object",
+         "properties": {
+          "id": {
+           "type": "string",
+           "pattern": "^[a-z][a-z0-9_]{0,62}$",
+           "description": "snake_case field id, e.g. due_date."
+          },
+          "label": {
+           "type": "string",
+           "description": "Display label (Vietnamese ok).",
+           "maxLength": 120
+          },
+          "type": {
+           "enum": [
+            "string",
+            "text",
+            "integer",
+            "decimal",
+            "money",
+            "boolean",
+            "date",
+            "datetime",
+            "enum",
+            "ref",
+            "person",
+            "file"
+           ],
+           "description": "money/decimal values are decimal strings; ref/person/file hold refs."
+          },
+          "required": {
+           "type": "boolean",
+           "description": "Must be set when the record is created."
+          },
+          "multiple": {
+           "type": "boolean",
+           "description": "Holds a list of values."
+          },
+          "enum_values": {
+           "type": "array",
+           "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+           },
+           "maxItems": 100,
+           "description": "Allowed values when type=enum."
+          },
+          "ref_model": {
+           "type": "string",
+           "pattern": "^[a-z][a-z0-9_]{0,62}$",
+           "description": "Target model when type=ref."
+          },
+          "min": {
+           "type": [
+            "string",
+            "number"
+           ],
+           "description": "Minimum (numbers/dates)."
+          },
+          "max": {
+           "type": [
+            "string",
+            "number"
+           ],
+           "description": "Maximum (numbers/dates)."
+          },
+          "max_length": {
+           "type": "integer",
+           "minimum": 1,
+           "description": "Max characters for string/text."
+          },
+          "unique": {
+           "type": "boolean",
+           "description": "No two records may share this value."
+          },
+          "pii": {
+           "type": "boolean",
+           "description": "Personal data. Masked/omitted for LLM clients per tenant egress policy."
+          },
+          "sensitive": {
+           "type": "boolean",
+           "description": "Sensitive personal data (health, ID number, salary...). Implies pii."
+          },
+          "impact": {
+           "enum": [
+            "normal",
+            "high"
+           ],
+           "description": "high = changing it affects others; edits need L2."
+          },
+          "description": {
+           "type": "string",
+           "description": "Help text for humans and agents.",
+           "maxLength": 300
+          }
+         },
+         "required": [
+          "id",
+          "label",
+          "type"
+         ],
+         "additionalProperties": false,
+         "description": "Field definition."
+        },
+        "field_id": {
+         "type": "string",
+         "pattern": "^[a-z][a-z0-9_]{0,62}$",
+         "description": "Target field for update_field/remove_field."
+        },
+        "changes": {
+         "type": "object",
+         "properties": {
+          "label": {
+           "type": "string",
+           "description": "Display label (Vietnamese ok).",
+           "maxLength": 120
+          },
+          "required": {
+           "type": "boolean",
+           "description": "Must be set when the record is created."
+          },
+          "enum_values": {
+           "type": "array",
+           "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+           },
+           "maxItems": 100,
+           "description": "Allowed values when type=enum."
+          },
+          "min": {
+           "type": [
+            "string",
+            "number"
+           ],
+           "description": "Minimum (numbers/dates)."
+          },
+          "max": {
+           "type": [
+            "string",
+            "number"
+           ],
+           "description": "Maximum (numbers/dates)."
+          },
+          "max_length": {
+           "type": "integer",
+           "minimum": 1,
+           "description": "Max characters for string/text."
+          },
+          "unique": {
+           "type": "boolean",
+           "description": "No two records may share this value."
+          },
+          "pii": {
+           "type": "boolean",
+           "description": "Personal data. Masked/omitted for LLM clients per tenant egress policy."
+          },
+          "sensitive": {
+           "type": "boolean",
+           "description": "Sensitive personal data (health, ID number, salary...). Implies pii."
+          },
+          "impact": {
+           "enum": [
+            "normal",
+            "high"
+           ],
+           "description": "high = changing it affects others; edits need L2."
+          },
+          "description": {
+           "type": "string",
+           "description": "Help text for humans and agents.",
+           "maxLength": 300
+          }
+         },
+         "required": [],
+         "additionalProperties": false,
+         "description": "Changed attributes for update_field."
+        },
+        "state": {
+         "type": "object",
+         "properties": {
+          "id": {
+           "type": "string",
+           "pattern": "^[a-z][a-z0-9_]{0,62}$",
+           "description": "State id, e.g. borrowed."
+          },
+          "label": {
+           "type": "string",
+           "description": "Display label.",
+           "maxLength": 120
+          },
+          "initial": {
+           "type": "boolean",
+           "description": "New records start here (exactly one state)."
+          },
+          "terminal": {
+           "type": "boolean",
+           "description": "No transitions leave this state."
+          },
+          "pauses_sla": {
+           "type": "boolean",
+           "description": "SLA clock stops while in this state."
+          }
+         },
+         "required": [
+          "id",
+          "label"
+         ],
+         "additionalProperties": false,
+         "description": "Lifecycle state."
+        },
+        "transition": {
+         "type": "object",
+         "properties": {
+          "from": {
+           "type": "array",
+           "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+           },
+           "minItems": 1,
+           "description": "States this transition can start from."
+          },
+          "to": {
+           "type": "string",
+           "pattern": "^[a-z][a-z0-9_]{0,62}$",
+           "description": "Target state. One transition per (from,to)."
+          },
+          "label": {
+           "type": "string",
+           "description": "Verb shown to users, e.g. 'Trả thiết bị'.",
+           "maxLength": 120
+          },
+          "level": {
+           "enum": [
+            "L1",
+            "L2",
+            "L3"
+           ],
+           "description": "Autonomy level needed by an agent."
+          },
+          "allowed": {
+           "type": "string",
+           "description": "Who may do it: owner|assignee|requester|role:<id>|any.",
+           "maxLength": 120
+          },
+          "required_fields": {
+           "type": "array",
+           "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+           },
+           "description": "Fields that must be set by this transition."
+          },
+          "guard_rule": {
+           "type": "string",
+           "pattern": "^[a-z][a-z0-9_]{0,62}$",
+           "description": "Rule id that must pass."
+          },
+          "starts_process": {
+           "type": "string",
+           "pattern": "^[a-z][a-z0-9_]{0,62}$",
+           "description": "Process started on entry."
+          }
+         },
+         "required": [
+          "from",
+          "to",
+          "label"
+         ],
+         "additionalProperties": false,
+         "description": "Allowed state change."
+        },
+        "rule": {
+         "type": "object",
+         "properties": {
+          "id": {
+           "type": "string",
+           "pattern": "^[a-z][a-z0-9_]{0,62}$",
+           "description": "Rule id."
+          },
+          "expr": {
+           "type": "string",
+           "description": "Bounded expression over fields, e.g. 'trip_end >= trip_start'. No code.",
+           "maxLength": 500
+          },
+          "message": {
+           "type": "string",
+           "description": "Error shown on violation (Vietnamese ok).",
+           "maxLength": 300
+          }
+         },
+         "required": [
+          "id",
+          "expr",
+          "message"
+         ],
+         "additionalProperties": false,
+         "description": "Validation rule."
+        },
+        "rule_id": {
+         "type": "string",
+         "pattern": "^[a-z][a-z0-9_]{0,62}$",
+         "description": "Rule to remove."
+        },
+        "metric": {
+         "type": "object",
+         "properties": {
+          "id": {
+           "type": "string",
+           "pattern": "^[a-z][a-z0-9_]{0,62}$",
+           "description": "Metric name, e.g. advance_total."
+          },
+          "label": {
+           "type": "string",
+           "description": "Display label.",
+           "maxLength": 120
+          },
+          "op": {
+           "enum": [
+            "count",
+            "sum",
+            "avg",
+            "min",
+            "max"
+           ],
+           "description": "Aggregate function."
+          },
+          "field": {
+           "type": "string",
+           "pattern": "^[a-z][a-z0-9_]{0,62}$",
+           "description": "Field for sum/avg/min/max."
+          },
+          "where": {
+           "type": "object",
+           "description": "Filter by field: {\"state\":\"submitted\",\"amount\":{\"gte\":\"5000000\"},\"owner\":\"me\"}. Plain value = equals. All keys AND.",
+           "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+           },
+           "additionalProperties": {
+            "anyOf": [
+             {
+              "type": [
+               "string",
+               "number",
+               "boolean",
+               "null"
+              ]
+             },
+             {
+              "type": "object",
+              "description": "Operator object, e.g. {\"gte\":\"5000000\"}. Several keys = AND.",
+              "properties": {
+               "eq": {
+                "type": [
+                 "string",
+                 "number",
+                 "boolean",
+                 "null"
+                ],
+                "description": "equals"
+               },
+               "ne": {
+                "type": [
+                 "string",
+                 "number",
+                 "boolean",
+                 "null"
+                ],
+                "description": "not equal"
+               },
+               "gt": {
+                "type": [
+                 "string",
+                 "number"
+                ],
+                "description": ">"
+               },
+               "gte": {
+                "type": [
+                 "string",
+                 "number"
+                ],
+                "description": ">="
+               },
+               "lt": {
+                "type": [
+                 "string",
+                 "number"
+                ],
+                "description": "<"
+               },
+               "lte": {
+                "type": [
+                 "string",
+                 "number"
+                ],
+                "description": "<="
+               },
+               "in": {
+                "type": "array",
+                "items": {
+                 "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                 ]
+                },
+                "maxItems": 100,
+                "description": "any of"
+               },
+               "contains": {
+                "type": "string",
+                "maxLength": 200,
+                "description": "text contains"
+               },
+               "is_null": {
+                "type": "boolean",
+                "description": "true = empty"
+               }
+              },
+              "additionalProperties": false,
+              "minProperties": 1
+             }
+            ]
+           },
+           "maxProperties": 20
+          }
+         },
+         "required": [
+          "id",
+          "label",
+          "op"
+         ],
+         "additionalProperties": false,
+         "description": "Named, approved metric."
+        },
+        "model": {
+         "type": "object",
+         "properties": {
+          "label": {
+           "type": "string",
+           "description": "Model label.",
+           "maxLength": 120
+          },
+          "primitive": {
+           "enum": [
+            "record",
+            "request",
+            "task",
+            "document"
+           ],
+           "description": "request = goes through approval."
+          },
+          "description": {
+           "type": "string",
+           "description": "What it is for.",
+           "maxLength": 500
+          },
+          "title_field": {
+           "type": "string",
+           "pattern": "^[a-z][a-z0-9_]{0,62}$",
+           "description": "Field used as display title."
+          },
+          "process": {
+           "type": "string",
+           "pattern": "^[a-z][a-z0-9_]{0,62}$",
+           "description": "Existing approval process for request models."
+          }
+         },
+         "required": [
+          "label",
+          "primitive"
+         ],
+         "additionalProperties": false,
+         "description": "New model header for create_model."
+        }
+       },
+       "required": [
+        "op"
+       ],
+       "additionalProperties": false,
+       "description": "One change."
+      },
+      "description": "Changes, applied in order."
+     },
+     "rationale": {
+      "type": "string",
+      "description": "Business reason in the user's words. Shown to reviewers.",
+      "minLength": 1,
+      "maxLength": 2000
+     },
+     "dry_run": {
+      "type": "boolean",
+      "default": true,
+      "description": "true = preview only. false = save and send for approval."
+     },
+     "base_revision": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Model revision from the dry run (0 = new model). Mismatch -> revision_conflict."
+     },
+     "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+      "description": "Unique key you invent for this action (8-128 chars). Reuse the SAME key only when retrying the same action."
+     }
+    },
+    "required": [
+     "model_id",
+     "operations",
+     "rationale",
+     "idempotency_key"
+    ],
+    "additionalProperties": false
+   }
+  }
+ ]
+}

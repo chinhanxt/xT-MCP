@@ -9,6 +9,7 @@ Các thay đổi đáng chú ý của xT được ghi trong tệp này.
 
 ### Added
 
+- Model engine vòng 2: audit thuộc `xt_audit_owner` (cài trigger qua `xt_audit.install`, event trigger chặn tắt/xóa/giả trigger audit và RULE, TRUNCATE có event); khóa HMAC không bao giờ vào Postgres (app tính HMAC, chỉ transaction ghi field sensitive nhận chuỗi HMAC); neo đầu chuỗi audit ra ngoài DB bằng checkpoint ký Ed25519 và lệnh `xt audit checkpoint|verify --against-checkpoint`; apply chặn khi còn job pha 2 chưa xong ở mọi version; worker pha 2 claim theo tenant; regex thu hẹp thêm; hướng dẫn cấu hình log Postgres khi triển khai.
 **Lõi và MCP**
 
 - MCP server (`xt serve --transport http|stdio`): 17 `ToolContract` v0.1 dưới dạng dữ liệu, hồ sơ `full` và `core-10` (3.920 token đo trên qwen3.5:4b; catalog 17 tool: 8.159). Pipeline chung: IAM + SoD trước mọi xác nhận, idempotency, mức tự chủ L0-L3 → `PendingOperation` + `confirm_url`, làn che PII, kiểm lại `outputSchema`. `upload_file` và `aggregate_records` trả `capability_unavailable` tới v0.2. Streamable HTTP stateless, chống DNS rebinding, prompts từ `contracts/prompts/*.json`. Tài liệu: `docs/mcp-server.md`.
