@@ -1,9 +1,11 @@
 {
   "format": "xt-pack/1",
   "pack": "nhan-su-vong-doi",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "title": "Vòng đời nhân sự liên phòng ban: tiếp nhận và nghỉ việc",
-  "depends_on": [],
+  "depends_on": [
+    "de-xuat-phe-duyet"
+  ],
   "models": [
     "department",
     "employee",
@@ -37,6 +39,9 @@
     ],
     "close_lifecycle_case": [
       "case_id"
+    ],
+    "notify": [
+      "msg"
     ]
   },
   "bindings": {},

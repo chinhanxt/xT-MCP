@@ -23,6 +23,7 @@ FileStatus = Literal[
     "clean",  # ClamAV sạch
     "not_scanned",  # profile không quét (minimal): policy quyết định ai tải về được
     "infected",  # ClamAV phát hiện; byte đã xóa
+    "scan_failed",  # clamd lỗi quá số lần thử (FB-01): không tải về/đính kèm được, có thể quét lại
     "expired",  # quá hạn tải lên
 ]
 
@@ -85,6 +86,17 @@ class FileRow:
     finalized_at: datetime | None = None
     scan_signature: str | None = None
     deleted_at: datetime | None = None
+    scan_attempts: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class Usage:
+    """Đang giữ: ý định mở (chưa hết hạn) và byte (tệp chưa xóa, trừ expired/infected)."""
+
+    user_pending: int
+    tenant_pending: int
+    user_bytes: int
+    tenant_bytes: int
 
 
 class FileRepository(Protocol):
@@ -108,3 +120,15 @@ class FileRepository(Protocol):
     def scanning(self, limit: int) -> list[FileRow]:
         """Tệp đang `scanning` (quét lại khi clamd từng lỗi)."""
         ...
+
+    def usage(self, person: UUID) -> Usage:
+        """Đếm cho quota (khóa tư vấn theo tenant tới hết transaction)."""
+        ...
+
+    def expired_pending(self, limit: int) -> list[FileRow]:
+        """Ý định/byte quarantine quá hạn chưa finalize (khóa dòng, bỏ qua dòng đang bị khóa)."""
+        ...
+
+    def purgeable_deleted(self, older_than_s: int, limit: int) -> list[FileRow]: ...
+
+    def object_in_use(self, object_key: str, except_id: UUID) -> bool: ...

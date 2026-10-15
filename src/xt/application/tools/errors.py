@@ -17,8 +17,8 @@ _DEFAULT_REMEDIATION: Mapping[ErrorCode, str] = {
     ErrorCode.ACCESS_DENIED: "Tell the user it is not allowed; call get_history(ref=explain_ref,"
     " view='explain') to see why. Do not retry with other arguments to get around it.",
     ErrorCode.NOT_FOUND: "Check the ref (search_records/get_inbox/find_people) and ask the user.",
-    ErrorCode.REVISION_CONFLICT: "Re-read the item with get_record, tell the user if something "
-    "changed, then retry with its revision and the SAME idempotency_key.",
+    ErrorCode.REVISION_CONFLICT: "Retry with details.current_revision and the SAME idempotency_key "
+    "(re-read with get_record first if the user should see what changed).",
     ErrorCode.IDEMPOTENCY_CONFLICT: "Use a NEW idempotency_key for a different action; reuse a key "
     "only to retry the exact same call.",
     ErrorCode.RULE_VIOLATION: "Ask the user for values that satisfy the rules in details, then"

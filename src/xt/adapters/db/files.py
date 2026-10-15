@@ -9,6 +9,7 @@ tenant khác không bao giờ hiện ra, kể cả khi đoán đúng id. Audit h
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator, Mapping
 from contextlib import AbstractContextManager
 from typing import Any, Protocol
@@ -16,13 +17,16 @@ from uuid import UUID
 
 from psycopg.types.json import Jsonb
 
-from xt.application.files.ports import FileRow
+from xt.application.files.ports import FileRow, Usage
+from xt.domain.model.audit import audit_hmac
 from xt.domain.model.context import ModelActor
 
 _COLS = (
     "id, name, declared_type, status, created_by, client_id, created_at, content_type,"
-    " size_bytes, sha256, object_key, upload_expires_at, finalized_at, scan_signature, deleted_at"
+    " size_bytes, sha256, object_key, upload_expires_at, finalized_at, scan_signature, deleted_at,"
+    " scan_attempts"
 )
+_GUC = "SELECT set_config('xt.audit_hmac', %s, true)"
 
 
 class _Uow(Protocol):
@@ -46,8 +50,18 @@ class PgFileRepository:
     def tenant_id(self) -> UUID:
         return self.actor.tenant.id
 
+    def _name_hmac(self, name: str) -> str:
+        """FB-04: tên tệp vào audit dưới dạng HMAC có khóa (khóa audit của tiến trình, không vào
+        DB), như cột sensitive của model engine."""
+        key = getattr(self.uow, "audit_key", None)
+        if key is None:
+            raise RuntimeError("thiếu khóa HMAC audit (AuditKey): không ghi tên tệp vào audit")
+        return audit_hmac(key.key, key.kid, name)
+
     def insert(self, row: FileRow) -> None:
+        guc = json.dumps({"meta:file_object": {"new": {"name": self._name_hmac(row.name)}}})
         with self._tx() as cur:
+            cur.execute(_GUC, (guc,))
             cur.execute(
                 "INSERT INTO xt_meta.file_object (id, name, declared_type, status, created_by,"
                 " client_id, created_at, upload_expires_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
@@ -62,6 +76,7 @@ class PgFileRepository:
                     row.upload_expires_at,
                 ),
             )
+            cur.execute(_GUC, ("",))  # không để HMAC rò sang ghi khác cùng transaction
 
     def get(self, file_id: UUID, *, lock: bool = False) -> FileRow | None:
         q = f"SELECT {_COLS} FROM xt_meta.file_object WHERE id = %s AND deleted_at IS NULL"
@@ -74,7 +89,8 @@ class PgFileRepository:
             cur.execute(
                 "UPDATE xt_meta.file_object SET status = %s, content_type = %s, size_bytes = %s,"
                 " sha256 = %s, object_key = %s, upload_expires_at = %s, finalized_at = %s,"
-                " scan_signature = %s, deleted_at = %s, updated_at = clock_timestamp()"
+                " scan_signature = %s, deleted_at = %s, scan_attempts = %s,"
+                " updated_at = clock_timestamp()"
                 " WHERE id = %s",
                 (
                     row.status,
@@ -86,6 +102,7 @@ class PgFileRepository:
                     row.finalized_at,
                     row.scan_signature,
                     row.deleted_at,
+                    row.scan_attempts,
                     row.id,
                 ),
             )
@@ -105,10 +122,71 @@ class PgFileRepository:
         with self._tx() as cur:
             rows = cur.execute(
                 f"SELECT {_COLS} FROM xt_meta.file_object WHERE status = 'scanning'"
-                " AND deleted_at IS NULL ORDER BY created_at LIMIT %s FOR UPDATE SKIP LOCKED",
+                " AND deleted_at IS NULL ORDER BY created_at LIMIT %s",
                 (limit,),
             ).fetchall()
         return [_row(r) for r in rows]
+
+    def usage(self, person: UUID) -> Usage:
+        """Ý định đang mở + byte đang giữ của người và của tenant (FB-02). Khóa tư vấn theo tenant
+        tuần tự hóa kiểm-rồi-ghi quota trong cùng transaction."""
+        with self._tx() as cur:
+            cur.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended('xt:files:quota:' || %s, 0))",
+                (str(self.actor.tenant.id),),
+            )
+            r = cur.execute(
+                "SELECT"
+                " count(*) FILTER (WHERE pend AND created_by = %s) AS user_pending,"
+                " count(*) FILTER (WHERE pend) AS tenant_pending,"
+                " coalesce(sum(size_bytes) FILTER (WHERE held AND created_by = %s), 0)"
+                "   AS user_bytes,"
+                " coalesce(sum(size_bytes) FILTER (WHERE held), 0) AS tenant_bytes"
+                " FROM (SELECT created_by, size_bytes,"
+                "   status IN ('awaiting_upload', 'uploaded')"
+                "     AND upload_expires_at > clock_timestamp() AS pend,"
+                "   status NOT IN ('expired', 'infected') AND size_bytes IS NOT NULL AS held"
+                "   FROM xt_meta.file_object WHERE deleted_at IS NULL) f",
+                (person, person),
+            ).fetchone()
+        return Usage(
+            int(r["user_pending"]),
+            int(r["tenant_pending"]),
+            int(r["user_bytes"]),
+            int(r["tenant_bytes"]),
+        )
+
+    def expired_pending(self, limit: int) -> list[FileRow]:
+        with self._tx() as cur:
+            rows = cur.execute(
+                f"SELECT {_COLS} FROM xt_meta.file_object"
+                " WHERE status IN ('awaiting_upload', 'uploaded')"
+                " AND upload_expires_at <= clock_timestamp()"
+                " ORDER BY upload_expires_at LIMIT %s FOR UPDATE SKIP LOCKED",
+                (limit,),
+            ).fetchall()
+        return [_row(r) for r in rows]
+
+    def purgeable_deleted(self, older_than_s: int, limit: int) -> list[FileRow]:
+        """Tệp xóa mềm quá hạn lưu, còn object."""
+        with self._tx() as cur:
+            rows = cur.execute(
+                f"SELECT {_COLS} FROM xt_meta.file_object WHERE deleted_at IS NOT NULL"
+                " AND object_key IS NOT NULL"
+                " AND deleted_at <= clock_timestamp() - make_interval(secs => %s)"
+                " ORDER BY deleted_at LIMIT %s FOR UPDATE SKIP LOCKED",
+                (older_than_s, limit),
+            ).fetchall()
+        return [_row(r) for r in rows]
+
+    def object_in_use(self, object_key: str, except_id: UUID) -> bool:
+        """Còn hàng chưa xóa (hoặc xóa mềm chưa dọn) trỏ tới cùng object theo nội dung."""
+        with self._tx() as cur:
+            r = cur.execute(
+                "SELECT 1 FROM xt_meta.file_object WHERE object_key = %s AND id <> %s LIMIT 1",
+                (object_key, except_id),
+            ).fetchone()
+        return r is not None
 
     def created_by(self, person: UUID, limit: int) -> list[FileRow]:
         with self._tx() as cur:

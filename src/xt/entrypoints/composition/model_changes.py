@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from xt.adapters.db.integration import SodViolation
 from xt.application.model_engine.ports import StoredProposal
 from xt.application.tools.context import CallContext, PersonRef, iso
 from xt.application.tools.errors import (
@@ -242,6 +243,27 @@ class ModelChangeDecisions:
             if tuple(destructive) != plan.destructive:
                 raise revision_conflict_msg("Kế hoạch thay đổi model đã đổi sau khi chuẩn bị.")
         state = "approved" if plan.decision == "approve" else "rejected"
+        owner = proposer_person(p.proposed_by)
+        for approver in plan.decided_by:  # W9: sổ quyết định, trigger SoD của DB
+            try:
+                self.rt.store.record_decision(
+                    caller.actor,
+                    kind="model_change",
+                    ref=plan.ref,
+                    step=STEP,
+                    decision=plan.decision,
+                    approver=UUID(approver.removeprefix("person:")),
+                    requester=owner,
+                    actor_kind=ctx.actor.kind.value,
+                    actor_client=ctx.actor.client_id,
+                    confirmed_by=ctx.confirmed_by,
+                )
+            except SodViolation as e:
+                raise access_denied(
+                    "Quyết định vi phạm tách nhiệm vụ (người duyệt phải khác người đề xuất).",
+                    "sod",
+                    None,
+                ) from e
         ok = self.rt.store.decide_model_change(
             caller.actor,
             plan.proposal_id,

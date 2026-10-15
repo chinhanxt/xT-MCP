@@ -1,0 +1,431 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 xT contributors
+"""Gói `giao-viec-sla` + `nhan-su-vong-doi` trên lớp ghép thật (Postgres 17 dùng chung của phiên):
+`xt pack install` hai bước cài được (E0), op dịch vụ của deployment chạy happy path của mọi quy
+trình (task_normal, weekly_digest, employee_onboarding, employee_offboarding) qua ProcessService
+thật (RLS, vai trò xt_workflow, rule model, audit trigger).
+
+W9 (E10): sổ `xt_meta.decision` + trigger `decision_sod_guard` chặn cả INSERT SQL trực tiếp bằng
+xt_app: người duyệt = người đề nghị, hoặc quyết định không do chính người duyệt xác nhận.
+
+Tenant riêng `opsx`, tổ chức sinh trong test với đúng vai trò/khóa phòng mà gói khai (hr, it_admin,
+payment_accountant, chief_accountant; NS, IT) để kiểm việc gán người thật, không rơi về fallback.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import uuid
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass
+from datetime import date, datetime
+from importlib.resources import files
+from typing import Any
+from zoneinfo import ZoneInfo
+
+import psycopg
+import pytest
+
+from tests.integration.composition import pgfixture
+from tests.integration.composition.fixtures import PACK, ROOT, StackBase, run_admin
+from tests.integration.composition.idp import DESK_CLIENT
+from xt.adapters.db.connection import Database
+from xt.adapters.db.integration import SodViolation, connect, person_id, tenant_of_alias
+from xt.adapters.db.workflow_bridge import PgWorkflowStore
+from xt.application.process.service import _record, summary
+from xt.application.tools.context import Actor
+from xt.domain.identity import PrincipalKind
+from xt.domain.model.context import TenantRef
+from xt.domain.process.errors import EngineError
+from xt.domain.process.schedule import Schedule, timer_inputs
+from xt.domain.process.spec import TimerTrigger
+from xt.entrypoints.composition.process import ProcessContext
+from xt.entrypoints.composition.runtime import Caller, Runtime
+from xt.entrypoints.serve import prepare
+
+pytestmark = pytest.mark.integration
+
+ALIAS = "opsx"
+PACKS = [PACK, ROOT / "packages" / "giao-viec-sla", ROOT / "packages" / "nhan-su-vong-doi"]
+DEPTS = [("BGD", "Ban Giám đốc"), ("NS", "Nhân sự"), ("IT", "Công nghệ"), ("KT", "Kế toán"),
+         ("KD", "Kinh doanh")]  # fmt: skip
+# key, tên, phòng, quản lý, vai trò
+PEOPLE = [
+    ("NV-0001", "Giám Đốc", "BGD", None, ["director", "admin"]),
+    ("NV-0002", "Trưởng Nhân Sự", "NS", "NV-0001", ["dept_head"]),
+    ("NV-0003", "Chuyên Viên Nhân Sự", "NS", "NV-0002", ["hr"]),
+    ("NV-0004", "Trưởng IT", "IT", "NV-0001", ["dept_head"]),
+    ("NV-0005", "Quản Trị IT", "IT", "NV-0004", ["it_admin"]),
+    ("NV-0006", "Trưởng Kế Toán", "KT", "NV-0001", ["dept_head"]),
+    ("NV-0007", "Kế Toán Thanh Toán", "KT", "NV-0006", ["payment_accountant"]),
+    ("NV-0008", "Kế Toán Trưởng", "KT", "NV-0006", ["chief_accountant"]),
+    ("NV-0009", "Trưởng Kinh Doanh", "KD", "NV-0001", ["dept_head"]),
+    ("NV-0010", "Nhân Viên Kinh Doanh", "KD", "NV-0009", []),
+    ("NV-0011", "Nhân Viên Mới", "KD", "NV-0009", []),
+    ("NV-0012", "Nhân Viên Nghỉ", "KD", "NV-0009", []),
+]
+
+
+def subject(key: str) -> str:
+    return f"kc-{ALIAS}-{key}"
+
+
+@dataclass
+class Ops:
+    rt: Runtime
+    engine: Any
+    tenant: TenantRef
+    plans: dict[str, str]
+
+    def pid(self, key: str) -> str:
+        return str(person_id(self.tenant.id, key))
+
+    def caller(self, key: str) -> tuple[Caller, Actor]:
+        actor = Actor(ALIAS, subject(key), PrincipalKind.HUMAN, DESK_CLIENT, None)
+        return self.rt.resolve(actor, f"it-{uuid.uuid4().hex[:8]}"), actor
+
+    def run(self, key: str, fn: Callable[[Caller, ProcessContext], Any]) -> Any:
+        caller, actor = self.caller(key)
+        pc = ProcessContext(self.rt, self.engine, caller.workflow(), caller.profile.timezone)
+        return self.rt.run_as(caller, actor, lambda: fn(caller, pc))
+
+    def create(self, key: str, model: str, values: dict[str, Any]) -> dict[str, Any]:
+        out = self.run(key, lambda c, _: self.rt.records.create(c.actor, model, values))
+        return dict(out["record"])
+
+    def get(self, model: str, rid: Any) -> dict[str, Any]:
+        out = self.run(
+            "NV-0001", lambda _, pc: self.rt.records.get(pc.actor, model, uuid.UUID(str(rid)))
+        )
+        return dict(out["record"])
+
+    def search(self, model: str, where: dict[str, Any]) -> list[dict[str, Any]]:
+        out = self.run(
+            "NV-0001",
+            lambda _, pc: self.rt.records.search(pc.actor, model, where, ("created_at",), 100, 0),
+        )
+        return list(out["items"])
+
+    def start(self, pid: str, data: dict[str, Any], requester: str) -> tuple[str, dict[str, Any]]:
+        iid = str(uuid.uuid4())
+        out = self.run(
+            requester,
+            lambda _, pc: pc.service().start(pid, data, self.pid(requester), instance_id=iid),
+        )
+        return iid, out
+
+    def act(self, iid: str, step: str, who: str, outcome: str = "done") -> dict[str, Any]:
+        def body(_: Caller, pc: ProcessContext) -> dict[str, Any]:
+            svc = pc.service()
+            info = svc.get(iid)
+            task = next(t for t in info["tasks"] if t["step"] == step)
+            assert self.pid(who) in task["candidates"], (step, task["candidates"])
+            return svc.act(iid, task["task_id"], self.pid(who), outcome, f"{step} xong")
+
+        out: dict[str, Any] = self.run(who, body)
+        return out
+
+    def steps(self, summary: dict[str, Any]) -> set[str]:
+        return {t["step"] for t in summary["tasks"]}
+
+
+@pytest.fixture(scope="module")
+def ops(
+    stack_base: StackBase, mcp_port: int, tmp_path_factory: pytest.TempPathFactory
+) -> Iterator[Ops]:
+    env = stack_base.env
+    d = tmp_path_factory.mktemp("xt-ops")
+    rc, out = run_admin(
+        ["tenant", "create", "--alias", ALIAS, "--name", "Pack ops (X)",
+         "--timezone", "Asia/Ho_Chi_Minh", "--llm-egress", "masked"],
+        env,
+    )  # fmt: skip
+    assert rc == 0, out
+    org = {
+        "departments": [{"id": k, "name": n, "parent_id": None} for k, n in DEPTS],
+        "positions": [],
+        "employees": [
+            {"id": k, "full_name": n, "email": f"{k.lower()}@ops.example", "department_id": u,
+             "position_id": None, "manager_id": m, "active": True, "roles": r}
+            for k, n, u, m, r in PEOPLE
+        ],
+    }  # fmt: skip
+    (d / "org.json").write_text(json.dumps(org, ensure_ascii=False), encoding="utf-8")
+    (d / "links.json").write_text(
+        json.dumps({"subjects": {k: subject(k) for k, *_ in PEOPLE}, "agent_grants": []}),
+        encoding="utf-8",
+    )
+    rc, out = run_admin(
+        ["org", "import", "--tenant", ALIAS, str(d / "org.json"), "--links",
+         str(d / "links.json"), "--base-roles", "employee"],
+        env,
+    )  # fmt: skip
+    assert rc == 0, out
+    who = ["--proposed-by", "agent:it", "--approved-by", "person:admin"]
+    plans: dict[str, str] = {}
+    for pack in PACKS:
+        common = ["pack", "install", "--tenant", ALIAS, str(pack)]
+        rc, plan = run_admin([*common, *who], env)
+        assert rc == 0 and "KHÔNG CÀI ĐƯỢC" not in plan, plan
+        digest = re.search(r"Mã xác nhận \(digest\): (sha256:[0-9a-f]{64})", plan)
+        assert digest, plan
+        rc, done = run_admin([*common, *who, "--confirm", digest.group(1)], env)
+        assert rc == 0, done
+        plans[pack.name] = plan
+    with connect(env["XT_DB_MIGRATOR_URL"]) as c:
+        tenant = tenant_of_alias(c, ALIAS)
+    ns = argparse.Namespace(transport="http", host="127.0.0.1", port=mcp_port, profile="full")
+    prepared = prepare(env, ns)
+    comp = prepared.services
+    try:
+        yield Ops(comp.runtime, comp.engine, tenant, plans)  # type: ignore[union-attr]
+    finally:
+        prepared.close()
+
+
+def test_packs_install_with_registered_ops(ops: Ops) -> None:
+    assert "task_normal v2" in ops.plans["giao-viec-sla"]
+    assert "weekly_digest v3" in ops.plans["giao-viec-sla"]
+    assert "employee_onboarding v3" in ops.plans["nhan-su-vong-doi"]
+    assert "employee_offboarding v2" in ops.plans["nhan-su-vong-doi"]
+
+
+def test_task_normal_happy_path_closes_task(ops: Ops) -> None:
+    kind = ops.create("NV-0001", "task_type", {"code": "bao_cao", "name": "Báo cáo"})
+    task = ops.create(
+        "NV-0009",
+        "task",
+        {
+            "task_no": "CV-2026-0001",
+            "title": "Báo cáo doanh số tuần",
+            "kind": kind["id"],
+            "assigner": ops.pid("NV-0009"),
+            "assignee": ops.pid("NV-0010"),
+            "deadline": "2099-12-31T17:00:00+07:00",
+            "done_criteria": "Có số liệu theo khách hàng",
+        },
+    )
+    data = {
+        "task_id": f"task:{task['id']}",
+        "assignee_user": ops.pid("NV-0010"),
+        "assigner_user": ops.pid("NV-0009"),
+    }
+    iid, s = ops.start("task_normal", data, "NV-0009")
+    assert ops.steps(s) == {"accept"}
+    assert ops.steps(ops.act(iid, "accept", "NV-0010")) == {"work"}
+    assert ops.steps(ops.act(iid, "work", "NV-0010")) == {"acceptance"}
+    done = ops.act(iid, "acceptance", "NV-0009", "approve")
+    assert done["status"] == "completed", done
+    row = ops.get("task", task["id"])
+    assert row["state"] == "done" and int(row["progress"]) == 100
+    assert row["completed_at"] and row["result"] == "work xong"  # ghi chú khi nộp bước work
+    assert row["process_instance_id"] == iid
+    logs = ops.search("sla_log", {"field": "task", "op": "=", "value": task["id"]})
+    assert [x["event"] for x in logs] == ["completed_on_time"]
+
+
+def test_weekly_digest_rollup_and_send(ops: Ops) -> None:
+    """Như poller: lần kích hoạt gần nhất của lịch (thứ Hai 8:00) -> bản tin tuần trước."""
+
+    def fire(_: Caller, pc: ProcessContext) -> tuple[dict[str, Any], dict[str, Any]]:
+        rt = pc.active("weekly_digest")
+        assert rt is not None
+        trig = rt.compiled.spec.trigger
+        assert isinstance(trig, TimerTrigger)
+        sch = Schedule(trig)
+        occ = sch.latest_at_or_before(datetime.now(ZoneInfo(trig.tz)))
+        assert occ is not None
+        data = timer_inputs(trig, sch.fire_context(occ))
+        inst = rt.start(data, fire={"fire_at": occ.isoformat(), "period_key": occ.isoformat()})
+        PgWorkflowStore(ops.rt.uow).insert(inst.id, _record(inst))
+        return data, summary(inst)
+
+    data, s = ops.run("NV-0001", fire)
+    assert s["status"] == "completed", s
+    assert data["department"] == ""
+    y, w, _ = date.fromisoformat(data["from_date"]).isocalendar()
+    code = f"BT-{y:04d}-W{w:02d}"
+    digests = ops.search("weekly_digest", {"field": "code", "op": "=", "value": code})
+    assert len(digests) == 1
+    dg = digests[0]
+    assert dg["sent"] is True and dg["from_date"] == data["from_date"]
+    assert dg["to_date"] == data["to_date"] and int(dg["total_completed"]) >= 0
+    assert "hoàn thành" in dg["content"]
+    # director + mọi dept_head nhận đúng một thông báo (idempotent theo mã bản tin)
+    for key in ("NV-0001", "NV-0002", "NV-0004", "NV-0006", "NV-0009"):
+        notes = ops.run(
+            key,
+            lambda c, _: ops.rt.store.notifications(c.actor, c.person.id, open_only=False),
+        )
+        assert sum(1 for n in notes if n["ref"] == f"weekly_digest:{dg['id']}") == 1, key
+
+
+def _employee(ops: Ops, emp_no: str, key: str, dept: dict[str, Any], **kw: Any) -> dict[str, Any]:
+    return ops.create(
+        "NV-0003",
+        "employee",
+        {"emp_no": emp_no, "user_id": ops.pid(key), "full_name": key, "job_title": "Nhân viên",
+         "department": dept["id"], **kw},
+    )  # fmt: skip
+
+
+def _of_case(case: dict[str, Any]) -> dict[str, Any]:
+    return {"field": "lifecycle_case", "op": "=", "value": case["id"]}
+
+
+def test_onboarding_happy_path(ops: Ops) -> None:
+    dept = ops.create("NV-0003", "department", {"code": "KD", "name": "Kinh doanh"})
+    emp = _employee(ops, "NV-0011", "NV-0011", dept)
+    assert emp["state"] == "waiting_to_start"
+    case = ops.create(
+        "NV-0003",
+        "lifecycle_case",
+        {"code": "ON-2026-0001", "employee": emp["id"], "kind": "onboarding",
+         "effective_on": "2026-11-02", "initiated_by": ops.pid("NV-0003")},
+    )  # fmt: skip
+    data = {"case_id": case["id"], "employee_id": emp["id"], "employee_user": ops.pid("NV-0011")}
+    iid, s = ops.start("employee_onboarding", data, "NV-0003")
+    assert ops.steps(s) == {"hr"}
+    tasks = ops.search(
+        "lifecycle_task", {"field": "lifecycle_case", "op": "=", "value": case["id"]}
+    )
+    assert sorted(t["owner_unit"] for t in tasks) == ["accounting", "hr", "it", "manager"]
+    assert all(t["state"] == "waiting" and t["due_on"] == "2026-11-02" for t in tasks)
+    assert ops.steps(ops.act(iid, "hr", "NV-0003")) == {"it", "accounting", "manager"}
+    ops.act(iid, "it", "NV-0005")
+    ops.act(iid, "accounting", "NV-0007")
+    done = ops.act(iid, "manager", "NV-0009")  # quản lý trực tiếp của người mới
+    assert done["status"] == "completed", done
+    e = ops.get("employee", emp["id"])
+    assert e["state"] == "probation" and e["hired_on"] == "2026-11-02"
+    c = ops.get("lifecycle_case", case["id"])
+    assert c["state"] == "completed" and c["closed_at"] and c["process_instance_id"] == iid
+    tasks = ops.search(
+        "lifecycle_task", {"field": "lifecycle_case", "op": "=", "value": case["id"]}
+    )
+    assert {t["state"] for t in tasks} == {"done"}
+
+
+def test_offboarding_happy_path_with_unreturned_asset(ops: Ops) -> None:
+    dept = ops.search("department", {"field": "code", "op": "=", "value": "KD"})[0]
+    emp = _employee(ops, "NV-0012", "NV-0012", dept, state="permanent", hired_on="2020-01-01")
+    asset = ops.create(
+        "NV-0005",
+        "asset_issue",
+        {
+            "employee": emp["id"],
+            "kind": "laptop",
+            "asset_code": "LT-0012",
+            "issued_on": "2020-01-01",
+        },
+    )  # fmt: skip
+    case = ops.create(
+        "NV-0003",
+        "lifecycle_case",
+        {"code": "OF-2026-0001", "employee": emp["id"], "kind": "offboarding",
+         "effective_on": "2026-11-30", "initiated_by": ops.pid("NV-0003")},
+    )  # fmt: skip
+    data = {"case_id": case["id"], "employee_id": emp["id"], "employee_user": ops.pid("NV-0012")}
+    iid, s = ops.start("employee_offboarding", data, "NV-0003")
+    assert ops.steps(s) == {"hr_confirm"}
+    e = ops.get("employee", emp["id"])
+    assert e["state"] == "offboarding_in_progress" and e["left_on"] == "2026-11-30"
+    tasks = ops.search(
+        "lifecycle_task", {"field": "lifecycle_case", "op": "=", "value": case["id"]}
+    )
+    assert sorted(t["owner_unit"] for t in tasks) == ["accounting", "hr", "hr", "it", "manager"]
+    assert ops.steps(ops.act(iid, "hr_confirm", "NV-0003")) == {"manager", "it", "accounting"}
+    ops.act(iid, "manager", "NV-0009")
+    ops.act(iid, "it", "NV-0005")
+    s = ops.act(iid, "accounting", "NV-0007")
+    # laptop chưa thu hồi -> chk_assets_result['unreturned'] > 0 -> kế toán trưởng xử lý
+    assert ops.steps(s) == {"chief_acct_overdue"}
+    assert ops.steps(ops.act(iid, "chief_acct_overdue", "NV-0008", "approve")) == {"hr_close"}
+    # Chốt: còn laptop chưa thu hồi -> bước đóng hồ sơ lỗi, instance đứng ở hr_close
+    with pytest.raises(EngineError, match="chưa thu hồi"):
+        ops.act(iid, "hr_close", "NV-0003")
+    assert ops.get("lifecycle_case", case["id"])["state"] == "processing"
+    ops.run(
+        "NV-0005",
+        lambda c, _: ops.rt.records.update(
+            c.actor, "asset_issue", uuid.UUID(asset["id"]), int(asset["revision"]),
+            {"revoked_on": "2026-11-30"},
+        ),
+    )  # fmt: skip
+    done = ops.act(iid, "hr_close", "NV-0003")
+    assert done["status"] == "completed", done
+    assert ops.get("employee", emp["id"])["state"] == "resigned"
+    c = ops.get("lifecycle_case", case["id"])
+    assert c["state"] == "completed" and c["closed_at"]
+
+
+# ------------------------------------------------------------------------------- W9 SoD ----
+def _insert(cur: psycopg.Cursor[Any], approver: str, requester: str, confirmed: list[str]) -> None:
+    cur.execute(
+        "INSERT INTO xt_meta.decision (tenant_id, kind, ref, step, decision, approver, requester,"
+        " actor_kind, actor_client, confirmed_by) VALUES (xt.tenant(), 'request', 'x:1', 'dh',"
+        " 'approve', %s, %s, 'agent', 'evil-agent', %s)",
+        (approver, requester, confirmed),
+    )
+
+
+def test_db_sod_trigger_rejects_direct_sql_as_xt_app(ops: Ops, app_db: Database) -> None:
+    caller, _ = ops.caller("NV-0010")
+    actor = caller.actor
+    req, dh = ops.pid("NV-0010"), ops.pid("NV-0009")
+    with app_db.tenant_tx(actor) as cur:
+        assert cur.execute("SELECT current_user").fetchone()["current_user"] == "xt_app"
+        trig = cur.execute(
+            "SELECT tgname FROM pg_trigger WHERE tgrelid = 'xt_meta.decision'::regclass"
+            " AND NOT tgisinternal AND tgname = 'decision_sod_guard'"
+        ).fetchone()
+        assert trig is not None
+    cases = {
+        "approver = requester": (req, req, [subject("NV-0010")]),
+        "agent, người duyệt không tự xác nhận": (dh, req, ["evil-agent"]),
+        "người đề nghị xác nhận hộ": (dh, req, [subject("NV-0009"), subject("NV-0010")]),
+    }
+    for name, (approver, requester, confirmed) in cases.items():
+        with (
+            pytest.raises(psycopg.errors.CheckViolation, match="SoD"),
+            app_db.tenant_tx(actor) as cur,
+        ):
+            _insert(cur, approver, requester, confirmed)
+            pytest.fail(f"DB nhận quyết định vi phạm SoD: {name}")
+    with app_db.tenant_tx(actor) as cur:  # hợp lệ: người khác, tự xác nhận
+        _insert(cur, dh, req, [subject("NV-0009")])
+        n = cur.execute("SELECT count(*) AS n FROM xt_meta.decision WHERE ref = 'x:1'").fetchone()
+        assert n["n"] == 1
+    for stmt in (
+        "UPDATE xt_meta.decision SET approver = requester",
+        "DELETE FROM xt_meta.decision",
+    ):
+        with pytest.raises(psycopg.errors.InsufficientPrivilege), app_db.tenant_tx(actor) as cur:
+            cur.execute(stmt)
+    # Đường ứng dụng: lỗi DB được dịch thành SodViolation (decide_request -> access_denied/sod)
+    with pytest.raises(SodViolation):
+        ops.run(
+            "NV-0010",
+            lambda c, _: ops.rt.store.record_decision(
+                c.actor, kind="request", ref="x:2", step="dh", decision="approve",
+                approver=uuid.UUID(req), requester=uuid.UUID(req), actor_kind="agent",
+                actor_client="evil-agent", confirmed_by=[subject("NV-0010")],
+            ),
+        )  # fmt: skip
+
+
+def test_decision_migration_is_idempotent(pg: pgfixture.Pg) -> None:
+    body = files("xt.adapters.db").joinpath("sql/migrations/0010_decision_sod.sql").read_text()
+    with pg.migrator() as m:
+        assert m.execute(
+            "SELECT 1 FROM xt_meta.schema_migration WHERE name = '0010_decision_sod.sql'"
+        ).fetchone()
+        with m.transaction():
+            m.execute(body.encode())  # chạy lại trên CSDL đã có: không lỗi
+        n = m.execute(
+            "SELECT count(*) FROM pg_trigger WHERE tgrelid = 'xt_meta.decision'::regclass"
+            " AND tgname = 'decision_sod_guard'"
+        ).fetchone()
+        assert n == (1,)

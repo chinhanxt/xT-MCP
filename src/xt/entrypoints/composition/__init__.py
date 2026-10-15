@@ -16,6 +16,7 @@ danh sách lỗi (không mặc định giả, không fallback in-memory):
 | `XT_PII_REVEAL_ORIGINS` | Origin Desk được gọi `POST /pii/reveal` (CORS) |
 | `XT_PII_REVEAL_CLIENTS` | Client được xin vé xem PII (`pii_reveal_ticket`) |
 | `XT_PII_REVEAL_TICKETS_PER_MINUTE` | Quota vé xem PII mỗi người mỗi phút |
+| `XT_DPOP_REQUIRED` | `true`: `XT_DPOP_CLIENTS` buộc token gắn DPoP; vé PII gắn khóa DPoP |
 | `XT_CONFIRM_AUTHORIZATION_URL`, `XT_CONFIRM_TOKEN_URL` | Endpoint OIDC của client confirm |
 | `XT_CONFIRM_*`, `XT_RECEIPT_*`, `XT_IDP_*` | Step-up + biên nhận (docs/identity.md) |
 
@@ -33,10 +34,13 @@ from starlette.routing import BaseRoute
 
 from xt.adapters.db.connection import AuditKey, Database
 from xt.adapters.identity import (
+    DpopSettings,
+    DpopVerifier,
     IdentityConfigError,
     ReceiptService,
     StepUpVerifier,
     build_jwks_cache,
+    load_dpop_settings,
     load_receipt_settings,
     load_step_up_settings,
 )
@@ -107,6 +111,7 @@ class CompositionConfig:
     receipts: ReceiptSettings
     human_clients: frozenset[str]
     reveal: RevealSettings
+    dpop: DpopSettings = field(default_factory=DpopSettings)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> CompositionConfig:
@@ -144,6 +149,11 @@ class CompositionConfig:
             problems += e.problems
         try:
             receipts = load_receipt_settings(env)
+        except IdentityConfigError as e:
+            problems += e.problems
+        dpop = DpopSettings()
+        try:
+            dpop = load_dpop_settings(env)
         except IdentityConfigError as e:
             problems += e.problems
         humans = frozenset(
@@ -202,7 +212,14 @@ class CompositionConfig:
             ConfirmSettings(desk, authz, token, step_up, step_up.idp.http_timeout_s),
             receipts,
             humans,
-            RevealSettings(desk_origin, frozenset(reveal_origins), reveal_clients, int(rate_raw)),
+            RevealSettings(
+                desk_origin,
+                frozenset(reveal_origins),
+                reveal_clients,
+                int(rate_raw),
+                dpop_required=dpop.required,
+            ),
+            dpop,
         )
 
 
@@ -269,7 +286,10 @@ class Composition:
     def reveal(self) -> PiiReveal:
         if self._reveal is None:
             self._reveal = PiiReveal(
-                self.runtime, ToolAccessGuard(self.runtime), self.config.reveal
+                self.runtime,
+                ToolAccessGuard(self.runtime),
+                self.config.reveal,
+                dpop=DpopVerifier(self.config.dpop),
             )
         return self._reveal
 

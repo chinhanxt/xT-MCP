@@ -29,7 +29,7 @@ from typing import Any, Protocol
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from xt.adapters.db.integration import ProcessDefinition
+from xt.adapters.db.integration import ProcessDefinition, SodViolation
 from xt.adapters.db.workflow_bridge import PgTimerScheduler, PgWorkflowStore
 from xt.adapters.workflow.bpmn.spiff import SpiffProcessEngine
 from xt.application.model_engine.service import jsonable
@@ -57,6 +57,7 @@ from xt.entrypoints.composition.model_changes import (
     ModelChangeDecisions,
     ModelDecidePlan,
 )
+from xt.entrypoints.composition.pack_ops import PACK_OPS
 from xt.entrypoints.composition.runtime import Caller, Runtime, after_rollback
 from xt.entrypoints.composition.util import (
     engine_call,
@@ -113,10 +114,10 @@ class OrgView:
 
 
 # ------------------------------------------------------------------------- op dịch vụ ----
-OpFactory = Callable[["ProcessContext"], ServiceFn]
+OpFactory = Callable[["ProcessContext", ProcessDefinition], ServiceFn]
 
 
-def _check_overdue_advances(pc: ProcessContext) -> ServiceFn:
+def _check_overdue_advances(pc: ProcessContext, d: ProcessDefinition) -> ServiceFn:
     """Số đề nghị tạm ứng đã duyệt, chưa hoàn ứng, quá hạn hoàn ứng của người đề nghị."""
 
     def op(requester: str) -> dict[str, int]:
@@ -137,7 +138,7 @@ def _check_overdue_advances(pc: ProcessContext) -> ServiceFn:
     return op
 
 
-def _notify(pc: ProcessContext) -> ServiceFn:
+def _notify(pc: ProcessContext, d: ProcessDefinition) -> ServiceFn:
     """Thông báo leo thang SLA cho người đề nghị của instance (khóa idempotency = instance:task)."""
 
     def op(msg: str, idempotency_key: str) -> dict[str, int]:
@@ -158,6 +159,7 @@ def _notify(pc: ProcessContext) -> ServiceFn:
 OPS: Mapping[str, tuple[tuple[str, ...], OpFactory]] = {
     "check_overdue_advances": (("requester",), _check_overdue_advances),
     "notify": (("msg",), _notify),
+    **PACK_OPS,
 }
 
 
@@ -205,7 +207,7 @@ class ProcessContext:
         return c
 
     def runtime(self, d: ProcessDefinition) -> ProcessRuntime:
-        services = {op: OPS[op][1](self) for op in d.allowed_ops if op in OPS}
+        services = {op: OPS[op][1](self, d) for op in d.allowed_ops if op in OPS}
         return ProcessRuntime(
             self.compiled(d),
             self.engine,
@@ -743,6 +745,28 @@ class ProcessToolAdapter:
         svc = pc.service()
         _, _, config, row = self._request(ctx, caller, p.ref)
         self._cas(row, p.revision)
+        owner = row.get("owner_id")
+        try:  # W9: sổ quyết định + trigger SoD của DB (lớp dưới PEP/runtime), cùng transaction
+            self.rt.store.record_decision(
+                caller.actor,
+                kind="request",
+                ref=p.ref,
+                step=p.step,
+                decision=p.outcome,
+                approver=UUID(p.person),
+                requester=UUID(str(owner)) if owner else None,
+                actor_kind=ctx.actor.kind.value,
+                actor_client=ctx.actor.client_id,
+                confirmed_by=ctx.confirmed_by,
+                instance_id=p.instance_id,
+                task_id=p.task_id,
+            )
+        except SodViolation as e:
+            raise access_denied(
+                "Quyết định vi phạm tách nhiệm vụ (người duyệt phải là người khác, tự xác nhận).",
+                "sod",
+                None,
+            ) from e
         kw: dict[str, Any] = {}
         if p.delegate_to:
             kw["delegate_to"] = p.delegate_to

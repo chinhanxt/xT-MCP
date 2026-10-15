@@ -23,6 +23,7 @@ from xt.application.tools.ports import (
     AccessCheck,
     AccessGuard,
     Args,
+    AttachmentPolicy,
     CommitResult,
     Data,
     Directory,
@@ -216,6 +217,25 @@ class _RecordWrite(WriteHandler):
         return s.records.commit(ctx, plan)
 
 
+def _check_file_fields(
+    s: ToolServices, ctx: CallContext, model_id: str, values: Mapping[str, Any]
+) -> None:
+    """Field kiểu `file`: tệp phải đọc được bởi người ghi và đã sẵn sàng (khi dịch vụ tệp thật
+    hiện thực `AttachmentPolicy`)."""
+    if not isinstance(s.files, AttachmentPolicy) or not values:
+        return
+    described = s.models.describe_model(ctx, {"model_id": model_id})
+    fields = ((described or {}).get("model") or {}).get("fields") or []
+    names = {
+        str(f.get("id") or f.get("name"))
+        for f in fields
+        if isinstance(f, Mapping) and f.get("type") == "file"
+    }
+    refs = [v for k, v in values.items() if k in names and isinstance(v, str)]
+    if refs:
+        s.files.check_attachable(ctx, refs)
+
+
 class CreateRecord(_RecordWrite):
     name = "create_record"
 
@@ -241,6 +261,7 @@ class CreateRecord(_RecordWrite):
             )
 
     def plan(self, s: ToolServices, ctx: CallContext, args: Args) -> MutationPlan:
+        _check_file_fields(s, ctx, args["model_id"], args.get("values") or {})
         return s.records.plan_create(ctx, args)
 
 
@@ -267,6 +288,9 @@ class UpdateRecord(_RecordWrite):
             )
 
     def plan(self, s: ToolServices, ctx: CallContext, args: Args) -> MutationPlan:
+        model_id = str(args["ref"]).rsplit(":", 2)[-2] if ":" in str(args["ref"]) else ""
+        if model_id:
+            _check_file_fields(s, ctx, model_id, args.get("set") or {})
         return s.records.plan_update(ctx, args)
 
 

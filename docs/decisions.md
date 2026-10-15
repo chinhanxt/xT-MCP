@@ -186,3 +186,27 @@ Sau phản biện bằng Codex gpt-6-astra: dùng API cộng thêm `install_data
   - `file.read`: người tải lên + vai trò duyệt hồ sơ.
   - `file.delete`: người tải lên.
   - Catalog host thêm `file.read` (L0) và `file.delete` (L1, xóa mềm khôi phục được). Đọc không được thì trả 404 như tệp không tồn tại (WA-07).
+
+## Op dịch vụ của gói giao việc / vòng đời nhân sự (16/10/2026, chủ dự án – Opus 5.5)
+Bối cảnh: E0 FAIL vì `giao-viec-sla` khai `close_task`, `weekly_rollup` và `nhan-su-vong-doi` khai `create_lifecycle_tasks`, `activate_employee`, `check_unreturned_assets`, `close_lifecycle_case` mà deployment chỉ có `check_overdue_advances`, `notify`; onboarding/offboarding có SLA nhưng thiếu `notify`.
+- **D-OPS-1. Hiện thực op trong registry `OPS` của deployment** (`src/xt/entrypoints/composition/pack_ops.py`), không đổi gói sang op khác.
+  - Lý do: các op là nghiệp vụ lõi của chính hai quy trình (đóng việc, kích hoạt nhân viên, đóng hồ sơ). Thay bằng op chung (`set_field`) thì pack phải mô tả cả ghi dữ liệu, mở rộng bề mặt mà không thêm giá trị.
+  - Ràng buộc: không mã tùy ý; pack chỉ khai tên + tham số (biểu thức AST whitelist); op kiểm kiểu tham số (uuid bản ghi đúng model, ngày ISO, danh sách vai trò regex); mọi ghi qua `RecordService` với vai trò `xt_workflow` (quyền model + rule + RLS + audit), cùng transaction của bước; idempotent theo dữ liệu.
+  - Factory op nhận thêm `ProcessDefinition` (op cần định nghĩa đã duyệt, ví dụ để sinh checklist).
+- **D-OPS-2. "Cấp tài khoản / thu hồi quyền" = checklist, không gọi hệ thống ngoài.** `create_lifecycle_tasks` sinh `lifecycle_task` từ chính các bước người (không có `when`) của định nghĩa quy trình đã duyệt: id bước (hoặc tiền tố trước `_`) trùng giá trị `owner_unit` của model. Không có danh sách việc cứng trong code. Offboarding: nhân viên chuyển `offboarding_in_progress`, `left_on` = ngày hiệu lực hồ sơ. `close_lifecycle_case` của hồ sơ nghỉ việc lỗi (instance đứng ở bước cuối) khi còn `asset_issue`/`access_grant` chưa `revoked_on` (chốt "không đóng được khi chưa thu hồi" của README gói).
+- **D-OPS-3. Sửa DỮ LIỆU gói ở hai chỗ** (gói 0.3.0):
+  - `weekly_digest` v3: bước gửi đổi `notify` -> `send_weekly_digest(digest_id, to_roles='director,dept_head')`. Lý do: instance định kỳ không có người đề nghị nên `notify` (gửi người đề nghị) không tới ai; op mới gửi người có vai trò khai trong gói (+ trưởng phòng của bản tin theo phòng) và đánh dấu `sent`. `weekly_rollup` ghi `weekly_digest` (mã `BT-YYYY-Www[-PHÒNG]`, chạy lại thì cập nhật nếu chưa gửi).
+  - `employee_onboarding` v3: thêm bước `close_case` (`close_lifecycle_case`), để `activate_employee` chỉ kích hoạt nhân viên (`probation`, `hired_on` = ngày hiệu lực) và hồ sơ tiếp nhận được đóng như hồ sơ nghỉ việc.
+  - `nhan-su-vong-doi`: thêm `notify` (SLA), `depends_on: ["de-xuat-phe-duyet"]` (op `check_overdue_advances` đọc `advance_request`).
+- **Việc còn mở (ngoài phạm vi):** (1) vai trò/khóa phòng trong `seed/binh-minh/org.json` (`it`, `accountant`, `D04`, `D05`) khác tên gói dùng (`it_admin`, `payment_accountant`, `chief_accountant`, `NS`, `IT`) nên trên seed thật các bước đó rơi về `fallback_assignee`; (2) chưa có bề mặt khởi tạo instance cho quy trình không gắn `request` (task/hồ sơ) và chưa có poller timer-start trong `xt-worker`. Test tích hợp (`tests/integration/composition/test_pack_ops.py`) dùng tổ chức đúng vai trò gói và gọi `ProcessService` thật.
+
+## SoD ở DB: sổ quyết định (16/10/2026, chủ dự án – Opus 5.5)
+Bối cảnh: W9 / E10 yêu cầu DB tự chặn `decider = requester`, dưới PEP/IAM và runtime. Trước đây quyết định chỉ nằm trong JSON state của instance, không có dòng nào để ràng buộc.
+- **D-SOD-1. Bảng chỉ-ghi-thêm `xt_meta.decision`** (migration `0010_decision_sod.sql`): một dòng mỗi quyết định của người (bước của đề nghị qua `decide_request`; mỗi người duyệt của đề xuất thay đổi model), ghi trong CÙNG transaction, TRƯỚC khi engine chạy. Có RLS tenant, audit hash-chain (`install_meta`), xt_app chỉ SELECT/INSERT.
+- **D-SOD-2. Trigger `decision_sod_guard` (BEFORE INSERT/UPDATE/DELETE)** từ chối:
+  1. `approver = requester` (thêm CHECK `decision_sod_not_requester`);
+  2. người duyệt không phải người đang hoạt động có `subject`, hoặc `subject` đó không nằm trong `confirmed_by` (danh tính đã step-up trên trang xác nhận). Đây là cách diễn đạt "agent thì principal duyệt phải là người": agent (kể cả thay mặt chính người duyệt) không bao giờ có trong `confirmed_by`;
+  3. `subject` của người đề nghị nằm trong `confirmed_by`;
+  4. mọi UPDATE/DELETE.
+  - Ứng dụng dịch `CheckViolation` -> `SodViolation` -> `access_denied` reason `sod`.
+- **D-SOD-3. Idempotent:** `CREATE TABLE IF NOT EXISTS`, `CREATE OR REPLACE FUNCTION`, `DROP TRIGGER IF EXISTS` + `CREATE TRIGGER`, policy kiểm `pg_policies`; chạy lại thân migration trên CSDL đã có không lỗi (có test). CSDL cũ nhận bảng qua `xt db migrate` như mọi migration.

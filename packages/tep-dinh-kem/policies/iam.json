@@ -40,11 +40,24 @@
       ]
     },
     {
-      "id": "file.reviewer-read",
+      "id": "file.director-read",
+      "effect": "Allow",
+      "subjects": [
+        "role:director"
+      ],
+      "actions": [
+        "file.read"
+      ],
+      "resources": [
+        "xrn:binhminh:file:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "file.reviewer-read-dept",
       "effect": "Allow",
       "subjects": [
         "role:dept_head",
-        "role:director",
         "role:chief_accountant",
         "role:accountant",
         "role:hr"
@@ -55,7 +68,15 @@
       "resources": [
         "xrn:binhminh:file:*"
       ],
-      "conditions": []
+      "conditions": [
+        {
+          "left": "resource.department",
+          "op": "eq",
+          "right": {
+            "ref": "subject.department"
+          }
+        }
+      ]
     },
     {
       "id": "file.agent-l1",

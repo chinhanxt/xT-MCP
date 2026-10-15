@@ -10,8 +10,9 @@
 --   * Event metadata nối vào CHUỖI CỦA TENANT (theo cột tenant_id của dòng), model =
 --     'xt_meta.<bảng>', nên checkpoint ngoài DB (xt_audit.heads) và verify phủ luôn metadata.
 --   * TRUNCATE (không biết tenant) nối vào chuỗi nền tảng tenant_id = 00000000-…-0000.
---   * Không HMAC (metadata không chứa field sensitive theo catalog). Cột liệt kê ở `redact`
---     (blob cấu trúc entropy cao, ví dụ receipt) chỉ lưu "redacted:sha256:<hex>" thay giá trị.
+--   * Cột liệt kê ở `redact` lưu "redacted:hmac:<kid>:<hex>" khi xt-api cấp HMAC qua GUC
+--     xt.audit_hmac = {"meta:<bảng>": {"new"|"old": {cột: "hmac:kid:hex"}}} (khóa không vào DB);
+--     không có thì "redacted:sha256:<hex>" (chỉ cho blob entropy cao, ví dụ receipt).
 --   * Trigger thuộc xt_audit_owner; xt_migrator chỉ gọi install_meta (sau khi GRANT TRIGGER);
 --     event trigger chặn DISABLE/DROP trigger xt_audit_meta* và RULE trên bảng đã gắn.
 
@@ -21,7 +22,7 @@ CREATE OR REPLACE FUNCTION xt_audit.log_meta() RETURNS trigger LANGUAGE plpgsql 
 SET search_path = pg_catalog, xt_audit, pg_temp AS $$
 DECLARE
   row_new jsonb; row_old jsonb; d jsonb; t uuid; rid uuid; key_col text := TG_ARGV[0];
-  c text; part text; i int;
+  c text; part text; i int; hm jsonb; v text;
 BEGIN
   IF TG_NAME <> 'xt_audit_meta' OR TG_TABLE_SCHEMA <> 'xt_meta' THEN
     RAISE EXCEPTION 'xt_audit.log_meta chỉ chạy qua trigger xt_audit_meta trên xt_meta.*'
@@ -47,12 +48,26 @@ BEGIN
      WHERE n.value IS DISTINCT FROM o.value;
     IF d = '{"new": {}, "old": {}}'::jsonb THEN RETURN NULL; END IF;  -- UPDATE không đổi gì
   END IF;
+  -- Cột redact: HMAC có khóa do xt-api cấp qua GUC xt.audit_hmac (khóa không bao giờ vào DB,
+  -- như cột sensitive của model; FB-04: giá trị entropy thấp như tên tệp "CCCD_<số>.pdf"); không
+  -- có HMAC hợp lệ thì sha256 (chỉ an toàn cho blob entropy cao, vd receipt).
+  IF TG_NARGS > 1 THEN
+    BEGIN
+      hm := nullif(current_setting('xt.audit_hmac', true), '')::jsonb;
+    EXCEPTION WHEN others THEN hm := NULL;
+    END;
+  END IF;
   FOR i IN 1 .. TG_NARGS - 1 LOOP
     c := TG_ARGV[i];
     FOREACH part IN ARRAY ARRAY['old', 'new'] LOOP
       IF d -> part ? c AND jsonb_typeof(d -> part -> c) <> 'null' THEN
-        d := jsonb_set(d, ARRAY[part, c], to_jsonb('redacted:sha256:' ||
-             encode(xt_audit.digest(convert_to((d -> part -> c)::text, 'UTF8'), 'sha256'), 'hex')));
+        v := hm -> ('meta:' || TG_TABLE_NAME) -> part ->> c;
+        IF v IS NOT NULL AND v ~ '^hmac:[0-9]+:[0-9a-f]{32,64}$' THEN
+          d := jsonb_set(d, ARRAY[part, c], to_jsonb('redacted:' || v));
+        ELSE
+          d := jsonb_set(d, ARRAY[part, c], to_jsonb('redacted:sha256:' ||
+               encode(xt_audit.digest(convert_to((d -> part -> c)::text, 'UTF8'), 'sha256'), 'hex')));
+        END IF;
       END IF;
     END LOOP;
   END LOOP;

@@ -19,6 +19,11 @@ research/spike-pii-lane.md §3.7; quyết định "Tier PII của Desk chat").
    Response `Cache-Control: no-store`. Mọi lần xin vé và đổi vé (kể cả thất bại sau khi suy được
    tenant) ghi `xt_meta.pii_egress`: người xem, kết quả, token, bản ghi, token bị từ chối, tier;
    không bao giờ giá trị. Giá trị thật không bao giờ đi vào kết quả tool MCP.
+3. DPoP (RFC 9449, docs/decisions.md "DPoP cho Desk trước v1.0"): khi access token của phiên gắn
+   khóa (`cnf.jkt` đã kiểm ở /mcp), vé gắn `jkt` đó và KHÔNG nhận `pubkey_jwk`. `POST /pii/reveal`
+   khi đó là `{ticket}` + header `DPoP` (htm POST, htu = URL /pii/reveal, `ath` = base64url(SHA-256
+   (vé)), jti dùng một lần) ký bằng CHÍNH khóa DPoP đó: token bị trích khỏi trình duyệt không đổi
+   được vé. `XT_DPOP_REQUIRED=true`: không cấp/đổi vé khung (khóa tùy ý) nữa.
 """
 
 from __future__ import annotations
@@ -43,6 +48,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from xt.adapters.db.integration import pii_ticket_tenant
+from xt.adapters.identity import DpopError, DpopSettings, DpopVerifier
 from xt.application.tools import CallContext, ToolDispatcher, ToolError, ToolOutcome
 from xt.application.tools.errors import access_denied, invalid_request
 from xt.contracts.tools import CONTRACT_VERSION, ErrorCode, StrictValidator
@@ -65,6 +71,7 @@ class RevealSettings:
     tickets_per_minute: int  # XT_PII_REVEAL_TICKETS_PER_MINUTE: quota vé mỗi người (PIIR-04)
     ttl_s: int = 60
     max_skew_s: int = 30
+    dpop_required: bool = False  # XT_DPOP_REQUIRED: chỉ vé gắn khóa DPoP
 
     @property
     def url(self) -> str:
@@ -129,8 +136,10 @@ class PiiReveal:
         guard: ToolAccessGuard,
         settings: RevealSettings,
         clock: Callable[[], float] = time.time,
+        dpop: DpopVerifier | None = None,
     ) -> None:
         self.rt, self.guard, self.settings, self.clock = rt, guard, settings, clock
+        self.dpop = dpop or DpopVerifier(DpopSettings(required=settings.dpop_required), clock=clock)
         self._validator = StrictValidator(dict(PII_REVEAL_TICKET.input_schema))
 
     # ---- 1. tool app-only ---------------------------------------------------------------------
@@ -160,9 +169,29 @@ class PiiReveal:
                 )
             caller = self.rt.caller(ctx)
             tokens = list(dict.fromkeys(str(t) for t in args["tokens"]))
-            jwk = canonical_jwk(dict(args["pubkey_jwk"]))
-            if jwk is None:
-                raise invalid_request("Khóa công khai không hợp lệ (EC P-256).", "BAD_PUBKEY")
+            jkt = ctx.actor.dpop_jkt
+            raw_jwk = args.get("pubkey_jwk")
+            point: dict[str, str]
+            thumb: bytes | None
+            if jkt is not None:
+                if raw_jwk is not None:  # vé gắn khóa DPoP của phiên, không nhận khóa tùy ý
+                    raise invalid_request(
+                        "Phiên gắn DPoP: vé dùng khóa DPoP của phiên, không gửi pubkey_jwk.",
+                        "DPOP_BOUND",
+                    )
+                point, thumb = {"dpop_jkt": jkt}, None
+            else:
+                if self.settings.dpop_required:
+                    raise access_denied(
+                        "Kênh xem giá trị thật cần phiên Desk gắn khóa DPoP.",
+                        "DPOP_REQUIRED",
+                        None,
+                    )
+                jwk = canonical_jwk(dict(raw_jwk)) if isinstance(raw_jwk, Mapping) else None
+                if jwk is None:
+                    raise invalid_request("Khóa công khai không hợp lệ (EC P-256).", "BAD_PUBKEY")
+                point = {"kty": "EC", "crv": "P-256", "x": jwk["x"], "y": jwk["y"]}
+                thumb = jwk_thumbprint(jwk)
             store, person = self.rt.store, caller.person.id
             # R2-01: đếm quota + INSERT vé tuần tự theo (tenant, người) trong cùng transaction.
             store.pii_lock_person(caller.actor, person)
@@ -189,7 +218,6 @@ class PiiReveal:
                     count=len(tokens),
                 )
             ticket = secrets.token_urlsafe(32)
-            point = {"kty": "EC", "crv": "P-256", "x": jwk["x"], "y": jwk["y"]}
             ok = store.pii_ticket_put(
                 caller.actor,
                 ticket_hash=hashlib.sha256(ticket.encode()).digest(),
@@ -198,7 +226,7 @@ class PiiReveal:
                 tokens=tokens,
                 pubkey=point,
                 ttl_s=self.settings.ttl_s,
-                key_thumbprint=jwk_thumbprint(jwk),
+                key_thumbprint=thumb,
             )
             if not ok:  # PIIR-07: mỗi lần xem phải là khóa mới của khung Desk
                 self._audit_mint(ctx, caller, "key_reused", [], tokens)
@@ -276,7 +304,7 @@ class PiiReveal:
                 headers={
                     **self._cors(allowed),
                     "Access-Control-Allow-Methods": "POST",
-                    "Access-Control-Allow-Headers": "content-type",
+                    "Access-Control-Allow-Headers": "content-type, dpop",
                     "Access-Control-Max-Age": "600",
                     **_NO_STORE,
                 },
@@ -297,25 +325,76 @@ class PiiReveal:
                 return self._deny("BAD_REQUEST", allowed, 400)
             chunks.append(chunk)
         body = b"".join(chunks)
+        proofs = tuple(request.headers.getlist("dpop"))
         try:
             data = json.loads(body)
-            ticket, ts, sig = data["ticket"], data["ts"], data["sig"]
-            if not (
-                isinstance(ticket, str)
-                and 16 <= len(ticket) <= 128
-                and type(ts) is int
-                and isinstance(sig, str)
-                and len(sig) <= 128
-                and set(data) == {"ticket", "ts", "sig"}
-            ):
+            if not isinstance(data, dict):
+                raise ValueError
+            ticket = data["ticket"]
+            if not (isinstance(ticket, str) and 16 <= len(ticket) <= 128):
+                raise ValueError
+            ts: int | None = None
+            sig: str | None = None
+            if set(data) == {"ticket"}:
+                if not proofs:  # dạng DPoP: proof ở header
+                    raise ValueError
+            elif set(data) == {"ticket", "ts", "sig"}:
+                ts, sig = data["ts"], data["sig"]
+                if not (type(ts) is int and isinstance(sig, str) and len(sig) <= 128):
+                    raise ValueError
+            else:
                 raise ValueError
         except (ValueError, KeyError, TypeError):
             return self._deny("BAD_REQUEST", allowed, 400)
-        status, payload = await run_in_threadpool(self._reveal, ticket, ts, sig)
+        status, payload = await run_in_threadpool(self._reveal, ticket, ts, sig, proofs)
         headers = {**_NO_STORE, **self._cors(allowed)}
         return JSONResponse(payload, status_code=status, headers=headers)
 
-    def _reveal(self, ticket: str, ts: int, sig: str) -> tuple[int, dict[str, Any]]:
+    def _proof_check(
+        self,
+        row: Mapping[str, Any],
+        ticket: str,
+        ts: int | None,
+        sig: str | None,
+        proofs: Sequence[str],
+    ) -> str | None:
+        """Mã lỗi hoặc None nếu request chứng minh được khóa gắn với vé. `STALE_REQUEST` không
+        tiêu vé (khung ký lại trong TTL); mọi lỗi khác tiêu vé (một lần thử, chống dò)."""
+        pub = row["pubkey"]
+        jkt = pub.get("dpop_jkt") if isinstance(pub, Mapping) else None
+        if jkt is not None:
+            if sig is not None or not proofs:
+                return "DPOP_REQUIRED"
+            try:
+                self.dpop.verify(
+                    proofs,
+                    htm="POST",
+                    htu={self.settings.url},
+                    bound_to=ticket,
+                    expected_jkt=str(jkt),
+                )
+            except DpopError as e:
+                if e.reason in ("dpop_iat_stale", "dpop_iat_future"):
+                    return "STALE_REQUEST"
+                return "BAD_DPOP_PROOF"
+            return None
+        if self.settings.dpop_required:  # vé khung cấp trước khi bật cờ
+            return "TICKET_INVALID"
+        if ts is None or sig is None:
+            return "BAD_SIGNATURE"
+        if abs(self.clock() - ts) > self.settings.max_skew_s:
+            return "STALE_REQUEST"
+        if not _verify(pub, f"{ticket}.{ts}".encode(), sig):
+            return "BAD_SIGNATURE"
+        return None
+
+    def _reveal(
+        self,
+        ticket: str,
+        ts: int | None,
+        sig: str | None,
+        proofs: Sequence[str] = (),
+    ) -> tuple[int, dict[str, Any]]:
         h = hashlib.sha256(ticket.encode()).digest()
         tenant = pii_ticket_tenant(self.rt.app_db, h)
         if tenant is None:
@@ -352,15 +431,16 @@ class PiiReveal:
             row = self.rt.store.pii_ticket_lock(actor, h)
             if row is None:
                 return 403, {"error": "TICKET_INVALID"}
-            if abs(self.clock() - ts) > self.settings.max_skew_s:
+            failure = self._proof_check(row, ticket, ts, sig, proofs)
+            if failure == "STALE_REQUEST":
                 # STALE không tiêu vé (khung Desk có thể ký lại trong TTL) nhưng có dấu vết.
                 audit("stale", row["person"], denied=list(row["tokens"]))
-                return 403, {"error": "STALE_REQUEST"}
-            # Một lần thử: vé tiêu ngay cả khi chữ ký sai (chống dò).
+                return 403, {"error": failure}
+            # Một lần thử: vé tiêu ngay cả khi chữ ký/proof sai (chống dò).
             self.rt.store.pii_ticket_use(actor, h)
-            if not _verify(row["pubkey"], f"{ticket}.{ts}".encode(), sig):
-                audit("bad_signature", row["person"], denied=list(row["tokens"]))
-                return 403, {"error": "BAD_SIGNATURE"}
+            if failure is not None:
+                audit(failure.lower(), row["person"], denied=list(row["tokens"]))
+                return 403, {"error": failure}
             person = self.rt.store.person(actor, row["person"])
             profile = self.rt.store.profile(actor)
             if person is None or not person.active or profile is None:

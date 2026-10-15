@@ -13,11 +13,11 @@ Quy ước chung:
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Literal, Protocol, TypeVar
+from typing import Any, Literal, Protocol, TypeVar, runtime_checkable
 
 from xt.application.tools.context import Actor, CallContext, ClientClass, PersonRef
 from xt.domain.autonomy import RiskLevel
@@ -167,6 +167,14 @@ class FileService(Protocol):
     def plan_upload(self, ctx: CallContext, args: Args) -> MutationPlan: ...
 
     def commit(self, ctx: CallContext, plan: MutationPlan) -> CommitResult: ...
+
+
+@runtime_checkable
+class AttachmentPolicy(Protocol):
+    """Tùy chọn của `FileService` (dịch vụ tệp thật): field kiểu `file` của bản ghi chỉ nhận tệp
+    người ghi đọc được và đã sẵn sàng. Ném `ToolError` (`invalid_request`)."""
+
+    def check_attachable(self, ctx: CallContext, refs: Sequence[str]) -> None: ...
 
 
 class ModelChangeService(Protocol):

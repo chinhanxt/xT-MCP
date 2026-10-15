@@ -12,6 +12,7 @@ sự kiện `rejected`), hàm TRẢ `Outcome(row, error)` để lớp gọi comm
 from __future__ import annotations
 
 import base64
+import codecs
 import hashlib
 import hmac
 import re
@@ -25,12 +26,14 @@ from typing import IO, Any, BinaryIO, Literal, cast
 from uuid import UUID
 
 from xt.application.files.ports import (
+    BlobError,
     FileRepository,
     FileRow,
     FileStatus,
     FileStore,
     MalwareScanner,
     ScannerUnavailable,
+    ScanVerdict,
 )
 from xt.application.files.sniff import (
     ALLOWED_TYPES,
@@ -61,8 +64,10 @@ TOOL_STATUS: dict[FileStatus, str] = {
     "clean": "clean",
     "not_scanned": "not_scanned",
     "infected": "infected",
+    "scan_failed": "scan_failed",
     "expired": "expired",
 }
+TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{1,400}\.[A-Za-z0-9_-]{43}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,12 +78,25 @@ class FilePolicy:
     scanning: bool = False
     unscanned_download: UnscannedPolicy = "uploader"
     allowed_types: frozenset[str] = field(default_factory=lambda: frozenset(ALLOWED_TYPES))
+    # FB-02: quota (đếm từ metadata, cùng transaction có khóa tư vấn theo tenant).
+    max_pending_per_user: int = 20
+    max_pending_per_tenant: int = 500
+    user_quota_bytes: int = 256 * 1024 * 1024
+    tenant_quota_bytes: int = 1024 * 1024 * 1024
+    # FB-01: số lần clamd lỗi liên tiếp trước khi `scan_failed`.
+    scan_max_attempts: int = 5
+    # Tệp xóa mềm giữ byte bao lâu trước khi dọn object (khôi phục được trong khoảng này).
+    retention: timedelta = timedelta(days=30)
 
     def __post_init__(self) -> None:
         if not 1 <= self.max_inline_bytes <= self.max_bytes:
             raise ValueError("max_inline_bytes phải trong 1..max_bytes")
         if not timedelta(seconds=10) <= self.upload_ttl <= timedelta(hours=24):
             raise ValueError("upload_ttl phải trong 10 s..24 h")
+        if min(self.max_pending_per_user, self.max_pending_per_tenant, self.scan_max_attempts) < 1:
+            raise ValueError("quota ý định và số lần quét phải ≥ 1")
+        if not self.max_bytes <= self.user_quota_bytes <= self.tenant_quota_bytes:
+            raise ValueError("phải có max_bytes ≤ user_quota_bytes ≤ tenant_quota_bytes")
         unknown = self.allowed_types - set(ALLOWED_TYPES)
         if unknown:
             raise ValueError(f"kiểu tệp không có bộ nhận dạng magic byte: {sorted(unknown)}")
@@ -88,6 +106,27 @@ class FilePolicy:
 class Outcome:
     row: FileRow
     error: ToolError | None = None
+
+
+def quota_error(reason: str, limit: int, message: str) -> ToolError:
+    return ToolError(
+        ErrorCode.RESOURCE_CONSTRAINT,
+        message,
+        remediation="Finish or let open uploads expire, delete files you no longer need, or ask "
+        "the administrator to raise the quota.",
+        details={"resource": reason, "reason": reason, "limit": limit},
+    )
+
+
+def is_text(data: bytes) -> bool:
+    """UTF-8 hợp lệ trọn vẹn, không có NUL (FB-07)."""
+    if b"\x00" in data:
+        return False
+    try:
+        data.decode("utf-8")
+    except UnicodeDecodeError:
+        return False
+    return True
 
 
 def too_large(limit: int) -> ToolError:
@@ -108,6 +147,9 @@ class Spool:
         self.size = 0
         self._sha = hashlib.sha256()
         self._head = bytearray()
+        # FB-07: kiểm UTF-8 + NUL trên TOÀN BỘ luồng (cho họ text), không chỉ 8 KiB đầu.
+        self._utf8 = codecs.getincrementaldecoder("utf-8")("strict")
+        self._text = True
         self.file: IO[bytes] = tempfile.SpooledTemporaryFile(max_size=1024 * 1024)  # noqa: SIM115
 
     def write(self, chunk: bytes) -> None:
@@ -117,6 +159,14 @@ class Spool:
         if self.size > self.limit:
             raise too_large(self.limit)
         self._sha.update(chunk)
+        if self._text:
+            if b"\x00" in chunk:
+                self._text = False
+            else:
+                try:
+                    self._utf8.decode(chunk)
+                except UnicodeDecodeError:
+                    self._text = False
         if len(self._head) < SNIFF_BYTES:
             self._head += chunk[: SNIFF_BYTES - len(self._head)]
         self.file.write(chunk)
@@ -124,6 +174,16 @@ class Spool:
     @property
     def head(self) -> bytes:
         return bytes(self._head)
+
+    @property
+    def text_ok(self) -> bool:
+        """Toàn bộ byte đã nhận là UTF-8 hợp lệ, đủ ký tự, không có NUL."""
+        if self._text:
+            try:
+                self._utf8.decode(b"", final=True)
+            except UnicodeDecodeError:
+                self._text = False
+        return self._text
 
     @property
     def sha256(self) -> str:
@@ -183,14 +243,17 @@ class UploadTokens:
             None,
             remediation="Create a new upload (POST /files/v1 or upload_file) and use its link.",
         )
-        body, dot, mac = token.partition(".")
-        if not dot or len(token) > 512:
+        # FB-05: chỉ base64url ASCII đúng độ dài, so bằng bytes (không bao giờ TypeError -> 500).
+        if not TOKEN_RE.fullmatch(token):
             raise bad
+        body, _, mac = token.partition(".")
         try:
             payload = base64.urlsafe_b64decode(body + "=" * (-len(body) % 4))
         except ValueError:
             raise bad from None
-        if not hmac.compare_digest(mac, self._mac(payload)):
+        if base64.urlsafe_b64encode(payload).rstrip(b"=").decode() != body:
+            raise bad  # base64 không chuẩn tắc
+        if not hmac.compare_digest(mac.encode(), self._mac(payload).encode()):
             raise bad
         try:
             tenant, fid, person, exp = payload.decode().split("~")
@@ -265,7 +328,7 @@ class FileManager:
             )
         return clean, declared
 
-    def check_bytes(self, declared: str, head: bytes, size: int) -> None:
+    def check_bytes(self, declared: str, head: bytes, size: int, text_ok: bool = True) -> None:
         if size == 0:
             raise invalid_request("The file is empty.", "empty_file")
         found = sniff(head, complete=size <= len(head))
@@ -278,6 +341,8 @@ class FileManager:
                 declared=declared,
                 detected="forbidden",
             )
+        if found.family == "text" and not text_ok:
+            found = replace(found, family="binary")
         if not matches(declared, found):
             raise invalid_request(
                 "The file content does not match its declared type.",
@@ -309,6 +374,7 @@ class FileManager:
         declared: str,
         now: datetime,
     ) -> FileRow:
+        self.check_quota(repo, person)
         row = FileRow(
             id=uuid.uuid4(),
             name=name,
@@ -322,6 +388,29 @@ class FileManager:
         repo.insert(row)
         repo.event(row.id, "created", {"declared_type": declared})
         return row
+
+    def check_quota(self, repo: FileRepository, person: UUID, adding: int = 0) -> None:
+        """FB-02: trước khi tạo ý định (`adding=0`) và trước khi nhận/finalize byte."""
+        p = self.policy
+        u = repo.usage(person)
+        if adding == 0 and u.user_pending >= p.max_pending_per_user:
+            raise quota_error(
+                "pending_uploads_quota",
+                p.max_pending_per_user,
+                "You have too many unfinished uploads.",
+            )
+        if adding == 0 and u.tenant_pending >= p.max_pending_per_tenant:
+            raise quota_error(
+                "pending_uploads_quota",
+                p.max_pending_per_tenant,
+                "The organization has too many unfinished uploads.",
+            )
+        if u.user_bytes + adding > p.user_quota_bytes:
+            raise quota_error("storage_quota", p.user_quota_bytes, "Your file storage is full.")
+        if u.tenant_bytes + adding > p.tenant_quota_bytes:
+            raise quota_error(
+                "storage_quota", p.tenant_quota_bytes, "The organization's file storage is full."
+            )
 
     def current(self, repo: FileRepository, row: FileRow, now: datetime) -> FileRow:
         """Áp hạn tải lên (lười): quá hạn khi chưa finalize -> `expired`, xóa byte quarantine."""
@@ -359,7 +448,8 @@ class FileManager:
                 ),
             )
         try:
-            self.check_bytes(row.declared_type, spool.head, spool.size)
+            self.check_bytes(row.declared_type, spool.head, spool.size, spool.text_ok)
+            self.check_quota(repo, row.created_by, adding=spool.size)
         except ToolError as e:
             repo.event(row.id, "rejected", {"reason": e.details.get("reason")})
             return Outcome(row, e)
@@ -435,10 +525,12 @@ class FileManager:
             return Outcome(row, self._mismatch())
         row = replace(row, finalized_at=now, upload_expires_at=None)
         if self.scanner is not None:
-            row = replace(row, status="scanning")
+            # FB-01: chỉ chuyển `scanning` rồi commit; quét chạy NGOÀI transaction (`scan_bytes`
+            # + `apply_scan`), không giữ khóa dòng/kết nối DB trong lúc chờ clamd.
+            row = replace(row, status="scanning", scan_attempts=0)
             repo.update(row)
             repo.event(row.id, "finalized", {"sha256": sha256, "scan": "pending"})
-            return Outcome(self.scan(repo, row))
+            return Outcome(row)
         row = self._promote(tenant, replace(row, status="not_scanned"))
         repo.update(row)
         repo.event(row.id, "finalized", {"sha256": sha256, "scan": "disabled"})
@@ -462,15 +554,33 @@ class FileManager:
         self.store.delete(qkey)
         return replace(row, object_key=ckey)
 
-    def scan(self, repo: FileRepository, row: FileRow) -> FileRow:
-        """Quét tệp `scanning`. clamd lỗi -> giữ nguyên (quét lại sau)."""
+    def scan_bytes(self, tenant: UUID, row: FileRow) -> ScanVerdict | None:
+        """I/O thuần (S3 -> clamd), không đụng DB. None = clamd/S3 lỗi lần này."""
         if row.status != "scanning" or self.scanner is None:
+            return None
+        try:
+            return self.scanner.scan(self.store.stream(self.quarantine_key(tenant, row.id)))
+        except (ScannerUnavailable, BlobError):
+            return None
+
+    def apply_scan(
+        self, repo: FileRepository, row: FileRow, verdict: ScanVerdict | None
+    ) -> FileRow:
+        """Ghi kết quả (gọi trong transaction, dòng đã khóa và vẫn `scanning`). Lỗi quét: tăng
+        `scan_attempts`; tới `scan_max_attempts` -> `scan_failed` (FB-01), hiện rõ, không kẹt."""
+        if row.status != "scanning":
             return row
         tenant = repo.tenant_id()
         qkey = self.quarantine_key(tenant, row.id)
-        try:
-            verdict = self.scanner.scan(self.store.stream(qkey))
-        except ScannerUnavailable:
+        if verdict is None:
+            attempts = row.scan_attempts + 1
+            if attempts >= self.policy.scan_max_attempts:
+                row = replace(row, status="scan_failed", scan_attempts=attempts)
+                repo.update(row)
+                repo.event(row.id, "scan_failed", {"attempts": attempts})
+            else:
+                row = replace(row, scan_attempts=attempts)
+                repo.update(row)
             return row
         if verdict.clean:
             row = self._promote(tenant, replace(row, status="clean"))
@@ -480,6 +590,36 @@ class FileManager:
         repo.update(row)
         repo.event(row.id, "scanned", {"clean": verdict.clean, "signature": verdict.signature})
         return row
+
+    def scan(self, repo: FileRepository, row: FileRow) -> FileRow:
+        """Quét + ghi trong một bước (byte nhỏ của tool, worker đã giải phóng khóa trước)."""
+        return self.apply_scan(repo, row, self.scan_bytes(repo.tenant_id(), row))
+
+    def retry_scan(self, repo: FileRepository, row: FileRow) -> FileRow:
+        """Đưa `scan_failed` về `scanning` để quét lại (quản trị / worker sau khi clamd ổn)."""
+        if row.status != "scan_failed":
+            return row
+        row = replace(row, status="scanning", scan_attempts=0)
+        repo.update(row)
+        return row
+
+    def expire_and_purge(self, repo: FileRepository, now: datetime, limit: int = 100) -> int:
+        """FB-02: dọn ý định quá hạn (xóa byte quarantine) và object của tệp xóa mềm quá hạn lưu
+        mà không còn hàng nào khác trỏ tới (khóa theo nội dung dùng chung)."""
+        done = 0
+        for row in repo.expired_pending(limit):
+            self.current(repo, row, now)
+            done += 1
+        secs = int(self.policy.retention.total_seconds())
+        for row in repo.purgeable_deleted(secs, limit):
+            key = row.object_key
+            assert key is not None
+            if not repo.object_in_use(key, row.id):
+                self.store.delete(key)
+            repo.update(replace(row, object_key=None))
+            repo.event(row.id, "purged", {})
+            done += 1
+        return done
 
     def store_inline(
         self,
@@ -504,7 +644,11 @@ class FileManager:
             out = self.ingest(repo, row, spool, now)
             if out.error is not None:
                 return out
-            return self.finalize(repo, out.row, spool.sha256, now)
+            out = self.finalize(repo, out.row, spool.sha256, now)
+        if out.error is None and out.row.status == "scanning":
+            # Byte nhỏ (≤ max_inline_bytes): quét ngay trong lời gọi tool.
+            return Outcome(self.scan(repo, out.row))
+        return out
 
     def download_error(self, row: FileRow, person: UUID) -> ToolError | None:
         if row.status == "clean":
@@ -524,6 +668,12 @@ class FileManager:
                 "The file is still being scanned for malware.",
                 "file_scanning",
                 remediation="Try again in a minute.",
+            )
+        if row.status == "scan_failed":
+            return precondition_failed(
+                "The malware scan could not be completed; the file is blocked.",
+                "file_scan_failed",
+                remediation="Ask the administrator to check ClamAV and rescan, or upload again.",
             )
         if row.status == "infected":
             return precondition_failed(
@@ -568,8 +718,8 @@ def view(row: FileRow, name: str | None = None) -> dict[str, Any]:
         "created_by": f"person:{row.created_by}",
         "upload_expires_at": row.upload_expires_at.isoformat() if row.upload_expires_at else None,
         "finalized_at": row.finalized_at.isoformat() if row.finalized_at else None,
-        "scan": {"enabled": row.status in ("scanning", "clean", "infected"),
-                 "signature": row.scan_signature},
+        "scan": {"enabled": row.status in ("scanning", "clean", "infected", "scan_failed"),
+                 "signature": row.scan_signature, "attempts": row.scan_attempts},
     }  # fmt: skip
 
 

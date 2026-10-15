@@ -1,22 +1,26 @@
 {
   "format": "xt-pack/1",
   "pack": "tep-dinh-kem",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "title": "Tệp đính kèm và sổ tài liệu (dữ liệu phi cấu trúc trên SeaweedFS)",
   "depends_on": [],
-  "models": ["tai_lieu"],
+  "models": [
+    "tai_lieu"
+  ],
   "processes": [],
-  "policies": ["iam"],
+  "policies": [
+    "iam"
+  ],
   "notes": {
     "tenant_demo": "binhminh",
     "service": "REST /files/v1 + tool upload_file (docs/files-api.md). Byte ở SeaweedFS S3, metadata xt_meta.file_object (RLS + audit)",
     "roles": {
       "employee": "Tải tệp lên (file.create); đọc, xóa mềm tệp của chính mình; lập sổ tài liệu của mình",
-      "dept_head": "Đọc tệp trong tổ chức để duyệt hồ sơ đính kèm",
-      "director": "Đọc tệp trong tổ chức",
-      "chief_accountant": "Đọc tệp (chứng từ) trong tổ chức",
-      "accountant": "Đọc tệp (chứng từ) trong tổ chức",
-      "hr": "Đọc tệp (hồ sơ nhân sự) trong tổ chức",
+      "dept_head": "Đọc tệp do người cùng phòng tải lên (điều kiện resource.department = subject.department)",
+      "director": "Đọc mọi tệp trong tổ chức",
+      "chief_accountant": "Đọc tệp (chứng từ) của người cùng phòng",
+      "accountant": "Đọc tệp (chứng từ) của người cùng phòng",
+      "hr": "Đọc tệp (hồ sơ) của người cùng phòng",
       "agent": "Tải lên/đọc/xóa mềm thay người được đại diện (L1); quyền thực tế = giao của quyền agent và quyền của người đó"
     },
     "field_type": "Field kiểu `file` lưu id tệp; DB có FK ghép (tenant_id, id) tới xt_meta.file_object nên không trỏ được sang tệp tenant khác"

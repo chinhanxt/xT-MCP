@@ -32,6 +32,10 @@ class _Uow(Protocol):
     def tenant_tx(self, actor: ModelActor, *, workflow: bool = False) -> Any: ...
 
 
+class SodViolation(PermissionError):
+    """DB từ chối quyết định vi phạm tách nhiệm vụ (trigger `xt_meta.decision_sod_guard`)."""
+
+
 @dataclass(frozen=True, slots=True)
 class TenantProfile:
     tenant: TenantRef
@@ -397,6 +401,40 @@ class PgIntegrationStore:
             ).fetchone()
         return row is not None
 
+    def record_decision(
+        self,
+        actor: ModelActor,
+        *,
+        kind: str,
+        ref: str,
+        step: str,
+        decision: str,
+        approver: UUID,
+        requester: UUID | None,
+        actor_kind: str,
+        actor_client: str,
+        confirmed_by: Sequence[str],
+        instance_id: str | None = None,
+        task_id: str | None = None,
+    ) -> UUID:
+        """Sổ quyết định (`xt_meta.decision`, migration 0010): trigger `decision_sod_guard` của DB
+        từ chối người duyệt = người đề nghị / người duyệt không tự xác nhận -> `SodViolation`."""
+        with self.uow.tenant_tx(actor) as cur:
+            try:
+                with cur.connection.transaction():
+                    row = cur.execute(
+                        "INSERT INTO xt_meta.decision (tenant_id, kind, ref, instance_id, task_id,"
+                        " step, decision, approver, requester, actor_kind, actor_client,"
+                        " confirmed_by) VALUES (xt.tenant(), %s, %s, %s, %s, %s, %s, %s, %s, %s,"
+                        " %s, %s) RETURNING id",
+                        (kind, ref[:300], instance_id, task_id, step[:100], decision[:40],
+                         approver, requester, actor_kind, actor_client[:200], list(confirmed_by)),
+                    ).fetchone()  # fmt: skip
+            except psycopg.errors.CheckViolation as e:
+                raise SodViolation(str(e.diag.message_primary or e)) from e
+        assert row is not None
+        return UUID(str(row["id"]))
+
     def finish_model_change(
         self,
         actor: ModelActor,
@@ -533,7 +571,7 @@ class PgIntegrationStore:
         tokens: Sequence[str],
         pubkey: Mapping[str, Any],
         ttl_s: int,
-        key_thumbprint: bytes,
+        key_thumbprint: bytes | None,
     ) -> bool:
         """False = khóa của khung đã dùng cho vé khác (mỗi lần xem một khóa mới, PIIR-07)."""
         with self.uow.tenant_tx(actor) as cur:

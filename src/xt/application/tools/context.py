@@ -47,6 +47,8 @@ class Actor:
     client_id: str
     on_behalf_of: str | None
     scopes: frozenset[str] = frozenset()
+    # Khóa DPoP đã kiểm của request (RFC 9449); vé /pii/reveal gắn vào khóa này. Không snapshot.
+    dpop_jkt: str | None = None
 
     @property
     def is_agent(self) -> bool:
@@ -81,6 +83,7 @@ class Actor:
             client_id=principal.client_id,
             on_behalf_of=principal.on_behalf_of,
             scopes=principal.scopes,
+            dpop_jkt=principal.dpop_jkt,
         )
 
 

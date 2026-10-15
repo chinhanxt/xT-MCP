@@ -66,7 +66,9 @@ class FakeVerifier:
     tokens: dict[str, Principal] = field(default_factory=dict)
     seen: list[str] = field(default_factory=list)
 
-    def verify(self, token: str, required_scopes: frozenset[str] = frozenset()) -> Principal:
+    def verify(
+        self, token: str, required_scopes: frozenset[str] = frozenset(), *, dpop: Any = None
+    ) -> Principal:
         self.seen.append(token)
         if token == "noscope":
             raise InsufficientScopeError({"mcp-xt"}, {"openid"})

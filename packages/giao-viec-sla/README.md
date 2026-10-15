@@ -32,7 +32,7 @@ Quy ước dữ liệu: `owner_id` của `task` là **người thực hiện**, 
 
 Từ chối nhận việc, hoặc không chấp nhận kết quả, đều kết thúc quy trình ở "Bị từ chối".
 
-`weekly_digest`: quy trình hai service (`weekly_rollup`, `notify`) chạy 8:00 thứ Hai theo khối `trigger` trong spec. **Khối `trigger` do compiler bỏ qua**; lịch phải do `xt-worker` đọc (xem REPORT.md).
+`weekly_digest` (v3): quy trình hai service (`weekly_rollup` ghi bản ghi `weekly_digest`, `send_weekly_digest` gửi giám đốc + trưởng phòng và đánh dấu `sent`) chạy 8:00 thứ Hai theo khối `trigger` trong spec. **Khối `trigger` do compiler bỏ qua**; lịch phải do `xt-worker` đọc (xem REPORT.md).
 
 ## Quy tắc và nơi thực thi
 | Quy tắc | Thực thi tại |

@@ -12,6 +12,7 @@ from xt.application.files.ports import (
     MalwareScanner,
     ScannerUnavailable,
     ScanVerdict,
+    Usage,
 )
 from xt.application.files.service import (
     FileManager,
@@ -40,6 +41,7 @@ __all__ = [
     "Spool",
     "UploadGrant",
     "UploadTokens",
+    "Usage",
     "tool_view",
     "view",
 ]

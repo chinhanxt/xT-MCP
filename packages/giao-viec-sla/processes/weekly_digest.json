@@ -1,7 +1,7 @@
 {
   "id": "weekly_digest",
   "name": "Bản tin công việc hằng tuần",
-  "version": 2,
+  "version": 3,
   "inputs": {
     "from_date": {
       "type": "date"
@@ -40,9 +40,10 @@
       "id": "send",
       "type": "service",
       "name": "Gửi bản tin cho trưởng bộ phận và giám đốc",
-      "op": "notify",
+      "op": "send_weekly_digest",
       "params": {
-        "msg": "rollup_result['summary']"
+        "digest_id": "rollup_result['digest_id']",
+        "to_roles": "'director,dept_head'"
       }
     }
   ]
