@@ -2,9 +2,10 @@
 # SPDX-FileCopyrightText: 2026 xT contributors
 """Điểm nối quản trị để cài schema nền trước PostgREST, không đổi migration đã audit.
 
-Các migration nền cũ cài trigger trực tiếp. Bootstrap audit mới không cấp quyền EXECUTE hàm
-trigger cho migrator lúc chạy. Chỉ trong transaction quản trị này mới cấp quyền cài trigger;
-thu hồi trước commit nên không có cửa sổ quyền thêm cho các session khác.
+R2-04 (docs/decisions.md): xt_migrator không được tin cậy với audit, nên **không bao giờ** được
+EXECUTE `xt_audit.log()`/`append()`, kể cả tạm thời trong transaction. Bước superuser chỉ cài API
+audit thuộc `xt_audit_owner` (`install_meta_audit`: `xt_audit.install_meta` SECURITY DEFINER + event
+trigger bảo vệ); migration chạy bằng xt_migrator dùng các API đó (0006), không dùng hàm ghi audit.
 """
 
 from __future__ import annotations
@@ -14,13 +15,12 @@ from typing import Any
 import psycopg
 
 from xt.adapters.db.migrations import migrate
+from xt.adapters.db.tenancy import install_meta_audit
 
 
 def install_data_prerequisites(superuser: psycopg.Connection[Any]) -> list[str]:
-    """Cài migration nền bằng cùng connection/transaction quản trị; trả file vừa áp.
-
-    Giữ nguyên thân migration, ownership xt_migrator và ACL audit trước/sau. Đây là API cài đặt
-    cần superuser, không thay thế đường migrator thông thường hay sửa logic trigger audit.
+    """Cài API audit metadata (superuser) rồi migration nền (xt_migrator) trong cùng một
+    transaction quản trị; trả file vừa áp. Không cấp/thu quyền audit nào cho xt_migrator.
     """
     if (
         not superuser.autocommit
@@ -34,15 +34,8 @@ def install_data_prerequisites(superuser: psycopg.Connection[Any]) -> list[str]:
         if row is None or not row[0]:
             raise ValueError("cài schema data cần superuser")
         superuser.execute("SELECT pg_advisory_xact_lock(hashtextextended('xt:migrate', 0))")
-        granted = superuser.execute(
-            "SELECT has_function_privilege('xt_migrator', 'xt_audit.log()', 'EXECUTE')"
-        ).fetchone()
-        assert granted is not None
-        if not granted[0]:
-            superuser.execute("GRANT EXECUTE ON FUNCTION xt_audit.log() TO xt_migrator")
+        install_meta_audit(superuser)
         superuser.execute("SET LOCAL ROLE xt_migrator")
         ran = migrate(superuser)
         superuser.execute("RESET ROLE")
-        if not granted[0]:
-            superuser.execute("REVOKE EXECUTE ON FUNCTION xt_audit.log() FROM xt_migrator")
     return ran

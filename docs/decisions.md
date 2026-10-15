@@ -85,6 +85,8 @@ Cài lại dưới advisory lock: cur còn là core (kể cả core vừa nâng 
 
 Sau phản biện bằng Codex gpt-6-astra: dùng API cộng thêm `install_data_prerequisites(superuser)` cho giai đoạn cài `/data`. Quyền EXECUTE trigger chỉ tồn tại trong transaction quản trị (cấp + thu hồi trước commit); không sửa thân migration/audit, không mở quyền runtime. Lý do chọn: các migration cũ cần quyền để tạo trigger trong khi bootstrap audit mới đã thu quyền đó. Giữ nguyên ACL/ownership ở trạng thái đã commit và kiểm lại trong integration. Đây không phải cách sửa lỗi tên/hành vi trigger metadata của các module khác; không tuyên bố workflow e2e xanh từ test data. Chi tiết và giới hạn: `docs/integration-notes.md`, mục API cài schema nền cho data.
 
+**Thay thế (16/10/2026):** việc cấp tạm EXECUTE `xt_audit.log()` bị bỏ vì mở lại R2-04 (xt_migrator không tin cậy với audit). `install_data_prerequisites` nay chạy `install_meta_audit()` bằng superuser rồi migrate bằng xt_migrator, không cấp quyền audit nào.
+
 ## Đề thi OLP2026 không phát hành (16/10/2026, chủ dự án – Opus 5.5)
 
 - **Câu hỏi:** `research/de_thi_OLP2026.pdf` và `.txt` có vào tarball phát hành và repo công khai không? (PoF I.5: không phát hành kèm tài liệu của bên khác; giấy phép của đề không rõ.)

@@ -137,6 +137,7 @@ class Env:
     audit: AuditReader
     tenants: dict[str, TenantRef] = field(default_factory=dict)
     ids: dict[str, uuid.UUID] = field(default_factory=dict)
+    setup_probes: list[tuple[str, str, bool]] = field(default_factory=list)
 
     def profile(self, alias: str) -> str:
         return f"api_t{self.tenants[alias].seq}"
@@ -198,6 +199,59 @@ def apply(e: Env, t: TenantRef, new: Catalog) -> None:
     assert stats.failed == stats.dead == 0 and not stats.pending_versions
 
 
+# Hàm ghi audit: xt_migrator không bao giờ được EXECUTE (R2-04, docs/decisions.md).
+AUDIT_WRITE = ("xt_audit.log()", "xt_audit.append(uuid, text, uuid, text, jsonb)")
+
+
+def audit_write_acl(conn: psycopg.Connection[Any]) -> list[Any]:
+    return [
+        conn.execute("SELECT proacl FROM pg_proc WHERE oid = %s::regprocedure", (f,)).fetchone()
+        for f in AUDIT_WRITE
+    ]
+
+
+def migrator_audit_privs(conn: psycopg.Connection[Any], phase: str) -> list[tuple[str, str, bool]]:
+    """Quyền hiệu lực (gồm role thành viên, quyền chưa commit trong transaction đang chạy)."""
+    out = []
+    for f in AUDIT_WRITE:
+        row = conn.execute(
+            "SELECT has_function_privilege('xt_migrator', %s, 'EXECUTE')", (f,)
+        ).fetchone()
+        assert row is not None
+        out.append((phase, f, bool(row[0])))
+    return out
+
+
+def probed_data_setup(st: hs.Stack) -> list[tuple[str, str, bool]]:
+    """Chạy install_data_prerequisites thật; probe quyền audit của xt_migrator trước, TRONG
+    transaction quản trị (ngay trước và sau migration, khi current_user = xt_migrator, kèm gọi
+    thử `append`) và sau commit. ACL hàm ghi audit phải giữ nguyên."""
+    probes: list[tuple[str, str, bool]] = []
+    real = data_setup.migrate
+
+    def probe(conn: psycopg.Connection[Any]) -> list[str]:
+        assert conn.execute("SELECT current_user").fetchone() == ("xt_migrator",)
+        probes.extend(migrator_audit_privs(conn, "during:before-migrate"))
+        with pytest.raises(psycopg.errors.InsufficientPrivilege), conn.transaction():
+            conn.execute(
+                "SELECT xt_audit.append(gen_random_uuid(), 'probe', gen_random_uuid(),"
+                " 'INSERT', '{}'::jsonb)"
+            )
+        ran = real(conn)
+        probes.extend(migrator_audit_privs(conn, "during:after-migrate"))
+        return ran
+
+    with st.su() as su:
+        acl = audit_write_acl(su)
+        probes.extend(migrator_audit_privs(su, "before"))
+        with pytest.MonkeyPatch.context() as mp:
+            mp.setattr(data_setup, "migrate", probe)
+            install_data_prerequisites(su)
+        probes.extend(migrator_audit_privs(su, "after"))
+        assert audit_write_acl(su) == acl
+    return probes
+
+
 def install_postgrest(st: hs.Stack) -> None:
     """Đường vận hành thật: mật khẩu xt_authenticator (secret), issuer realm, allowlist `azp`."""
     with st.su() as su:
@@ -226,17 +280,7 @@ def env() -> Iterator[Env]:
                 app_password=st.app_password,
                 pepper=st.pepper,
             )
-        with st.su() as su:
-            before = su.execute(
-                "SELECT proacl FROM pg_proc WHERE oid='xt_audit.log()'::regprocedure"
-            ).fetchone()
-            install_data_prerequisites(su)
-            assert (
-                su.execute(
-                    "SELECT proacl FROM pg_proc WHERE oid='xt_audit.log()'::regprocedure"
-                ).fetchone()
-                == before
-            )
+        setup_probes = probed_data_setup(st)
         install_postgrest(st)
         key = AuditKey(1, st.pepper)
         app = Database(st.app_dsn, max_size=4, audit_key=key)
@@ -249,6 +293,7 @@ def env() -> Iterator[Env]:
             migrator,
             RecordService(cats, PgRecordRepository(app)),
             AuditReader(app),
+            setup_probes=setup_probes,
         )
         with st.migrator() as m:
             e.tenants["acme"] = register_tenant(
@@ -1096,6 +1141,20 @@ def test_existing_database_upgrade_preserves_bi_acl_and_function_bodies(env: Env
             su.execute(sql.SQL("DROP ROLE {}").format(sql.Identifier(login)))
 
 
+def test_data_setup_never_grants_migrator_audit_write(env: Env) -> None:
+    """Hồi quy R2-04: lần cài đầu (fixture, migration thật) và lần cài lại đều không lúc nào cho
+    xt_migrator EXECUTE xt_audit.log/append; audit metadata (install_meta) vẫn được gắn."""
+    for probes in (env.setup_probes, probed_data_setup(env.st)):
+        phases = {p for p, _, _ in probes}
+        assert phases == {"before", "during:before-migrate", "during:after-migrate", "after"}
+        assert [p for p in probes if p[2]] == [], probes
+    with env.st.su() as su:
+        assert su.execute(
+            "SELECT count(*) FROM pg_trigger g JOIN pg_class c ON c.oid = g.tgrelid"
+            " WHERE c.relname = 'iam_policy' AND g.tgname = 'xt_audit_meta'"
+        ).fetchone() == (1,)
+
+
 def test_tenant_notifications_only_after_commit(env: Env) -> None:
     """Rollback tenant không gửi NOTIFY; commit gửi đúng config + schema, dùng listener thật."""
     with env.st.migrator() as listener, env.st.migrator() as migrator:
@@ -1114,7 +1173,7 @@ def test_tenant_notifications_only_after_commit(env: Env) -> None:
 def test_administrative_setup_failure_rolls_back_ddl_and_privileges(
     env: Env, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Lỗi SQL thật giữa migration: quyền tạm và DDL đều rollback, không để migrator leo quyền."""
+    """Lỗi SQL thật giữa migration: DDL rollback, ACL hàm ghi audit không đổi, role trở lại."""
     table = "it_rollback_" + uuid.uuid4().hex[:8]
 
     def failing_migration(conn: psycopg.Connection[Any]) -> list[str]:
@@ -1124,18 +1183,12 @@ def test_administrative_setup_failure_rolls_back_ddl_and_privileges(
 
     monkeypatch.setattr(data_setup, "migrate", failing_migration)
     with env.st.su() as su:
-        before = su.execute(
-            "SELECT proacl FROM pg_proc WHERE oid='xt_audit.log()'::regprocedure"
-        ).fetchone()
+        before = audit_write_acl(su)
         with pytest.raises(psycopg.errors.DivisionByZero):
             install_data_prerequisites(su)
         assert su.execute("SELECT current_user").fetchone() == ("xt_owner",)
-        assert (
-            su.execute(
-                "SELECT proacl FROM pg_proc WHERE oid='xt_audit.log()'::regprocedure"
-            ).fetchone()
-            == before
-        )
+        assert audit_write_acl(su) == before
+        assert [p for p in migrator_audit_privs(su, "after") if p[2]] == []
         assert su.execute("SELECT to_regclass(%s)", (f"xt_meta.{table}",)).fetchone() == (None,)
     with env.st.connect(hs.AUTHENTICATOR, env.st.authenticator_password) as conn:
         conn.execute("SET ROLE xt_web")

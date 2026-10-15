@@ -106,7 +106,7 @@ Bí mật nằm ngoài repo (`~/.config/xt/`, `deploy/.env` do `make env` sinh).
 make -C deploy pgrst-db
 ```
 
-Lệnh gọi `install_data_prerequisites` và `install_postgrest_role`: cài migration nền, chạy lại phần cộng thêm `postgrest.sql`, đặt mật khẩu authenticator, ghi issuer và **thay toàn bộ** allowlist client. Thiếu issuer/client hoặc người dùng chưa đăng ký thì fail-closed. Quyền quản trị chỉ được dùng cho bước cài đặt; xem mục "Cài schema nền bằng đường quản trị" và PG-7.
+Lệnh gọi `install_data_prerequisites` và `install_postgrest_role`: cài API audit metadata (superuser), cài migration nền, chạy lại phần cộng thêm `postgrest.sql`, đặt mật khẩu authenticator, ghi issuer và **thay toàn bộ** allowlist client. Thiếu issuer/client hoặc người dùng chưa đăng ký thì fail-closed. Quyền quản trị chỉ được dùng cho bước cài đặt; xem mục "Cài schema nền bằng đường quản trị" và PG-7.
 
 3. Keycloak: `make -C deploy provision-realm`, rồi `make -C deploy provision-data`. `XT_DATA_CLIENTS` phải giống allowlist DB; issuer mặc định được dựng từ `XT_DOMAIN_AUTH` và `XT_REALM` (in bằng `make -s -C deploy pgrst-issuer`).
 4. JWKS: `make -C deploy pgrst-jwks` ghi `${XT_SECRETS_DIR:-~/.config/xt}/pgrst/jwks.json`, rồi khởi động `postgrest` trong compose. Trước khi chạy Docker, kiểm `free -g`: available phải ≥ 4 GB; chỉ một stack nặng tại một thời điểm.
@@ -170,7 +170,7 @@ make -C deploy provision-data
 make -C deploy pgrst-jwks
 ```
 
-`pgrst-db` gọi `install_data_prerequisites` trên một transaction quản trị: quyền EXECUTE cần để migration cũ tạo trigger được cấp rồi thu hồi **trước commit**. Ownership vẫn xt_migrator, ACL audit sau cài giống trước cài. Đây là API cài đặt cộng thêm, không sửa migration/audit đã audit; không sửa hợp đồng trigger metadata/workflow cũ. Phạm vi và giới hạn: docs/integration-notes.md, mục API cài schema nền cho data. Không đưa DSN quản trị vào PostgREST.
+`pgrst-db` gọi `install_data_prerequisites` trên một transaction quản trị: bước superuser chạy `install_meta_audit()` (idempotent: `xt_audit.install_meta` SECURITY DEFINER thuộc `xt_audit_owner` + event trigger bảo vệ), rồi `SET LOCAL ROLE xt_migrator` chạy migration nguyên bản; 0006 gắn audit `xt_meta.*` qua `install_meta`. **Không cấp/thu quyền audit nào cho xt_migrator**, kể cả tạm thời (R2-04: migrator không được tin cậy với audit, `docs/decisions.md`). `xt_migrator` không bao giờ có EXECUTE `xt_audit.log()`/`append()`; ACL hai hàm này trước/sau cài giống nhau. Hồi quy: `test_data_setup_never_grants_migrator_audit_write` probe `has_function_privilege` trước, trong transaction (trước/sau migration, gọi thử `append` → 42501) và sau commit. Phạm vi và giới hạn: docs/integration-notes.md, mục API cài schema nền cho data. Không đưa DSN quản trị vào PostgREST.
 
 ## Demo `docs/headless-demo.sh`
 
