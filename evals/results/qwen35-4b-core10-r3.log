@@ -145,3 +145,5 @@
 [145/384] PASS approvals.director_inbox skills=none rep=1 6.68s calls=1
 [146/384] PASS onboarding.create_employee skills=none rep=1 34.73s calls=5
 [147/384] FAIL onboarding.status_done skills=none rep=1 10.69s calls=2
+[148/384] FAIL onboarding.who_issues_laptop skills=none rep=1 9.84s calls=1
+[149/384] PASS onboarding.my_assets skills=none rep=1 10.97s calls=2
