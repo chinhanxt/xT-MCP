@@ -1,0 +1,209 @@
+{
+  "id": "ns_nv",
+  "name": "nhan_vien",
+  "label": "Nhân viên",
+  "title_field": "ho_ten",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "ma_nv",
+      "type": "text",
+      "label": "Mã nhân viên",
+      "required": true,
+      "unique": true,
+      "regex": "^NV-[0-9]{4}$"
+    },
+    {
+      "id": "f2",
+      "name": "user_id",
+      "type": "user",
+      "label": "Tài khoản SSO"
+    },
+    {
+      "id": "f3",
+      "name": "ho_ten",
+      "type": "text",
+      "label": "Họ và tên",
+      "required": true,
+      "max": 120
+    },
+    {
+      "id": "f4",
+      "name": "email",
+      "type": "text",
+      "label": "Email công việc",
+      "max": 200,
+      "regex": "^[^@ ]+@[^@ ]+$"
+    },
+    {
+      "id": "f5",
+      "name": "chuc_danh",
+      "type": "text",
+      "label": "Chức danh",
+      "required": true,
+      "max": 120
+    },
+    {
+      "id": "f6",
+      "name": "phong_ban",
+      "type": "ref",
+      "label": "Phòng ban",
+      "required": true,
+      "ref": "phong_ban"
+    },
+    {
+      "id": "f7",
+      "name": "quan_ly",
+      "type": "ref",
+      "label": "Quản lý trực tiếp",
+      "ref": "nhan_vien"
+    },
+    {
+      "id": "f8",
+      "name": "trang_thai",
+      "type": "enum",
+      "label": "Trạng thái",
+      "required": true,
+      "default": "cho_vao",
+      "options": [
+        {
+          "value": "cho_vao",
+          "label": "Chờ vào làm"
+        },
+        {
+          "value": "thu_viec",
+          "label": "Thử việc"
+        },
+        {
+          "value": "chinh_thuc",
+          "label": "Chính thức"
+        },
+        {
+          "value": "dang_nghi_viec",
+          "label": "Đang làm thủ tục nghỉ"
+        },
+        {
+          "value": "da_nghi",
+          "label": "Đã nghỉ"
+        }
+      ]
+    },
+    {
+      "id": "f9",
+      "name": "ngay_vao",
+      "type": "date",
+      "label": "Ngày vào làm"
+    },
+    {
+      "id": "f10",
+      "name": "ngay_nghi",
+      "type": "date",
+      "label": "Ngày làm việc cuối"
+    },
+    {
+      "id": "f11",
+      "name": "synthetic",
+      "type": "bool",
+      "label": "Dữ liệu giả lập",
+      "required": true,
+      "default": false
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "phong_ban",
+        "trang_thai"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Ngày làm việc cuối phải sau hoặc bằng ngày vào làm",
+      "check": {
+        "field": "ngay_nghi",
+        "op": ">=",
+        "other_field": "ngay_vao"
+      }
+    },
+    {
+      "id": "r2",
+      "message": "Nhân viên đã nghỉ/đang nghỉ phải có ngày làm việc cuối",
+      "check": {
+        "or": [
+          {
+            "not": {
+              "field": "trang_thai",
+              "op": "in",
+              "value": [
+                "dang_nghi_viec",
+                "da_nghi"
+              ]
+            }
+          },
+          {
+            "field": "ngay_nghi",
+            "op": "not_null"
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "nhan_su": {
+      "actions": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "giam_doc": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "it_admin": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "ke_toan_thanh_toan": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "ke_toan_truong": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "truong_bo_phan": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "nhan_vien": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    }
+  }
+}

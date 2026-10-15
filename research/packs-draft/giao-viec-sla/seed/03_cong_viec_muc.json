@@ -1,0 +1,37 @@
+{
+  "model": "cong_viec_muc",
+  "records": [
+    {
+      "cong_viec": "@cong_viec:CV-2026-0001",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "thu_tu": 1,
+      "noi_dung": "Chốt danh sách khách mời",
+      "xong": true
+    },
+    {
+      "cong_viec": "@cong_viec:CV-2026-0001",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "thu_tu": 2,
+      "noi_dung": "Đặt hội trường",
+      "xong": true
+    },
+    {
+      "cong_viec": "@cong_viec:CV-2026-0001",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "thu_tu": 3,
+      "noi_dung": "Chốt catering",
+      "xong": false
+    },
+    {
+      "cong_viec": "@cong_viec:CV-2026-0001",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "thu_tu": 4,
+      "noi_dung": "In và gửi thư mời",
+      "xong": false
+    }
+  ]
+}

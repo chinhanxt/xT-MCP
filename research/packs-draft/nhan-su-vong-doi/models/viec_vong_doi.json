@@ -1,0 +1,173 @@
+{
+  "id": "ns_viec",
+  "name": "viec_vong_doi",
+  "label": "Việc trong hồ sơ vòng đời",
+  "title_field": "ten",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "ho_so",
+      "type": "ref",
+      "label": "Hồ sơ",
+      "required": true,
+      "ref": "ho_so_vong_doi"
+    },
+    {
+      "id": "f2",
+      "name": "bo_phan",
+      "type": "enum",
+      "label": "Bộ phận phụ trách",
+      "required": true,
+      "options": [
+        {
+          "value": "nhan_su",
+          "label": "Nhân sự"
+        },
+        {
+          "value": "it",
+          "label": "IT"
+        },
+        {
+          "value": "ke_toan",
+          "label": "Kế toán"
+        },
+        {
+          "value": "quan_ly",
+          "label": "Quản lý trực tiếp"
+        }
+      ]
+    },
+    {
+      "id": "f3",
+      "name": "ten",
+      "type": "text",
+      "label": "Việc cần làm",
+      "required": true,
+      "max": 200
+    },
+    {
+      "id": "f4",
+      "name": "trang_thai",
+      "type": "enum",
+      "label": "Trạng thái",
+      "required": true,
+      "default": "cho",
+      "options": [
+        {
+          "value": "cho",
+          "label": "Chờ"
+        },
+        {
+          "value": "xong",
+          "label": "Xong"
+        },
+        {
+          "value": "bo_qua",
+          "label": "Bỏ qua có lý do"
+        }
+      ]
+    },
+    {
+      "id": "f5",
+      "name": "han",
+      "type": "date",
+      "label": "Hạn"
+    },
+    {
+      "id": "f6",
+      "name": "nguoi_phu_trach",
+      "type": "user",
+      "label": "Người phụ trách"
+    },
+    {
+      "id": "f7",
+      "name": "ghi_chu",
+      "type": "text",
+      "label": "Ghi chú",
+      "max": 1000
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "ho_so",
+        "bo_phan"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Việc bỏ qua phải ghi lý do",
+      "check": {
+        "or": [
+          {
+            "field": "trang_thai",
+            "op": "!=",
+            "value": "bo_qua"
+          },
+          {
+            "field": "ghi_chu",
+            "op": "not_null"
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "nhan_su": {
+      "actions": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "giam_doc": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "it_admin": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "ke_toan_thanh_toan": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "ke_toan_truong": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "truong_bo_phan": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "nhan_vien": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    }
+  }
+}

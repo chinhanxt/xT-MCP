@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html><head><meta charset="utf-8"><title>xT record</title>
+<style>body{font:14px system-ui;margin:8px}table{border-collapse:collapse}td{padding:3px 8px;border-bottom:1px solid #eee}
+.tok{font-family:monospace;color:#555}.real{color:#0b7a3e;font-weight:600}button{margin-top:8px}</style></head>
+<body><table id="t"></table><button id="reveal" hidden>Xem giá trị thật (chỉ bạn thấy)</button><p id="s"></p>
+<script>// SPDX-License-Identifier: Apache-2.0
+// Cầu nối MCP Apps tối thiểu (tự viết, không phụ thuộc): JSON-RPC 2.0 qua window.parent.postMessage.
+(function () {
+  let nextId = 1; const pending = new Map(); const handlers = {};
+  window.addEventListener("message", (ev) => {
+    if (ev.source !== window.parent) return;
+    const m = ev.data; if (!m || m.jsonrpc !== "2.0") return;
+    if (m.method === undefined && pending.has(m.id)) {
+      const p = pending.get(m.id); pending.delete(m.id);
+      m.error ? p.rej(new Error(m.error.message)) : p.res(m.result); return;
+    }
+    if (m.method && handlers[m.method]) handlers[m.method](m.params);
+    if (m.method && m.id !== undefined) { // host request (vd ui/resource-teardown, ping): trả {}
+      window.parent.postMessage({ jsonrpc: "2.0", id: m.id, result: {} }, "*");
+    }
+  });
+  function request(method, params) {
+    const id = nextId++;
+    return new Promise((res, rej) => {
+      pending.set(id, { res, rej });
+      window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+    });
+  }
+  function notify(method, params) { window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*"); }
+  window.xtBridge = {
+    on(method, fn) { handlers[method] = fn; },
+    async connect(name) {
+      const r = await request("ui/initialize", { protocolVersion: "2026-01-26",
+        appInfo: { name, version: "0.1.0" }, appCapabilities: {} });
+      notify("ui/notifications/initialized", {});
+      return r;
+    },
+    callTool(name, args) { return request("tools/call", { name, arguments: args || {} }); },
+    sendSize() { notify("ui/notifications/size-changed", { width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight }); },
+  };
+})();
+</script>
+<script>
+// Giá trị thật đi thẳng xT -> iframe (fetch), KHÔNG gửi lại host: không ui/message, không ui/update-model-context.
+const XT = "__XT_PUBLIC_URL__", B = window.xtBridge, TOK = /^⟨[A-Za-z0-9][A-Za-z0-9_\-]*\.[a-z][a-z0-9_]*⟩$/;
+let rec = null;
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function render(values){ const t=document.getElementById("t"); t.innerHTML="";
+  for (const [k,v] of Object.entries(rec)) { if (k.startsWith("_")||k==="rev") continue;
+    const isTok = typeof v==="string" && TOK.test(v), real = isTok && values && values[v];
+    const hint = rec._hint && rec._hint[k] ? " ("+esc(rec._hint[k])+")" : "";
+    t.insertAdjacentHTML("beforeend", `<tr><td>${esc(k)}</td><td class="${real?'real':isTok?'tok':''}">${esc(real?values[v]:v??"")}${real?"":hint}</td></tr>`); }
+  document.getElementById("reveal").hidden = !Object.values(rec).some(v=>typeof v==="string"&&TOK.test(v)) || !!values;
+  B.sendSize(); }
+function b64u(buf){return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")}
+document.getElementById("reveal").onclick = async () => {
+  const s=document.getElementById("s"); s.textContent="Đang xin vé...";
+  try {
+    const kp = await crypto.subtle.generateKey({name:"ECDSA",namedCurve:"P-256"}, false, ["sign"]);   // non-extractable
+    const jwk = await crypto.subtle.exportKey("jwk", kp.publicKey);
+    const tokens = Object.values(rec).filter(v=>typeof v==="string"&&TOK.test(v));
+    const r = await B.callTool("pii_reveal_ticket", {tokens, pubkey_jwk:{kty:jwk.kty,crv:jwk.crv,x:jwk.x,y:jwk.y}});
+    const m = (r._meta||{})["xt/reveal"]; if (!m) throw new Error("không nhận được vé");
+    const ts = Math.floor(Date.now()/1000);
+    const sig = await crypto.subtle.sign({name:"ECDSA",hash:"SHA-256"}, kp.privateKey, new TextEncoder().encode(m.ticket+"."+ts));
+    const resp = await fetch(m.url, {method:"POST", headers:{"content-type":"application/json"}, credentials:"omit",
+                                    body: JSON.stringify({ticket:m.ticket, ts, sig:b64u(sig)})});
+    const d = await resp.json(); if (!resp.ok) throw new Error(d.message||d.error);
+    s.textContent = d.denied.length ? `Không đủ quyền xem ${d.denied.length} trường` : "";
+    render(d.values);
+  } catch(e){ s.textContent = "Lỗi: "+e.message; } };
+B.on("ui/notifications/tool-result", p => { const sc=p.structuredContent; if (sc&&sc.ok&&sc.result&&sc.result.record){ rec=sc.result.record; render(null);} });
+B.connect("xt-pii-card");
+</script></body></html>

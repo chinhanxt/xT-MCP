@@ -1,0 +1,6 @@
+BEFORE (iframe): ma_nv	NV-0042 | ho_ten	⟨NV-0042.ho_ten⟩ (Nguyễn V*** A) | phong_ban	Kỹ thuật | so_dien_thoai	⟨NV-0042.so_dien_thoai⟩ (*******678) | email	⟨NV-0042.email⟩ (a***@congty.vn) | dia_chi	⟨NV-0042.dia_chi⟩ (***, Hà Nội) | so_cccd	⟨NV-0042.so_cccd⟩ (********2345) | luong	⟨NV-0042.luong⟩ | suc_khoe	⟨NV-0042.suc_khoe⟩ | so_tai_khoan	⟨NV-0042.so_tai_khoan⟩ | ghi_chu	Trưởng nhóm
+AFTER  (iframe): ma_nv	NV-0042 | ho_ten	Nguyễn Văn An | phong_ban	Kỹ thuật | so_dien_thoai	0912345678 | email	an.nguyen@congty.vn | dia_chi	12 Lý Thường Kiệt, Hoàn Kiếm, Hà Nội | so_cccd	001090012345 | luong	25000000 | suc_khoe	Tiểu đường type 2 | so_tai_khoan	0011004455667 | ghi_chu	Trưởng nhóm
+REVEAL requests: [('POST', 'http://localhost:18210/pii/reveal', None)]
+Leak trong postMessage (host<->iframe): [] (17 msg)
+Leak trong traffic host<->MCP server: [] (9 resp)
+Giá trị thật trong response /pii/reveal: ['001090012345', '0011004455667', '0912345678', '12 Lý Thường Kiệt, Hoàn Kiếm, Hà Nội', '25000000', 'Nguyễn Văn An', 'Tiểu đường type 2', 'an.nguyen@congty.vn']

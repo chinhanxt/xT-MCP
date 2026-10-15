@@ -1,0 +1,239 @@
+{
+  "version": "1",
+  "tenant": "binhminh",
+  "statements": [
+    {
+      "id": "dx.nv-own-read",
+      "effect": "Allow",
+      "subjects": [
+        "role:nhan_vien"
+      ],
+      "actions": [
+        "record.read"
+      ],
+      "resources": [
+        "xrn:binhminh:de_xuat:*",
+        "xrn:binhminh:tam_ung:*",
+        "xrn:binhminh:thanh_toan:*",
+        "xrn:binhminh:hoan_ung:*",
+        "xrn:binhminh:buoc_duyet:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.owner",
+          "op": "eq",
+          "right": {
+            "ref": "subject.id"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dx.nv-own-create",
+      "effect": "Allow",
+      "subjects": [
+        "role:nhan_vien"
+      ],
+      "actions": [
+        "record.create",
+        "record.update"
+      ],
+      "resources": [
+        "xrn:binhminh:de_xuat:*",
+        "xrn:binhminh:tam_ung:*",
+        "xrn:binhminh:thanh_toan:*",
+        "xrn:binhminh:hoan_ung:*",
+        "xrn:binhminh:buoc_duyet:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.owner",
+          "op": "eq",
+          "right": {
+            "ref": "subject.id"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dx.tbp-read-dept",
+      "effect": "Allow",
+      "subjects": [
+        "role:truong_bo_phan"
+      ],
+      "actions": [
+        "record.read"
+      ],
+      "resources": [
+        "xrn:binhminh:de_xuat:*",
+        "xrn:binhminh:tam_ung:*",
+        "xrn:binhminh:thanh_toan:*",
+        "xrn:binhminh:hoan_ung:*",
+        "xrn:binhminh:buoc_duyet:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.department",
+          "op": "eq",
+          "right": {
+            "ref": "subject.department"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dx.tbp-approve",
+      "effect": "Allow",
+      "subjects": [
+        "role:truong_bo_phan"
+      ],
+      "actions": [
+        "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:de_xuat:*",
+        "xrn:binhminh:tam_ung:*",
+        "xrn:binhminh:thanh_toan:*",
+        "xrn:binhminh:hoan_ung:*",
+        "xrn:binhminh:buoc_duyet:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.department",
+          "op": "eq",
+          "right": {
+            "ref": "subject.department"
+          }
+        }
+      ]
+    },
+    {
+      "id": "dx.kttt-read-approve",
+      "effect": "Allow",
+      "subjects": [
+        "role:ke_toan_thanh_toan"
+      ],
+      "actions": [
+        "record.read",
+        "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:de_xuat:*",
+        "xrn:binhminh:tam_ung:*",
+        "xrn:binhminh:thanh_toan:*",
+        "xrn:binhminh:hoan_ung:*",
+        "xrn:binhminh:buoc_duyet:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "dx.ktt-read-approve",
+      "effect": "Allow",
+      "subjects": [
+        "role:ke_toan_truong"
+      ],
+      "actions": [
+        "record.read",
+        "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:de_xuat:*",
+        "xrn:binhminh:tam_ung:*",
+        "xrn:binhminh:thanh_toan:*",
+        "xrn:binhminh:hoan_ung:*",
+        "xrn:binhminh:buoc_duyet:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "dx.gd-read-approve",
+      "effect": "Allow",
+      "subjects": [
+        "role:giam_doc"
+      ],
+      "actions": [
+        "record.read",
+        "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:de_xuat:*",
+        "xrn:binhminh:tam_ung:*",
+        "xrn:binhminh:thanh_toan:*",
+        "xrn:binhminh:hoan_ung:*",
+        "xrn:binhminh:buoc_duyet:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "dx.quan-tri-loai",
+      "effect": "Allow",
+      "subjects": [
+        "role:quan_tri"
+      ],
+      "actions": [
+        "record.read",
+        "record.create",
+        "record.update"
+      ],
+      "resources": [
+        "xrn:binhminh:loai_de_xuat:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "dx.agent-l0-l1",
+      "effect": "Allow",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "record.read",
+        "record.create",
+        "record.update"
+      ],
+      "resources": [
+        "xrn:binhminh:de_xuat:*",
+        "xrn:binhminh:tam_ung:*",
+        "xrn:binhminh:thanh_toan:*",
+        "xrn:binhminh:hoan_ung:*",
+        "xrn:binhminh:buoc_duyet:*",
+        "xrn:binhminh:loai_de_xuat:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "dx.deny-agent-decide",
+      "effect": "Deny",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "record.approve",
+        "record.delete",
+        "policy.activate"
+      ],
+      "resources": [
+        "*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "dx.deny-delete-chung-tu",
+      "effect": "Deny",
+      "subjects": [
+        "*"
+      ],
+      "actions": [
+        "record.delete"
+      ],
+      "resources": [
+        "xrn:binhminh:de_xuat:*",
+        "xrn:binhminh:tam_ung:*",
+        "xrn:binhminh:thanh_toan:*",
+        "xrn:binhminh:hoan_ung:*",
+        "xrn:binhminh:buoc_duyet:*"
+      ],
+      "conditions": []
+    }
+  ]
+}

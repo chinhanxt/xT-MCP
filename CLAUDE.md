@@ -2,7 +2,7 @@
 
 ## Sản phẩm
 xT là MCP server đa năng cho mọi doanh nghiệp. Lõi headless (Tầng 1) gồm SSO Keycloak, API Gateway APISIX, Postgres + RLS, object storage, workflow engine. Lõi được lộ ra qua MCP; agent (ChatGPT / Claude / LLM local) chính là giao diện.
-- **Bộ tool cố định (~15 tool), nghiệp vụ là dữ liệu.** Model và process do agent đề xuất, con người duyệt rồi mới áp dụng.
+- **Bộ tool cố định, nghiệp vụ là dữ liệu.** v0.1 có 17 tool, v1.0 có 21 tool (xem `docs/tool-contracts-v1.md`). Model và process do agent đề xuất, con người duyệt rồi mới áp dụng.
 - **Workflow lõi mà doanh nghiệp nào cũng có:** đề xuất & phê duyệt, giao việc + SLA, vòng đời nhân sự, thu–chi, bán hàng, văn bản, helpdesk.
 - **Giải các pain point chung của doanh nghiệp,** không gắn với một ngành cụ thể.
 

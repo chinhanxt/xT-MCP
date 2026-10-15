@@ -1,0 +1,125 @@
+{
+  "id": "ns_qt",
+  "name": "quyet_toan_nghi_viec",
+  "label": "Quyết toán nghỉ việc",
+  "title_field": "ho_so",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "ho_so",
+      "type": "ref",
+      "label": "Hồ sơ nghỉ việc",
+      "required": true,
+      "unique": true,
+      "ref": "ho_so_vong_doi"
+    },
+    {
+      "id": "f2",
+      "name": "luong_con_lai",
+      "type": "money",
+      "label": "Lương còn phải trả",
+      "required": true,
+      "min": 0,
+      "default": 0
+    },
+    {
+      "id": "f3",
+      "name": "phep_quy_doi",
+      "type": "money",
+      "label": "Tiền phép năm chưa nghỉ quy đổi",
+      "required": true,
+      "min": 0,
+      "default": 0
+    },
+    {
+      "id": "f4",
+      "name": "tam_ung_chua_hoan",
+      "type": "money",
+      "label": "Tạm ứng chưa hoàn",
+      "required": true,
+      "min": 0,
+      "default": 0
+    },
+    {
+      "id": "f5",
+      "name": "tai_san_chua_tra",
+      "type": "number",
+      "label": "Số tài sản chưa trả",
+      "required": true,
+      "min": 0,
+      "default": 0
+    },
+    {
+      "id": "f6",
+      "name": "tong_thanh_toan",
+      "type": "money",
+      "label": "Tổng quyết toán (VND, có thể âm: nhân viên nợ)",
+      "required": true
+    },
+    {
+      "id": "f7",
+      "name": "da_chi",
+      "type": "bool",
+      "label": "Đã chi",
+      "required": true,
+      "default": false
+    }
+  ],
+  "indexes": [],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Chỉ được chi quyết toán khi không còn tài sản chưa trả",
+      "check": {
+        "or": [
+          {
+            "field": "da_chi",
+            "op": "!=",
+            "value": true
+          },
+          {
+            "field": "tai_san_chua_tra",
+            "op": "=",
+            "value": 0
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "ke_toan_thanh_toan": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "ke_toan_truong": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "nhan_su": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "giam_doc": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

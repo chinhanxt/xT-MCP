@@ -1,0 +1,132 @@
+{
+  "tenant": "binhminh",
+  "tenant_name": "Công ty TNHH Thương mại & Dịch vụ Bình Minh (dữ liệu hư cấu)",
+  "departments": [
+    {
+      "key": "BGD",
+      "ten": "Ban Giám đốc",
+      "truong_phong": "NV-0001"
+    },
+    {
+      "key": "KD",
+      "ten": "Kinh doanh",
+      "truong_phong": "NV-0005"
+    },
+    {
+      "key": "KT",
+      "ten": "Kế toán - Tài chính",
+      "truong_phong": "NV-0002"
+    },
+    {
+      "key": "NS",
+      "ten": "Nhân sự - Hành chính",
+      "truong_phong": "NV-0009"
+    },
+    {
+      "key": "IT",
+      "ten": "Công nghệ thông tin",
+      "truong_phong": "NV-0012"
+    }
+  ],
+  "users": [
+    {
+      "key": "NV-0001",
+      "ten": "Nguyễn Hoàng Long",
+      "phong_ban": "BGD",
+      "roles": [
+        "giam_doc",
+        "nhan_vien"
+      ],
+      "han_muc": 0,
+      "synthetic": true
+    },
+    {
+      "key": "NV-0002",
+      "ten": "Trần Thu Hà",
+      "phong_ban": "KT",
+      "roles": [
+        "ke_toan_truong",
+        "nhan_vien"
+      ],
+      "han_muc": 30000000,
+      "synthetic": true
+    },
+    {
+      "key": "NV-0003",
+      "ten": "Phạm Quốc Bảo",
+      "phong_ban": "KT",
+      "roles": [
+        "ke_toan_thanh_toan",
+        "nhan_vien"
+      ],
+      "han_muc": 30000000,
+      "synthetic": true
+    },
+    {
+      "key": "NV-0005",
+      "ten": "Lê Thị Mai",
+      "phong_ban": "KD",
+      "roles": [
+        "truong_bo_phan",
+        "nhan_vien"
+      ],
+      "han_muc": 0,
+      "synthetic": true
+    },
+    {
+      "key": "NV-0006",
+      "ten": "Trần Quốc Việt",
+      "phong_ban": "KD",
+      "roles": [
+        "nhan_vien"
+      ],
+      "han_muc": 30000000,
+      "synthetic": true
+    },
+    {
+      "key": "NV-0007",
+      "ten": "Vũ Ngọc Anh",
+      "phong_ban": "KD",
+      "roles": [
+        "nhan_vien"
+      ],
+      "han_muc": 30000000,
+      "synthetic": true
+    },
+    {
+      "key": "NV-0012",
+      "ten": "Phan Đức Thịnh",
+      "phong_ban": "IT",
+      "roles": [
+        "truong_bo_phan",
+        "it_admin",
+        "quan_tri",
+        "nhan_vien"
+      ],
+      "han_muc": 0,
+      "synthetic": true
+    },
+    {
+      "key": "xt-workflow",
+      "ten": "Danh tính dịch vụ workflow (xt-worker)",
+      "phong_ban": "BGD",
+      "roles": [
+        "xt_workflow"
+      ],
+      "kind": "service",
+      "synthetic": true
+    },
+    {
+      "key": "agent-claude",
+      "ten": "agent-claude",
+      "kind": "agent",
+      "roles": [
+        "agent"
+      ],
+      "autonomy": 1,
+      "behalf": null,
+      "phong_ban": "BGD",
+      "synthetic": true
+    }
+  ]
+}

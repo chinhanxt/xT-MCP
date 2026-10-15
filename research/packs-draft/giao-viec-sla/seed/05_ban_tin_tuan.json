@@ -1,0 +1,28 @@
+{
+  "model": "ban_tin_tuan",
+  "records": [
+    {
+      "ma": "BT-2026-W41",
+      "tu_ngay": "2026-10-05",
+      "den_ngay": "2026-10-11",
+      "phong_ban": null,
+      "tong_giao_moi": 2,
+      "tong_hoan_thanh": 1,
+      "tong_qua_han": 1,
+      "tong_dang_ket": 1,
+      "noi_dung": "Tuần 41: giao mới 2, hoàn thành 1, quá hạn 1 (CV-2026-0002), đang bị chặn 1 (CV-2026-0003).",
+      "chi_tiet": {
+        "qua_han": [
+          "CV-2026-0002"
+        ],
+        "bi_chan": [
+          "CV-2026-0003"
+        ],
+        "hoan_thanh": [
+          "CV-2026-0004"
+        ]
+      },
+      "da_gui": true
+    }
+  ]
+}

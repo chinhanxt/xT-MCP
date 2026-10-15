@@ -8,6 +8,7 @@ tok = c.post("/realms/master/protocol/openid-connect/token", data=dict(
     grant_type="password", client_id="admin-cli", username="admin", password="admin")).json()["access_token"]
 c.headers["Authorization"] = f"Bearer {tok}"
 A = f"/admin/realms/{REALM}"
+AMR_MAX_AGE = "300"   # tuổi tối đa (s) của 1 bước xác thực để còn được ghi vào amr
 
 def ok(r, *allowed):
     if r.status_code not in (200, 201, 204, 409, *allowed):
@@ -75,7 +76,7 @@ if not any(e.get("displayName") == "xt-auth" for e in execs()):
         ref = {"auth-username-password-form": "pwd", "auth-otp-form": "otp"}.get(e.get("providerId"))
         if ref:
             ok(c.post(f"{A}/authentication/executions/{e['id']}/config", json=dict(alias=f"xt-amr-{ref}",
-                config={"default.reference.value": ref, "default.reference.maxAge": "0"})))
+                config={"default.reference.value": ref, "default.reference.maxAge": AMR_MAX_AGE})))
 flow_id = next(f["id"] for f in c.get(f"{A}/authentication/flows").json() if f["alias"] == FLOW)
 print("flow", FLOW, json.dumps([(e["level"], e.get("displayName"), e["requirement"]) for e in execs()], ensure_ascii=False))
 
@@ -108,5 +109,13 @@ for e in c.get(f"{A}/authentication/flows/browser/executions").json():
     ref = {"auth-username-password-form": "pwd", "auth-otp-form": "otp"}.get(e.get("providerId"))
     if ref and not e.get("authenticationConfig"):
         ok(c.post(f"{A}/authentication/executions/{e['id']}/config", json=dict(alias=f"browser-amr-{ref}",
-            config={"default.reference.value": ref, "default.reference.maxAge": "0"})))
+            config={"default.reference.value": ref, "default.reference.maxAge": AMR_MAX_AGE})))
+# 6. Ép maxAge cho mọi config AMR (idempotent khi chạy lại)
+for flow in (FLOW, "browser"):
+    for e in c.get(f"{A}/authentication/flows/{flow}/executions").json():
+        if e.get("authenticationConfig"):
+            cfg = c.get(f"{A}/authentication/config/{e['authenticationConfig']}").json()
+            if "default.reference.value" in cfg.get("config", {}):
+                cfg["config"]["default.reference.maxAge"] = AMR_MAX_AGE
+                ok(c.put(f"{A}/authentication/config/{cfg['id']}", json=cfg))
 print("setup done")

@@ -1,0 +1,38 @@
+{
+  "_note": "Manifest đề xuất của pack. KHÔNG engine nào trong spike đọc file này; allowed_ops, lane_bindings, step_actions là việc runtime xT phải nạp (xem REPORT.md).",
+  "pack": "giao-viec-sla",
+  "version": "0.1.0",
+  "title": "Giao việc có SLA, leo thang và bản tin tuần",
+  "tenant_demo": "binhminh",
+  "depends_on": [],
+  "models": ["loai_cong_viec", "cong_viec", "cong_viec_muc", "nhat_ky_sla", "ban_tin_tuan"],
+  "processes": ["giao_viec_thuong", "giao_viec_khan", "ban_tin_tuan"],
+  "policies": ["iam"],
+  "roles": {
+    "nhan_vien": "Người thực hiện; đọc việc của mình, cập nhật qua workflow",
+    "truong_bo_phan": "Giao việc, nghiệm thu, nhận leo thang cấp 2",
+    "giam_doc": "Đọc toàn bộ, nhận bản tin tuần",
+    "quan_tri": "Cấu hình loại công việc và SLA",
+    "xt_workflow": "Danh tính dịch vụ được ghi trạng thái, tiến độ, nhật ký SLA, bản tin",
+    "agent": "Danh tính agent (L0-L1)"
+  },
+  "lane_bindings": {
+    "_note": "Lane tĩnh trong spec không biểu diễn được 'người làm của đúng công việc này'. Runtime gán lane động từ dữ liệu instance.",
+    "nguoi_thuc_hien": "cong_viec.nguoi_thuc_hien",
+    "nguoi_giao": "cong_viec.nguoi_giao"
+  },
+  "step_actions": {"nhan": "record.update", "lam": "record.update", "nghiem_thu": "record.approve"},
+  "iam_resource_mapping": {"owner": "cong_viec.nguoi_thuc_hien", "creator": "cong_viec.nguoi_thuc_hien", "_note": "creator cố ý lấy người làm: Host chặn self_approval theo creator, mà người nghiệm thu chính là người giao"},
+  "process_selection": {"uu_tien=khan": "giao_viec_khan", "default": "giao_viec_thuong"},
+  "allowed_ops": {
+    "dong_viec": {"params": ["task_id"], "returns": {"closed": "task_id"}},
+    "tong_hop_tuan": {"params": ["tu_ngay", "den_ngay", "phong_ban"], "returns": {"ma": "mã bản tin", "tom_tat": "câu tóm tắt", "id": "id bản ghi ban_tin_tuan"}},
+    "notify": {"params": ["msg"], "returns": {"ok": 1}}
+  },
+  "autonomy": {
+    "L0": ["đọc, tìm việc quá hạn/bị chặn", "trả lời 'tuần này team đang kẹt gì'"],
+    "L1": ["tách chỉ đạo thành danh sách công việc (tạo nháp để người giao xác nhận)", "đề xuất người làm theo tải", "nhắc việc, soạn bản tin tuần"],
+    "L2": [],
+    "L3": []
+  }
+}

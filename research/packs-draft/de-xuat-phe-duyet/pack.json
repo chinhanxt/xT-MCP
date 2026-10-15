@@ -1,0 +1,34 @@
+{
+  "_note": "Manifest đề xuất của pack. KHÔNG engine nào trong spike đọc file này; các khóa allowed_ops, lane_bindings, step_actions là thứ runtime xT phải nạp (xem REPORT.md, mục khoảng trống).",
+  "pack": "de-xuat-phe-duyet",
+  "version": "0.1.0",
+  "title": "Đề xuất và phê duyệt đa cấp (Tạm ứng, Thanh toán, Hoàn ứng)",
+  "tenant_demo": "binhminh",
+  "depends_on": [],
+  "models": ["loai_de_xuat", "de_xuat", "tam_ung", "thanh_toan", "hoan_ung", "buoc_duyet"],
+  "processes": ["de_xuat_phe_duyet"],
+  "policies": ["iam"],
+  "roles": {
+    "nhan_vien": "Người đề nghị; chỉ đọc đề xuất của chính mình qua DB, tạo/sửa qua workflow",
+    "truong_bo_phan": "Duyệt bước 1 cho đề xuất của phòng mình",
+    "ke_toan_thanh_toan": "Kiểm chứng từ thanh toán/hoàn ứng",
+    "ke_toan_truong": "Duyệt trên 50 triệu; xem xét nợ tạm ứng quá hạn",
+    "giam_doc": "Duyệt cuối khi trên 5 triệu",
+    "quan_tri": "Cấu hình loại đề xuất",
+    "xt_workflow": "Danh tính dịch vụ duy nhất được ghi vào de_xuat, tam_ung, thanh_toan, hoan_ung, buoc_duyet",
+    "agent": "Danh tính agent (L0-L1); không bao giờ duyệt"
+  },
+  "allowed_ops": {
+    "kiem_tra_cong_no": {"params": ["requester"], "returns": {"qua_han": "số khoản tạm ứng quá hạn hoàn ứng"}},
+    "ghi_so": {"params": ["amount", "requester"], "returns": {"so": "số chứng từ ghi sổ"}},
+    "notify": {"params": ["msg"], "returns": {"ok": 1}}
+  },
+  "process_inputs": {"de_xuat_phe_duyet": ["loai", "amount", "requester", "requester_la_tbp"]},
+  "step_actions": {"*": "record.approve"},
+  "autonomy": {
+    "L0": ["đọc, tìm, giải thích đề xuất và lịch sử tương tự", "tóm tắt cho người duyệt"],
+    "L1": ["tạo nháp đề xuất và giấy tờ kèm theo thay người dùng (qua xt_submit)", "nhắc người duyệt"],
+    "L2": [],
+    "L3": []
+  }
+}

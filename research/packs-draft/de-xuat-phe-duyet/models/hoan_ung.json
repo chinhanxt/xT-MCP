@@ -1,0 +1,160 @@
+{
+  "id": "dx_hoanung",
+  "name": "hoan_ung",
+  "label": "Giấy thanh toán tiền tạm ứng",
+  "title_field": "de_xuat",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "de_xuat",
+      "type": "ref",
+      "label": "Đề xuất",
+      "required": true,
+      "unique": true,
+      "ref": "de_xuat"
+    },
+    {
+      "id": "f2",
+      "name": "tam_ung",
+      "type": "ref",
+      "label": "Khoản tạm ứng được hoàn",
+      "required": true,
+      "ref": "tam_ung"
+    },
+    {
+      "id": "f3",
+      "name": "ngay_thanh_toan",
+      "type": "date",
+      "label": "Ngày thanh toán",
+      "required": true
+    },
+    {
+      "id": "f4",
+      "name": "tam_ung_da_nhan",
+      "type": "money",
+      "label": "Số tiền tạm ứng đã nhận",
+      "required": true,
+      "min": 0
+    },
+    {
+      "id": "f5",
+      "name": "thuc_chi",
+      "type": "money",
+      "label": "Số tiền thực tế đã chi",
+      "required": true,
+      "min": 0
+    },
+    {
+      "id": "f6",
+      "name": "chi_thua_de_nghi_them",
+      "type": "money",
+      "label": "Số chi thừa đề nghị thanh toán thêm",
+      "required": true,
+      "min": 0,
+      "default": 0
+    },
+    {
+      "id": "f7",
+      "name": "chua_chi_nop_lai",
+      "type": "money",
+      "label": "Số chưa chi hết nộp lại quỹ",
+      "required": true,
+      "min": 0,
+      "default": 0
+    },
+    {
+      "id": "f8",
+      "name": "bang_ke_chung_tu",
+      "type": "text",
+      "label": "Bảng kê danh mục chứng từ đính kèm",
+      "required": true,
+      "max": 2000
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "tam_ung"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Thực chi vượt tạm ứng thì phải khai 'chi thừa đề nghị thanh toán thêm'",
+      "check": {
+        "or": [
+          {
+            "field": "thuc_chi",
+            "op": "<=",
+            "other_field": "tam_ung_da_nhan"
+          },
+          {
+            "field": "chi_thua_de_nghi_them",
+            "op": ">",
+            "value": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "r2",
+      "message": "Không thể vừa chi thừa vừa nộp lại quỹ",
+      "check": {
+        "or": [
+          {
+            "field": "chi_thua_de_nghi_them",
+            "op": "=",
+            "value": 0
+          },
+          {
+            "field": "chua_chi_nop_lai",
+            "op": "=",
+            "value": 0
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "nhan_vien": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "truong_bo_phan": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "ke_toan_thanh_toan": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "ke_toan_truong": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "giam_doc": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

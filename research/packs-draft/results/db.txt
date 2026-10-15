@@ -1,0 +1,49 @@
+### SEED
+de-xuat-phe-duyet {'loai_de_xuat': 3, 'de_xuat': 3, 'tam_ung': 3, 'buoc_duyet': 6}
+giao-viec-sla {'loai_cong_viec': 3, 'cong_viec': 4, 'cong_viec_muc': 4, 'nhat_ky_sla': 2, 'ban_tin_tuan': 1}
+nhan-su-vong-doi {'phong_ban': 5, 'nhan_vien': 15, 'nhan_vien_pii': 15, 'tai_san_cap': 5, 'cap_quyen': 6, 'ho_so_vong_doi': 1, 'viec_vong_doi': 4}
+
+### PACK 1: de-xuat-phe-duyet
+- nhan_vien (Việt) tạo thẳng de_xuat qua CRUD: {"ok": false, "error": {"code": "FORBIDDEN", "message": "Vai trò ['nhan_vien'] không có quyền 'create' trên 'Đề xuất'", "fields": [], "hint": "Vai trò được phép: ['xt_workflow']"}}
+- xt_workflow tạo de_xuat cho Việt: {"ok": true, "ma": "TU-2026-0042"}
+- xt_workflow: duyệt cuối = chính người đề nghị (SoD CHECK): {"ok": false, "error": {"code": "CONSTRAINT_VIOLATION", "message": "Người duyệt cuối không được là người đề nghị (tách nhiệm vụ)", "fields": [{"field": "nguoi_de_nghi", "label": "Người đề nghị", "code": "rule", "message": "Người duyệt cuối không được là người đề nghị (tách nhiệm vụ)"}, {"field": "nguoi_duyet_cuoi", "label": "Ngư
+- xt_workflow: da_duyet thiếu người duyệt (rule r2): {"ok": false, "error": {"code": "CONSTRAINT_VIOLATION", "message": "Đề xuất đã duyệt/đã chi phải có người duyệt cuối và thời điểm duyệt", "fields": [{"field": "ngay_duyet", "label": "Thời điểm duyệt cuối", "code": "rule", "message": "Đề xuất đã duyệt/đã chi phải có người duyệt cuối và thời điểm duyệt"}, {"field": "nguoi_duyet_cu
+- xt_workflow: da_duyet bởi Long (hợp lệ): {"ok": true, "record": {"id": "a2de6e3a-290e-4239-aef6-cfcd278722bb", "revision": 2, "owner_id": "ddf537e7-b0cf-5fbd-8dec-771d94b71bd0", "team_id": null, "department_id": "79ba0319-3193-5ef0-aedd-2ff975985479", "created_at": "2026-10-15 03:46:03.759491+00:00", "updated_at": "2026-10-15 03:46:03.765880+00:00", "ma_phieu": "TU-202
+- tam_ung 80tr + ngày về < ngày đi + thiếu STK (storyboard S1): {"ok": false, "error": {"code": "VALIDATION_FAILED", "message": "Dữ liệu 'Giấy đề nghị tạm ứng' chưa hợp lệ (1 lỗi)", "fields": [{"field": "so_tien", "label": "Số tiền tạm ứng (VND)", "code": "less_than_equal", "message": "'Số tiền tạm ứng (VND)' phải <= 30000000"}], "hint": "Sửa các trường nêu trên rồi gọi lại; không đoán giá t
+- tam_ung hợp lệ 8tr: {"ok": true}
+- thanh_toan 25tr không có HĐĐT: {"ok": false, "error": {"code": "RULE_VIOLATION", "message": "Thanh toán từ 20 triệu trở lên phải có hóa đơn điện tử và mã số thuế", "fields": [{"field": "hoa_don_dien_tu", "label": "Có hóa đơn điện tử", "code": "rule:r1", "message": "Thanh toán từ 20 triệu trở lên phải có hóa đơn điện tử và mã số thuế"}, {"field": "ma_so_thue",
+- hoan_ung thực chi > tạm ứng mà không khai chi thừa: {"ok": false, "error": {"code": "RULE_VIOLATION", "message": "Thực chi vượt tạm ứng thì phải khai 'chi thừa đề nghị thanh toán thêm'", "fields": [{"field": "chi_thua_de_nghi_them", "label": "Số chi thừa đề nghị thanh toán thêm", "code": "rule:r1", "message": "Thực chi vượt tạm ứng thì phải khai 'chi thừa đề nghị thanh toán thêm'
+
+--- cô lập dòng theo vai trò (de_xuat)
+- Việt (own): {"ok": true, "total": 4, "ma": ["TU-2026-0021", "TU-2026-0027", "TU-2026-0033", "TU-2026-0042"]}
+- Anh (own, cùng phòng KD): {"ok": true, "total": 0, "ma": []}
+- Mai (TBP, department): {"ok": true, "total": 4, "ma": ["TU-2026-0021", "TU-2026-0027", "TU-2026-0033", "TU-2026-0042"]}
+- Hà (KTT, all): {"ok": true, "total": 4, "ma": ["TU-2026-0021", "TU-2026-0027", "TU-2026-0033", "TU-2026-0042"]}
+- agent (role agent, không có quyền DB): {"code": "FORBIDDEN", "message": "Vai trò ['agent'] không có quyền 'read' trên 'Đề xuất'", "fields": [], "hint": "Vai trò được phép: ['giam_doc', 'ke_toan_thanh_toan', 'ke_toan_truong', 'nhan_vien', 'truong_bo_phan', 'xt_workflow']"}
+- giám đốc tenant ankhang xem de_xuat: {"ok": true, "total": 0}
+
+### PACK 2: giao-viec-sla
+- Việt tự cập nhật cv (không có quyền ghi): {"ok": false, "error": {"code": "FORBIDDEN", "message": "Vai trò ['nhan_vien'] không có quyền 'update' trên 'Công việc'", "fields": [], "hint": "Vai trò được phép: ['truong_bo_phan', 'xt_workflow']"}}
+- Mai (TBP) tạo công việc giao cho Việt: {"ok": true}
+- Mai tạo việc Khẩn nhưng lớp SLA thường (rule): {"ok": false, "error": {"code": "RULE_VIOLATION", "message": "Công việc ưu tiên Khẩn phải chạy quy trình SLA lớp Khẩn", "fields": [{"field": "lop_sla", "label": "Lớp quy trình SLA", "code": "rule:r3", "message": "Công việc ưu tiên Khẩn phải chạy quy trình SLA lớp Khẩn"}, {"field": "uu_tien", "label": "Ưu tiên", "code": "rule:r3"
+- hoàn thành mà không có kết quả (rule): {"ok": false, "error": {"code": "CONSTRAINT_VIOLATION", "message": "Công việc hoàn thành/chờ nghiệm thu phải có kết quả", "fields": [{"field": "ket_qua", "label": "Kết quả nộp", "code": "rule", "message": "Công việc hoàn thành/chờ nghiệm thu phải có kết quả"}, {"field": "trang_thai", "label": "Trạng thái", "code": "rule", "messa
+- tiến độ 150% (max 100): {"ok": false, "error": {"code": "VALIDATION_FAILED", "message": "Dữ liệu 'Công việc' chưa hợp lệ (1 lỗi)", "fields": [{"field": "tien_do", "label": "Tiến độ (%)", "code": "less_than_equal", "message": "'Tiến độ (%)' phải <= 100"}], "hint": "Sửa các trường nêu trên rồi gọi lại; không đoán giá trị thay người dùng."}}
+- phụ thuộc tự tham chiếu (ref self) hợp lệ: {"ok": true, "record": {"id": "b8ac3e25-90cf-43aa-b80c-9fb1ed2df830", "revision": 2, "owner_id": "ddf537e7-b0cf-5fbd-8dec-771d94b71bd0", "team_id": null, "department_id": "79ba0319-3193-5ef0-aedd-2ff975985479", "created_at": "2026-10-15 03:46:03.589832+00:00", "updated_at": "2026-10-15 03:46:03.785908+00:00", "ma_cv": "CV-2026-0
+- Việt (own) thấy cv: ["CV-2026-0001", "CV-2026-0004", "CV-2026-0099"]
+- Anh (own) thấy cv: ["CV-2026-0002"]
+- Mai (department KD) thấy cv: ["CV-2026-0001", "CV-2026-0002", "CV-2026-0003", "CV-2026-0004", "CV-2026-0099"]
+
+### PACK 3: nhan-su-vong-doi
+- Hùng (nhan_vien) đọc PII: {"total": 1, "luong": [14500000]}
+- Việt đọc PII: {"total": 1, "luong": [18000000]}
+- Linh (hr_pii) đọc PII: {"total": 15, "luong": [27000000, 26000000, 25000000]}
+- Tâm (nhan_su, không hr_pii) đọc PII: {"total": 1, "luong": [21000000]}
+- agent đọc PII (DB): {"code": "FORBIDDEN", "message": "Vai trò ['agent'] không có quyền 'read' trên 'Hồ sơ nhân sự nhạy cảm'", "fields": [], "hint": "Vai trò được phép: ['hr_pii', 'nhan_vien', 'xt_workflow']"}
+- Việt (own) đọc nhan_vien: {"total": 1}
+- Thịnh (TBP IT, dept) đọc nhan_vien: {"total": 15}
+- nhan_vien nghỉ mà thiếu ngày làm việc cuối (rule): {"ok": false, "error": {"code": "CONSTRAINT_VIOLATION", "message": "Nhân viên đã nghỉ/đang nghỉ phải có ngày làm việc cuối", "fields": [{"field": "ngay_nghi", "label": "Ngày làm việc cuối", "code": "rule", "message": "Nhân viên đã nghỉ/đang nghỉ phải có ngày làm việc cuối"}, {"field": "trang_thai", "label": "Trạng thái", "code":
+- quyết toán đã chi khi còn tài sản chưa trả (rule): {"ok": false, "error": {"code": "RULE_VIOLATION", "message": "Chỉ được chi quyết toán khi không còn tài sản chưa trả", "fields": [{"field": "da_chi", "label": "Đã chi", "code": "rule:r1", "message": "Chỉ được chi quyết toán khi không còn tài sản chưa trả"}, {"field": "tai_san_chua_tra", "label": "Số tài sản chưa trả", "code": "r
+
+### RLS thô
+row counts: {'loai_de_xuat': 3, 'de_xuat': 4, 'tam_ung': 4, 'buoc_duyet': 6, 'loai_cong_viec': 3, 'cong_viec': 5, 'cong_viec_muc': 4, 'nhat_ky_sla': 2, 'ban_tin_tuan': 1, 'phong_ban': 5, 'nhan_vien': 15, 'nhan_vien_pii': 15, 'ho_so_vong_doi': 1, 'viec_vong_doi': 4, 'tai_san_cap': 5, 'cap_quyen': 6}
+audit hash-chain verify (n, first_bad_seq): (85, None)

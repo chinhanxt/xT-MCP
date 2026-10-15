@@ -1,0 +1,344 @@
+{
+  "id": "gv_cv",
+  "name": "cong_viec",
+  "label": "Công việc",
+  "title_field": "tieu_de",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "ma_cv",
+      "type": "text",
+      "label": "Mã công việc",
+      "required": true,
+      "unique": true,
+      "regex": "^CV-[0-9]{4}-[0-9]{4}$"
+    },
+    {
+      "id": "f2",
+      "name": "tieu_de",
+      "type": "text",
+      "label": "Tiêu đề",
+      "required": true,
+      "min": 3,
+      "max": 200
+    },
+    {
+      "id": "f3",
+      "name": "mo_ta",
+      "type": "text",
+      "label": "Mô tả",
+      "max": 4000
+    },
+    {
+      "id": "f4",
+      "name": "loai",
+      "type": "ref",
+      "label": "Loại công việc",
+      "required": true,
+      "ref": "loai_cong_viec"
+    },
+    {
+      "id": "f5",
+      "name": "nguoi_giao",
+      "type": "user",
+      "label": "Người giao",
+      "required": true
+    },
+    {
+      "id": "f6",
+      "name": "nguoi_thuc_hien",
+      "type": "user",
+      "label": "Người chịu trách nhiệm chính (duy nhất)",
+      "required": true
+    },
+    {
+      "id": "f7",
+      "name": "nguoi_phoi_hop",
+      "type": "json",
+      "label": "Người phối hợp (danh sách user id)"
+    },
+    {
+      "id": "f8",
+      "name": "han_chot",
+      "type": "datetime",
+      "label": "Hạn chót",
+      "required": true
+    },
+    {
+      "id": "f9",
+      "name": "uu_tien",
+      "type": "enum",
+      "label": "Ưu tiên",
+      "required": true,
+      "default": "trung_binh",
+      "options": [
+        {
+          "value": "thap",
+          "label": "Thấp"
+        },
+        {
+          "value": "trung_binh",
+          "label": "Trung bình"
+        },
+        {
+          "value": "cao",
+          "label": "Cao"
+        },
+        {
+          "value": "khan",
+          "label": "Khẩn"
+        }
+      ]
+    },
+    {
+      "id": "f10",
+      "name": "lop_sla",
+      "type": "enum",
+      "label": "Lớp quy trình SLA",
+      "required": true,
+      "default": "thuong",
+      "options": [
+        {
+          "value": "thuong",
+          "label": "Thường"
+        },
+        {
+          "value": "khan",
+          "label": "Khẩn"
+        }
+      ]
+    },
+    {
+      "id": "f11",
+      "name": "tieu_chi_xong",
+      "type": "text",
+      "label": "Tiêu chí hoàn thành",
+      "required": true,
+      "min": 5,
+      "max": 1000
+    },
+    {
+      "id": "f12",
+      "name": "trang_thai",
+      "type": "enum",
+      "label": "Trạng thái",
+      "required": true,
+      "default": "moi",
+      "options": [
+        {
+          "value": "moi",
+          "label": "Mới giao"
+        },
+        {
+          "value": "da_nhan",
+          "label": "Đã nhận"
+        },
+        {
+          "value": "dang_lam",
+          "label": "Đang làm"
+        },
+        {
+          "value": "bi_chan",
+          "label": "Bị chặn"
+        },
+        {
+          "value": "cho_nghiem_thu",
+          "label": "Chờ nghiệm thu"
+        },
+        {
+          "value": "hoan_thanh",
+          "label": "Hoàn thành"
+        },
+        {
+          "value": "khong_chap_nhan",
+          "label": "Không chấp nhận kết quả"
+        },
+        {
+          "value": "huy",
+          "label": "Hủy"
+        }
+      ]
+    },
+    {
+      "id": "f13",
+      "name": "tien_do",
+      "type": "number",
+      "label": "Tiến độ (%)",
+      "required": true,
+      "min": 0,
+      "max": 100,
+      "default": 0
+    },
+    {
+      "id": "f14",
+      "name": "ket_qua",
+      "type": "text",
+      "label": "Kết quả nộp",
+      "max": 4000
+    },
+    {
+      "id": "f15",
+      "name": "ly_do_chan",
+      "type": "text",
+      "label": "Lý do bị chặn",
+      "max": 1000
+    },
+    {
+      "id": "f16",
+      "name": "phu_thuoc",
+      "type": "ref",
+      "label": "Phụ thuộc công việc",
+      "ref": "cong_viec"
+    },
+    {
+      "id": "f17",
+      "name": "da_leo_thang",
+      "type": "bool",
+      "label": "Đã leo thang SLA",
+      "required": true,
+      "default": false
+    },
+    {
+      "id": "f18",
+      "name": "nhan_luc",
+      "type": "datetime",
+      "label": "Thời điểm nhận việc"
+    },
+    {
+      "id": "f19",
+      "name": "hoan_thanh_luc",
+      "type": "datetime",
+      "label": "Thời điểm hoàn thành"
+    },
+    {
+      "id": "f20",
+      "name": "ma_tien_trinh",
+      "type": "text",
+      "label": "Mã tiến trình workflow",
+      "max": 64
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "trang_thai",
+        "han_chot"
+      ]
+    },
+    {
+      "id": "i2",
+      "fields": [
+        "nguoi_thuc_hien",
+        "trang_thai"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Công việc hoàn thành/chờ nghiệm thu phải có kết quả",
+      "check": {
+        "or": [
+          {
+            "not": {
+              "field": "trang_thai",
+              "op": "in",
+              "value": [
+                "cho_nghiem_thu",
+                "hoan_thanh"
+              ]
+            }
+          },
+          {
+            "field": "ket_qua",
+            "op": "not_null"
+          }
+        ]
+      }
+    },
+    {
+      "id": "r2",
+      "message": "Công việc bị chặn phải ghi lý do",
+      "check": {
+        "or": [
+          {
+            "field": "trang_thai",
+            "op": "!=",
+            "value": "bi_chan"
+          },
+          {
+            "field": "ly_do_chan",
+            "op": "not_null"
+          }
+        ]
+      }
+    },
+    {
+      "id": "r3",
+      "message": "Công việc ưu tiên Khẩn phải chạy quy trình SLA lớp Khẩn",
+      "check": {
+        "or": [
+          {
+            "field": "uu_tien",
+            "op": "!=",
+            "value": "khan"
+          },
+          {
+            "field": "lop_sla",
+            "op": "=",
+            "value": "khan"
+          }
+        ]
+      }
+    },
+    {
+      "id": "r4",
+      "message": "Công việc hoàn thành phải có thời điểm hoàn thành",
+      "check": {
+        "or": [
+          {
+            "field": "trang_thai",
+            "op": "!=",
+            "value": "hoan_thanh"
+          },
+          {
+            "field": "hoan_thanh_luc",
+            "op": "not_null"
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "nhan_vien": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "truong_bo_phan": {
+      "actions": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ],
+      "scope": "department"
+    },
+    "giam_doc": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

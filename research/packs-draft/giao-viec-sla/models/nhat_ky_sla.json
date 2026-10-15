@@ -1,0 +1,99 @@
+{
+  "id": "gv_sla",
+  "name": "nhat_ky_sla",
+  "label": "Nhật ký SLA",
+  "title_field": "su_kien",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "cong_viec",
+      "type": "ref",
+      "label": "Công việc",
+      "required": true,
+      "ref": "cong_viec"
+    },
+    {
+      "id": "f2",
+      "name": "su_kien",
+      "type": "enum",
+      "label": "Sự kiện",
+      "required": true,
+      "options": [
+        {
+          "value": "nhac",
+          "label": "Nhắc người làm"
+        },
+        {
+          "value": "leo_thang",
+          "label": "Leo thang"
+        },
+        {
+          "value": "hoan_thanh_dung_han",
+          "label": "Hoàn thành đúng hạn"
+        },
+        {
+          "value": "hoan_thanh_tre",
+          "label": "Hoàn thành trễ hạn"
+        }
+      ]
+    },
+    {
+      "id": "f3",
+      "name": "den_vai_tro",
+      "type": "text",
+      "label": "Gửi tới vai trò",
+      "max": 40
+    },
+    {
+      "id": "f4",
+      "name": "thoi_diem",
+      "type": "datetime",
+      "label": "Thời điểm",
+      "required": true
+    },
+    {
+      "id": "f5",
+      "name": "ghi_chu",
+      "type": "text",
+      "label": "Ghi chú",
+      "max": 500
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "cong_viec",
+        "thoi_diem"
+      ]
+    }
+  ],
+  "rules": [],
+  "permissions": {
+    "nhan_vien": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "truong_bo_phan": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "giam_doc": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read"
+      ],
+      "scope": "all"
+    }
+  }
+}

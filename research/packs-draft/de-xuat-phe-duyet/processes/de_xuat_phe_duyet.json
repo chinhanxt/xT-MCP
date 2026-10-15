@@ -1,0 +1,22 @@
+{
+  "id": "de_xuat_phe_duyet",
+  "name": "Đề xuất và phê duyệt đa cấp (Tạm ứng / Thanh toán / Hoàn ứng)",
+  "version": 1,
+  "roles": ["truong_bo_phan", "ke_toan_thanh_toan", "ke_toan_truong", "giam_doc"],
+  "steps": [
+    {"id": "chk_no", "type": "service", "name": "Kiểm tra công nợ tạm ứng quá hạn", "op": "kiem_tra_cong_no",
+     "params": {"requester": "requester"}, "when": "loai == 'tam_ung'"},
+    {"id": "tbp", "type": "approve", "name": "Trưởng bộ phận duyệt", "role": "truong_bo_phan",
+     "when": "not requester_la_tbp", "sla": {"after": "PT24H", "escalate_to": "giam_doc"}},
+    {"id": "kttt", "type": "approve", "name": "Kế toán thanh toán kiểm chứng từ", "role": "ke_toan_thanh_toan",
+     "when": "loai in ('thanh_toan', 'hoan_ung')", "sla": {"after": "PT24H", "escalate_to": "ke_toan_truong"}},
+    {"id": "ktt_no", "type": "approve", "name": "Kế toán trưởng xem xét nợ tạm ứng quá hạn", "role": "ke_toan_truong",
+     "when": "loai == 'tam_ung' and chk_no_result['qua_han'] > 0", "sla": {"after": "PT24H", "escalate_to": "giam_doc"}},
+    {"id": "ktt", "type": "approve", "name": "Kế toán trưởng duyệt", "role": "ke_toan_truong",
+     "when": "amount > 50000000", "sla": {"after": "PT24H", "escalate_to": "giam_doc"}},
+    {"id": "gd", "type": "approve", "name": "Giám đốc duyệt", "role": "giam_doc",
+     "when": "amount > 5000000"},
+    {"id": "ghiso", "type": "service", "name": "Ghi sổ đề xuất đã duyệt", "op": "ghi_so",
+     "params": {"amount": "amount", "requester": "requester"}}
+  ]
+}

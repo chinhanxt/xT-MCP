@@ -1,0 +1,196 @@
+{
+  "id": "dx_thanhtoan",
+  "name": "thanh_toan",
+  "label": "Giấy đề nghị thanh toán",
+  "title_field": "de_xuat",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "de_xuat",
+      "type": "ref",
+      "label": "Đề xuất",
+      "required": true,
+      "unique": true,
+      "ref": "de_xuat"
+    },
+    {
+      "id": "f2",
+      "name": "ngay_de_nghi",
+      "type": "date",
+      "label": "Ngày đề nghị",
+      "required": true
+    },
+    {
+      "id": "f3",
+      "name": "so_tien",
+      "type": "money",
+      "label": "Số tiền đề nghị (VND)",
+      "required": true,
+      "min": 1
+    },
+    {
+      "id": "f4",
+      "name": "noi_dung",
+      "type": "text",
+      "label": "Nội dung thanh toán",
+      "required": true,
+      "max": 1000
+    },
+    {
+      "id": "f5",
+      "name": "nha_cung_cap",
+      "type": "text",
+      "label": "Đơn vị nhận tiền",
+      "required": true,
+      "max": 200
+    },
+    {
+      "id": "f6",
+      "name": "ma_so_thue",
+      "type": "text",
+      "label": "Mã số thuế",
+      "regex": "^[0-9]{10}(-[0-9]{3})?$"
+    },
+    {
+      "id": "f7",
+      "name": "so_hoa_don",
+      "type": "text",
+      "label": "Số hóa đơn",
+      "max": 40
+    },
+    {
+      "id": "f8",
+      "name": "hoa_don_dien_tu",
+      "type": "bool",
+      "label": "Có hóa đơn điện tử",
+      "required": true,
+      "default": false
+    },
+    {
+      "id": "f9",
+      "name": "hinh_thuc_thanh_toan",
+      "type": "enum",
+      "label": "Hình thức thanh toán",
+      "required": true,
+      "options": [
+        {
+          "value": "tien_mat",
+          "label": "Tiền mặt"
+        },
+        {
+          "value": "chuyen_khoan",
+          "label": "Chuyển khoản"
+        }
+      ]
+    },
+    {
+      "id": "f10",
+      "name": "thong_tin_tai_khoan",
+      "type": "text",
+      "label": "Thông tin tài khoản nhận tiền",
+      "max": 300
+    },
+    {
+      "id": "f11",
+      "name": "so_luong_chung_tu",
+      "type": "number",
+      "label": "Số lượng chứng từ gốc kèm theo",
+      "required": true,
+      "min": 0
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "nha_cung_cap",
+        "so_hoa_don"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Thanh toán từ 20 triệu trở lên phải có hóa đơn điện tử và mã số thuế",
+      "check": {
+        "or": [
+          {
+            "field": "so_tien",
+            "op": "<=",
+            "value": 20000000
+          },
+          {
+            "and": [
+              {
+                "field": "hoa_don_dien_tu",
+                "op": "=",
+                "value": true
+              },
+              {
+                "field": "ma_so_thue",
+                "op": "not_null"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "r2",
+      "message": "Thanh toán chuyển khoản phải có thông tin tài khoản",
+      "check": {
+        "or": [
+          {
+            "field": "hinh_thuc_thanh_toan",
+            "op": "!=",
+            "value": "chuyen_khoan"
+          },
+          {
+            "field": "thong_tin_tai_khoan",
+            "op": "not_null"
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "nhan_vien": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "truong_bo_phan": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "ke_toan_thanh_toan": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "ke_toan_truong": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "giam_doc": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

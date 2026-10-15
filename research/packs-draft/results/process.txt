@@ -1,0 +1,74 @@
+
+======== PACK 1 de_xuat_phe_duyet
+  tạm ứng 4tr: Mai                               outcome=APPROVED     path=['NV-0005:Trưởng bộ phận duyệt[approve]'] 
+  tạm ứng 8tr: Mai, Long (S1/S2)                 outcome=APPROVED     path=['NV-0005:Trưởng bộ phận duyệt[approve]', 'NV-0001:Giám đốc duyệt[approve]'] 
+  thanh toán 80tr: Mai, Bảo, Hà, Long            outcome=APPROVED     path=['NV-0005:Trưởng bộ phận duyệt[approve]', 'NV-0003:Kế toán thanh toán kiểm chứng từ[approve]', 'NV-0002:Kế toán trưởng duyệt[approve]', 'NV-0001:Giám đốc duyệt[approve]'] 
+  hoàn ứng 12tr: Mai, Bảo, Long                  outcome=APPROVED     path=['NV-0005:Trưởng bộ phận duyệt[approve]', 'NV-0003:Kế toán thanh toán kiểm chứng từ[approve]', 'NV-0001:Giám đốc duyệt[approve]'] 
+  reject tại Mai (bước 1)                        outcome=REJECTED     path=['NV-0005:Trưởng bộ phận duyệt[reject]'] ledger+0
+  reject tại Long (bước cuối) 80tr               outcome=REJECTED     path=['NV-0005:Trưởng bộ phận duyệt[approve]', 'NV-0003:Kế toán thanh toán kiểm chứng từ[approve]', 'NV-0002:Kế toán trưởng duyệt[approve]', 'NV-0001:Giám đốc duyệt[reject]'] ledger+0
+  Mai là người đề nghị (bỏ bước TBP): Long       outcome=APPROVED     path=['NV-0001:Giám đốc duyệt[approve]'] 
+  còn nợ quá hạn: Mai, Hà(xem xét nợ), Long      outcome=APPROVED     path=['NV-0005:Trưởng bộ phận duyệt[approve]', 'NV-0002:Kế toán trưởng xem xét nợ tạm ứng quá hạn[approve]', 'NV-0001:Giám đốc duyệt[approve]'] 
+  -- chặn tại bước (SoD / lane / quyết định lạ / agent)
+  Mai tự duyệt đề xuất của mình (định tuyến sai) outcome=PENDING:Trưởng bộ phận duyệt@truong_bo_phan path=['DENY(NV-0005):iam:self_approval'] 
+  Việt/Anh (không có vai trò) duyệt bước Mai     outcome=PENDING:Trưởng bộ phận duyệt@truong_bo_phan path=['DENY(NV-0006):lane_mismatch(lane=truong_bo_phan)', 'DENY(NV-0007):lane_mismatch(lane=truong_bo_phan)'] 
+  Thịnh (TBP IT, sai phòng) duyệt                outcome=PENDING:Trưởng bộ phận duyệt@truong_bo_phan path=['DENY(NV-0006):lane_mismatch(lane=truong_bo_phan)', 'DENY(NV-0007):lane_mismatch(lane=truong_bo_phan)', 'DENY(NV-0012):iam:implicit_deny'] 
+  Mai trả quyết định 'return' (ngoài approve/reject) outcome=PENDING:Trưởng bộ phận duyệt@truong_bo_phan path=['DENY(NV-0006):lane_mismatch(lane=truong_bo_phan)', 'DENY(NV-0007):lane_mismatch(lane=truong_bo_phan)', 'DENY(NV-0012):iam:implicit_deny', 'DENY(NV-0005):invalid_decision'] 
+  agent-claude duyệt bước TBP (không có lane)    outcome=PENDING:Trưởng bộ phận duyệt@truong_bo_phan path=['DENY(agent-claude):lane_mismatch(lane=truong_bo_phan)'] 
+  agent-claude gán nhầm role TBP, L3, không receipt outcome=PENDING:Trưởng bộ phận duyệt@truong_bo_phan path=['DENY(agent-claude):lane_mismatch(lane=truong_bo_phan)', 'DENY(agent-claude):iam:approval_required'] 
+  -- ghi sổ (LEDGER): [('NV-0006', 4000000), ('NV-0006', 8000000), ('NV-0006', 80000000), ('NV-0006', 12000000), ('NV-0005', 8000000), ('NV-0006', 8000000)]
+
+======== PACK 1: SLA leo thang (đồng hồ giả +25h) + lưu JSONB Postgres + poller next_due
+  lưu instance #1: next_due=2026-10-16 03:46:04.548078+00:00
+  READY ban đầu: ['Trưởng bộ phận duyệt@truong_bo_phan']
+  poller (now giả = +25h) tìm thấy: [(1,)]
+  sau refresh_timers (process mới, nạp từ JSONB): ['Trưởng bộ phận duyệt (leo thang)@giam_doc'] | NOTES: ['SLA vượt hạn: Trưởng bộ phận duyệt']
+  Mai (đã bị thay thế) cố duyệt sau khi leo thang outcome=PENDING:Trưởng bộ phận duyệt (leo thang)@giam_doc path=['DENY(NV-0005):lane_mismatch(lane=giam_doc)'] 
+  Long duyệt bước leo thang                      outcome=PENDING:Giám đốc duyệt@giam_doc path=['DENY(NV-0005):lane_mismatch(lane=giam_doc)', 'NV-0001:Trưởng bộ phận duyệt (leo thang)[approve]'] 
+  Long duyệt tiếp bước GĐ (>5tr, lặp)            outcome=APPROVED     path=['DENY(NV-0005):lane_mismatch(lane=giam_doc)', 'NV-0001:Trưởng bộ phận duyệt (leo thang)[approve]', 'NV-0001:Giám đốc duyệt[approve]'] <- GAP: GĐ phải duyệt 2 lần
+
+======== PACK 2 giao_viec_*
+  happy: Việt nhận, Việt nộp, Mai nghiệm thu     outcome=APPROVED     path=['NV-0006:Xác nhận nhận việc[approve]', 'NV-0006:Hoàn thành và nộp kết quả[approve]', 'NV-0005:Nghiệm thu kết quả[approve]'] 
+  Việt tự nghiệm thu                             outcome=PENDING:Nghiệm thu kết quả@nguoi_giao path=['NV-0006:Xác nhận nhận việc[approve]', 'NV-0006:Hoàn thành và nộp kết quả[approve]', 'DENY(NV-0006):lane_mismatch(lane=nguoi_giao)'] 
+  Việt từ chối nhận việc                         outcome=REJECTED     path=['NV-0006:Xác nhận nhận việc[reject]'] 
+  Mai không chấp nhận kết quả                    outcome=REJECTED     path=['NV-0006:Xác nhận nhận việc[approve]', 'NV-0006:Hoàn thành và nộp kết quả[approve]', 'NV-0005:Nghiệm thu kết quả[reject]'] <- GAP: kết thúc luôn, không có vòng làm lại
+  +5h chưa nhận việc -> ['Xác nhận nhận việc (leo thang)@nguoi_giao']
+  Mai (người giao) xử lý bước nhận đã leo thang  outcome=PENDING:Hoàn thành và nộp kết quả@nguoi_thuc_hien path=['NV-0005:Xác nhận nhận việc (leo thang)[approve]'] 
+  +73h chưa nộp kết quả -> ['Hoàn thành và nộp kết quả (leo thang)@truong_bo_phan'] (người làm bị thay bằng truong_bo_phan)
+  lớp khẩn +1.5h chưa nhận -> ['Xác nhận nhận việc (leo thang)@nguoi_giao']
+  lớp khẩn: +0.5h sau khi nhận, vẫn chờ người làm -> ['Hoàn thành và nộp kết quả@nguoi_thuc_hien']
+  -- weekly digest (op tổng hợp đọc DB thật)
+  outcome: APPROVED | notify: Tuần W42: giao mới 5, hoàn thành 1, quá hạn 1, bị chặn 1
+  kiểm chứng bằng SQL: [('BT-2026-W42', Decimal('5'), Decimal('1'), Decimal('1'), Decimal('1'), ['CV-2026-0002'])]
+
+======== PACK 3 nv_onboarding / nv_offboarding
+  Tâm (người khởi tạo hồ sơ) tự duyệt bước HR    outcome=PENDING:Nhân sự: hồ sơ, HĐLĐ, BHXH@nhan_su path=['DENY(NV-0009):iam:self_approval'] 
+  onboarding: Linh, Vy, Bảo, Mai                 outcome=APPROVED     path=['DENY(NV-0009):iam:self_approval', 'NV-0010:Nhân sự: hồ sơ, HĐLĐ, BHXH[approve]', 'NV-0013:IT: email, tài khoản, thiết bị[approve]', 'NV-0003:Kế toán: mã lương, tài khoản nhận lương[approve]', 'NV-0005:Quản lý: buddy và kế hoạch 30-60-90[approve]'] 
+  DB: checklist = [('it', 1), ('ke_toan', 1), ('nhan_su', 1), ('quan_ly', 1)] | nhan_vien.trang_thai = [('thu_viec',)]
+  offboarding sạch: Linh, Mai, Vy(thu hồi), Bảo, Linh(đóng) outcome=APPROVED     path=['NV-0010:Nhân sự: xác nhận ngày nghỉ và đơn thôi việc[approve]', 'NV-0005:Quản lý: xác nhận bàn giao công việc, khách hàng, tài liệu[approve]', 'NV-0013:IT: thu hồi toàn bộ quyền truy cập và thiết bị[approve]', 'NV-0003:Kế toán: quyết toán lương, phép, tạm ứng[approve]', 'NV-0010:Nhân sự: ẩn danh dữ liệu theo thời hạn, đóng hồ sơ[approve]'] 
+  DB: [('da_nghi',)] [('hoan_tat',)] | checklist: [(5,)]
+  tài sản chưa thu hồi -> bước kế tiếp: ['Kế toán trưởng xử lý khoản còn nợ hoặc tài sản chưa trả@ke_toan_truong']
+  Hà xử lý khoản nợ -> bước kế tiếp: ['Nhân sự: ẩn danh dữ liệu theo thời hạn, đóng hồ sơ@nhan_su']
+  GUARD dong_ho_so_vong_doi chặn đóng hồ sơ: WorkflowTaskException -> RuntimeError:không đóng được hồ sơ: còn 1 tài sản và 1 quyền chưa thu hồi. 
+  DB: ho_so = [('dang_xu_ly',)] | nhan_vien = [('cho_vao',)]
+  trạng thái task sau lỗi: [('ut_hr_dong', 'COMPLETED'), ('sv_dong_ho_so', 'ERROR')]
+  IT idle +5h (SLA 4h, 'thu hồi trong ngày') -> ['IT: thu hồi toàn bộ quyền truy cập và thiết bị (leo thang)@giam_doc']
+  HR từ chối ngay bước đầu                       outcome=REJECTED     path=['NV-0010:Nhân sự: xác nhận ngày nghỉ và đơn thôi việc[reject]'] 
+
+======== GAP PROBES: compiler/engine
+  parallel_with/parallel bị bỏ qua im lặng, XML y hệt: True
+  gõ sai khóa 'sla'->'slaa': compile OK, số boundary timer: 3 (gốc: 4 )
+  type=parallel   -> SpecError: step hr: unsupported type 'parallel'
+  type=task       -> SpecError: step hr: unsupported type 'task'
+  type=wait       -> SpecError: step hr: unsupported type 'wait'
+  type=timer      -> SpecError: step hr: unsupported type 'timer'
+  type=subprocess -> SpecError: step hr: unsupported type 'subprocess'
+  khóa 'trigger' lạ ở cấp spec: bị bỏ qua: True
+  sla P7D: compile OK
+  sla P1W -> SpecError step hr: bad ISO duration 'P1W'
+  role 'nhóm&<x>': compile_spec trả XML (không kiểm ID_RE/escape lane name)
+    nhưng parser BPMN từ chối: XMLSyntaxError xmlParseEntityRef: no name, line 11, column 26 (<string>, line 11)
+  biến thiếu trong 'when' chỉ lỗi lúc chạy: TypeError can only concatenate str (not "dict") to str
+  engine trần: tbp_decision='tra_lai_bo_sung' -> APPROVED + ghi sổ (gateway chỉ kiểm == 'reject')
+  thiếu tbp_decision -> WorkflowTaskException Error evaluating expression 'tbp_decision == 'reject''.  Did you mean one of '['loai', 'amount', 're
+
+LEDGER [('NV-0006', 4000000), ('NV-0006', 8000000), ('NV-0006', 80000000), ('NV-0006', 12000000), ('NV-0005', 8000000), ('NV-0006', 8000000), ('NV-0006', 8000000), ('NV-0006', 4000000)] | NOTES ['SLA vượt hạn: Trưởng bộ phận duyệt', 'SLA vượt hạn: Xác nhận nhận việc', 'SLA vượt hạn: Hoàn thành và nộp kết quả', 'SLA vượt hạn: Xác nhận nhận việc', 'Tuần W42: giao mới 5, hoàn thành 1, quá hạn 1, bị chặn 1', 'SLA vượt hạn: IT: thu hồi toàn bộ quyền truy cập và thiết bị']

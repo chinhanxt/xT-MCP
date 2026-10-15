@@ -1,0 +1,28 @@
+{
+  "id": "nv_offboarding",
+  "name": "Nghỉ việc (HR, Quản lý, IT, Kế toán, đóng hồ sơ)",
+  "version": 1,
+  "roles": ["nhan_su", "it_admin", "ke_toan_thanh_toan", "ke_toan_truong", "truong_bo_phan", "giam_doc"],
+  "steps": [
+    {"id": "khoi_tao", "type": "service", "name": "Sinh checklist nghỉ việc", "op": "tao_viec_vong_doi",
+     "params": {"ho_so_id": "ho_so_id", "loai": "'offboarding'"}},
+    {"id": "hr_xn", "type": "approve", "name": "Nhân sự: xác nhận ngày nghỉ và đơn thôi việc", "role": "nhan_su",
+     "sla": {"after": "PT24H", "escalate_to": "giam_doc"}},
+    {"id": "ql", "type": "approve", "name": "Quản lý: xác nhận bàn giao công việc, khách hàng, tài liệu", "role": "truong_bo_phan",
+     "sla": {"after": "PT48H", "escalate_to": "giam_doc"}},
+    {"id": "it", "type": "approve", "name": "IT: thu hồi toàn bộ quyền truy cập và thiết bị", "role": "it_admin",
+     "sla": {"after": "PT4H", "escalate_to": "giam_doc"}},
+    {"id": "chk_ts", "type": "service", "name": "Kiểm tra tài sản và quyền còn lại", "op": "kiem_tra_tai_san",
+     "params": {"nhan_vien_id": "nhan_vien_id"}},
+    {"id": "chk_no", "type": "service", "name": "Kiểm tra tạm ứng chưa hoàn", "op": "kiem_tra_cong_no",
+     "params": {"requester": "nhan_vien_user"}},
+    {"id": "kt", "type": "approve", "name": "Kế toán: quyết toán lương, phép, tạm ứng", "role": "ke_toan_thanh_toan",
+     "sla": {"after": "PT24H", "escalate_to": "ke_toan_truong"}},
+    {"id": "ktt_no", "type": "approve", "name": "Kế toán trưởng xử lý khoản còn nợ hoặc tài sản chưa trả", "role": "ke_toan_truong",
+     "when": "chk_no_result['qua_han'] > 0 or chk_ts_result['chua_tra'] > 0"},
+    {"id": "hr_dong", "type": "approve", "name": "Nhân sự: ẩn danh dữ liệu theo thời hạn, đóng hồ sơ", "role": "nhan_su",
+     "sla": {"after": "PT24H", "escalate_to": "giam_doc"}},
+    {"id": "dong_ho_so", "type": "service", "name": "Đóng hồ sơ nghỉ việc", "op": "dong_ho_so_vong_doi",
+     "params": {"ho_so_id": "ho_so_id"}}
+  ]
+}

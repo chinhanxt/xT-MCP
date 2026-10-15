@@ -1,0 +1,73 @@
+{
+  "model": "cong_viec",
+  "records": [
+    {
+      "_key": "CV-2026-0001",
+      "ma_cv": "CV-2026-0001",
+      "tieu_de": "Chuẩn bị hội nghị khách hàng 20/11",
+      "loai": "@loai_cong_viec:su_kien",
+      "nguoi_giao": "@user:NV-0005",
+      "nguoi_thuc_hien": "@user:NV-0006",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "han_chot": "2026-11-15T17:00:00+07:00",
+      "uu_tien": "cao",
+      "lop_sla": "thuong",
+      "trang_thai": "dang_lam",
+      "tien_do": 40,
+      "tieu_chi_xong": "Danh sách khách mời chốt, hội trường và catering xác nhận bằng văn bản"
+    },
+    {
+      "_key": "CV-2026-0002",
+      "ma_cv": "CV-2026-0002",
+      "tieu_de": "Gửi báo giá gói bảo trì cho Công ty Minh Phát",
+      "loai": "@loai_cong_viec:chung",
+      "nguoi_giao": "@user:NV-0005",
+      "nguoi_thuc_hien": "@user:NV-0007",
+      "owner_id": "@user:NV-0007",
+      "department_id": "@dept:KD",
+      "han_chot": "2026-10-12T17:00:00+07:00",
+      "uu_tien": "trung_binh",
+      "lop_sla": "thuong",
+      "trang_thai": "dang_lam",
+      "tien_do": 60,
+      "tieu_chi_xong": "Báo giá đã gửi và khách xác nhận đã nhận",
+      "da_leo_thang": true
+    },
+    {
+      "_key": "CV-2026-0003",
+      "ma_cv": "CV-2026-0003",
+      "tieu_de": "Cập nhật bảng giá quý 4 lên hệ thống",
+      "loai": "@loai_cong_viec:chung",
+      "nguoi_giao": "@user:NV-0005",
+      "nguoi_thuc_hien": "@user:NV-0008",
+      "owner_id": "@user:NV-0008",
+      "department_id": "@dept:KD",
+      "han_chot": "2026-10-20T17:00:00+07:00",
+      "uu_tien": "thap",
+      "lop_sla": "thuong",
+      "trang_thai": "bi_chan",
+      "tien_do": 20,
+      "tieu_chi_xong": "Bảng giá đã duyệt được nhập đủ 120 mã hàng",
+      "ly_do_chan": "Chờ phòng Kế toán chốt giá vốn"
+    },
+    {
+      "_key": "CV-2026-0004",
+      "ma_cv": "CV-2026-0004",
+      "tieu_de": "Tổng hợp phản hồi khách hàng tháng 9",
+      "loai": "@loai_cong_viec:chung",
+      "nguoi_giao": "@user:NV-0005",
+      "nguoi_thuc_hien": "@user:NV-0006",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "han_chot": "2026-10-10T17:00:00+07:00",
+      "uu_tien": "trung_binh",
+      "lop_sla": "thuong",
+      "trang_thai": "hoan_thanh",
+      "tien_do": 100,
+      "tieu_chi_xong": "Báo cáo tổng hợp 1 trang gửi trưởng phòng",
+      "ket_qua": "Đã gửi báo cáo tổng hợp 23 phản hồi",
+      "hoan_thanh_luc": "2026-10-09T16:20:00+07:00"
+    }
+  ]
+}

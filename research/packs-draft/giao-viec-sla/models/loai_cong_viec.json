@@ -1,0 +1,115 @@
+{
+  "id": "gv_loai",
+  "name": "loai_cong_viec",
+  "label": "Loại công việc",
+  "title_field": "ten",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "ma",
+      "type": "text",
+      "label": "Mã loại",
+      "required": true,
+      "unique": true,
+      "regex": "^[a-z][a-z0-9_]{1,29}$"
+    },
+    {
+      "id": "f2",
+      "name": "ten",
+      "type": "text",
+      "label": "Tên loại",
+      "required": true,
+      "max": 120
+    },
+    {
+      "id": "f3",
+      "name": "sla_nhan_gio",
+      "type": "number",
+      "label": "SLA xác nhận nhận việc (giờ)",
+      "required": true,
+      "min": 1,
+      "max": 720,
+      "default": 4
+    },
+    {
+      "id": "f4",
+      "name": "sla_hoan_thanh_gio",
+      "type": "number",
+      "label": "SLA hoàn thành (giờ)",
+      "required": true,
+      "min": 1,
+      "max": 2160,
+      "default": 72
+    },
+    {
+      "id": "f5",
+      "name": "nhac_truoc_gio",
+      "type": "number",
+      "label": "Nhắc trước hạn (giờ)",
+      "min": 0,
+      "max": 720,
+      "default": 8
+    },
+    {
+      "id": "f6",
+      "name": "lop_sla",
+      "type": "enum",
+      "label": "Lớp quy trình SLA",
+      "required": true,
+      "default": "thuong",
+      "options": [
+        {
+          "value": "thuong",
+          "label": "Thường"
+        },
+        {
+          "value": "khan",
+          "label": "Khẩn"
+        }
+      ]
+    }
+  ],
+  "indexes": [],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "SLA nhắc trước hạn phải nhỏ hơn SLA hoàn thành",
+      "check": {
+        "or": [
+          {
+            "field": "nhac_truoc_gio",
+            "op": "is_null"
+          },
+          {
+            "field": "nhac_truoc_gio",
+            "op": "<",
+            "other_field": "sla_hoan_thanh_gio"
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "quan_tri": {
+      "actions": [
+        "create",
+        "read",
+        "update",
+        "delete"
+      ],
+      "scope": "all"
+    },
+    "nhan_vien": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    }
+  }
+}

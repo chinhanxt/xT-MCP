@@ -1,0 +1,27 @@
+[log] [HOST] Connecting to server: http://localhost:18210/mcp
+[log] [HOST] Connected via Streamable HTTP transport
+[log] [HOST] Server tools: [get_record, pii_reveal_ticket, search_records, create_record, update_record]
+[log] [HOST] Server resources: [ui://xt/pii-card.html]
+[log] [HOST] Calling tool get_record with input {model: nhan_vien, key: NV-0042}
+[log] [HOST] Reading UI resource: ui://xt/pii-card.html
+[log] [HOST] Resource content keys: [uri, mimeType, _meta, text]
+[log] [HOST] Resource content._meta: {ui: Object}
+[log] [HOST] Resource listing._meta: {ui: Object}
+[log] [HOST] Loading sandbox proxy... (CSP: {"connectDomains":["http://localhost:18210"]})
+[log] [HOST] Sandbox proxy loaded
+[log] [HOST] Sending UI resource HTML to MCP App (CSP: {"connectDomains":["http://localhost:18210"]}) 
+[debug] Sending message {jsonrpc: 2.0, method: ui/notifications/sandbox-resource-ready, params: Object}
+[log] [HOST] Waiting for MCP App to initialize...
+[debug] Sending message {jsonrpc: 2.0, method: ui/notifications/host-context-changed, params: Object}
+[debug] Parsed message {jsonrpc: 2.0, id: 1, method: ui/initialize, params: Object}
+[debug] Sending message {result: Object, jsonrpc: 2.0, id: 1}
+[debug] Parsed message {jsonrpc: 2.0, method: ui/notifications/initialized, params: Object}
+[log] [HOST] MCP App initialized
+[log] [HOST] Sending tool call input to MCP App: {model: nhan_vien, key: NV-0042}
+[debug] Sending message {jsonrpc: 2.0, method: ui/notifications/tool-input, params: Object}
+[log] [HOST] Sending tool call result to MCP App: {content: Array(1), structuredContent: Object, isError: false}
+[debug] Sending message {jsonrpc: 2.0, method: ui/notifications/tool-result, params: Object}
+[debug] Parsed message {jsonrpc: 2.0, method: ui/notifications/size-changed, params: Object}
+[debug] Parsed message {jsonrpc: 2.0, id: 2, method: tools/call, params: Object}
+[debug] Sending message {result: Object, jsonrpc: 2.0, id: 2}
+[debug] Parsed message {jsonrpc: 2.0, method: ui/notifications/size-changed, params: Object}

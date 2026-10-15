@@ -1,0 +1,50 @@
+{
+  "model": "de_xuat",
+  "records": [
+    {
+      "_key": "TU-2026-0021",
+      "ma_phieu": "TU-2026-0021",
+      "loai": "@loai_de_xuat:tam_ung",
+      "nguoi_de_nghi": "@user:NV-0006",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "phong_ban": "KD",
+      "so_tien": 6500000,
+      "so_tien_bang_chu": null,
+      "ly_do": "Tạm ứng công tác Đà Nẵng",
+      "trang_thai": "da_chi",
+      "nguoi_duyet_cuoi": "@user:NV-0001",
+      "ngay_duyet": "2026-07-08T09:30:00+07:00"
+    },
+    {
+      "_key": "TU-2026-0027",
+      "ma_phieu": "TU-2026-0027",
+      "loai": "@loai_de_xuat:tam_ung",
+      "nguoi_de_nghi": "@user:NV-0006",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "phong_ban": "KD",
+      "so_tien": 7000000,
+      "so_tien_bang_chu": null,
+      "ly_do": "Tạm ứng công tác Hà Nội",
+      "trang_thai": "da_chi",
+      "nguoi_duyet_cuoi": "@user:NV-0001",
+      "ngay_duyet": "2026-08-12T09:30:00+07:00"
+    },
+    {
+      "_key": "TU-2026-0033",
+      "ma_phieu": "TU-2026-0033",
+      "loai": "@loai_de_xuat:tam_ung",
+      "nguoi_de_nghi": "@user:NV-0006",
+      "owner_id": "@user:NV-0006",
+      "department_id": "@dept:KD",
+      "phong_ban": "KD",
+      "so_tien": 8100000,
+      "so_tien_bang_chu": null,
+      "ly_do": "Tạm ứng công tác Cần Thơ",
+      "trang_thai": "da_chi",
+      "nguoi_duyet_cuoi": "@user:NV-0001",
+      "ngay_duyet": "2026-09-09T09:30:00+07:00"
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /tmp/xt-spike-pii
+plugins: Faker-40.36.0, anyio-4.15.1, asyncio-1.4.0, hydra-core-1.3.4
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 50 items
+
+tests/test_edge_cases.py::test_error_echo_unicode_and_case_variants[nfd] PASSED
+tests/test_edge_cases.py::test_error_echo_unicode_and_case_variants[upper] PASSED
+tests/test_edge_cases.py::test_error_echo_unicode_and_case_variants[nfd-swapcase] PASSED
+tests/test_edge_cases.py::test_two_adjacent_tokens_in_one_string PASSED
+tests/test_edge_cases.py::test_malformed_token_passes_literally_without_raw[\u27e8NV-0042.SO_CCCD\u27e9] PASSED
+tests/test_edge_cases.py::test_malformed_token_passes_literally_without_raw[\u27e8NV-0042.so_cccd] PASSED
+tests/test_edge_cases.py::test_malformed_token_passes_literally_without_raw[\u27e8.so_cccd\u27e9] PASSED
+tests/test_edge_cases.py::test_malformed_token_passes_literally_without_raw[\u27e8NV-0042..so_cccd\u27e9] PASSED
+tests/test_edge_cases.py::test_malformed_token_passes_literally_without_raw[<NV-0042.so_cccd>] PASSED
+tests/test_edge_cases.py::test_malformed_token_passes_literally_without_raw[\u27e8NV 0042.so_cccd\u27e9] PASSED
+tests/test_edge_cases.py::test_well_formed_token_never_issued PASSED
+tests/test_edge_cases.py::test_contains_on_basic_field_is_digit_oracle PASSED
+tests/test_edge_cases.py::test_sensitive_filter_token_with_non_eq_op PASSED
+tests/test_edge_cases.py::test_sort_sensitive_without_dash PASSED
+tests/test_edge_cases.py::test_sort_unknown_field_names PASSED
+tests/test_edge_cases.py::test_negative_limit PASSED
+tests/test_edge_cases.py::test_key_is_token PASSED
+tests/test_edge_cases.py::test_patch_key_field_to_token PASSED
+tests/test_edge_cases.py::test_key_field_value_equals_raw_pii_leaks_via_token_root PASSED
+tests/test_edge_cases.py::test_create_unknown_field_extra_forbidden[token-basic] PASSED
+tests/test_edge_cases.py::test_create_unknown_field_extra_forbidden[token-sensitive] PASSED
+tests/test_edge_cases.py::test_create_unknown_field_extra_forbidden[raw-name] PASSED
+tests/test_edge_cases.py::test_create_unknown_field_extra_forbidden[raw-address] PASSED
+tests/test_edge_cases.py::test_salary_formats_in_free_note[L\u01b0\u01a1ng 25.000.000 \u0111] PASSED
+tests/test_edge_cases.py::test_salary_formats_in_free_note[L\u01b0\u01a1ng 25.000.000\u0111] PASSED
+tests/test_edge_cases.py::test_salary_formats_in_free_note[L\u01b0\u01a1ng 25000000VND] PASSED
+tests/test_edge_cases.py::test_salary_formats_in_free_note[L\u01b0\u01a1ng:25,000,000/th\xe1ng] PASSED
+tests/test_edge_cases.py::test_salary_shorthand_in_free_note PASSED
+tests/test_edge_cases.py::test_deeply_nested_token_in_non_schema_arg PASSED
+tests/test_pii_lane.py::test_tier_from_azp_fail_closed PASSED
+tests/test_pii_lane.py::test_agent_override_only_tightens PASSED
+tests/test_pii_lane.py::test_cloud_get_record_only_tokens 
+CLOUD get_record -> {"rev": 1, "ma_nv": "NV-0042", "ho_ten": "⟨NV-0042.ho_ten⟩", "phong_ban": "Kỹ thuật", "so_dien_thoai": "⟨NV-0042.so_dien_thoai⟩", "email": "⟨NV-0042.email⟩", "dia_chi": "⟨NV-0042.dia_chi⟩", "so_cccd": "⟨NV-0042.so_cccd⟩", "luong": "⟨NV-0042.luong⟩", "suc_khoe": "⟨NV-0042.suc_khoe⟩", "so_tai_khoan": "⟨NV-0042.so_tai_khoan⟩", "ghi_chu": "Trưởng nhóm", "_hint": {"ho_ten": "Nguyễn V*** A", "so_dien_thoai": "*******678", "email": "a***@congty.vn", "dia_chi": "***, Hà Nội", "so_cccd": "********2345"}}
+PASSED
+tests/test_pii_lane.py::test_cloud_search_all_and_free_text_recognizer 
+ghi_chu (pii=none) -> Người thân: chị Mai ⟨PII-1.phone⟩, CCCD ⟨PII-2.national_id⟩, mail ⟨PII-3.email⟩
+PASSED
+tests/test_pii_lane.py::test_local_tier_sees_full PASSED
+tests/test_pii_lane.py::test_local_only_mode_omits_sensitive PASSED
+tests/test_pii_lane.py::test_tokens_roundtrip_into_db 
+DB hop_dong -> {'cccd_nguoi_ky': '001090012345', 'sdt_lien_he': '0912345678', 'muc_luong': 25000000}
+LLM thấy     -> {'so_dien_thoai': '⟨NV-0044.so_dien_thoai⟩'}
+PASSED
+tests/test_pii_lane.py::test_free_token_roundtrip PASSED
+tests/test_pii_lane.py::test_embedded_token_in_text_same_level PASSED
+tests/test_pii_lane.py::test_validation_error_echo_is_scrubbed 
+lỗi validate ra LLM -> 1 validation error for nhan_vien_payload | luong |   Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='⟨NV-0042.dia_chi⟩', input_type=str] |     For
+PASSED
+tests/test_pii_lane.py::test_unique_violation_echo_is_scrubbed 
+lỗi unique ra LLM -> duplicate key value violates unique constraint "uq_nhan_vien_so_cccd" DETAIL: Key (so_cccd)=(⟨NV-0042.so_cccd⟩) already exists.
+PASSED
+tests/test_pii_lane.py::test_engine_error_with_raw_literal_and_token 
+lỗi filter ra LLM -> op 'like' không hỗ trợ (giá trị: '⟨PII-1.phone⟩')
+PASSED
+tests/test_pii_lane.py::test_unexpected_exception_scrubbed PASSED
+tests/test_pii_lane.py::test_downgrade_into_lower_field_rejected PASSED
+tests/test_pii_lane.py::test_filter_and_sort_oracle_denied PASSED
+tests/test_pii_lane.py::test_token_from_other_session_rejected PASSED
+tests/test_pii_lane.py::test_audit_records_egress_without_raw 
+AUDIT {'seq': 1, 'azp': '5c1e7a0e-dcr-claude', 'tier': 'cloud', 'mode': 'masked', 'tool': 'get_record', 'outcome': 'ok', 'egress_json': '{"nhan_vien.dia_chi:token_hint": 1, "nhan_vien.email:token_hint": 1, "nhan_vien.ho_ten:token_hint": 1, "nhan_vien.luong:token": 1, "nhan_vien.so_cccd:token_hint": 1, "nhan_vien.so_dien_thoai:token_hint": 1, "nhan_vien.so_tai_khoan:token": 1, "nhan_vien.suc_khoe:token": 1}', 'detok_json': '[]', 'scrubbed': 0, 'hits_json': '{}'}
+
+AUDIT {'seq': 2, 'azp': '5c1e7a0e-dcr-claude', 'tier': 'cloud', 'mode': 'masked', 'tool': 'update_record', 'outcome': 'VALIDATION_FAILED', 'egress_json': '{}', 'detok_json': '["⟨NV-0042.dia_chi⟩"]', 'scrubbed': 1, 'hits_json': '{}'}
+
+AUDIT {'seq': 3, 'azp': '5c1e7a0e-dcr-claude', 'tier': 'cloud', 'mode': 'masked', 'tool': 'search_records', 'outcome': 'PII_SORT_DENIED', 'egress_json': '{}', 'detok_json': '[]', 'scrubbed': 0, 'hits_json': '{}'}
+
+AUDIT {'seq': 4, 'azp': 'xt-desk-agent', 'tier': 'local', 'mode': 'full', 'tool': 'get_record', 'outcome': 'ok', 'egress_json': '{"nhan_vien.dia_chi:raw": 1, "nhan_vien.email:raw": 1, "nhan_vien.ho_ten:raw": 1, "nhan_vien.luong:raw": 1, "nhan_vien.so_cccd:raw": 1, "nhan_vien.so_dien_thoai:raw": 1, "nhan_vien.so_tai_khoan:raw": 1, "nhan_vien.suc_khoe:raw": 1}', 'detok_json': '[]', 'scrubbed': 0, 'hits_json': '{}'}
+PASSED
+tests/test_pii_lane.py::test_tools_list_visibility PASSED
+tests/test_reveal.py::test_human_reveal_direct_channel 
+NGƯỜI thấy (fetch thẳng xT) -> {'values': {'⟨NV-0042.ho_ten⟩': 'Nguyễn Văn An', '⟨NV-0042.so_cccd⟩': '001090012345', '⟨NV-0042.luong⟩': 25000000, '⟨NV-0042.suc_khoe⟩': 'Tiểu đường type 2'}, 'denied': []}
+PASSED
+tests/test_reveal.py::test_reveal_rejects_copied_ticket_wrong_origin_and_role PASSED
+tests/test_reveal.py::test_cannot_mint_for_foreign_tokens PASSED
+
+============================== 50 passed in 2.68s ==============================

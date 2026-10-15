@@ -4,7 +4,7 @@
 - Ngày: 15/10/2026.
 - Vai AUTHOR: Opus 5.5, thay codex gpt-6.1-sol vì codex hết quota (đã ghi trong `research/incidents.log`).
 - Đầu vào: `research/tool-contracts-draft.md` (bản nháp, 18 tool), `research/tool-contracts-critique.md` (27 phát hiện: 4 blocker, 13 major, 10 minor), `docs/architecture-v1.md`, `docs/demo-storyboard-v0.md`, `research/spike-local-llm.md`, `research/connector-requirements.md`, `research/rea-lessons.md`, `research/spike-mcp-apps.md`.
-- Đầu ra: `docs/tool-contracts-v1.md`. Script kiểm chứng ở `/tmp/xt-contracts-v1/` (`contracts.py`, `build.py`, `llm_probe.py`).
+- Đầu ra: `docs/tool-contracts-v1.md`. Script kiểm chứng chạy ở `/tmp/xt-contracts-v1/`, bản sao lưu ở `research/tool-contracts-v1-build/` (`contracts.py`, `build.py`, `gen_doc.py`, `llm_probe.py`, kết quả `sizes.json`, `llm_probe.json`).
 
 ## Tổng kết
 
@@ -48,10 +48,11 @@ CRITIC đúng về bản chất. `spike-mcp-apps.md` §1 và `connector-requirem
 - Người duyệt không cần còn ngồi trong phiên chat. Ví dụ giám đốc bấm trên Telegram lúc khác vẫn có hiệu lực.
 
 **Hòa giải với Desk:** `confirm_url` là route `/desk/confirm/{id}` của xT Desk.
-- Desk dùng client Keycloak `xt-desk` (public, PKCE). Client này **không bao giờ** nằm trong danh sách DCR của connector.
-- Chỉ token có `azp=xt-desk` và `auth_time` trong vòng 5 phút mới được coi là "người". Mức L3 hoặc vượt ngưỡng yêu cầu thêm `acr` MFA.
-- Vì mọi connector HTTP (Claude, ChatGPT) cần trang này để làm bất cứ việc gì từ L2 trở lên, **route `/confirm` được kéo từ v0.3 lên v0.2**, cùng lúc với transport HTTP. Phần còn lại của Desk giữ v0.3.
-- Ở v0.1 (stdio), `confirm_url=null` và lỗi trả `cli_command: "xt confirm cf_…"`, chạy trên TTY như `architecture-v1.md` §5.5.
+- Desk dùng client Keycloak `xt-desk`: client của Desk backend, token người nằm ở server (khớp `architecture-v2.md`). Client này **không bao giờ** nằm trong danh sách DCR của connector.
+- Chỉ token có `azp=xt-desk` cùng xác thực tươi (`max_age=0` + TOTP) mới được coi là "người". Mức L3 hoặc vượt ngưỡng thêm `prompt=login` + `acr`.
+- Vì mọi connector HTTP (Claude, ChatGPT) cần trang này để làm bất cứ việc gì từ L2 trở lên, `/confirm` phải có ngay khi có transport HTTP. `architecture-v2.md` (viết song song) đã đặt `/confirm` server-render ở v0.1, và TCV1 theo mốc đó.
+- Ở chế độ stdio, `confirm_url=null` và lỗi trả `cli_command: "xt confirm cf_…"`, chạy trên TTY như `architecture-v1.md` §5.5.
+- **Lệch với `architecture-v2.md` §1.3:** v2 ghi "một tên tham số gate duy nhất `confirmation_ref`". TCV1 dùng 0 tham số gate. Năng lực 1 của v2 vẫn đủ (`confirm_url`, `confirmation_id` pending, `continuation`), nhưng dòng đó trong v2 cần sửa.
 
 **Kênh phụ:**
 - Elicitation dạng URL của MCP: chỉ dùng khi client khai capability. Chưa kiểm chứng trên ChatGPT/Claude.
@@ -179,13 +180,13 @@ Chấp nhận các điểm sau:
 
 | Tầng | Giá trị |
 |---|---|
-| Policy tenant `llm_egress` | `full`, `masked`, `local_only` |
+| Policy tenant `llm_egress` | `masked` (mặc định), `local_only`. Bỏ `full`, vì `architecture-v2.md` chốt "`cloud` luôn masked" |
 | Chế độ hiệu lực của mỗi lời gọi `pii.mode` | `full`, `masked`, `omitted` |
 
 Chế độ hiệu lực tính theo lớp client:
 - `human` (Desk) luôn là `full`.
-- `local` là `full`, trừ khi policy tenant là `masked`.
-- `cloud`: `masked` khi policy là `masked`; `omitted` khi policy là `local_only`.
+- `local` luôn là `full`.
+- `cloud`: `masked` khi policy là `masked`; `omitted` khi policy là `local_only`. Không bao giờ là `full`.
 
 Như vậy S5 ("Goose local trả số thật") và S4 ("Claude chỉ thấy token") cùng đúng.
 
@@ -352,4 +353,39 @@ Kết quả đầy đủ ở `docs/tool-contracts-v1.md` §10. Script `/tmp/xt-c
 
 Đây là **smoke test 8 câu**, không phải eval 30 kịch bản (eval đó vẫn là việc phải làm, xem `tool-contracts-v1.md` §12). Probe chỉ đo lời gọi đầu tiên, không chạy đa lượt.
 
-PROBE_RESULTS_PLACEHOLDER
+**Token thật** (qwen3.5:4b, ollama 0.30.10): core-10 = **3916**, v0.1-17 = **8155**, v1.0-21 = **9635** token cho phần tool. Hệ quả: với `num_ctx 8192` của spike, catalog v0.1 đầy đủ chiếm gần hết context; **client local phải đặt `num_ctx ≥ 16384`** (probe chạy 16384, VRAM vẫn vừa 6 GB) hoặc dùng core-10.
+
+**Smoke test chọn tool** (`think:false`, `temperature:0`, 11 câu tiếng Việt × 2 catalog, một lời gọi đầu tiên; lần chạy đầu 8 câu × 3 lặp cho 3 lần giống hệt nhau, nên ở temperature 0 mỗi câu coi như 1 mẫu):
+
+| Catalog | Câu | Tool | Args (rút gọn) | Đúng tool | Args hợp schema | Đúng ngữ nghĩa |
+|---|---|---|---|---|---|---|
+| core10 | Ai báo cáo trực tiếp cho Minh? | `find_people` | `{"direct_reports_of": "Minh"}` | có | có | có |
+| core10 | Tổng tiền tạm ứng đã duyệt tháng 11/2026 theo phòng ban là bao nhiêu? | `aggregate_records` | `{"model_id": "advance_request", "metrics": ["sum:amount"], "where": {"state": "approved"}, "period": "2026-…` | có | có | có |
+| core10 | Có gì cần tôi duyệt không? | `get_inbox` | `{"status": "open"}` | có | có | có |
+| core10 | Giao anh Bình bên IT làm báo cáo doanh số tuần, hạn 20/11/2026. | `find_people` | `{"query": "Bình IT"}` | có | có | có |
+| core10 | Tạo đề nghị tạm ứng (model advance_request) 8 triệu đi công tác Đà Nẵng từ 20/11 đến 22/11/2026. | `create_record` | `{"model_id": "advance_request", "values": {"amount": "8000000", "destination": "Đà Nẵng", "trip_start": "20…` | có | có | chưa: tự chế field `destination`, thiếu `trip_end`/`purpose` → server trả `unknown_field` + danh sách field |
+| core10 | Duyệt đề xuất advance_request:tu-2026-0042 giúp tôi, revision hiện tại là 2. | `decide_request` | `{"ref": "advance_request:tu-2026-0042", "decision": "approve", "expected_revision": 2, "idempotency_key": "…` | có | có | có |
+| core10 | Đánh dấu việc task:01jd2q đã xong, revision 5. | `transition_record` | `{"ref": "task:01jd2q", "to_state": "done", "expected_revision": 5, "idempotency_key": "trans-task-01jd2q-do…` | có | có | có |
+| core10 | Tìm giúp tôi hóa đơn khách sạn Đà Nẵng. | `search_records` | `{"query": "hóa đơn khách sạn Đà Nẵng"}` | có | có | có |
+| core10 | Sếp trực tiếp của Tuấn là ai? | `find_people` | `{"manager_of": "Tuấn"}` | có | có | có |
+| core10 | Rút lại đề xuất advance_request:tu-2026-0042 của tôi, revision 2. | `transition_record` | `{"ref": "advance_request:tu-2026-0042", "to_state": "withdrawn", "expected_revision": 2, "idempotency_key":…` | có | có | có |
+| core10 | Tổng tạm ứng (advance_request) đã duyệt theo từng tháng trong năm 2026? | `aggregate_records` | `{"model_id": "advance_request", "metrics": ["count", "sum:amount"], "period": "2026-11", "time_bucket": "mo…` | có | có | sai: `period=2026-11`, `date_field=trip_start`, thiếu `state=approved` |
+| v0.1-17 | Ai báo cáo trực tiếp cho Minh? | `find_people` | `{"direct_reports_of": "Minh"}` | có | có | có |
+| v0.1-17 | Tổng tiền tạm ứng đã duyệt tháng 11/2026 theo phòng ban là bao nhiêu? | `aggregate_records` | `{"model_id": "advance_request", "metrics": ["sum:amount"], "group_by": ["department"], "period": "2026-11"}` | có | có | thiếu filter `state=approved` |
+| v0.1-17 | Có gì cần tôi duyệt không? | `get_inbox` | `{"status": "open"}` | có | có | có |
+| v0.1-17 | Giao anh Bình bên IT làm báo cáo doanh số tuần, hạn 20/11/2026. | `find_people` | `{"query": "Bình IT"}` | có | có | có |
+| v0.1-17 | Tạo đề nghị tạm ứng (model advance_request) 8 triệu đi công tác Đà Nẵng từ 20/11 đến 22/11/2026. | `describe_model` | `{"model_id": "advance_request"}` | có | có | có |
+| v0.1-17 | Duyệt đề xuất advance_request:tu-2026-0042 giúp tôi, revision hiện tại là 2. | `decide_request` | `{"ref": "advance_request:tu-2026-0042", "decision": "approve", "expected_revision": 2, "idempotency_key": "…` | có | có | có |
+| v0.1-17 | Đánh dấu việc task:01jd2q đã xong, revision 5. | `transition_record` | `{"ref": "task:01jd2q", "to_state": "done", "expected_revision": 5, "idempotency_key": "trans-task-01jd2q-do…` | có | có | có |
+| v0.1-17 | Tìm giúp tôi hóa đơn khách sạn Đà Nẵng. | `search_records` | `{"query": "hóa đơn khách sạn Đà Nẵng"}` | có | có | có |
+| v0.1-17 | Sếp trực tiếp của Tuấn là ai? | `find_people` | `{"manager_of": "Tuấn"}` | có | có | có |
+| v0.1-17 | Rút lại đề xuất advance_request:tu-2026-0042 của tôi, revision 2. | `transition_record` | `{"ref": "advance_request:tu-2026-0042", "to_state": "withdrawn", "expected_revision": 2, "idempotency_key":…` | có | có | có |
+| v0.1-17 | Tổng tạm ứng (advance_request) đã duyệt theo từng tháng trong năm 2026? | `aggregate_records` | `{"model_id": "advance_request", "metrics": ["sum:amount"], "group_by": ["month"], "period": "2026", "time_b…` | có | có | thiếu `state=approved`; `group_by=[month]` không phải field → `unknown_field` |
+
+Tổng: đúng tool **22/22**, args hợp schema **22/22**, đúng ngữ nghĩa **18/22**. Lời gọi đầu mất 13-16 s vì nạp model; các lời gọi sau 3-7 s.
+
+**Đọc kết quả cho thiết kế:**
+- `find_people` được gọi với đúng tham số theo chiều quan hệ ở cả 2 câu (`direct_reports_of` cho “ai báo cáo cho”, `manager_of` cho “sếp của”); việc đọc kết quả không bị suy luận ngược vì output đã nêu `relation` + `summary` (chưa đo đa lượt).
+- Tham số phẳng, enum và pattern được sinh đúng; model tự đặt `idempotency_key` hợp lệ 100%; ghi nhận cho quyết định giữ key bắt buộc (F8).
+- Lỗi còn lại là **ngữ nghĩa của aggregate** (bỏ filter trạng thái) và **tự chế field** khi chưa gọi `describe_model`. Thiết kế đầu tiên `group_by: ["created_at:month"]` khiến model sinh `department:month` ở 3/3 lần; đã tách thành `period` + `time_bucket` + `date_field` và đo lại. Biện pháp tiếp: metric có tên (`advance_total` đã gói filter), `summary` nêu filter, lỗi `unknown_field` liệt kê field hợp lệ.
+- Đây chưa phải eval: chưa đa lượt, chưa đo câu âm/injection, chưa đo Claude/GPT.

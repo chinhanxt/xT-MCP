@@ -1,0 +1,271 @@
+{
+  "version": "1",
+  "tenant": "binhminh",
+  "statements": [
+    {
+      "id": "ns.nv-own-read",
+      "effect": "Allow",
+      "subjects": [
+        "role:nhan_vien"
+      ],
+      "actions": [
+        "record.read"
+      ],
+      "resources": [
+        "xrn:binhminh:nhan_vien:*",
+        "xrn:binhminh:ho_so_vong_doi:*",
+        "xrn:binhminh:viec_vong_doi:*",
+        "xrn:binhminh:tai_san_cap:*",
+        "xrn:binhminh:cap_quyen:*",
+        "xrn:binhminh:quyet_toan_nghi_viec:*",
+        "xrn:binhminh:phong_ban:*",
+        "xrn:binhminh:nhan_vien_pii:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.owner",
+          "op": "eq",
+          "right": {
+            "ref": "subject.id"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ns.nhan-su-all",
+      "effect": "Allow",
+      "subjects": [
+        "role:nhan_su"
+      ],
+      "actions": [
+        "record.read",
+        "record.create",
+        "record.update",
+        "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:nhan_vien:*",
+        "xrn:binhminh:ho_so_vong_doi:*",
+        "xrn:binhminh:viec_vong_doi:*",
+        "xrn:binhminh:tai_san_cap:*",
+        "xrn:binhminh:cap_quyen:*",
+        "xrn:binhminh:quyet_toan_nghi_viec:*",
+        "xrn:binhminh:phong_ban:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "ns.it-admin",
+      "effect": "Allow",
+      "subjects": [
+        "role:it_admin"
+      ],
+      "actions": [
+        "record.read",
+        "record.update",
+        "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:nhan_vien:*",
+        "xrn:binhminh:ho_so_vong_doi:*",
+        "xrn:binhminh:viec_vong_doi:*",
+        "xrn:binhminh:tai_san_cap:*",
+        "xrn:binhminh:cap_quyen:*",
+        "xrn:binhminh:quyet_toan_nghi_viec:*",
+        "xrn:binhminh:phong_ban:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "ns.ke-toan",
+      "effect": "Allow",
+      "subjects": [
+        "role:ke_toan_thanh_toan",
+        "role:ke_toan_truong"
+      ],
+      "actions": [
+        "record.read",
+        "record.update",
+        "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:nhan_vien:*",
+        "xrn:binhminh:ho_so_vong_doi:*",
+        "xrn:binhminh:viec_vong_doi:*",
+        "xrn:binhminh:tai_san_cap:*",
+        "xrn:binhminh:cap_quyen:*",
+        "xrn:binhminh:quyet_toan_nghi_viec:*",
+        "xrn:binhminh:phong_ban:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "ns.tbp-ban-giao",
+      "effect": "Allow",
+      "subjects": [
+        "role:truong_bo_phan"
+      ],
+      "actions": [
+        "record.read",
+        "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:nhan_vien:*",
+        "xrn:binhminh:ho_so_vong_doi:*",
+        "xrn:binhminh:viec_vong_doi:*",
+        "xrn:binhminh:tai_san_cap:*",
+        "xrn:binhminh:cap_quyen:*",
+        "xrn:binhminh:quyet_toan_nghi_viec:*",
+        "xrn:binhminh:phong_ban:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.department",
+          "op": "eq",
+          "right": {
+            "ref": "subject.department"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ns.gd-all",
+      "effect": "Allow",
+      "subjects": [
+        "role:giam_doc"
+      ],
+      "actions": [
+        "record.read",
+        "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:nhan_vien:*",
+        "xrn:binhminh:ho_so_vong_doi:*",
+        "xrn:binhminh:viec_vong_doi:*",
+        "xrn:binhminh:tai_san_cap:*",
+        "xrn:binhminh:cap_quyen:*",
+        "xrn:binhminh:quyet_toan_nghi_viec:*",
+        "xrn:binhminh:phong_ban:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "ns.hr-pii",
+      "effect": "Allow",
+      "subjects": [
+        "role:hr_pii"
+      ],
+      "actions": [
+        "record.read",
+        "record.update"
+      ],
+      "resources": [
+        "xrn:binhminh:nhan_vien_pii:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "ns.agent-l0-l1",
+      "effect": "Allow",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "record.read",
+        "record.create",
+        "record.update"
+      ],
+      "resources": [
+        "xrn:binhminh:nhan_vien:*",
+        "xrn:binhminh:ho_so_vong_doi:*",
+        "xrn:binhminh:viec_vong_doi:*",
+        "xrn:binhminh:tai_san_cap:*",
+        "xrn:binhminh:cap_quyen:*",
+        "xrn:binhminh:quyet_toan_nghi_viec:*",
+        "xrn:binhminh:phong_ban:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "ns.deny-agent-pii",
+      "effect": "Deny",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "record.read",
+        "record.update",
+        "record.create"
+      ],
+      "resources": [
+        "xrn:binhminh:nhan_vien_pii:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "ns.deny-agent-decide",
+      "effect": "Deny",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "record.approve",
+        "record.delete",
+        "policy.activate"
+      ],
+      "resources": [
+        "*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "ns.deny-tu-duyet-ho-so-minh",
+      "effect": "Deny",
+      "subjects": [
+        "*"
+      ],
+      "actions": [
+        "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:nhan_vien:*",
+        "xrn:binhminh:ho_so_vong_doi:*",
+        "xrn:binhminh:viec_vong_doi:*",
+        "xrn:binhminh:tai_san_cap:*",
+        "xrn:binhminh:cap_quyen:*",
+        "xrn:binhminh:quyet_toan_nghi_viec:*",
+        "xrn:binhminh:phong_ban:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.owner",
+          "op": "eq",
+          "right": {
+            "ref": "subject.id"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ns.deny-delete-ho-so",
+      "effect": "Deny",
+      "subjects": [
+        "*"
+      ],
+      "actions": [
+        "record.delete"
+      ],
+      "resources": [
+        "xrn:binhminh:nhan_vien:*",
+        "xrn:binhminh:ho_so_vong_doi:*",
+        "xrn:binhminh:viec_vong_doi:*",
+        "xrn:binhminh:tai_san_cap:*",
+        "xrn:binhminh:cap_quyen:*",
+        "xrn:binhminh:quyet_toan_nghi_viec:*",
+        "xrn:binhminh:phong_ban:*",
+        "xrn:binhminh:nhan_vien_pii:*"
+      ],
+      "conditions": []
+    }
+  ]
+}

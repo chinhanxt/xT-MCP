@@ -1,0 +1,32 @@
+{
+  "model": "loai_cong_viec",
+  "records": [
+    {
+      "_key": "chung",
+      "ma": "chung",
+      "ten": "Công việc thường",
+      "sla_nhan_gio": 4,
+      "sla_hoan_thanh_gio": 72,
+      "nhac_truoc_gio": 8,
+      "lop_sla": "thuong"
+    },
+    {
+      "_key": "su_kien",
+      "ma": "su_kien",
+      "ten": "Chuẩn bị sự kiện",
+      "sla_nhan_gio": 4,
+      "sla_hoan_thanh_gio": 240,
+      "nhac_truoc_gio": 24,
+      "lop_sla": "thuong"
+    },
+    {
+      "_key": "su_co",
+      "ma": "su_co",
+      "ten": "Xử lý sự cố khẩn",
+      "sla_nhan_gio": 1,
+      "sla_hoan_thanh_gio": 8,
+      "nhac_truoc_gio": 2,
+      "lop_sla": "khan"
+    }
+  ]
+}

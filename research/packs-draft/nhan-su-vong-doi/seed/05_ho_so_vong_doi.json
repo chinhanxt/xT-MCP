@@ -1,0 +1,17 @@
+{
+  "model": "ho_so_vong_doi",
+  "records": [
+    {
+      "_key": "ON-2026-0001",
+      "ma": "ON-2026-0001",
+      "nhan_vien": "@nhan_vien:NV-0015",
+      "owner_id": "@user:NV-0015",
+      "department_id": "@dept:KD",
+      "loai": "onboarding",
+      "ngay_hieu_luc": "2026-09-15",
+      "trang_thai": "hoan_tat",
+      "nguoi_khoi_tao": "@user:NV-0009",
+      "hoan_tat_luc": "2026-09-17T11:00:00+07:00"
+    }
+  ]
+}

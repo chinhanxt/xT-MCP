@@ -1,0 +1,15 @@
+{
+  "id": "ban_tin_tuan",
+  "name": "Bản tin công việc hằng tuần",
+  "version": 1,
+  "roles": [],
+  "trigger": {"kind": "schedule", "cron": "0 8 * * 1", "tz": "Asia/Ho_Chi_Minh",
+              "input": {"tu_ngay": "tuan_truoc.bat_dau", "den_ngay": "tuan_truoc.ket_thuc", "phong_ban": ""},
+              "note": "Compiler/engine chưa có timer start event: lịch này do xt-worker đọc, không phải đặc tả đã được engine kiểm chứng."},
+  "steps": [
+    {"id": "tong_hop", "type": "service", "name": "Tổng hợp công việc tuần", "op": "tong_hop_tuan",
+     "params": {"tu_ngay": "tu_ngay", "den_ngay": "den_ngay", "phong_ban": "phong_ban"}},
+    {"id": "gui", "type": "service", "name": "Gửi bản tin cho trưởng bộ phận và giám đốc", "op": "notify",
+     "params": {"msg": "tong_hop_result['tom_tat']"}}
+  ]
+}

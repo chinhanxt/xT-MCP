@@ -1,0 +1,51 @@
+=== IAM mode: MERGED (1 doc, 32 statements)
+=== PACK 1: de-xuat-phe-duyet
+  [PASS] Việt tạo đề xuất của chính mình                                                -> allow              stmts=['dx.nv-own-create']
+  [PASS] Việt đọc đề xuất của Anh (NV-0007)                                             -> implicit_deny      stmts=[]
+  [PASS] Việt tự duyệt đề xuất của mình                                                 -> self_approval      stmts=[]
+  [PASS] Mai (TBP KD) duyệt đề xuất của Việt (phòng KD)                                 -> allow              stmts=['dx.tbp-approve']
+  [PASS] Mai tự duyệt đề xuất do chính mình đề nghị                                     -> self_approval      stmts=[]
+  [PASS] Long (GĐ) duyệt đề xuất của Việt                                               -> allow              stmts=['dx.gd-read-approve']
+  [PASS] Thịnh (TBP IT) duyệt đề xuất phòng KD (sai phòng)                              -> implicit_deny      stmts=[]
+  [PASS] Hà (KTT) duyệt thanh toán 80tr của Việt                                        -> allow              stmts=['dx.ktt-read-approve']
+  [PASS] Long xóa đề xuất (chứng từ không được xóa)                                     -> explicit_deny      stmts=['dx.deny-delete-chung-tu']
+  [PASS] agent-claude (L1, thay Việt) tạo nháp đề xuất                                  -> allow              stmts=['dx.agent-l0-l1']
+  [PASS] agent-claude (L1, thay Việt) đọc đề xuất của Anh                               -> behalf_permission  stmts=[]
+  [PASS] agent-claude (L1, thay Việt) TỰ DUYỆT đề xuất của Việt                         -> self_approval      stmts=[]
+  [PASS] agent-claude (L1, thay Mai) duyệt đề xuất của Việt                             -> autonomy_ceiling   stmts=[]
+  [PASS] agent L3 + receipt hợp lệ của Long, thay Mai duyệt đề xuất của Việt            -> explicit_deny      stmts=['dx.deny-agent-decide', 'gv.deny-agent-nghiem-thu', 'ns.deny-agent-decide']
+  [PASS] agent L3 (thay Mai) xóa đề xuất, không có receipt                              -> approval_required  stmts=[]
+  [PASS] agent L3 (thay Mai) xóa đề xuất, có receipt của Long (Long cũng không được xóa) -> approver_permission stmts=['dx.deny-delete-chung-tu']
+  [PASS] actor tenant ankhang truy cập xrn của binhminh                                 -> tenant_boundary    stmts=[]
+--- explain() cho ca agent tự duyệt bị chặn bởi policy (L3 + receipt):
+   {"allowed": false, "reason": "explicit_deny", "statements": ["dx.deny-agent-decide", "gv.deny-agent-nghiem-thu", "ns.deny-agent-decide"], "matched_trace": [{"id": "dx.deny-agent-decide", "effect": "Deny", "predicates": {"subject": true, "action": true, "resource": true, "conditions": true}}, {"id": "gv.deny-agent-nghiem-thu", "effect": "Deny", "predicates": {"subject": true, "action": true, "resource": true, "conditions": true}}, {"id": "ns.deny-agent-decide", "effect": "Deny", "predicates": {"subject": true, "action": true, "resource": true, "conditions": true}}]}
+
+=== PACK 2: giao-viec-sla
+  [PASS] Việt (người làm) cập nhật tiến độ việc của mình                                -> allow              stmts=['gv.nguoi-thuc-hien-update']
+  [PASS] Anh cập nhật việc của Việt                                                     -> implicit_deny      stmts=[]
+  [PASS] Việt tự nghiệm thu việc của mình                                               -> self_approval      stmts=[]
+  [PASS] Mai (người giao, TBP KD) nghiệm thu việc của Việt                              -> allow              stmts=['gv.nghiem-thu']
+  [PASS] [GAP] Mai nghiệm thu khi creator = người giao (đúng dữ liệu DB)                -> self_approval      stmts=[]
+  [PASS] Thịnh (TBP IT) nghiệm thu việc phòng KD                                        -> implicit_deny      stmts=[]
+  [PASS] Mai tạo công việc giao cho nhân viên phòng KD                                  -> allow              stmts=['gv.tbp-giao-viec']
+  [PASS] agent-claude (L1, thay Mai) tạo công việc (tách việc từ chỉ đạo)               -> allow              stmts=['gv.agent-l0-l1']
+  [PASS] agent-claude (L1, thay Mai) nghiệm thu                                         -> autonomy_ceiling   stmts=[]
+  [PASS] agent L3 + receipt của Long nghiệm thu thay Mai                                -> explicit_deny      stmts=['dx.deny-agent-decide', 'gv.deny-agent-nghiem-thu', 'ns.deny-agent-decide']
+
+=== PACK 3: nhan-su-vong-doi
+  [PASS] Hùng đọc hồ sơ PII của chính mình                                              -> allow              stmts=['ns.nv-own-read']
+  [PASS] Việt đọc PII của Hùng                                                          -> implicit_deny      stmts=[]
+  [PASS] Linh (hr_pii) đọc PII của Hùng                                                 -> allow              stmts=['ns.hr-pii']
+  [PASS] Tâm (nhan_su, không có hr_pii) đọc PII của Hùng                                -> implicit_deny      stmts=[]
+  [PASS] agent-claude (thay Linh, người có hr_pii) đọc PII                              -> explicit_deny      stmts=['ns.deny-agent-pii']
+  [PASS] agent-claude (thay Linh) đọc hồ sơ nhân viên (không PII)                       -> allow              stmts=['ns.agent-l0-l1']
+  [PASS] Linh duyệt bước HR hồ sơ onboarding NV-0016 (phòng KD)                         -> allow              stmts=['ns.nhan-su-all']
+  [PASS] Tâm (người khởi tạo hồ sơ) tự duyệt bước HR                                    -> self_approval      stmts=[]
+  [PASS] Vy (it_admin) duyệt bước IT                                                    -> allow              stmts=['ns.it-admin']
+  [PASS] Mai (quản lý KD) duyệt bước quản lý của hồ sơ KD                               -> allow              stmts=['ns.tbp-ban-giao']
+  [PASS] Mai duyệt bước quản lý của hồ sơ nhân viên phòng IT                            -> implicit_deny      stmts=[]
+  [PASS] Anh (người nghỉ việc) tự duyệt hồ sơ nghỉ việc của mình                        -> self_approval      stmts=[]
+  [PASS] Hà (KTT) duyệt quyết toán nghỉ việc                                            -> allow              stmts=['ns.ke-toan']
+  [PASS] Long xóa hồ sơ nhân viên                                                       -> explicit_deny      stmts=['ns.deny-delete-ho-so']
+
+FAILED CASES: none

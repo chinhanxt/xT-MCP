@@ -1,0 +1,34 @@
+=== catalog v1: packs=['de-xuat-phe-duyet'] models=6 DDL statements=173
+KẾ HOẠCH THAY ĐỔI MODEL v0 → v1  (mã kế hoạch 3b95b53d1a4874e4)
+Tổng: 6 AN TOÀN, 0 RỦI RO, 0 PHÁ HỦY, 0 BỊ CHẶN
+  [AN TOÀN] Tạo model mới 'Bước duyệt' (buoc_duyet) với 9 trường, RLS theo tenant + quyền ['giam_doc', 'ke_toan_thanh_toan', 'ke_toan_truong', 'nhan_vien', 'truong_bo_phan', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Giấy thanh toán tiền tạm ứng' (hoan_ung) với 8 trường, RLS theo tenant + quyền ['giam_doc', 'ke_toan_thanh_toan', 'ke_toan_truong', 'nhan_vien', 'truong_bo_phan', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Loại đề xuất' (loai_de_xuat) với 7 trường, RLS theo tenant + quyền ['nhan_vien', 'quan_tri', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Đề xuất' (de_xuat) với 12 trường, RLS theo tenant + quyền ['giam_doc', 'ke_toan_thanh_toan', 'ke_toan_truong', 'nhan_vien', 'truong_bo_phan', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Giấy đề nghị tạm ứng' (tam_ung) với 11 trường, RLS theo tenant + quyền ['giam_doc', 'ke_toan_thanh_toan', 'ke_toan_truong', 'nhan_vien', 'truong_bo_phan', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Giấy đề nghị thanh toán' (thanh_toan) với 11 trường, RLS theo tenant + quyền ['giam_doc', 'ke_toan_thanh_toan', 'ke_toan_truong', 'nhan_vien', 'truong_bo_phan', 'xt_workflow']
+APPLY: {'version': 1, 'plan_hash': '3b95b53d1a4874e4', 'tx_steps': 173} post: 0 post_ok: True
+=== catalog v2: packs=['de-xuat-phe-duyet', 'giao-viec-sla'] models=11 DDL statements=312
+KẾ HOẠCH THAY ĐỔI MODEL v1 → v2  (mã kế hoạch e3fbfec4d244c6e8)
+Tổng: 5 AN TOÀN, 0 RỦI RO, 0 PHÁ HỦY, 0 BỊ CHẶN
+  [AN TOÀN] Tạo model mới 'Bản tin tuần' (ban_tin_tuan) với 11 trường, RLS theo tenant + quyền ['giam_doc', 'nhan_vien', 'truong_bo_phan', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Công việc' (cong_viec) với 20 trường, RLS theo tenant + quyền ['giam_doc', 'nhan_vien', 'truong_bo_phan', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Loại công việc' (loai_cong_viec) với 6 trường, RLS theo tenant + quyền ['nhan_vien', 'quan_tri', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Mục checklist công việc' (cong_viec_muc) với 4 trường, RLS theo tenant + quyền ['giam_doc', 'nhan_vien', 'truong_bo_phan', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Nhật ký SLA' (nhat_ky_sla) với 5 trường, RLS theo tenant + quyền ['giam_doc', 'nhan_vien', 'truong_bo_phan', 'xt_workflow']
+APPLY: {'version': 2, 'plan_hash': 'e3fbfec4d244c6e8', 'tx_steps': 139} post: 0 post_ok: True
+=== catalog v3: packs=['de-xuat-phe-duyet', 'giao-viec-sla', 'nhan-su-vong-doi'] models=19 DDL statements=518
+KẾ HOẠCH THAY ĐỔI MODEL v2 → v3  (mã kế hoạch f9974a9366e5ca23)
+Tổng: 8 AN TOÀN, 0 RỦI RO, 0 PHÁ HỦY, 0 BỊ CHẶN
+  [AN TOÀN] Tạo model mới 'Quyền truy cập đã cấp' (cap_quyen) với 5 trường, RLS theo tenant + quyền ['it_admin', 'nhan_su', 'nhan_vien', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Hồ sơ vòng đời nhân sự' (ho_so_vong_doi) với 9 trường, RLS theo tenant + quyền ['giam_doc', 'it_admin', 'ke_toan_thanh_toan', 'ke_toan_truong', 'nhan_su', 'nhan_vien', 'truong_bo_phan', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Nhân viên' (nhan_vien) với 11 trường, RLS theo tenant + quyền ['giam_doc', 'it_admin', 'ke_toan_thanh_toan', 'ke_toan_truong', 'nhan_su', 'nhan_vien', 'truong_bo_phan', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Phòng ban' (phong_ban) với 4 trường, RLS theo tenant + quyền ['nhan_su', 'nhan_vien', 'quan_tri', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Hồ sơ nhân sự nhạy cảm' (nhan_vien_pii) với 5 trường, RLS theo tenant + quyền ['hr_pii', 'nhan_vien', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Quyết toán nghỉ việc' (quyet_toan_nghi_viec) với 7 trường, RLS theo tenant + quyền ['giam_doc', 'ke_toan_thanh_toan', 'ke_toan_truong', 'nhan_su', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Tài sản cấp phát' (tai_san_cap) với 5 trường, RLS theo tenant + quyền ['it_admin', 'nhan_su', 'nhan_vien', 'xt_workflow']
+  [AN TOÀN] Tạo model mới 'Việc trong hồ sơ vòng đời' (viec_vong_doi) với 7 trường, RLS theo tenant + quyền ['giam_doc', 'it_admin', 'ke_toan_thanh_toan', 'ke_toan_truong', 'nhan_su', 'nhan_vien', 'truong_bo_phan', 'xt_workflow']
+APPLY: {'version': 3, 'plan_hash': 'f9974a9366e5ca23', 'tx_steps': 206} post: 0 post_ok: True
+tables: ['ban_tin_tuan', 'buoc_duyet', 'cap_quyen', 'cong_viec', 'cong_viec_muc', 'de_xuat', 'ho_so_vong_doi', 'hoan_ung', 'loai_cong_viec', 'loai_de_xuat', 'nhan_vien', 'nhan_vien_pii', 'nhat_ky_sla', 'phong_ban', 'quyet_toan_nghi_viec', 'tai_san_cap', 'tam_ung', 'thanh_toan', 'viec_vong_doi']
+rls forced: (19, 19)
+policies: 85

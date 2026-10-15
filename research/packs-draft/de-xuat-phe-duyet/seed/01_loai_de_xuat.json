@@ -1,0 +1,33 @@
+{
+  "model": "loai_de_xuat",
+  "records": [
+    {
+      "_key": "tam_ung",
+      "ma": "tam_ung",
+      "ten": "Tạm ứng",
+      "quy_trinh": "de_xuat_phe_duyet",
+      "mau_bieu": "Giấy đề nghị tạm ứng (tham khảo mẫu 03-TT, TT 99/2025/TT-BTC)",
+      "han_muc": 30000000,
+      "sla_gio": 24,
+      "hoat_dong": true
+    },
+    {
+      "_key": "thanh_toan",
+      "ma": "thanh_toan",
+      "ten": "Thanh toán",
+      "quy_trinh": "de_xuat_phe_duyet",
+      "mau_bieu": "Giấy đề nghị thanh toán (tham khảo mẫu 05-TT, TT 99/2025/TT-BTC)",
+      "sla_gio": 24,
+      "hoat_dong": true
+    },
+    {
+      "_key": "hoan_ung",
+      "ma": "hoan_ung",
+      "ten": "Hoàn ứng",
+      "quy_trinh": "de_xuat_phe_duyet",
+      "mau_bieu": "Giấy thanh toán tiền tạm ứng (tham khảo mẫu 04-TT, TT 99/2025/TT-BTC)",
+      "sla_gio": 24,
+      "hoat_dong": true
+    }
+  ]
+}

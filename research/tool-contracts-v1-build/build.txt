@@ -1,0 +1,30 @@
+| Tool | since | level | in | in compact | data | out (envelope) | tools/list entry | +outputSchema | desc chars | props/req | RO | D | I | OW |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `inspect_workspace` | 0.1 | L0 | 452 | 395 | 2166 | 3233 | 837 | 4029 | 235 | 2/0 | T | F | T | F |
+| `describe_model` | 0.1 | L0 | 413 | 340 | 4206 | 5273 | 791 | 6023 | 250 | 2/1 | T | F | T | F |
+| `describe_process` | 0.1 | L0 | 602 | 545 | 1196 | 2263 | 966 | 3188 | 222 | 2/1 | T | F | T | F |
+| `find_people` | 0.1 | L0 | 1095 | 1009 | 1491 | 2558 | 1452 | 3969 | 258 | 8/0 | T | F | T | F |
+| `search_records` | 0.1 | L0 | 2243 | 2173 | 744 | 1811 | 2662 | 4432 | 285 | 8/0 | T | F | T | F |
+| `aggregate_records` | 0.1 | L0 | 2972 | 2879 | 1000 | 2067 | 3319 | 5345 | 240 | 12/1 | T | F | T | F |
+| `get_record` | 0.1 | L0 | 813 | 756 | 2615 | 3682 | 1217 | 4858 | 271 | 4/1 | T | F | T | F |
+| `get_inbox` | 0.1 | L0 | 815 | 728 | 980 | 2047 | 1131 | 3137 | 213 | 5/0 | T | F | T | F |
+| `get_history` | 0.1 | L0 | 859 | 768 | 1617 | 2684 | 1199 | 3842 | 238 | 4/1 | T | F | T | F |
+| `create_record` | 0.1 | L2 | 987 | 930 | 1704 | 2771 | 1426 | 4156 | 293 | 4/3 | F | F | T | F |
+| `update_record` | 0.1 | L2 | 1200 | 1143 | 1527 | 2594 | 1600 | 4153 | 257 | 5/4 | F | F | T | F |
+| `transition_record` | 0.1 | L3 | 1289 | 1232 | 1898 | 2965 | 1791 | 4715 | 357 | 6/4 | F | F | T | F |
+| `upload_file` | 0.1 | L1 | 1013 | 956 | 751 | 1818 | 1487 | 3264 | 341 | 6/3 | F | F | T | F |
+| `submit_request` | 0.1 | L2 | 734 | 677 | 896 | 1963 | 1093 | 3015 | 219 | 4/2 | F | F | T | F |
+| `decide_request` | 0.1 | human-only | 1139 | 1082 | 991 | 2058 | 1597 | 3614 | 317 | 6/4 | F | F | T | F |
+| `create_task` | 0.1 | L2 | 2525 | 2432 | 703 | 1770 | 2929 | 4658 | 307 | 13/3 | F | F | T | F |
+| `propose_model_change` | 0.1 | L1 | 8866 | 8794 | 988 | 2055 | 9305 | 11319 | 299 | 6/4 | F | F | T | F |
+| `start_process` | 1.0 | L3 | 1002 | 945 | 401 | 1468 | 1367 | 2794 | 227 | 4/2 | F | F | T | F |
+| `propose_process_change` | 1.0 | L1 | 2280 | 2208 | 505 | 1572 | 2680 | 4211 | 252 | 6/4 | F | F | T | F |
+| `delete_record` | 1.0 | L3 | 815 | 758 | 160 | 1227 | 1138 | 2324 | 191 | 4/3 | F | T | T | F |
+| `notify` | 1.0 | L2 | 860 | 803 | 364 | 1431 | 1160 | 2550 | 179 | 4/3 | F | F | T | F |
+TOTAL v0.1: n=17 in=28017 in_compact=26839 data=25473 out_env=43612 tools_list=34802 tools_list+out=77717
+TOTAL v1.0 (all): n=21 in=32974 in_compact=31553 data=26903 out_env=49310 tools_list=41147 tools_list+out=89596
+TOTAL core profile: n=10 in=14612 in_compact=13898 data=13022 out_env=23692 tools_list=18617 tools_list+out=41899
+max input 8866 budget 13312
+error envelope 1332 confirmation details 817
+negatives rejected 20 / 20
+FAILURES: 0

@@ -1,0 +1,20 @@
+{
+  "id": "nv_onboarding",
+  "name": "Tiếp nhận nhân sự mới (HR, IT, Kế toán, Quản lý)",
+  "version": 1,
+  "roles": ["nhan_su", "it_admin", "ke_toan_thanh_toan", "ke_toan_truong", "truong_bo_phan", "giam_doc"],
+  "steps": [
+    {"id": "khoi_tao", "type": "service", "name": "Sinh checklist liên phòng ban", "op": "tao_viec_vong_doi",
+     "params": {"ho_so_id": "ho_so_id", "loai": "'onboarding'"}},
+    {"id": "hr", "type": "approve", "name": "Nhân sự: hồ sơ, HĐLĐ, BHXH", "role": "nhan_su",
+     "sla": {"after": "PT24H", "escalate_to": "giam_doc"}},
+    {"id": "it", "type": "approve", "name": "IT: email, tài khoản, thiết bị", "role": "it_admin",
+     "sla": {"after": "PT24H", "escalate_to": "giam_doc"}},
+    {"id": "kt", "type": "approve", "name": "Kế toán: mã lương, tài khoản nhận lương", "role": "ke_toan_thanh_toan",
+     "sla": {"after": "PT24H", "escalate_to": "ke_toan_truong"}},
+    {"id": "ql", "type": "approve", "name": "Quản lý: buddy và kế hoạch 30-60-90", "role": "truong_bo_phan",
+     "sla": {"after": "PT48H", "escalate_to": "giam_doc"}},
+    {"id": "kich_hoat", "type": "service", "name": "Kích hoạt nhân viên", "op": "kich_hoat_nhan_vien",
+     "params": {"nhan_vien_id": "nhan_vien_id"}}
+  ]
+}

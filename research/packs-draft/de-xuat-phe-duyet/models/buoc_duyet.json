@@ -1,0 +1,176 @@
+{
+  "id": "dx_buoc",
+  "name": "buoc_duyet",
+  "label": "Bước duyệt",
+  "title_field": "ma_buoc",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "de_xuat",
+      "type": "ref",
+      "label": "Đề xuất",
+      "required": true,
+      "ref": "de_xuat"
+    },
+    {
+      "id": "f2",
+      "name": "thu_tu",
+      "type": "number",
+      "label": "Thứ tự",
+      "required": true,
+      "min": 1
+    },
+    {
+      "id": "f3",
+      "name": "ma_buoc",
+      "type": "text",
+      "label": "Mã bước",
+      "required": true,
+      "max": 40
+    },
+    {
+      "id": "f4",
+      "name": "vai_tro",
+      "type": "text",
+      "label": "Vai trò phải duyệt",
+      "required": true,
+      "max": 40
+    },
+    {
+      "id": "f5",
+      "name": "nguoi_duyet",
+      "type": "user",
+      "label": "Người duyệt"
+    },
+    {
+      "id": "f6",
+      "name": "quyet_dinh",
+      "type": "enum",
+      "label": "Quyết định",
+      "required": true,
+      "default": "cho",
+      "options": [
+        {
+          "value": "cho",
+          "label": "Chờ"
+        },
+        {
+          "value": "approve",
+          "label": "Duyệt"
+        },
+        {
+          "value": "reject",
+          "label": "Từ chối"
+        },
+        {
+          "value": "leo_thang",
+          "label": "Quá hạn, leo thang"
+        },
+        {
+          "value": "bo_qua",
+          "label": "Bỏ qua theo điều kiện"
+        }
+      ]
+    },
+    {
+      "id": "f7",
+      "name": "ly_do",
+      "type": "text",
+      "label": "Lý do/ghi chú",
+      "max": 1000
+    },
+    {
+      "id": "f8",
+      "name": "han_xu_ly",
+      "type": "datetime",
+      "label": "Hạn xử lý (SLA)"
+    },
+    {
+      "id": "f9",
+      "name": "quyet_dinh_luc",
+      "type": "datetime",
+      "label": "Thời điểm quyết định"
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "de_xuat",
+        "thu_tu"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Đã duyệt/từ chối thì phải ghi người duyệt và thời điểm",
+      "check": {
+        "or": [
+          {
+            "not": {
+              "field": "quyet_dinh",
+              "op": "in",
+              "value": [
+                "approve",
+                "reject"
+              ]
+            }
+          },
+          {
+            "and": [
+              {
+                "field": "nguoi_duyet",
+                "op": "not_null"
+              },
+              {
+                "field": "quyet_dinh_luc",
+                "op": "not_null"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "nhan_vien": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "truong_bo_phan": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "ke_toan_thanh_toan": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "ke_toan_truong": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "giam_doc": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

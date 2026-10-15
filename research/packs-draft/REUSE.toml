@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 xT contributors
+
+version = 1
+
+# JSON (model, process, policy, seed, manifest) không có chú thích nên không gắn được header SPDX
+# trong file. Một annotation duy nhất ở đây phủ toàn bộ packs-draft/** (đường dẫn tính từ thư mục
+# chứa file này). Python/shell/Markdown vẫn mang header riêng; "override" làm hai nguồn luôn khớp.
+[[annotations]]
+path = "**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 xT contributors"
+SPDX-License-Identifier = "Apache-2.0"
