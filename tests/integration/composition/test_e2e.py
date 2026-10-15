@@ -878,7 +878,10 @@ async def test_w2_desk_agent_on_behalf_proposes_but_never_approves(stack: Stack)
     body = {
         "model_id": "advance_request",
         "operations": [
-            {"op": "add_field", "field": {"id": "ghi_chu_desk", "label": "Ghi chú", "type": "string"}}
+            {
+                "op": "add_field",
+                "field": {"id": "ghi_chu_desk", "label": "Ghi chú", "type": "string"},
+            }
         ],
         "rationale": "Desk agent đề xuất",
     }
