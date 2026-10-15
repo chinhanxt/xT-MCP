@@ -164,3 +164,67 @@ Mọi WA đã sửa và đã gỡ `xfail`. Kết quả: `tests/integration/workf
 | WA-09 | Schema: `definition_id` XOR `model_id` → 400 | |
 | WA-10 | OpenAPI khai 304/405/413/422/428/429/501 | |
 | Tài liệu | `docs/workflow-api.md`: trạng thái ghép serve, 403 cho ref tenant khác ở quyết định/gửi duyệt, 429/413 HTML của APISIX, `continuation`/remediation dùng chung với MCP (cố ý) | Thêm phát hiện: `transition_record(withdrawn)` trước đây trả `internal_error` vì output thiếu `model_revision`/`available_transitions` (vi phạm `RECORD_FULL`); đã sửa |
+
+## 6. Vòng 2 (16/10/2026, Opus tester)
+
+Cách test vẫn như vòng 1: gọi HTTP thật vào Postgres 17 (một container, cổng ngẫu nhiên, đã dọn) + composition thật + `/desk/confirm` có step-up thật. Để đổi trạng thái người giữa lúc plan và lúc xác nhận, test sửa thẳng `xt_meta.person` bằng tài khoản owner. Regression mới nằm ở `tests/integration/workflow_api_audit/test_workflow_api_audit_r2.py`: 5 test hàng rào và 2 test `xfail(strict=True, raises=AssertionError)`. Fixture `wstack` chuyển sang scope session để hai module dùng chung tenant `wxa`/`wxb`.
+
+```bash
+uv run pytest tests/integration/workflow_api_audit tests/integration/composition/test_workflow_api.py -m integration --no-cov
+# 27 passed, 2 xfailed in 47.60s (chạy 3 lần liên tiếp đều xanh)
+uv run pytest tests/unit/http --no-cov   # 26 passed
+```
+
+### 6.1 Kiểm lại WA-01…WA-10
+
+Cả 10 test cũ, sau khi đã gỡ `xfail`, đều xanh. Tôi đọc lại các test tác giả đã sửa và thấy không có test nào bị nới (riêng WA-02 còn chặt hơn: bắt buộc 403 `delegate_not_permitted`). `compose.yaml` của `xt-api` đã có `XT_WORKFLOW_ALLOWED_CLIENTS: ${XT_WORKFLOW_CLIENTS:-xt-cli}`. **10/10 ĐẠT.**
+
+### 6.2 Thử vượt các phần mới
+
+| # | Tấn công | Kết quả | Bằng chứng |
+|---|---|---|---|
+| R1 | Đích ủy quyền hợp lệ lúc plan (phó phòng KD được cấp tạm `dept_head`), sau đó bị **vô hiệu hóa** trước khi người duyệt xác nhận | PASS | Trang confirm 409, replay 409 `confirmation_declined`, instance vẫn ở bước `dept_head`. Lúc xác nhận hệ thống kiểm lại, không có cửa sổ race |
+| R2 | Như R1 nhưng **bị gỡ vai trò** `dept_head` trước khi xác nhận | PASS | Như trên. Đối chứng (không đổi gì): 200 `delegated` |
+| R3 | Người không phải người đề nghị gọi withdraw (trưởng phòng duyệt, giám đốc, kế toán) | PASS* | 403, không rút được. *Nhưng phân biệt được với id ma (404): **WA-12** |
+| R4 | Withdraw instance của tenant khác | PASS | 404, `error` giống hệt id ma |
+| R5 | Withdraw khi thiếu khóa, sai revision, thêm trường `to_state`, replay, rút lần hai | PASS | Lần lượt 400 / 409 / 400 / 200 (replay) / 409 `invalid_state`. Instance `withdrawn`, `tasks=[]`, không còn `links.withdraw` |
+| R6 | Withdraw sau khi đã duyệt xong (`approved`) | PASS | 409 (`revision_conflict` hoặc `invalid_state`) |
+| R7 | Quyết định đang chờ 428, người đề nghị rút, sau đó người duyệt bấm xác nhận | PASS | Trang confirm 409, replay 409, instance vẫn `withdrawn`. Quyết định sau khi rút → 403, không có confirm_url |
+| R8 | Bấm xác nhận quyết định **đồng thời** với withdraw (18 lượt) | **FAIL (vừa)** | Không lượt nào cả hai cùng thành công, trạng thái cuối luôn nhất quán. Nhưng có 2/18 lượt withdraw trả **500** `internal_error` do `DeadlockDetected` tại `workflow_bridge.get_for_update`: hai thao tác khóa bản ghi đề nghị và `workflow_instance` theo thứ tự ngược nhau. Xem **WA-11** |
+| R9 | `If-None-Match` với `*`, `W/"…"`, danh sách có khoảng trắng, HEAD | PASS | 304 có `ETag` + `Cache-Control: private, no-cache` và body rỗng. `*` trên định nghĩa không tồn tại vẫn ra 404 (kiểm IAM trước) |
+| R10 | ETag không dấu nháy, cắt cụt, viết HOA, `w/` thường | PASS | 200 (so sánh phân biệt hoa thường, đúng RFC) |
+| R11 | Hai header `If-None-Match` riêng biệt | Ghi nhận | Chỉ header đầu được xét (`headers.get`). RFC cho phép gộp thành danh sách. Không ảnh hưởng an toàn, không tính là lỗi |
+| R12 | ETag của tenant A gửi bởi tenant B | PASS | 304, vì cùng pack nên bytes BPMN trùng nhau. B không tự có được ETag của A, nên không rò |
+| R13 | Envelope cho route lạ, không token | PASS | 404/405 JSON + `Allow`. `OPTIONS` → 405 `Allow: GET`. `/workflow/v1` → 307 về `/workflow/v1/` |
+| R14 | Thời gian phản hồi 404 (trung vị của 40 lần) | Ghi nhận | Khác tenant: thật 15.9 ms, ma 12.0 ms (lệch nhỏ, cả hai đều dừng ở RLS). **Cùng tenant**, không có quyền: thật 55.8 ms, ma 17.3 ms (body đã giống hệt nhưng thời gian vẫn lộ). Xếp chung lớp với WA-07/WA-12. Rủi ro thấp vì UUID ngẫu nhiên và người đo phải là thành viên tenant |
+| R15 | OpenAPI so với hành vi | PASS | `POST /instances/{id}/withdraw` có khai, mọi body thật (200/400/403/404/409) khớp schema. Các mã 304/405/413/422/428/429/501 đã được khai |
+
+### 6.3 Lỗi mới
+
+- **WA-11 (VỪA): deadlock giữa xác nhận quyết định và withdraw.**
+  - Cái thua bị Postgres hủy sau `deadlock_timeout` và trả 500 với remediation "Retry the same call once". Dữ liệu không hỏng và không có trường hợp cả hai cùng thành công, nhưng client nhận 500 kèm độ trễ khoảng 1 s.
+  - Sửa: hai đường `_commit_decide` và `_commit_withdraw` khóa cùng thứ tự. Chẳng hạn khóa `workflow_instance FOR UPDATE` trước, rồi mới khóa hoặc UPDATE bản ghi đề nghị. Thêm vào đó, map `DeadlockDetected`/`SerializationFailure` thành 409 `revision_conflict` hoặc 503 có thể thử lại, thay vì 500.
+  - Test: `test_wa11_…`, lặp tối đa 60 lượt, dừng ngay ở lượt đầu dính 5xx.
+- **WA-12 (THẤP): `POST /instances/{id}/withdraw` lộ instance tồn tại trong cùng tenant.**
+  - Người không phải người đề nghị nhận 403 `access_denied`, còn id ma ra 404. Đây là cùng lớp với WA-07 nhưng trên endpoint mới.
+  - Sửa: như `get_instance`, khi `transition_record` trả 403 hoặc 404 cho người không được đọc bản ghi thì trả `_not_found()` tĩnh.
+  - Test: `test_wa12_…`.
+
+### 6.4 Đánh giá WA-08 phía MCP (token có thêm aud `xt-workflow` dùng ở `/mcp`)
+
+**Chấp nhận rủi ro cho mốc nộp bài, không chặn bàn giao**, với các điều kiện sau:
+- Kẻ tấn công phải có token mang **cả** aud `/mcp` lẫn `xt-workflow`, `azp` thuộc allowlist MCP, và có scope `mcp-xt`.
+  - Keycloak chỉ phát token như vậy khi cấu hình sai.
+  - `provision_data.py` cấm client MCP/Desk nhận `xt-workflow`, và kiểm "token MCP sạch".
+  - `xt-cli` không có `mcp-xt` và không nằm trong allowlist MCP.
+- Token REST thông thường (aud chỉ `xt-workflow`) bị `/mcp` từ chối (401, test gốc). Token MCP thông thường bị `/workflow` từ chối, và WA-08 phía workflow đã sửa. Như vậy khi token bị lộ ở một bề mặt thì vẫn không phát lại được sang bề mặt kia. Phần còn hở chỉ là lớp phòng thủ thứ hai khi provisioning hỏng.
+- Khuyến nghị sau mốc: verifier MCP từ chối token có aud thuộc `{xt-workflow, xt-data}`. Việc này chỉ cần một dòng ở `serve.IdentityHttpAuth` và không ảnh hưởng connector, vì connector không bao giờ có hai aud đó. Trước mắt, giữ bước kiểm "token MCP sạch" của `deploy/tests/security_smoke.sh` trong checklist deploy.
+
+### 6.5 Kết luận vòng 2
+
+**ĐẠT (có điều kiện nhẹ).**
+- WA-01…WA-10 đã sửa và kiểm lại bằng HTTP thật.
+- Các phần mới đứng vững trước các tấn công chính: race đổi đích ủy quyền, withdraw bởi người khác hoặc từ tenant khác, withdraw sau quyết định, quyết định sau withdraw, ETag.
+- Còn **WA-11 (vừa)**: 500 do deadlock khi xác nhận và withdraw xảy ra cùng lúc. Nên sửa trước ngày nộp, vì có thể làm hỏng một bước demo nếu hai người thao tác cùng lúc.
+- Còn **WA-12 (thấp)**: oracle tồn tại trong cùng tenant.
+- WA-08 phía MCP: chấp nhận rủi ro như mục 6.4.
