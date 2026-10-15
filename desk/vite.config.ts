@@ -14,7 +14,9 @@ const REQUIRED = [
   "DESK_HOST",
   "DESK_PORT",
   "DESK_XT_ORIGIN",
-  "DESK_AUTH_MODE",
+  "DESK_OIDC_ISSUER",
+  "DESK_OIDC_CLIENT_ID",
+  "DESK_OIDC_SCOPE",
   "DESK_APP_CALLS_PER_SEC",
   "DESK_APP_CALL_BURST",
   "DESK_APP_MAX_INFLIGHT",
@@ -41,7 +43,8 @@ export default defineConfig(({ mode }) => {
   };
   const maxSteps = posInt("DESK_MAX_STEPS");
   const xtOrigin = new URL(env.DESK_XT_ORIGIN).origin;
-  if (!["oidc", "dev-unauthenticated"].includes(env.DESK_AUTH_MODE)) throw new Error("xT Desk: DESK_AUTH_MODE phải là oidc hoặc dev-unauthenticated");
+  new URL(env.DESK_OIDC_ISSUER); // phải là URL hợp lệ
+  if (!env.DESK_OIDC_SCOPE.split(/\s+/).includes("openid")) throw new Error("xT Desk: DESK_OIDC_SCOPE phải có openid");
 
   const llmBase = llm.pathname.replace(/\/$/, "");
   const proxy: Record<string, ProxyOptions> = {
@@ -68,7 +71,9 @@ export default defineConfig(({ mode }) => {
         maxSteps,
         sandboxUrl: sandbox.href,
         xtOrigin,
-        authMode: env.DESK_AUTH_MODE,
+        oidcIssuer: env.DESK_OIDC_ISSUER.replace(/\/$/, ""),
+        oidcClientId: env.DESK_OIDC_CLIENT_ID,
+        oidcScope: env.DESK_OIDC_SCOPE,
         appCallsPerSec: posInt("DESK_APP_CALLS_PER_SEC"),
         appCallBurst: posInt("DESK_APP_CALL_BURST"),
         appMaxInflight: posInt("DESK_APP_MAX_INFLIGHT"),

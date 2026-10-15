@@ -7,7 +7,9 @@ declare const __DESK_CONFIG__: {
   maxSteps: number;
   sandboxUrl: string;
   xtOrigin: string;
-  authMode: string;
+  oidcIssuer: string;
+  oidcClientId: string;
+  oidcScope: string;
   appCallsPerSec: number;
   appCallBurst: number;
   appMaxInflight: number;

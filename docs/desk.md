@@ -23,7 +23,10 @@ Ngoài phạm vi: route `/desk/confirm/{id}` (do backend `xt-desk` render), đă
 Sao chép `desk/.env.example` thành `desk/.env`. Biến bắt buộc thiếu thì `vite dev/build/preview` dừng với lỗi nêu tên biến (đã kiểm: `make desk-build` không có `.env` báo `thiếu biến cấu hình bắt buộc: DESK_MCP_URL, DESK_LLM_URL, ...`). Không có URL/model nào được ghi cứng trong mã nguồn.
 
 - Trình duyệt chỉ gọi cùng origin: `/mcp` và `/llm`. Proxy (vite dev/preview, hoặc APISIX khi triển khai `https://xt.freepro.online`) chỉ chuyển tiếp tới `DESK_MCP_URL`/`DESK_LLM_URL`. **Không có bearer tĩnh ở bất kỳ đâu** (cấu hình, proxy, gateway): Desk gửi `Authorization` bằng token của chính người dùng (`src/auth.ts`). Cấu hình gateway KHÔNG được gắn bearer cho `/mcp` và `/llm`; hostname sandbox không được route `/mcp`, `/llm`.
-- `DESK_AUTH_MODE=oidc` (mặc định): Keycloak chưa tích hợp nên Desk **fail closed** (hiện "Chưa đăng nhập", không gọi MCP/LLM). `dev-unauthenticated` chỉ cho dev/e2e với server không đòi xác thực, có biểu ngữ cảnh báo. Khi có Keycloak, thay `getUserToken()` trong `src/auth.ts`.
+- **Đăng nhập Keycloak thật** (`src/oidc.ts`, `src/auth.ts`): OIDC auth-code + PKCE S256, client public **`xt-desk-agent`** (`DESK_OIDC_ISSUER`, `DESK_OIDC_CLIENT_ID`, `DESK_OIDC_SCOPE=openid mcp-xt`, redirect `<origin Desk>/auth/callback`). Chat Desk là AGENT thay mặt người dùng, nên MCP/LLM chỉ nhận token của client này (server đưa vào `XT_MCP_LOCAL_CLIENTS`: tier local, PII full). Desk KHÔNG dùng `xt-desk` (phiên người) hay `xt-desk-confirm` cho MCP; luồng xác nhận mở `confirm_url` (`/desk/confirm/{id}` do backend render, client `xt-desk-confirm` + step-up OTP) trong tab top-level mới (`target=_blank`).
+- Token chỉ trong bộ nhớ (không localStorage/cookie; sessionStorage chỉ giữ `state/verifier/nonce` tạm qua lần chuyển hướng và bị xóa ngay khi xử lý callback). Reload trang = phải đăng nhập lại (SSO Keycloak làm bước này gần như tức thì). Làm mới bằng refresh token rotation (realm đặt `revokeRefreshToken`, `refreshTokenMaxReuse=0`), single-flight để nhiều request đồng thời không dùng lại refresh token cũ; làm mới khi còn <30s hạn. Refresh thất bại thì đăng xuất. id_token được kiểm `iss/aud/nonce`; discovery phải trùng issuer và endpoint cùng origin.
+- Fail closed: thiếu `DESK_OIDC_*` thì dev/build dừng với lỗi nêu tên biến; chưa đăng nhập thì Desk hiện màn hình đăng nhập và không gửi request nào tới `/mcp` hay `/llm`. Không còn chế độ không xác thực.
+- Triển khai: static host phải trả `index.html` cho `/auth/callback` (SPA fallback); client `xt-desk-agent` phải có redirect URI này và `webOrigins` của Desk (CORS cho token endpoint). `deploy/keycloak/provision.py` tạo client (public, PKCE S256, `mcp-xt` là optional scope, redirect `https://xt.freepro.online/auth/callback` + `localhost:5173`/`127.0.0.1:5173`).
 - `DESK_XT_ORIGIN`: `confirm_url` chỉ hợp lệ khi đúng origin này + `/desk/confirm/{id}`; `ui/open-link` tới origin này mở thẳng.
 - `DESK_APP_CALLS_PER_SEC`, `DESK_APP_CALL_BURST`, `DESK_APP_MAX_INFLIGHT`: rate limit tool call của mỗi instance MCP App.
 - `DESK_LLM_REASONING_EFFORT=none`: bắt buộc với ollama `/v1` (`think:false` bị bỏ qua, xem `spike-local-llm.md`).
@@ -46,7 +49,7 @@ Mô hình 2 lớp iframe: Desk (origin A) > proxy `sandbox.html` (origin B, mã 
 
 ```bash
 make desk-setup        # npm ci + playwright install chromium
-make desk-test         # vitest (95 test, gồm hồi quy audit vòng 1-2) + e2e Playwright headless (9 test), LLM giả
+make desk-test         # vitest (110 test) + e2e Playwright headless (14 test), LLM giả + Keycloak giả
 make desk-build        # tsc + vite build (cần desk/.env)
 make desk-e2e-local    # e2e với ollama thật (đọc LLM từ desk/.env.example)
 cd desk && npm run dev # dev server theo desk/.env
@@ -56,19 +59,20 @@ cd desk && npm run dev # dev server theo desk/.env
 
 ## Kết quả thật (2026-10-15, sau khi sửa theo audit)
 
-`npm test` (vitest): 8 tệp, 95 test pass. `npm run test:audit` (`tests/audit/`, test của người kiểm): 4/4 pass (trước khi sửa: 4/4 FAIL).
+`npm test` (vitest): 9 tệp, 110 test pass (gồm `tests/oidc.test.ts`: máy trạng thái đăng nhập). `npm run test:audit` (`tests/audit/`, test của người kiểm): 4/4 pass (trước khi sửa: 4/4 FAIL).
 
 E2E headless `npm run e2e` (chromium; server MCP spike chép vào thư mục tạm cổng 19500; server MCP "App thử nghiệm" `e2e/evil_server.py` cổng 19503; LLM giả 19501; Desk 19502 và 19504; sandbox ở `127.0.0.1`, Desk ở `localhost`):
 
 ```
 ✓ [desk] chat: tool-call chip, MCP App inline, markdown an toàn, UI->tool qua bridge
 ✓ [desk] chat thường không gọi tool
+✓ [desk] auth (5 test): fail closed khi chưa đăng nhập; client xt-desk-agent + PKCE S256 + scope mcp-xt, bearer tới MCP và LLM; token chỉ trong bộ nhớ, reload là đăng xuất; refresh rotation không dùng lại refresh token cũ; callback sai state bị từ chối
 ✓ [security] BUG-2a/2b/2c: CSP áp trước mọi script, không bị regex lừa (3 test)
 ✓ [security] BUG-3: App không điều hướng được iframe (form + location), bridge không chuyển tiếp sau điều hướng
 ✓ [security] BUG-1 + BUG-4: chỉ tool app-only, validate tham số, ui:// only, rate limit
 ✓ [security] BUG-5: ui/open-link cần user activation; origin ngoài xT phải qua hộp thoại có URL đầy đủ
 ✓ [security] BUG-7: _meta.ui.csp chỉ cho connect tới origin xT
-9 passed (15.1s)
+14 passed (21.3s)
 ```
 
 Đã kiểm đột biến: gỡ `frame-src 'none'`, `form-action 'none'` và bộ đếm `load` khỏi `sandbox.html` thì test BUG-3 FAIL. Burst 100 lời gọi song song: <= 10 tới server, >= 90 bị từ chối.
@@ -93,6 +97,6 @@ Giảm thiểu: (1) không đưa PII thô hay bí mật vào kết quả tool g�
 ## Chưa làm / hạn chế
 
 - Chưa thử với catalog xT thật (chưa có server): hồ sơ `core-10` đã có test đơn vị nhưng e2e dùng server spike nên đặt `DESK_TOOL_PROFILE=show_org_chart,show_approval_card`.
-- Chưa có lịch sử hội thoại, đăng nhập Keycloak (mode `oidc` hiện fail closed), route `/desk/confirm/{id}`; thẻ `confirmation_required` chỉ có test đơn vị (`test/confirm.test.ts`, `tests/regression-bridge.test.ts`), chưa có e2e.
+- Chưa có lịch sử hội thoại, đăng xuất phía Keycloak (nút Đăng xuất chỉ xóa token trong bộ nhớ), chưa chạy với Keycloak thật (e2e dùng `e2e/mock-oidc.mjs`), route `/desk/confirm/{id}`; thẻ `confirmation_required` chỉ có test đơn vị (`test/confirm.test.ts`, `tests/regression-bridge.test.ts`), chưa có e2e.
 - Bundle 896 kB (251 kB gzip), chưa tách chunk.
 - Tool `show_approval_card`/`act_on_task` của server spike chưa có e2e riêng.

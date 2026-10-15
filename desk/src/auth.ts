@@ -1,33 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
-import type { AuthHeaders } from "./mcp";
+import { config } from "./config";
+import { OidcSession } from "./oidc";
 
-export class AuthRequiredError extends Error {
-  constructor() {
-    super("Chưa đăng nhập: Desk chỉ gọi MCP/LLM bằng token của chính người dùng (Keycloak chưa tích hợp).");
-  }
-}
+export { AuthRequiredError } from "./oidc";
 
 /**
- * Seam xác thực. Không có bearer tĩnh nào trong cấu hình/gateway.
- * - "oidc": token của người dùng từ Keycloak (v0.1). Chưa có phiên đăng nhập => FAIL CLOSED (ném AuthRequiredError).
- *   Khi tích hợp Keycloak, thay `getUserToken` bằng hàm trả access token của phiên hiện tại.
- * - "dev-unauthenticated": chỉ cho dev/e2e với server MCP không đòi xác thực; Desk hiện biểu ngữ cảnh báo.
+ * Phiên đăng nhập của Desk: OIDC auth-code + PKCE với client public `xt-desk-agent` (chat là AGENT thay mặt người dùng).
+ * Client xác nhận `xt-desk-confirm` KHÔNG dùng ở đây: confirm_url mở tab mới, backend xt-desk tự đăng nhập bước-lên OTP.
+ * Không bearer tĩnh, token chỉ trong bộ nhớ. Thiếu cấu hình => ném AuthRequiredError khi khởi tạo (fail closed).
  */
-export type AuthMode = "oidc" | "dev-unauthenticated";
-
-export function getUserToken(): Promise<string | null> {
-  return Promise.resolve(null); // chưa có Keycloak
+export function createSession(): OidcSession {
+  return new OidcSession(
+    {
+      issuer: config.oidcIssuer,
+      clientId: config.oidcClientId,
+      scope: config.oidcScope,
+      redirectUri: `${location.origin}${CALLBACK_PATH}`,
+    },
+    {
+      fetch: (...a) => fetch(...a),
+      session: sessionStorage,
+      navigate: (u) => location.assign(u),
+      now: () => Date.now(),
+    },
+  );
 }
 
-export function resolveAuth(mode: string, tokenSource: () => Promise<string | null> = getUserToken): AuthHeaders {
-  if (mode === "dev-unauthenticated") return () => ({});
-  if (mode === "oidc") {
-    return async () => {
-      const t = await tokenSource();
-      if (!t) throw new AuthRequiredError();
-      return { Authorization: `Bearer ${t}` };
-    };
-  }
-  throw new Error(`DESK_AUTH_MODE không hợp lệ: "${mode}"`);
-}
+export const CALLBACK_PATH = "/auth/callback";

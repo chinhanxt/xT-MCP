@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
+import { login } from "./helpers";
 import { expect, test, type Frame, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,9 +32,9 @@ async function orgFrame(page: Page, timeout = 30_000): Promise<Frame> {
 test("chat: tool-call chip, MCP App inline, markdown an toàn, UI->tool qua bridge", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("/");
+  await login(page);
+  const llmBefore = ((await (await page.request.get(LLM_REQS)).json()) as unknown[]).length; // mock LLM dùng chung giữa các test
   await expect(page.locator("header .meta")).toContainText("mock-model");
-  await expect(page.locator("#box")).toBeEnabled();
   await page.screenshot({ path: `${IMG}/desk-1-start.png` });
 
   await page.fill("#box", "Cho tôi xem sơ đồ tổ chức");
@@ -71,7 +72,8 @@ test("chat: tool-call chip, MCP App inline, markdown an toàn, UI->tool qua brid
   await expect(page.locator(".tool-detail").first()).toContainText("employees");
 
   // LLM nhận đúng tool đã lọc + reasoning_effort, và không thấy tool app-only
-  const reqs = (await (await page.request.get(LLM_REQS)).json()) as Array<{ model: string; reasoning_effort?: string; stream: boolean; tools: Array<{ function: { name: string } }> }>;
+  const all = (await (await page.request.get(LLM_REQS)).json()) as Array<{ model: string; reasoning_effort?: string; stream: boolean; tools: Array<{ function: { name: string } }> }>;
+  const reqs = all.slice(llmBefore);
   expect(reqs.length).toBe(2); // gọi tool + trả lời
   expect(reqs[0].model).toBe("mock-model");
   expect(reqs[0].reasoning_effort).toBe("none");
@@ -81,8 +83,7 @@ test("chat: tool-call chip, MCP App inline, markdown an toàn, UI->tool qua brid
 });
 
 test("chat thường không gọi tool", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.locator("#box")).toBeEnabled();
+  await login(page);
   await page.fill("#box", "xin chào");
   await page.click("#send");
   await expect(page.getByTestId("msg-assistant").last()).toContainText("Xin chào, tôi có thể giúp gì?");

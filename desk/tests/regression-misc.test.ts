@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AuthRequiredError, resolveAuth } from "../src/auth";
+import { AuthRequiredError, OidcSession } from "../src/oidc";
 import { createLlm } from "../src/llm";
 import { connectMcp } from "../src/mcp";
 import { renderMarkdown } from "../src/markdown";
@@ -40,32 +40,27 @@ describe("BUG-9: không bearer tĩnh; fail closed khi chưa có token người d
     const e = read(".env.example").replace(/^\s*#.*$/gm, "");
     expect(e).not.toMatch(/TOKEN|API_KEY|BEARER/i);
   });
-  it("oidc không có token => AuthRequiredError", async () => {
-    await expect(Promise.resolve(resolveAuth("oidc", async () => null)())).rejects.toBeInstanceOf(AuthRequiredError);
-  });
-  it("oidc có token người dùng => Authorization của người dùng", async () => {
-    expect(await resolveAuth("oidc", async () => "user-token")()).toEqual({ Authorization: "Bearer user-token" });
-  });
-  it("mode lạ bị từ chối", () => {
-    expect(() => resolveAuth("static-bearer")).toThrow();
+  const idle = () => new OidcSession({ issuer: "https://kc.example/realms/xt", clientId: "xt-desk-agent", scope: "openid mcp-xt", redirectUri: "https://d.example/auth/callback" }, { fetch: vi.fn() as never, session: { getItem: () => null, setItem() {}, removeItem() {} }, navigate() {}, now: () => 0 });
+  it("chưa đăng nhập => AuthRequiredError", async () => {
+    await expect(idle().authHeaders()).rejects.toBeInstanceOf(AuthRequiredError);
   });
   it("LLM: chưa đăng nhập thì KHÔNG gọi fetch", async () => {
     const f = vi.fn();
     vi.stubGlobal("fetch", f);
-    const llm = createLlm({ baseUrl: "/llm", model: "m", authHeaders: resolveAuth("oidc", async () => null) });
+    const llm = createLlm({ baseUrl: "/llm", model: "m", authHeaders: idle().authHeaders });
     await expect(llm.complete({ messages: [], tools: [] }, () => {})).rejects.toBeInstanceOf(AuthRequiredError);
     expect(f).not.toHaveBeenCalled();
   });
   it("MCP: chưa đăng nhập thì KHÔNG gửi request", async () => {
     const f = vi.fn();
     vi.stubGlobal("fetch", f);
-    await expect(connectMcp(new URL("http://localhost/mcp"), resolveAuth("oidc", async () => null))).rejects.toBeDefined();
+    await expect(connectMcp(new URL("http://localhost/mcp"), idle().authHeaders)).rejects.toBeDefined();
     expect(f).not.toHaveBeenCalled();
   });
-  it("LLM có token: gửi header của người dùng", async () => {
+  it("LLM có token người dùng: gửi header của người dùng", async () => {
     const f = vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), { headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", f);
-    const llm = createLlm({ baseUrl: "/llm", model: "m", authHeaders: resolveAuth("oidc", async () => "u1") });
+    const llm = createLlm({ baseUrl: "/llm", model: "m", authHeaders: async () => ({ Authorization: "Bearer u1" }) });
     await llm.complete({ messages: [], tools: [] }, () => {});
     expect((f.mock.calls[0] as unknown as [string, RequestInit])[1].headers).toMatchObject({ Authorization: "Bearer u1" });
   });

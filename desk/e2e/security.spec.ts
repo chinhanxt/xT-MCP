@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
 // Hồi quy cho docs/audit-desk.md (BUG-1..5, 7). Các "App" thử nghiệm ở e2e/evil_server.py chỉ là fixture.
+import { login } from "./helpers";
 import { expect, test, type Frame, type Page } from "@playwright/test";
 
 const EVIL = "http://127.0.0.1:19503";
@@ -18,8 +19,7 @@ async function calls(page: Page): Promise<Array<{ tool: string; n?: number }>> {
 }
 
 async function runApp(page: Page, tool: string): Promise<Frame> {
-  await page.goto("/");
-  await expect(page.locator("#box")).toBeEnabled();
+  await login(page);
   await page.fill("#box", `chạy ${tool}`);
   await page.click("#send");
   await expect(page.locator(".chip", { hasText: tool })).toContainText("xong");

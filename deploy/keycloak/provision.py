@@ -25,7 +25,7 @@ DEPLOY = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(DEPLOY / "scripts"))
 from envfile import ensure_env  # noqa: E402
 
-# Role nghiệp vụ lấy từ research/packs-draft/*/policies/iam.json (subjects "role:<tên>")
+# Role nghiệp vụ lấy từ packages/*/policies/iam.json (subjects "role:<tên>")
 ROLES = {
     "employee": "Nhân viên",
     "dept_head": "Trưởng phòng (duyệt cấp 1)",
@@ -349,6 +349,17 @@ def provision(kc: KC, env: dict[str, str]) -> None:
         "publicClient": True, "standardFlowEnabled": True, "directAccessGrantsEnabled": False, "serviceAccountsEnabled": False,
         "redirectUris": [f"{desk}/*"], "webOrigins": [desk], "attributes": pkce, "protocolMappers": [amr]})
     set_client_scope(kc, realm, human, mcp_sid, "default")   # token Desk mang aud MCP + scope mcp-xt
+    # Chat của Desk là AGENT hành động thay người dùng: client riêng, public + PKCE S256, mcp-xt là scope OPTIONAL
+    # (Desk chủ động xin scope=mcp-xt). Server liệt kê client này trong XT_MCP_LOCAL_CLIENTS (tier local, PII full).
+    agent_id = env.get("XT_DESK_AGENT_CLIENT_ID", "xt-desk-agent")
+    agent_redirects = [f"{desk}/auth/callback", *env_list(env, "XT_DESK_AGENT_DEV_REDIRECTS", "http://localhost:5173/auth/callback,http://127.0.0.1:5173/auth/callback")]
+    agent = upsert_client(kc, realm, {
+        "clientId": agent_id, "name": "xT Desk agent (chat thay mặt người dùng)",
+        "publicClient": True, "standardFlowEnabled": True, "directAccessGrantsEnabled": False, "serviceAccountsEnabled": False,
+        "implicitFlowEnabled": False, "redirectUris": agent_redirects,
+        "webOrigins": [desk, *[u.rsplit("/auth/callback", 1)[0] for u in agent_redirects[1:]]],
+        "attributes": pkce, "protocolMappers": [amr]})
+    set_client_scope(kc, realm, agent, mcp_sid, "optional")
     confirm = upsert_client(kc, realm, {
         "clientId": env.get("XT_CONFIRM_CLIENT_ID", "xt-desk-confirm"), "name": "xT Desk confirm (step-up OTP)",
         "publicClient": True, "standardFlowEnabled": True, "directAccessGrantsEnabled": False, "serviceAccountsEnabled": False,

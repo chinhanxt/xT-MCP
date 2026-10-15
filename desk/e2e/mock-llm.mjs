@@ -52,7 +52,7 @@ createServer((req, res) => {
     req.on("data", (d) => (b += d));
     req.on("end", () => {
       const body = JSON.parse(b);
-      requests.push(body);
+      requests.push({ ...body, __auth: req.headers.authorization || null });
       const last = body.messages.at(-1);
       if (last.role === "tool") {
         const parts = REPLY.match(/[^ ]+ ?/g);

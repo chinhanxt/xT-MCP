@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
 // Chạy với LLM thật (ollama). Không dùng trong CI: DESK_E2E_LOCAL_LLM=1, cần DESK_LLM_URL + DESK_LLM_MODEL.
+import { login } from "./helpers";
 import { expect, test } from "@playwright/test";
 import { resolve } from "node:path";
 
 const IMG = resolve(process.cwd(), "../docs/img");
 
 test("LLM local thật gọi show_org_chart và sơ đồ hiện inline", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.locator("#box")).toBeEnabled();
+  await login(page);
   const t0 = Date.now();
   await page.fill("#box", "Cho tôi xem sơ đồ tổ chức");
   await page.click("#send");

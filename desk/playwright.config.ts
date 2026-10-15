@@ -8,6 +8,7 @@ const DESK = 19502;
 const EVIL = 19503;
 const DESK_SEC = 19504;
 const COLLECT = 19505; // origin khác xT (kẻ tấn công)
+const OIDC = 19506; // Keycloak giả
 const local = process.env.DESK_E2E_LOCAL_LLM === "1";
 
 function need(n: string): string {
@@ -19,7 +20,9 @@ function need(n: string): string {
 const common = {
   DESK_MAX_STEPS: "4",
   DESK_HOST: "127.0.0.1",
-  DESK_AUTH_MODE: "dev-unauthenticated", // server e2e không đòi xác thực; Desk hiện biểu ngữ DEV
+  DESK_OIDC_ISSUER: `http://127.0.0.1:${OIDC}/realms/xt`, // Keycloak giả (e2e/mock-oidc.mjs)
+  DESK_OIDC_CLIENT_ID: "xt-desk-agent",
+  DESK_OIDC_SCOPE: "openid mcp-xt",
   DESK_APP_CALLS_PER_SEC: "5",
   DESK_APP_CALL_BURST: "10",
   DESK_APP_MAX_INFLIGHT: "4",
@@ -61,10 +64,11 @@ export default defineConfig({
   projects: local
     ? [{ name: "local-llm", testMatch: /local-llm\.spec\.ts/, use: { baseURL: `http://localhost:${DESK}` } }]
     : [
-        { name: "desk", testMatch: /desk\.spec\.ts/, use: { baseURL: `http://localhost:${DESK}` } },
+        { name: "desk", testMatch: /(desk|auth)\.spec\.ts/, use: { baseURL: `http://localhost:${DESK}` } },
         { name: "security", testMatch: /security\.spec\.ts/, use: { baseURL: `http://localhost:${DESK_SEC}` } },
       ],
   webServer: [
+    { command: "node e2e/mock-oidc.mjs", env: { E2E_OIDC_PORT: String(OIDC) }, port: OIDC, reuseExistingServer: false },
     { command: "node e2e/start-mcp.mjs", env: { E2E_MCP_PORT: String(MCP) }, port: MCP, timeout: 180_000, reuseExistingServer: false },
     ...(local
       ? []
