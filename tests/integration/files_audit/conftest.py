@@ -23,9 +23,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from tests.integration import seaweed
 from tests.integration.composition import pgfixture
-from tests.integration.composition.idp import AGENT_CLIENT, DESK_CLIENT, LocalIdp
-from tests.integration.composition.mcphttp import serve
-from tests.integration.composition.test_e2e import (
+from tests.integration.composition.fixtures import (
     DEPT_HEAD,
     DIRECTOR,
     ORG,
@@ -36,6 +34,8 @@ from tests.integration.composition.test_e2e import (
     run_admin,
     sub,
 )
+from tests.integration.composition.idp import AGENT_CLIENT, DESK_CLIENT, LocalIdp
+from tests.integration.composition.mcphttp import serve
 from xt.adapters.db.integration import connect, tenant_of_alias
 from xt.adapters.db.migrations import migrate
 from xt.entrypoints.files_http import with_files_api
