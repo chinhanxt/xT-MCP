@@ -82,6 +82,10 @@ class FakeBackend:
         self.calls.append(("bpmn", actor.tenant, (process_id, revision)))
         return BPMN if actor.tenant == "acme" and process_id == "advance_approval" else None
 
+    def instance_ref(self, actor: Actor, trace_id: str, instance_id: str) -> str | None:
+        view = self.instance(actor, trace_id, instance_id)
+        return view.ref if view else None
+
     def instance(self, actor: Actor, trace_id: str, instance_id: str) -> InstanceView | None:
         self.calls.append(("instance", actor.tenant, instance_id))
         if actor.tenant != "acme" or instance_id != INSTANCE:
@@ -546,7 +550,7 @@ async def test_token_with_foreign_audience_is_rejected() -> None:
         ws, JwksCache(Jwks([KEY]), 300, 10, FakeClock()), FakeClock(),
         clients=StaticClientAllowlist(ws.allowed_clients, ws.human_clients),
     )  # fmt: skip
-    auth = IdentityWorkflowAuth(ws, verifier, frozenset({RESOURCE}))
+    auth = IdentityWorkflowAuth(ws, verifier)
     assert auth.verify(token()).subject == "sub-viet"
     with pytest.raises(InvalidTokenError):
         auth.verify(token(aud=[RESOURCE, "xt-workflow"], scope="openid mcp-xt xt-workflow"))

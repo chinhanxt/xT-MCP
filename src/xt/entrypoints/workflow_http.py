@@ -21,8 +21,6 @@ Biến môi trường:
 
 from __future__ import annotations
 
-import base64
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import Any
@@ -104,20 +102,9 @@ def workflow_resource_settings(
         required_scopes=scopes,
         scopes_supported=tuple(sorted(scopes)),
         dynamic_connectors=False,
+        # Token mang thêm aud MCP (hoặc data) bị 401 ở workflow, và ngược lại (WA-08).
+        foreign_audiences=frozenset({rs.resource, "xt-data"}) - {audience},
     )
-
-
-def _audiences(token: str) -> list[str]:
-    """`aud` của JWT đã được `AccessTokenVerifier` kiểm chữ ký (chỉ đọc lại payload)."""
-    try:
-        payload = token.split(".")[1]
-        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
-    except (IndexError, ValueError):
-        raise InvalidTokenError("malformed") from None
-    aud = claims.get("aud") if isinstance(claims, dict) else None
-    if isinstance(aud, str):
-        return [aud]
-    return [a for a in aud if isinstance(a, str)] if isinstance(aud, list) else []
 
 
 def _quote(v: str) -> str:
@@ -131,18 +118,12 @@ class IdentityWorkflowAuth:
 
     settings: ResourceServerSettings
     verifier: AccessTokenVerifier
-    # Audience của bề mặt khác (resource MCP): token mang thêm aud này bị từ chối, để token lộ ở
-    # một bề mặt không bao giờ dùng được cả hai (WA-08), kể cả khi IdP lỡ phát token nhiều aud.
-    foreign_audiences: frozenset[str] = frozenset()
 
     def bearer(self, authorization: str | None) -> str | None:
         return extract_bearer(authorization)
 
     def verify(self, token: str) -> Principal:
-        principal = self.verifier.verify(token)  # chữ ký + iss/aud/exp/azp/scope đã kiểm
-        if self.foreign_audiences & set(_audiences(token)):
-            raise InvalidTokenError("audience", "token also issued for another resource")
-        return principal
+        return self.verifier.verify(token)  # aud lạ: settings.foreign_audiences (WA-08)
 
     def challenge(self, error: IdentityError | None) -> AuthChallenge:
         scope = " ".join(sorted(self.settings.required_scopes))
@@ -182,6 +163,17 @@ class CompositionWorkflowBackend:
             return None if d is None or not d.active else pc.compiled(d).bpmn
 
         out: str | None = rt.run_as(caller, actor, body)
+        return out
+
+    def instance_ref(self, actor: Actor, trace_id: str, instance_id: str) -> str | None:
+        rt = self.c.runtime
+        try:
+            caller = rt.resolve(actor, trace_id)
+        except CallerError:
+            return None
+        out: str | None = rt.run_as(
+            caller, actor, lambda: PgWorkflowStore(rt.uow).ref_for(instance_id)
+        )
         return out
 
     def instance(self, actor: Actor, trace_id: str, instance_id: str) -> InstanceView | None:
@@ -246,7 +238,7 @@ def workflow_mount(prepared: Any, env: Mapping[str, str]) -> Mount:
     revocation = build_revocation_guard(load_introspection_settings(env))
     return workflow_routes(
         prepared.dispatcher,
-        IdentityWorkflowAuth(ws, verifier, frozenset({rs.resource})),
+        IdentityWorkflowAuth(ws, verifier),
         CompositionWorkflowBackend(services),
         classify=ClientClassifier(prepared.cfg.local_clients),
         ensure_active=revocation.ensure_active,

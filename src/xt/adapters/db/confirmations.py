@@ -26,6 +26,7 @@ from psycopg.pq import TransactionStatus
 from psycopg.rows import DictRow
 from psycopg.types.json import Jsonb
 
+from xt.adapters.db.audit import lock_audit_chain
 from xt.adapters.db.connection import AuditKey, Database, set_tenant_context
 from xt.application.tools.context import Actor, ClientClass, PersonRef
 from xt.application.tools.ports import (
@@ -252,6 +253,8 @@ class PgOperationStore:
         k = self._check_key(key)
         cur = self.uow.current_cursor
         conn = cur.connection
+        # Trước savepoint/lock_timeout: chờ chuỗi audit không được tính là IN_PROGRESS (WA-11).
+        lock_audit_chain(cur, k[0])
         try:
             with conn.transaction():
                 old = cur.execute("SELECT current_setting('lock_timeout') AS v").fetchone()["v"]
@@ -337,6 +340,8 @@ class PgOperationStore:
 
     def _pending_row(self, confirmation_id: str, lock: bool) -> PendingOperation | None:
         with self.uow.tenant_tx(self.uow.actor) as cur:
+            if lock:
+                lock_audit_chain(cur, self.uow.actor.tenant.id)
             row = cur.execute(
                 "SELECT pending FROM xt_meta.tool_operation WHERE confirmation_id=%s"
                 + (" FOR UPDATE" if lock else ""),

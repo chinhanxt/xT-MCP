@@ -92,6 +92,8 @@ class AccessTokenVerifier:
             leeway_s=s.idp.leeway_s,
             max_lifetime_s=s.idp.max_token_lifetime_s,
         )
+        if s.foreign_audiences & set(str_list(claims, "aud")):
+            raise InvalidTokenError("audience", "token also issued for another resource")
         azp = string(claims, "azp", required=True)
         assert azp is not None
         kind = self._clients.classify(azp)  # trước kiểm scope: client lạ luôn 401

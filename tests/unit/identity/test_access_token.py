@@ -322,3 +322,28 @@ def test_jwk_alg_mismatch(clock: FakeClock, rsa_key: SigningKey) -> None:
     jwk = dict(rsa_key.jwk(), alg="PS256")
     v = AccessTokenVerifier(rs_settings(), JwksCache(FakeJwks(extra=[jwk]), 300, 10, clock), clock)
     reject(v, sign(rsa_key, access_claims()), "key_alg_mismatch")
+
+
+def test_mcp_rejects_tokens_also_issued_for_workflow_or_data() -> None:
+    """WA-08: token có thêm aud `xt-workflow`/`xt-data` không dùng được ở /mcp."""
+    from tests.unit.identity.factory import FakeClock, FakeJwks, access_claims, new_rsa, sign
+    from xt.adapters.identity.config import load_resource_server_settings
+    from xt.adapters.identity.jwks import JwksCache
+
+    env = {
+        "XT_IDP_ISSUER": ISSUER,
+        "XT_IDP_JWKS_URL": "https://kc.internal.test/certs",
+        "XT_MCP_RESOURCE": RESOURCE,
+        "XT_MCP_ALLOWED_CLIENTS": AGENT,
+        "XT_MCP_REQUIRED_SCOPES": "mcp-xt",
+        "XT_MCP_SCOPES_SUPPORTED": "openid mcp-xt",
+    }
+    rs = load_resource_server_settings(env)
+    assert rs.foreign_audiences == {"xt-workflow", "xt-data"}
+    key = new_rsa("wa08")
+    v = AccessTokenVerifier(rs, JwksCache(FakeJwks([key]), 300, 10, FakeClock()), FakeClock())
+    assert v.verify(sign(key, access_claims())).client_id == AGENT
+    for extra in ("xt-workflow", "xt-data"):
+        with pytest.raises(InvalidTokenError) as e:
+            v.verify(sign(key, access_claims(aud=[RESOURCE, extra])))
+        assert e.value.reason == "audience"

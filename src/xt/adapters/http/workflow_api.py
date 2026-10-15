@@ -178,6 +178,10 @@ class WorkflowBackend(Protocol):
 
     def instance(self, actor: Actor, trace_id: str, instance_id: str) -> InstanceView | None: ...
 
+    def instance_ref(self, actor: Actor, trace_id: str, instance_id: str) -> str | None:
+        """Chỉ ref đề nghị của instance (một truy vấn, không nạp engine)."""
+        ...
+
 
 def _cloud_unless_human(principal: Principal) -> ClientClass:
     return ClientClass.HUMAN if principal.kind is PrincipalKind.HUMAN else ClientClass.CLOUD
@@ -1111,17 +1115,29 @@ class WorkflowApi:
 
     async def withdraw_instance(self, request: Request, ctx: CallContext) -> Response:
         key = self._idempotency_key(request)
-        view = await self._view(request, ctx)
         body = await self._body(request, "withdraw_instance")
+        try:
+            iid = str(uuid.UUID(str(request.path_params["instance_id"])))
+        except ValueError:
+            raise _not_found() from None
+        ref = await anyio.to_thread.run_sync(
+            self.backend.instance_ref, ctx.actor, ctx.trace_id, iid
+        )
+        # WA-12: id ma/tenant khác vẫn đi qua đúng một lời gọi tool (ref không thể tồn tại) để
+        # chi phí gần như lời gọi bị từ chối trên instance thật; mọi từ chối đều ra cùng 404.
         args: dict[str, Any] = {
-            "ref": view.ref,
+            "ref": ref if ref is not None else f"process_instance:{iid}",
             "to_state": "withdrawn",
             "expected_revision": body["expected_revision"],
             "idempotency_key": key,
         }
         if "reason" in body:
             args["reason"] = body["reason"]
-        return outcome_response(await self._tool("transition_record", args, ctx))
+        out = await self._tool("transition_record", args, ctx)
+        code = out.envelope.get("error", {}).get("code") if out.is_error else None
+        if ref is None or code in (ErrorCode.NOT_FOUND.value, ErrorCode.ACCESS_DENIED.value):
+            raise _not_found()
+        return outcome_response(out)
 
     # ---- inbox + quyết định ----------------------------------------------------------------
 

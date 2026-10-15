@@ -219,3 +219,15 @@ def load_ed25519_public(data: bytes) -> Ed25519PublicKey:
 def connect(dsn: str) -> psycopg.Connection[Any]:
     """Kết nối autocommit cho công cụ neo/kiểm audit (role xt_app)."""
     return psycopg.connect(dsn, autocommit=True)
+
+
+def lock_audit_chain(cur: Any, tenant_id: UUID) -> None:
+    """Khóa đầu chuỗi audit của tenant (đúng khóa advisory mà `xt_audit.append` lấy ở lần ghi có
+    audit đầu tiên, giữ tới commit). Gọi TRƯỚC mọi khóa dòng dễ tranh chấp (instance workflow,
+    tool_operation) để mọi transaction có cùng thứ tự khóa: chuỗi audit -> dòng. Không có bước này,
+    một transaction đã ghi audit rồi chờ dòng X, trong khi transaction khác giữ X rồi chờ chuỗi
+    audit -> deadlock (WA-11: xác nhận quyết định song song với rút đề nghị)."""
+    cur.execute(
+        "SELECT pg_advisory_xact_lock(hashtextextended('xt_audit:' || %s::text, 0))",
+        (str(tenant_id),),
+    )

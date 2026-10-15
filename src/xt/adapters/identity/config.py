@@ -165,6 +165,8 @@ class ResourceServerSettings:
     scopes_supported: tuple[str, ...]
     human_clients: frozenset[str] = frozenset()
     dynamic_connectors: bool = False
+    # Audience của bề mặt khác: token mang thêm aud này bị 401 dù aud đúng (WA-08).
+    foreign_audiences: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,6 +254,14 @@ def load_resource_server_settings(env: Mapping[str, str] | None = None) -> Resou
         required <= set(supported),
         f"XT_MCP_SCOPES_SUPPORTED thiếu scope bắt buộc: {sorted(required - set(supported))}",
     )
+    # Token REST (`xt-workflow`) / PostgREST (`xt-data`) không bao giờ được nhận ở /mcp, kể cả khi
+    # IdP lỡ phát token nhiều aud (WA-08).
+    foreign = frozenset(
+        {
+            e.optional("XT_WORKFLOW_AUDIENCE") or "xt-workflow",
+            e.optional("XT_DATA_AUDIENCE") or "xt-data",
+        }
+    ) - {resource}
     banned = (set(supported) | required) & FORBIDDEN_ADVERTISED_SCOPES
     e.check(not banned, f"không được quảng bá/bắt buộc {sorted(banned)} (MCP spec)")
     return e.done(
@@ -263,6 +273,7 @@ def load_resource_server_settings(env: Mapping[str, str] | None = None) -> Resou
             scopes_supported=supported,
             human_clients=humans,
             dynamic_connectors=dynamic,
+            foreign_audiences=foreign,
         )
     )
 

@@ -184,12 +184,6 @@ def test_etag_edge_cases(wstack: Stack) -> None:
 
 
 # ------------------------------------------------------------ lỗi (xfail strict) ----
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="WA-11: xác nhận quyết định chạy song song với withdraw -> "
-    "DeadlockDetected (khóa record/workflow_instance ngược thứ tự) -> 500 internal_error",
-)
 def test_wa11_concurrent_confirm_and_withdraw_never_500(wstack: Stack) -> None:
     s = wstack
     seen: list[tuple[int, int]] = []
@@ -223,12 +217,6 @@ def test_wa11_concurrent_confirm_and_withdraw_never_500(wstack: Stack) -> None:
         assert sorted(pair) != [200, 200], seen  # không bao giờ cả hai cùng thành công
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="WA-12: withdraw của người cùng tenant không phải người đề "
-    "nghị ra 403, id ngẫu nhiên ra 404 -> oracle tồn tại (cùng lớp với WA-07)",
-)
 def test_wa12_withdraw_by_non_requester_looks_like_ghost(wstack: Stack) -> None:
     s = wstack
     d = start(s, REQUESTER, "r2-wa12-0001", 2_000_000)

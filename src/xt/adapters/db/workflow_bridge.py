@@ -19,6 +19,7 @@ from psycopg import AsyncConnection
 from psycopg.rows import dict_row
 from psycopg.types.json import Json
 
+from xt.adapters.db.audit import lock_audit_chain
 from xt.application.jobs import JobQueue, JobRequest
 from xt.application.process.ports import InstanceRecord
 from xt.domain.model.context import ModelActor
@@ -55,6 +56,7 @@ class PgWorkflowStore:
 
     def get_for_update(self, instance_id: str) -> InstanceRecord | None:
         with self.uow.tenant_tx(self.uow.actor) as cur:
+            lock_audit_chain(cur, self.uow.actor.tenant.id)  # thứ tự khóa: chuỗi audit -> dòng
             cur.execute(
                 "SELECT * FROM xt_meta.workflow_instance WHERE tenant_id=%s AND id=%s FOR UPDATE",
                 (self.uow.actor.tenant.id, instance_id),
