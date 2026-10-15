@@ -1,0 +1,20 @@
+tạo view: A 30 view schema api; B 1470 view trong 49 schema api_t<seq> (6.0s)
+PostgREST 16.4 | A schema cache: in 15.6 milliseconds | B schema cache: in 104.9 milliseconds
+
+### A: /model_00 trên schema api (bảng chung)
+  token T7     -> 200 ['A-T7-a', 'A-T7-b']
+  token T8     -> 200 ['A-T8-a', 'A-T8-b']
+  không token  -> 401 {'code': 'PGRST302', 'details': None, 'hint': None, 'message': 'Anonymous access is disabled'}
+
+### B: Accept-Profile api_t<seq>
+  T7 + api_t7                        -> 200 ['B1-T7-a', 'B1-T7-b']
+  T8 + api_t8                        -> 200 ['B1-T8-a', 'B1-T8-b']
+  T7 + api_t8 (đổi profile)          -> 403 ('42501', 'schema api_t8 không thuộc tenant trong token')
+  T7 không header (mặc định api_t1)  -> 403 ('42501', 'schema api_t1 không thuộc tenant trong token')
+  T7 + api_t50 (chưa có)             -> 406 ('PGRST106', 'Invalid schema: api_t50')
+
+### B: thêm tenant 50 lúc chạy
+  trước reload: 406
+  sau NOTIFY reload config+schema: 200 [{'truong_0': 'B1-T50-a'}] sau 2956 ms
+  log B: ['15/Oct/2026:04:02:42 +0000: Received a config reload message on the "pgrst" channel', '15/Oct/2026:04:02:42 +0000: Config reloaded', '15/Oct/2026:04:02:42 +0000: Received a schema cache reload message on the "pgrst" channel', '15/Oct/2026:04:02:42 +0000: Config reloaded']
+  độ dài db_schemas: 390 ký tự cho 50 tenant

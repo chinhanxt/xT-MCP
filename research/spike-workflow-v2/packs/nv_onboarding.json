@@ -1,0 +1,24 @@
+{
+  "id": "employee_onboarding",
+  "name": "Tiếp nhận nhân sự mới (HR, IT, Kế toán, Quản lý)",
+  "version": 2,
+  "roles": ["hr", "it_admin", "payment_accountant", "chief_accountant", "director"],
+  "inputs": {"case_id": {"type": "str"}, "employee_id": {"type": "str"}, "employee_user": {"type": "user"}},
+  "fallback_assignee": "role(director)",
+  "steps": [
+    {"id": "init", "type": "service", "name": "Sinh checklist liên phòng ban", "op": "create_lifecycle_tasks",
+     "params": {"case_id": "case_id", "kind": "'onboarding'"}},
+    {"id": "hr", "type": "task", "name": "Nhân sự: hồ sơ, HĐLĐ, BHXH", "assignee": "role(hr)",
+     "sla": {"after": "PT24H", "escalate_to": "department_head('NS')"}},
+    {"id": "parallel_setup", "type": "parallel", "name": "IT, Kế toán, Quản lý làm song song", "branches": [
+      [{"id": "it", "type": "task", "name": "IT: email, tài khoản, thiết bị", "assignee": "role(it_admin)",
+        "outcomes": ["done", "request_info"], "sla": {"after": "PT24H", "escalate_to": "department_head('IT')"}}],
+      [{"id": "accounting", "type": "task", "name": "Kế toán: mã lương, tài khoản nhận lương", "assignee": "role(payment_accountant)",
+        "sla": {"after": "PT24H", "escalate_to": "role(chief_accountant)"}}],
+      [{"id": "manager", "type": "task", "name": "Quản lý: buddy và kế hoạch 30-60-90", "assignee": "employee_user.manager",
+        "sla": {"after": "PT48H", "escalate_to": "department_head(department(employee_user))"}}]
+    ]},
+    {"id": "activate", "type": "service", "name": "Kích hoạt nhân viên", "op": "activate_employee",
+     "params": {"employee_id": "employee_id"}}
+  ]
+}

@@ -1,0 +1,27 @@
+### Áp dụng catalog
+A : catalog chung v1 (tenant_seq=0) -> xt_data.khach_hang, xt_data.de_xuat_tam_ung
+B1: xt_data.t1__*, xt_data.t2__* | B2: xt_t1.*, xt_t2.* (catalog riêng mỗi tenant; B2 dùng tenant_seq 101/102 cho catalog)
+tenant 2 B1 cột khach_hang: ['ma_kh', 'ten', 'hang', 'ghi_chu', 'nganh_nghe']
+tenant 1 B1 cột khach_hang: ['ma_kh', 'ten', 'email', 'hang', 'ghi_chu']
+
+### B1 KHÔNG có tiền tố index -> va chạm tên index trong cùng schema
+  -> DuplicateTable relation "pk_m1" already exists
+  tên index dài nhất (id 24+24 ký tự, seq 7 chữ số): 62 byte <= 63
+
+### Dữ liệu qua Engine (CRUD tổng quát chạy dưới layout của tenant)
+  A: tạo KH0001 ok; trùng lần 2 -> DUPLICATE: 'Mã khách hàng' đã tồn tại, phải là duy nhất
+  B1: tạo KH0001 ok; trùng lần 2 -> DUPLICATE: 'Mã khách hàng' đã tồn tại, phải là duy nhất
+  B1: tenant 2 tạo du_an trỏ khach_hang của tenant 1 -> BAD_REFERENCE
+  B2: tạo KH0001 ok; trùng lần 2 -> DUPLICATE: 'Mã khách hàng' đã tồn tại, phải là duy nhất
+  B2: tenant 2 tạo du_an trỏ khach_hang của tenant 1 -> BAD_REFERENCE
+  A : tenant 1 tạo đề xuất trỏ khach_hang của tenant 2 (cùng bảng) -> BAD_REFERENCE
+
+### Tấn công/nhầm lẫn ở tầng SQL (xt_app, pool 1 kết nối)
+  BẪY psycopg: sau 'with transaction()' lồng trong transaction ngầm, xt.tenant_id còn = '00000000-0000...' | status: INTRANS
+  A : quên đặt tenant -> 0 dòng | ngữ cảnh T1 đọc bảng của T2 (lỗi routing; A: cùng bảng) -> 1 | T1 đọc bảng mình -> 1
+      chèn tenant_id=T2 vào bảng T1 khi ngữ cảnh T1 -> InsufficientPrivilege
+  B1: quên đặt tenant -> 0 dòng | ngữ cảnh T1 đọc bảng của T2 (lỗi routing; A: cùng bảng) -> 0 | T1 đọc bảng mình -> 1
+      chèn tenant_id=T2 vào bảng T1 khi ngữ cảnh T1 -> InsufficientPrivilege
+  B2: quên đặt tenant -> 0 dòng | ngữ cảnh T1 đọc bảng của T2 (lỗi routing; A: cùng bảng) -> 0 | T1 đọc bảng mình -> 1
+      chèn tenant_id=T2 vào bảng T1 khi ngữ cảnh T1 -> InsufficientPrivilege
+  B1 KHÔNG RLS: ngữ cảnh T1 đọc nhầm bảng T2 -> (1, 'Khách của tenant 2') <- rò dữ liệu

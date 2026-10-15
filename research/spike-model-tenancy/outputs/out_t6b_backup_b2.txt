@@ -1,0 +1,2 @@
+cấp phát B2 tenant 3 (30 model): 0.74s
+B2 pg_dump -n xt_t3 -n api_s3: 1.06s, 1.8 MB | DROP SCHEMA … CASCADE (xóa tenant): 326 ms | restore 2.30s | dữ liệu (30000, 'd4de3bc4af7b') -> (30000, 'd4de3bc4af7b') KHỚP | view api=30, policy=90

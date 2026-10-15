@@ -142,3 +142,26 @@ E1 không có tham số gate · E2 `details.confirmation_id` · E3 `/desk/confir
 - Đội thi.
 - Tên miền tunnel (B2).
 - Câu hỏi số tool **đã đóng**: CLAUDE.md đã ghi 17/21.
+
+---
+
+# Vòng 4: bố trí đa tenant (đóng B4, G-M1, G-M2), v2.2
+
+Nguồn: `research/spike-model-tenancy.md` (SMT), chạy thật trên PG 17 + PostgREST 16.4, so sánh 3 biến thể.
+
+| Quyết định | Phán quyết | Bằng chứng | Sửa trong v2.2 |
+|---|---|---|---|
+| D6: chọn **B2**, mỗi tenant một schema `xt_t<seq>.<model>` + `api_t<seq>`, vẫn giữ `tenant_id` + RLS FORCE | **ACCEPT** (thay `t<seq>__<model>` của v2.0/2.1) | SMT §0–§1: chỉ biến thể B cho tenant có model riêng; B1 va chạm index `pk_m1`. §6: B1 restore mất view, B2 tự chứa. §1: bỏ RLS thì lỗi route sai bảng là rò dữ liệu | D6, §6.1, §6.3 |
+| D5: bỏ schema-per-tenant khỏi danh sách bị loại | **ACCEPT** | SMT §0 | D5 |
+| §3.3(c): view `security_invoker=false` thuộc `xt_api_owner`; `xt_web` không là thành viên `xt_app` | **ACCEPT**, tự sửa lỗi của v2 (v2 ghi `security_invoker=true`) | SMT §5.2: `xt_web` leo được `SET ROLE xt_workflow` qua membership `xt_app`; sau khi sửa thì bị `permission denied` | §3.3(c), §5.3 |
+| PostgREST: `Accept-Profile` + `db-schemas` động + pre-request ràng tenant | **ACCEPT**, bỏ phương án dự phòng `/data/v1` | SMT §5: token T7 + `api_t8` → 403; thêm tenant chạy được sau khoảng 3 s | §3.3(c) |
+| §6.3: trần khoảng 200 tenant × 30 model mỗi DB, pool `max_lifetime`, một transaction/tenant, rollout theo tenant + lệch phiên bản | **ACCEPT-MODIFIED**: con số 200 ghi là [suy luận], đo lại khi có tải thật | SMT §2, §3: 18.749 `pg_class`, relcache 115 MB, `out of shared memory` | §6.3 |
+| G-M1: `managed_by: workflow` + quyền cột + `xt_workflow` | **ACCEPT** | SMT §8: SQL thô của `xt_app` sửa `trang_thai` → permission denied | §6.1, §5.3 |
+| G-M2: nhãn `none/basic/sensitive` + HMAC có khóa trong audit | **ACCEPT**. Ánh xạ sang TCV1: `basic` ⇔ `pii:true`; `sensitive` ⇔ `pii:true, sensitive:true` | SMT §9 | §5.6, §6.1 |
+| Bẫy psycopg: savepoint giữ `set_config` | **ACCEPT** | SMT §1 | §6.3 |
+
+**Còn mở:**
+- HMAC cho cả field `basic` trong audit: quyết định ở v0.3.
+- "Không được hạ dưới mức nhãn của gói chuẩn": hiện mới là RISKY, chưa chặn cứng.
+- Con số trần tenant mỗi DB: đo lại khi có tải thật.
+- B6 còn G-P3 và G-P8, chờ báo cáo workflow-v2.

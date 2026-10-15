@@ -1,0 +1,5 @@
+[hand] S7 thong luong 10000 job noop, 2 worker (conc=1 va conc=8)
+[hand] enqueue 10000 job (1 job/transaction): 6.7s = 1495 job/s
+[hand] conc=1: job dau xong sau 0.2s (gom khoi dong); xong het sau 30.2s; toc do on dinh ~334 job/s
+[hand] enqueue 10000 job (1 job/transaction): 6.3s = 1590 job/s
+[hand] conc=8: job dau xong sau 0.1s (gom khoi dong); xong het sau 9.1s; toc do on dinh ~1110 job/s

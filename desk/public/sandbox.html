@@ -1,0 +1,90 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- SPDX-FileCopyrightText: 2026 xT contributors -->
+<!-- Sandbox proxy cho MCP Apps, mô hình 2 lớp iframe của ext-apps (sandbox-proxy-ready / sandbox-resource-ready).
+     Gói npm @modelcontextprotocol/ext-apps 2.0.3 không phát hành proxy này nên đây là bản viết theo spec, không chép sandbox.ts.
+     PHẢI phục vụ từ origin KHÁC origin của Desk. Chỉ nhận tin từ origin Desk (document.referrer).
+     CSP: proxy chèn thẻ meta CSP vào CHÍNH tài liệu này TRƯỚC khi tạo iframe trong; iframe srcdoc kế thừa policy của tài liệu cha,
+     nên CSP có hiệu lực trước mọi script của App, không phụ thuộc vào việc phân tích HTML không tin cậy.
+     frame-src 'none' của tài liệu cha cũng chặn điều hướng iframe trong ra ngoài; thêm form-action 'none' và bộ đếm 'load' làm lớp dự phòng. -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>xT Desk sandbox</title>
+    <style>html,body{margin:0;height:100%;background:transparent}iframe{border:0;width:100%;height:100%;background:transparent}</style>
+  </head>
+  <body>
+    <script>
+      (function () {
+        var hostOrigin;
+        try { hostOrigin = new URL(document.referrer).origin; } catch (e) { hostOrigin = null; }
+        if (!hostOrigin || hostOrigin === location.origin || window.parent === window) {
+          document.body.textContent = "Sandbox phải được nhúng từ Desk ở origin khác.";
+          return;
+        }
+        var READY = "ui/notifications/sandbox-proxy-ready";
+        var RESOURCE = "ui/notifications/sandbox-resource-ready";
+        var ORIGIN_RE = /^https?:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?$/;
+        var inner = null;   // iframe trong, chỉ tạo đúng 1 lần
+        var innerWin = null;
+        var loads = 0;
+        var dead = false;
+
+        function origins(list) {
+          return (Array.isArray(list) ? list : []).filter(function (s) { return typeof s === "string" && ORIGIN_RE.test(s); }).join(" ");
+        }
+        function buildCsp(c) {
+          c = c || {};
+          var res = origins(c.resourceDomains);
+          return [
+            "default-src 'none'",
+            "script-src 'unsafe-inline' 'unsafe-eval' blob: data: " + res,
+            "style-src 'unsafe-inline' " + res,
+            "img-src data: blob: " + res,
+            "font-src data: " + res,
+            "media-src data: blob: " + res,
+            "connect-src " + (origins(c.connectDomains) || "'none'"),
+            "frame-src 'none'",
+            "form-action 'none'",
+            "base-uri 'none'"
+          ].join("; ");
+        }
+        function kill() {
+          dead = true;
+          if (inner && inner.parentNode) inner.parentNode.removeChild(inner);
+          inner = null; innerWin = null;
+        }
+
+        window.addEventListener("message", function (ev) {
+          if (dead) return;
+          if (ev.source === window.parent) {
+            if (ev.origin !== hostOrigin) return;
+            var m = ev.data;
+            if (m && m.method === RESOURCE) {
+              if (inner) return; // chỉ nhận resource một lần
+              var p = m.params || {};
+              var meta = document.createElement("meta");
+              meta.httpEquiv = "Content-Security-Policy";
+              meta.content = buildCsp(p.csp);
+              document.head.appendChild(meta); // có hiệu lực cho mọi nội dung nạp sau đó, kể cả iframe srcdoc
+              inner = document.createElement("iframe");
+              inner.setAttribute("sandbox", "allow-scripts"); // không allow-forms, không allow-same-origin
+              inner.addEventListener("load", function () {
+                loads++;
+                if (loads > 1) kill(); // bị điều hướng/nạp lại: bỏ, ngừng chuyển tiếp
+              });
+              inner.srcdoc = String(p.html || "");
+              document.body.appendChild(inner);
+              innerWin = inner.contentWindow;
+            } else if (inner && innerWin) {
+              innerWin.postMessage(m, "*");
+            }
+          } else if (innerWin && ev.source === innerWin && inner && inner.contentWindow === innerWin && loads <= 1) {
+            window.parent.postMessage(ev.data, hostOrigin);
+          }
+        });
+        window.parent.postMessage({ jsonrpc: "2.0", method: READY, params: {} }, hostOrigin);
+      })();
+    </script>
+  </body>
+</html>

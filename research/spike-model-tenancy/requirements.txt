@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 xT contributors
+psycopg[binary]==3.3.6
+psycopg-pool==3.3.3
+pydantic==2.14.1
+duckdb==1.5.6

@@ -1,0 +1,12 @@
+tenant 7: A bảng chung 100077 dòng (tenant 7: 2000) | B1 bảng riêng 2000 dòng
+truy vấn                        A+RLS  A noRLS   B1+RLS  B1 noRLS  (ms, median 30 lần)
+trang 20 dòng mới nhất           0.70     0.99     0.85     1.83
+đếm so_tien >= 50tr              1.30     0.39     1.42     0.22
+staff own: đếm + trang           1.04     0.64     1.22     0.88
+tổng tiền theo trạng thái        1.92     0.78     3.11     0.99
+EXPLAIN A+RLS 'đếm so_tien >= 50tr':
+    Aggregate (actual rows=1 loops=1)
+      ->  Index Scan using ix_m2_i2 on de_xuat_tam_ung (actual rows=901 loops=1)
+            Index Cond: ((tenant_id = (NULLIF(current_setting('xt.tenant_id'::text, true), ''::text))::uuid) AND (so_tien >= 50000000))
+    Planning Time: 0.271 ms
+    Execution Time: 0.669 ms

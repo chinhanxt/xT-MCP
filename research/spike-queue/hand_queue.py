@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 xT contributors
 """Hang doi Postgres SKIP LOCKED tu viet (~100 dong). Hoc PATTERN tu sklite (khong chep ma)."""
-import asyncio, json, random, uuid
+import asyncio, json, random, time, uuid
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 import psycopg
@@ -96,10 +96,10 @@ class Worker:
                     async with s.lock: return await cc.execute(*a)
                 async def finish(s, w, j, err):
                     async with s.lock: await w.finish(cc, j, err)
-            pool = P()
+            pool = P(); last_tick = 0.0
             while not stop.is_set():
                 async with pool.lock:
-                    await self.tick_schedules(cc)
+                    if time.monotonic() - last_tick >= 1.0: await self.tick_schedules(cc); last_tick = time.monotonic()
                     free = self.conc - len(inflight)
                     jobs = await self.claim(cc, free) if free > 0 else []
                 for j in jobs:

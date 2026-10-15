@@ -1,0 +1,13 @@
+trống (bootstrap)        pg_class=   440 bảng_xt=    5 index=   176 pg_attribute=   3283 constraint=   120 policy=    1 trigger=    2 | catalog 8632 kB, DB 7934 kB | pg_dump -s 0.2s (0.0 MB)
+A: 30 model              pg_class=   799 bảng_xt=   35 index=   475 pg_attribute=   5531 constraint=   450 policy=   91 trigger=   62 | catalog 10 MB, DB 12 MB | pg_dump -s 0.3s (0.5 MB)
++B1: 50x30 model         pg_class= 18749 bảng_xt= 1535 index= 15425 pg_attribute= 117931 constraint= 16950 policy= 4591 trigger= 3062 | catalog 114 MB, DB 230 MB | pg_dump -s 2.8s (25.6 MB)
+Thời gian cấp phát: A 1.2s | B1 37.6s (0.75s/tenant)
+Traceback (most recent call last):
+  File [35m"/tmp/xt-spike-model2/tests/t3_bloat.py"[0m, line [35m43[0m, in [35m<module>[0m
+    k0 = cache_kb(c)
+  File [35m"/tmp/xt-spike-model2/tests/t3_bloat.py"[0m, line [35m38[0m, in [35mcache_kb[0m
+    return [31mc.execute[0m[1;31m("SELECT sum(total_bytes)/1024 FROM pg_backend_memory_contexts WHERE name IN ('CacheMemoryContext') OR parent = 'CacheMemoryContext'")[0m.fetchone()[0]
+           [31m~~~~~~~~~[0m[1;31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+  File [35m"/tmp/xt-spike-model2/.venv/lib/python3.13/site-packages/psycopg/connection.py"[0m, line [35m304[0m, in [35mexecute[0m
+    raise ex.with_traceback(None)
+[1;35mpsycopg.errors.InsufficientPrivilege[0m: [35mpermission denied for view pg_backend_memory_contexts[0m

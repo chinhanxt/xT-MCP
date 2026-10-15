@@ -1,0 +1,88 @@
+{
+  "id": "task_urgent",
+  "name": "Giao việc có SLA (lớp khẩn)",
+  "version": 2,
+  "roles": [
+    "director"
+  ],
+  "inputs": {
+    "task_id": {
+      "type": "str"
+    },
+    "assignee_user": {
+      "type": "user",
+      "description": "Người thực hiện"
+    },
+    "assigner_user": {
+      "type": "user",
+      "description": "Người giao (nghiệm thu)"
+    }
+  },
+  "fallback_assignee": {
+    "kind": "department_head",
+    "department_of": "assigner_user",
+    "fallback": [
+      "role(director)"
+    ]
+  },
+  "steps": [
+    {
+      "id": "accept",
+      "type": "task",
+      "name": "Xác nhận nhận việc",
+      "assignee": "user(assignee_user)",
+      "outcomes": [
+        "done",
+        "request_info"
+      ],
+      "sla": {
+        "after": "PT1H",
+        "escalate_to": "user(assigner_user)"
+      }
+    },
+    {
+      "id": "work",
+      "type": "task",
+      "name": "Hoàn thành và nộp kết quả",
+      "assignee": "user(assignee_user)",
+      "sla": {
+        "after": "PT8H",
+        "escalate_to": "department_head(department(assignee_user))"
+      }
+    },
+    {
+      "id": "acceptance",
+      "type": "approve",
+      "name": "Nghiệm thu kết quả",
+      "assignee": "user(assigner_user)",
+      "outcomes": [
+        "approve",
+        "reject",
+        "return_for_revision"
+      ],
+      "on_return": {
+        "to_step": "work",
+        "max_rounds": 3
+      },
+      "sod": {
+        "not_requester": false,
+        "distinct_from": [
+          "work"
+        ]
+      },
+      "sla": {
+        "after": "PT4H",
+        "escalate_to": "department_head(department(assigner_user))"
+      }
+    },
+    {
+      "id": "close",
+      "type": "service",
+      "name": "Đóng công việc",
+      "op": "close_task",
+      "params": {
+        "task_id": "task_id"
+      }
+    }
+  ]
+}

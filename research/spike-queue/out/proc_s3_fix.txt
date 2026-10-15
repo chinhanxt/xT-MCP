@@ -1,0 +1,4 @@
+[proc] S3 kill -9 worker giua job (lease/heartbeat 6s)
+[proc] da kill -9 pid 320360 -- state ngay sau kill: ('doing', 0, 'started ')
+[proc] hoi phuc sau 10.4 s tu luc kill (gom ~1.5s khoi dong worker moi); attempt_log (pid, s sau kill): [(320360, Decimal('-0.1')), (320380, Decimal('6.3'))]
+[proc] effects: [('s3-crash', 1, 320380)]

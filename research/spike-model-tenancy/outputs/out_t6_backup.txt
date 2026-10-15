@@ -1,0 +1,11 @@
+nạp 10 tenant x 30 model x 1000 dòng cho A và B1: 33.2s
+
+### B1: pg_dump -Fc -t 'xt_data.t7__*'
+  dump 1.33s, 2.0 MB | xóa+restore 3.66s | dữ liệu trước (30002, '0140f5794329') sau (30002, '0140f5794329') -> KHỚP
+  sau restore: policy=90, trigger=60, quyền cột xt_app (UPDATE truong_1, UPDATE cả bảng)=(True, False) | tenant khác không bị khóa (chỉ DROP bảng của t7)
+
+### A: COPY (SELECT … WHERE tenant_id = T7) cho từng model, khôi phục = DELETE + COPY
+  export 0.16s, 7.2 MB | DELETE+COPY 1.61s | trước (30002, '31d506f822ef') sau (30002, '31d506f822ef') -> KHỚP
+  lưu ý: cần superuser (session_replication_role) hoặc chịu trigger audit; DELETE để lại dead tuple trong bảng chung (cần VACUUM);
+  schema/policy/quyền KHÔNG nằm trong bản sao lưu tenant (là của chung), khôi phục về một phiên bản spec cũ không làm được riêng 1 tenant
+  dead tuple model_05 sau khôi phục A: 2000

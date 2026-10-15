@@ -1,0 +1,146 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
+import { describe, expect, it } from "vitest";
+import { runAgent } from "../src/agent";
+import { ToolCallAccumulator } from "../src/llm";
+import type { AgentEvent, ChatMessage, LlmClient, LlmReply, McpCaller, McpTool, ToolResult } from "../src/types";
+
+const tool = (name: string): McpTool => ({ name, description: name, inputSchema: { type: "object", properties: {} } });
+const call = (id: string, name: string, args: unknown): LlmReply["tool_calls"][number] => ({
+  id,
+  type: "function",
+  function: { name, arguments: typeof args === "string" ? args : JSON.stringify(args) },
+});
+
+function mockLlm(replies: LlmReply[]): LlmClient & { seen: ChatMessage[][]; seenTools: string[][] } {
+  const seen: ChatMessage[][] = [];
+  const seenTools: string[][] = [];
+  let i = 0;
+  return {
+    seen,
+    seenTools,
+    async complete({ messages, tools }, onDelta) {
+      seen.push(messages.map((m) => ({ ...m })));
+      seenTools.push(tools.map((t) => t.function.name));
+      const r = replies[Math.min(i++, replies.length - 1)];
+      if (r.content) onDelta(r.content);
+      return r;
+    },
+  };
+}
+
+function mockMcp(handler: (name: string, args: Record<string, unknown>) => ToolResult | Promise<ToolResult>) {
+  const calls: Array<{ name: string; arguments: Record<string, unknown> }> = [];
+  const mcp: McpCaller = {
+    async callTool(p) {
+      calls.push(p);
+      return handler(p.name, p.arguments);
+    },
+  };
+  return { mcp, calls };
+}
+
+const base = (): ChatMessage[] => [{ role: "system", content: "s" }, { role: "user", content: "hỏi" }];
+
+describe("runAgent", () => {
+  it("không có tool call: trả lời và dừng", async () => {
+    const llm = mockLlm([{ content: "xin chào", tool_calls: [] }]);
+    const { mcp, calls } = mockMcp(() => ({}));
+    const events: AgentEvent[] = [];
+    const history = base();
+    const r = await runAgent({ llm, mcp, tools: [], history, maxSteps: 3, onEvent: (e) => events.push(e) });
+    expect(r).toEqual({ steps: 1, stopped: "done" });
+    expect(calls).toHaveLength(0);
+    expect(history.at(-1)).toEqual({ role: "assistant", content: "xin chào" });
+    expect(events.map((e) => e.type)).toEqual(["assistant_delta", "assistant_message"]);
+  });
+
+  it("gọi tool, đưa kết quả (structuredContent) lại cho model, rồi trả lời", async () => {
+    const llm = mockLlm([
+      { content: "", tool_calls: [call("c1", "find_people", { query: "Minh" })] },
+      { content: "Minh là CTO", tool_calls: [] },
+    ]);
+    const { mcp, calls } = mockMcp(() => ({ structuredContent: { ok: true, data: { name: "Minh" } }, content: [{ type: "text", text: "x" }] }));
+    const events: AgentEvent[] = [];
+    const history = base();
+    const r = await runAgent({ llm, mcp, tools: [tool("find_people")], history, maxSteps: 4, onEvent: (e) => events.push(e) });
+    expect(r.stopped).toBe("done");
+    expect(r.steps).toBe(2);
+    expect(calls).toEqual([{ name: "find_people", arguments: { query: "Minh" } }]);
+    const toolMsg = llm.seen[1].at(-1)!;
+    expect(toolMsg).toEqual({ role: "tool", tool_call_id: "c1", content: JSON.stringify({ ok: true, data: { name: "Minh" } }) });
+    expect(events.map((e) => e.type)).toEqual(["tool_start", "tool_end", "assistant_delta", "assistant_message"]);
+  });
+
+  it("max-steps guard: model gọi tool mãi thì dừng đúng giới hạn", async () => {
+    const llm = mockLlm([{ content: "", tool_calls: [call("c", "find_people", {})] }]);
+    const { mcp, calls } = mockMcp(() => ({ content: [{ type: "text", text: "ok" }] }));
+    const events: AgentEvent[] = [];
+    const r = await runAgent({ llm, mcp, tools: [tool("find_people")], history: base(), maxSteps: 3, onEvent: (e) => events.push(e) });
+    expect(r).toEqual({ steps: 3, stopped: "max_steps" });
+    expect(calls).toHaveLength(3);
+    expect(events.at(-1)).toEqual({ type: "max_steps", steps: 3 });
+  });
+
+  it("tool ngoài hồ sơ bị từ chối, không gọi MCP, lỗi được đưa lại cho model", async () => {
+    const llm = mockLlm([
+      { content: "", tool_calls: [call("c1", "delete_record", {})] },
+      { content: "không làm được", tool_calls: [] },
+    ]);
+    const { mcp, calls } = mockMcp(() => ({}));
+    const events: AgentEvent[] = [];
+    await runAgent({ llm, mcp, tools: [tool("find_people")], history: base(), maxSteps: 3, onEvent: (e) => events.push(e) });
+    expect(calls).toHaveLength(0);
+    const end = events.find((e) => e.type === "tool_end") as Extract<AgentEvent, { type: "tool_end" }>;
+    expect(end.result.isError).toBe(true);
+    expect(llm.seen[1].at(-1)!.content).toContain("không có trong hồ sơ");
+  });
+
+  it("JSON tham số hỏng và MCP ném lỗi đều thành tool error, vòng lặp không vỡ", async () => {
+    const llm = mockLlm([
+      { content: "", tool_calls: [call("c1", "find_people", "{bad"), call("c2", "find_people", {})] },
+      { content: "xong", tool_calls: [] },
+    ]);
+    const { mcp, calls } = mockMcp(() => {
+      throw new Error("mạng đứt");
+    });
+    const events: AgentEvent[] = [];
+    const r = await runAgent({ llm, mcp, tools: [tool("find_people")], history: base(), maxSteps: 3, onEvent: (e) => events.push(e) });
+    expect(r.stopped).toBe("done");
+    expect(calls).toHaveLength(1); // call c1 không gọi MCP
+    const ends = events.filter((e) => e.type === "tool_end") as Array<Extract<AgentEvent, { type: "tool_end" }>>;
+    expect(ends.map((e) => e.result.isError)).toEqual([true, true]);
+    expect(ends[1].result.content![0].text).toContain("mạng đứt");
+    expect(events.filter((e) => e.type === "tool_start")).toHaveLength(2);
+  });
+
+  it("chỉ gửi cho LLM các tool đã lọc", async () => {
+    const llm = mockLlm([{ content: "ok", tool_calls: [] }]);
+    await runAgent({ llm, mcp: mockMcp(() => ({})).mcp, tools: [tool("a"), tool("b")], history: base(), maxSteps: 1 });
+    expect(llm.seenTools[0]).toEqual(["a", "b"]);
+  });
+
+  it("abort trước bước đầu", async () => {
+    const ac = new AbortController();
+    ac.abort();
+    const llm = mockLlm([{ content: "x", tool_calls: [] }]);
+    const r = await runAgent({ llm, mcp: mockMcp(() => ({})).mcp, tools: [], history: base(), maxSteps: 2, signal: ac.signal });
+    expect(r.stopped).toBe("aborted");
+    expect(llm.seen).toHaveLength(0);
+  });
+});
+
+describe("ToolCallAccumulator", () => {
+  it("chuẩn OpenAI: mảnh đầu id+name, mảnh sau chỉ arguments", () => {
+    const a = new ToolCallAccumulator();
+    a.add({ index: 0, id: "c1", function: { name: "find_people", arguments: '{"q"' } });
+    a.add({ index: 0, function: { arguments: ':"x"}' } });
+    expect(a.result()).toEqual([{ id: "c1", type: "function", function: { name: "find_people", arguments: '{"q":"x"}' } }]);
+  });
+  it("kiểu ollama: nhiều call đầy đủ, id riêng, index lặp lại", () => {
+    const a = new ToolCallAccumulator();
+    a.add({ index: 0, id: "c1", function: { name: "a", arguments: "{}" } });
+    a.add({ index: 0, id: "c2", function: { name: "b", arguments: "{}" } });
+    expect(a.result().map((c) => c.function.name)).toEqual(["a", "b"]);
+  });
+});

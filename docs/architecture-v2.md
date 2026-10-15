@@ -1,11 +1,36 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # xT — Kiến trúc v2
 
-- Phiên bản tài liệu: `arch-v2.0` · Ngày: 15/10/2026 · Vai trò viết: ARCHITECT.
+- Phiên bản tài liệu: `arch-v2.2` (xem changelog v2.2, v2.1 bên dưới) · Ngày: 15/10/2026 · Vai trò viết: ARCHITECT.
 - Tài liệu này **thay thế** `architecture-v1.md`.
 - Debate với critic được ghi ở `architecture-debate.md` (30 mục, mỗi mục có phán quyết).
 - Mỗi quyết định ghi theo khuôn: **Quyết định → Lý do → Bằng chứng → Phương án bị loại**.
 - Chưa chạy thật thì ghi **[chưa kiểm chứng]**.
+
+## v2.2 changelog (15/10/2026, sau `research/spike-model-tenancy.md`, ký hiệu SMT, chạy thật trên PG 17 + PostgREST 16.4)
+
+B4 đã đóng. G-M1 và G-M2 của B6 đã đóng. Đã sửa đúng các mục mà SMT §0 yêu cầu:
+
+1. **D6:** bố trí vật lý theo **schema riêng cho từng tenant**, bảng `xt_t<seq>.<model>`, view ở `api_t<seq>`. Vẫn giữ `tenant_id` + RLS FORCE để phòng thủ nhiều lớp. Bỏ phương án `xt_data.t<seq>__<model>` (B1), vì SMT §1 cho thấy va chạm tên index và §6 cho thấy restore làm mất view.
+2. **D5:** schema-per-tenant không còn nằm trong danh sách bị loại. Chỉ còn loại DB-per-tenant.
+3. **§3.3(c):**
+   - PostgREST dùng `Accept-Profile` + `db-schemas` động (in-DB config + `NOTIFY`, khoảng 3 s) + pre-request ràng profile với tenant trong token. Đã chạy thật (SMT §5). Phương án dự phòng `/data/v1` không còn cần.
+   - View **`security_invoker=false`**, chủ là `xt_api_owner`.
+   - `xt_web` **không** được là thành viên `xt_app`, vì đó là đường leo lên `SET ROLE xt_workflow` (SMT §5.2).
+4. **§6.3:**
+   - Trần tenant mỗi DB, khoảng 200 tenant × 30 model ≈ 6k bảng [suy luận từ số đo].
+   - Pool có `max_lifetime`, vì relcache khoảng 2,3 MB cho mỗi tenant mà kết nối đã chạm.
+   - Mỗi job xuyên tenant chạy một transaction/tenant, tránh `out of shared memory`.
+   - Rollout migration theo từng tenant, có quản lý lệch phiên bản: 48/50 tenant thành công, 2 tenant lỗi bị cô lập.
+   - Sao lưu và xóa theo tenant bằng `pg_dump -n` / `DROP SCHEMA`.
+5. **G-M1** (§6.1):
+   - `managed_by: workflow`.
+   - Quyền cột: `xt_app` chỉ được INSERT/UPDATE các cột tự do.
+   - Đường transition dùng `SET LOCAL ROLE xt_workflow`.
+6. **G-M2** (§5.6):
+   - Nhãn PII bắt buộc có trong catalog, kèm gợi ý theo NĐ 356/2025.
+   - Audit lưu **HMAC có khóa** cho field sensitive (khóa ở OpenBao hoặc Compose secret, có quy trình xoay).
+7. **Bẫy psycopg** (SMT §1): `Engine.tx()` từ chối kết nối không ở trạng thái `IDLE`; pool đặt `autocommit=True`. Vì `set_config(…, true)` sống sót qua savepoint lồng trong transaction ngầm, tenant của request trước có thể rò sang request sau.
 
 ## v2.1 changelog (15/10/2026, sau `docs/architecture-v2-verdict.md`, phán quyết GO-WITH-CONDITIONS)
 
@@ -68,7 +93,7 @@ Thêm §9.1 ánh xạ khoảng trống PACK vào mốc (B6).
 | SIAM | `spike-iam.md` | SLLM | `spike-local-llm.md` |
 | SDESK | `spike-desk.md` | ST | `docs/demo-storyboard-v0.md` |
 | CRIT | `docs/architecture-v1-critique.md` | TCV1 | `docs/tool-contracts-v1.md` (**có thẩm quyền về bề mặt tool**) |
-| VERD | `docs/architecture-v2-verdict.md` | | |
+| VERD | `docs/architecture-v2-verdict.md` | SMT | `spike-model-tenancy.md` |
 
 ### Ràng buộc từ chủ dự án (chốt 15/10/2026)
 
@@ -90,8 +115,8 @@ Thêm §9.1 ánh xạ khoảng trống PACK vào mốc (B6).
 | D2 | **Không Code Mode** trước v1.0. Không chạy code do agent gửi | Sandbox V8/WASM; `exec` Python | RT §0.2, SK §7, SSPIFF §4 |
 | D3 | **SDK chính thức `mcp` 2.3.0** (MIT), bọc sau adapter mỏng | FastMCP 4.1 | SAUTH §3, VS B |
 | D4 | **SpiffWorkflow 3.2.0** ở `adapters/workflow`. Bước người chạy **in-process trong `xt-api`**. Timer, service task, outbox chạy trong **`xt-worker`**. Cùng một image | Container "dịch vụ workflow" riêng; Flowable (phương án B qua port `ProcessEngine`) | SSPIFF, CRIT 4 |
-| D5 | **Postgres 17**, RLS FORCE, tách role: bootstrap superuser, migrator BYPASSRLS, `xt_app` NOBYPASSRLS | Schema/DB-per-tenant | SME §3.2, SK §4 |
-| D6 | **Bảng vật lý theo model** (đã chạy với bảng dùng chung `xt_data.<model>`, SME §0). Planner diff theo id ổn định. Apply 2 pha. **Namespace theo tenant `xt_data.t<seq>__<model>` [chưa kiểm chứng]**: SME §8.1 chỉ đề xuất, chưa chạy. Phải có integration test ở v0.0 (VERD B4a) | Bảng chung JSONB (v1); Frappe DocType | SME, BB L53, CRIT 1, VERD B4 |
+| D5 | **Postgres 17**, RLS FORCE, tách role: bootstrap superuser, migrator BYPASSRLS, `xt_app` NOBYPASSRLS, `xt_workflow` (NOLOGIN, cột workflow), `xt_web`/`xt_pgrst` không là thành viên `xt_app` | DB-per-tenant | SME §3.2, SMT §5.2, §8, SK §4 |
+| D6 | **Bảng vật lý theo model, mỗi tenant một schema `xt_t<seq>.<model>`**, view PostgREST ở `api_t<seq>`, vẫn giữ `tenant_id` + RLS FORCE. Planner diff theo id ổn định, apply 2 pha, rollout theo tenant. Đã chạy thật: model khác nhau giữa các tenant, FK chéo tenant bị chặn, 48/50 migration cô lập, dump/xóa theo tenant | Bảng chung `xt_data.<model>` (A: không cho tenant có model riêng; một lỗi chặn mọi tenant); `xt_data.t<seq>__<model>` (B1: va chạm index, restore mất view); JSONB (v1); Frappe DocType | SMT §0–§6, SME, BB L53, CRIT 1 |
 | D7 | **Tầng 2 = xT Desk** (React/Vite + `@mcp-ui/client` + chat qwen3.5:4b local) là **kênh demo chính**. Cộng thêm MCP Apps và Telegram | Chỉ chat trong host đóng; frontend nghiệp vụ truyền thống; Chainlit (dự phòng) | SDESK, SLLM, RT Q1 |
 | D8 | **Xác nhận của người: tool không nhận tham số gate.** Server lưu PendingOperation và trả `confirmation_required` + `confirm_url`. Người xác nhận qua một trong hai kênh: (1) `/desk/confirm/{id}` với xác thực tươi (`max_age=0` + TOTP, cửa sổ 5 phút; L3/vượt ngưỡng thêm `prompt=login` + `acr`), trang này tự thực thi operation; (2) nút Telegram có nonce do xT ký. Agent gọi lại cùng key để nhận receipt. Không có CLI. Có SoD ở DB | `confirmation_ref`/`approval_ref` trong input; CLI TTY; Device grant; link bearer; tin nút MCP App ở host ngoài | TCV1 §3.5/C7, CRIT 16–19, TCC F1/F16 |
 | D9 | **Một realm `xt`**. Tenant = Organization, 1 user = 1 org. Scope `mcp-xt` optional; fallback là default + **allowlist `azp`** (chỉ nhận client do DCR tạo, đánh dấu qua client policy). PostgREST dùng `aud` riêng. **xT giữ tổ chức/vai trò, Keycloak chỉ xác thực + MFA** | Realm-per-tenant; denylist `azp` (fail-open); nhóm nghiệp vụ trong Keycloak | CR §1, VS #1, VERD N2, CRIT 5/14/22 |
@@ -416,11 +441,14 @@ Pin image bằng digest. "Pin lúc scaffold" nghĩa là research chưa ghi phiê
 - `jwt-aud = xt-data`. Chỉ client `xt-desk` và client credentials của nhà tích hợp có mapper sang aud này. Token MCP không bao giờ có.
 - JWKS nạp tĩnh. Quy trình xoay khóa gồm bước reload PostgREST.
 - Pre-request function đặt GUC `xt.tenant_id/actor_id/roles/department_ids` (đúng bộ GUC của SME §3.2), lấy từ claim và bảng tổ chức.
-- **Ánh xạ bảng theo tenant (VERD B4b): phải chốt trước v0.2.**
-  - Phương án ưu tiên: mỗi tenant một schema view `api_t<seq>`. PostgREST khai các schema này trong `pgrst.db_schemas` (cấu hình in-db) và reload bằng `NOTIFY pgrst, 'reload config'` khi tạo tenant. Client chọn schema bằng header `Accept-Profile`. Pre-request **từ chối** khi profile không khớp `tenant_id` trong token.
-  - Phương án dự phòng, nếu phương án ưu tiên fail ở spike v0.2: bỏ PostgREST, xt-api tự sinh `/data/v1` chỉ đọc từ catalog model, cùng RLS.
-  - Cả hai phương án **[chưa kiểm chứng]**.
-- View `api_t<seq>.<model>` đặt `security_invoker=true`, owner là `xt_api_owner` (NOBYPASSRLS). Lưu ý `xt_migrator` có BYPASSRLS nên không được làm chủ view.
+- **Ánh xạ bảng theo tenant (VERD B4b, đã đóng bằng SMT §5):**
+  - Mỗi tenant một schema view `api_t<seq>`. `pgrst.db_schemas` nằm trong DB (`db-config=true`). Tạo tenant thì `NOTIFY pgrst, 'reload config'` + `'reload schema'` (khoảng 3 s; cache 1.470 view nạp trong khoảng 105 ms).
+  - Client gửi `Accept-Profile: api_t<seq>`. Pre-request `xt.pgrst_pre()` từ chối (42501) khi `current_schema()` không khớp `tenant_seq` trong JWT, kể cả khi không gửi header.
+  - Lớp thứ hai là RLS: ngữ cảnh T7 đọc `api_t8` ra 0 dòng.
+- View `api_t<seq>.<model>` đặt **`security_invoker=false`**, owner là `xt_api_owner` (NOBYPASSRLS).
+  - Compiler đưa `xt_api_owner` vào danh sách role của policy SELECT + tenant.
+  - `xt_web` (role JWT của PostgREST) chỉ có SELECT trên `api_t<seq>`. `xt_web` **không bao giờ là thành viên `xt_app`**. Quy tắc chung: ngoài code xT, không role nào là thành viên `xt_app` (SMT §5.2: cấp `xt_app` cho `xt_web` mở đường `SET ROLE xt_workflow`).
+  - `xt_migrator` có BYPASSRLS nên không được làm chủ view.
 - Field `pii=sensitive` không có trong view.
 - `NOTIFY pgrst, 'reload schema'` sau mỗi lần apply.
 - Test RLS **qua HTTP**.
@@ -535,7 +563,9 @@ Thiếu effects thì server không khởi động (REA §3.1). Nội dung chi ti
 | `xt_migrator` | NOSUPERUSER, BYPASSRLS, chủ `xt_data`/`xt_meta` | Apply DDL đã duyệt, đếm vi phạm |
 | `xt_app` | NOBYPASSRLS, không sở hữu bảng | xt-api, xt-worker (phần tenant) |
 | `xt_audit_owner` | NOLOGIN | Chủ audit + hàm `SECURITY DEFINER` |
-| `xt_api_owner` | NOBYPASSRLS | Chủ view `api.*` |
+| `xt_api_owner` | NOBYPASSRLS | Chủ view `api_t<seq>.*` (`security_invoker=false`) |
+| `xt_workflow` | NOLOGIN; UPDATE đầy đủ các cột `managed_by: workflow`; chịu RLS | `xt_app` được `GRANT … WITH INHERIT FALSE, SET TRUE`; chỉ đường transition dùng `SET LOCAL ROLE`. Lint CI: chỉ module `workflow/` được gọi `workflow_write` |
+| `xt_web` | Role JWT của PostgREST; SELECT trên `api_t<seq>`; **không** là thành viên `xt_app` | PostgREST |
 | `xt_pgrst` | SELECT schema `api` | PostgREST |
 | `xt_control` | Claim job, đọc `next_due` | Scheduler |
 
@@ -604,7 +634,11 @@ Annotations chỉ là gợi ý cho host, không bao giờ là biên bảo mật.
   - Mỗi tenant một chuỗi, khóa bằng `pg_advisory_xact_lock`.
   - Bảng append-only. `xt_app` và `xt_migrator` đều không sửa được.
   - `verify(tenant)` mất 658 ms cho 80k event và phát hiện đúng seq bị sửa (SME §4.3, §6).
-- **Field `pii=sensitive` chỉ ghi hash vào diff, không ghi giá trị.** Như vậy xóa theo Đ.25 không đụng audit.
+- **Field `sensitive` chỉ ghi `hmac:` vào diff**, không ghi giá trị (SMT §9).
+  - Dùng HMAC-SHA256 cắt 128 bit. Trigger nhận danh sách cột qua `TG_ARGV`.
+  - Khóa `xt_audit.pepper` nằm ở OpenBao (full) hoặc Compose secret (minimal), có quy trình xoay. Hash không khóa thì dò ngược được giá trị lương.
+  - Chuỗi hash vẫn kiểm chứng được. Xóa dữ liệu theo Đ.25 không đụng audit.
+  - Field `basic` hiện vẫn lưu nguyên văn trong audit; chuyển sang HMAC hay không là quyết định ở v0.3 (cùng làn PII).
 - Thông lượng đo được khoảng 1.100–1.560 ghi/s (SME §4.3), đủ quy mô mục tiêu.
 - Neo Merkle root hằng ngày vào `s3://anchors/` (v1.0).
 - Nói đúng mức: hash-chain **phát hiện** sửa đổi, không chống được superuser.
@@ -647,6 +681,19 @@ Annotations chỉ là gợi ý cho host, không bao giờ là biên bảo mật.
 - Có index, `permissions`, nhãn tiếng Việt. Mọi model/field/rule/index có **id ổn định**.
 - **Agent gửi spec bằng JSON** (bẫy YAML 1.1). Regex chỉ nhận tập con của engine Rust: không backreference, không lookaround, có test vi sai với Postgres (SME §0, §8.6).
 
+**Field do workflow quản lý (G-M1, đã đóng bằng SMT §8):**
+- `FieldSpec.managed_by: "workflow" | null`. Field vừa managed vừa required thì phải có `default`.
+- Field `state` (TCV1), người duyệt và bước hiện tại đều dùng cơ chế này.
+- Lớp app: `create_record`/`update_record` ghi vào các field này thì trả `precondition_failed` kèm continuation `transition_record` / `decide_request`. `values_schema` của CRUD không chứa chúng.
+- Lớp DB: `xt_app` chỉ có `GRANT INSERT/UPDATE (cột tự do)`. Chỉ `xt_workflow` ghi được các cột workflow.
+- Planner: bỏ `managed_by` là op RISKY.
+- Giới hạn còn lại: một tiến trình xt-api đã bị chiếm vẫn `SET ROLE` được.
+
+**Nhãn DLCN (G-M2, đã đóng bằng SMT §9):**
+- `FieldSpec.pii: none | basic | sensitive` là bắt buộc trong catalog, kèm `pii_suggested`. Thiếu nhãn thì engine gợi ý theo NĐ 356/2025 và người duyệt xác nhận.
+- Hạ mức là op RISKY.
+- Ánh xạ sang bề mặt TCV1: `basic` ⇔ `pii: true`; `sensitive` ⇔ `pii: true, sensitive: true`.
+
 **Bổ sung vào spec theo mốc (CRIT 24):**
 
 | Mốc | Thêm |
@@ -657,7 +704,7 @@ Annotations chỉ là gợi ý cho host, không bao giờ là biên bảo mật.
 | v1.0 | `metrics` |
 
 **Compiler.**
-- Spec → `psycopg.sql.Composed`. Bảng `xt_data.t<seq>__<model>` gồm `tenant_id`, `owner_id`, `team_id`, `department_id`, `revision` cùng các cột field.
+- Spec → `psycopg.sql.Composed`. Bố cục lấy từ `Layout` (ContextVar) của SMT. Bảng `xt_t<seq>.<model>` gồm `tenant_id`, `owner_id`, `team_id`, `department_id`, `revision` cùng các cột field.
 - CHECK, FK ghép, index `(tenant_id, …)`, trigger `xt_touch` + `xt_audit`, policy RESTRICTIVE/PERMISSIVE, `COMMENT`.
 - Tên constraint theo id (`ck_<model_id>_<field_id>_<kind>`), nên rename không làm vỡ ánh xạ lỗi.
 - Hai lớp chống injection: validator (18/18 tên độc hại bị chặn) và `sql.Identifier`/`sql.Literal` (SME §5).
@@ -727,14 +774,30 @@ Resolver chạy lúc tạo bước và lưu vào `approval_steps` kèm lý do ch
 
 **Task/SLA.** State machine của Task lấy theo loại task (gồm `review`), có `parent`, `depends_on`, `recurrence`. SLA dùng calendar + timezone IANA + ngày lễ (`holidays`). Breach không bao giờ bị xóa.
 
-### 6.3. Đa tenant
+### 6.3. Đa tenant (SMT)
 
-- Một DB.
-- Bảng theo model có namespace theo tenant (`t<seq>__<model>`), kèm `tenant_id` + RLS để phòng thủ nhiều lớp (SME §8.1).
-- Bảng lõi (meta, audit, jobs, org) dùng chung, có RLS.
-- Tạo tenant: một dòng `tenants`, một Organization Keycloak, rồi cài gói qua đề xuất.
-- Seed 2 tenant có **model khác nhau**. Test CI: A → 0 dòng của B, kể cả qua PostgREST và với pool size 1.
-- Theo dõi số bảng khi vượt 10k, không ảnh hưởng ở quy mô OLP.
+- Một DB phục vụ nhiều tenant. **Mỗi tenant có hai schema:** `xt_t<seq>` (bảng model) và `api_t<seq>` (view). Vẫn có `tenant_id` + RLS FORCE: SMT §1 cho thấy bỏ RLS thì một lỗi route sai bảng là rò dữ liệu.
+- Bảng lõi dùng chung, có RLS: meta, audit, jobs, org, workflow.
+- **Tạo tenant:**
+  1. Một dòng `tenants`.
+  2. Một Organization Keycloak.
+  3. Tạo schema và cấp quyền.
+  4. Cài gói qua đề xuất.
+  5. Thêm `api_t<seq>` vào `db_schemas` + `NOTIFY`.
+- **Xóa tenant:** `DROP SCHEMA … CASCADE` (khoảng 326 ms) + xóa dòng lõi theo `tenant_id`, phục vụ Luật BVDLCN.
+- **Sao lưu/khôi phục một tenant:** `pg_dump -n xt_t<seq> -n api_t<seq>` + `catalog_version WHERE tenant_seq` + audit của tenant. Bản này tự chứa dữ liệu, cấu trúc, policy, quyền cột và view (SMT §6).
+- **Rollout migration theo từng tenant**, khoảng 44–81 ms/tenant, qua hàng đợi `xt_meta.apply_job`.
+  - `catalog_version` mang `tenant_seq`.
+  - Tenant lỗi giữ nguyên version cũ và được báo cho người duyệt. **Lệch phiên bản là trạng thái hợp lệ**, `inspect_workspace` công bố version theo tenant (SMT §2: 48/50 lên v2, 1 tenant retry thành công, 1 tenant ở lại v1).
+  - `lock_timeout` của pha 2 lớn hơn `deadlock_timeout`, có retry, vì autovacuum có thể chặn VALIDATE.
+- **Giới hạn catalog** (SMT §3: 50 × 30 → 18.749 `pg_class`, catalog 114 MB, relcache 115 MB cho một kết nối chạm 1.500 bảng, đọc 1.500 bảng trong một transaction thì `out of shared memory`):
+  - Trần khoảng **200 tenant × 30 model mỗi DB**. Vượt thì thêm DB [suy luận từ số đo].
+  - Pool có **`max_lifetime`**.
+  - **Không truy vấn xuyên tenant trong một transaction.** Job xuyên tenant chạy mỗi tenant một transaction.
+  - Phân tích xuyên tenant đi qua export Parquet/DuckDB.
+- **Kết nối:** pool `autocommit=True`. `Engine.tx()` từ chối kết nối không `IDLE` (bẫy psycopg, SMT §1).
+- **SQL tự do (BI, DuckDB):** chỉ cấp quyền schema `api_t<seq>` của đúng tenant. Đổi GUC sang tenant khác chỉ ra 0 dòng hoặc `permission denied` (SMT §7).
+- Seed 2 tenant có **model khác nhau**. Test CI: A → 0 dòng của B, qua `xt_app`, qua PostgREST HTTP, và với pool size 1.
 
 ### 6.4. Sự kiện
 
@@ -827,15 +890,15 @@ Resolver chạy lúc tạo bước và lưu vào `approval_steps` kèm lý do ch
 | ID | Khoảng trống | Mốc đóng | Kiểm bằng |
 |---|---|---|---|
 | G-P3 | Cổng quyết định: `return`/`reject` phải rẽ nhánh thật, không được duyệt ngầm | **v0.1, chặn W1 (B6)** | T0-16: probe PACK:177-191, `return` không còn ra APPROVED |
-| G-M1 | Field do workflow quản (`state`, người duyệt…) không sửa được bằng `update_record` | **v0.1 (B6)** | Contract test: `update_record` ghi field workflow-managed → `access_denied` |
-| G-M2 | Nhãn `pii`/`sensitive` trong FieldSpec (spec + audit chỉ ghi hash) | **v0.1 (B6)**; làn PII v0.3 | Integration: diff audit của field sensitive chỉ có hash |
+| G-M1 | Field do workflow quản (`state`, người duyệt…) không sửa được bằng `update_record` | **Đã đóng (SMT §8)**; port vào v0.1 | Contract test: `update_record` ghi field workflow-managed → `access_denied` |
+| G-M2 | Nhãn `pii`/`sensitive` trong FieldSpec (spec + audit chỉ ghi HMAC) | **Đã đóng (SMT §9)**; port vào v0.1; làn PII v0.3 | Integration: diff audit của field sensitive chỉ có hash |
 | G-P8 | ProcessSpec `extra=forbid` (khóa lạ bị từ chối) | **v0.1 (B6)** | Unit: spec có khóa lạ → `SpecError` |
 | G-P11 | Đồng bộ trạng thái workflow → record | v0.1 (runtime dispatcher) | T1-06: `state=da_duyet` |
 | G-P5 | Leo thang thay người; GĐ không duyệt 2 lần | v0.1 chốt hành vi; v0.2 boundary không ngắt | T1-12 |
 | G-P9 / G-P10 / G-P12 | Lỗi service bị che; op không idempotent; role chưa escape | v0.1 (worker) | Trùng VS #6 và bug `call_service` (§6.2) |
 | G-P1, G-P2, G-P4, G-P7, G-I1–G-I3 | Song song, timer khởi tạo, lane động, IAM theo bước, SoD theo quan hệ | v0.2 | Cùng phạm vi `parallel`/`trigger`/resolver (§6.2) |
 | G-M3, G-M4, G-P6 | Scope participant, rule nhiều dòng, SLA lấy từ dữ liệu | v0.2–v0.3 | W2/W4 |
-| G-M5, G-I7 | Namespace gói, id statement theo gói | **Cùng B4** (trước khi chốt định dạng gói, v0.0) | Test namespace tenant + gói |
+| G-M5, G-I7 | Namespace gói, id statement theo gói | v0.0, trước khi chốt định dạng gói. Bố cục tenant đã chốt (B2 của SMT), nên còn lại phần id theo gói | Test namespace tenant + gói |
 | G-M6–G-M8, G-I4–G-I6 | Nhập lô, ủy quyền | v0.3 | — |
 
 Ghi chú:
@@ -853,9 +916,9 @@ Ghi chú:
 
 | Mốc | Ngày | Phạm vi | Nghiệm thu (demo được) |
 |---|---|---|---|
-| **v0.0 nền** | 15–18/10 | v2.1 chốt, hòa giải với TCV1 (xong). **Cổng VERD B1–B6:** B6 = báo cáo workflow-v2 spike đóng G-P3/G-M1/G-M2/G-P8 bằng test chạy thật (T0-16); B2 hostname cố định (chủ dự án); B3 `research/spike-hitl.md` chạy thật step-up trên KC 26.8.1; B4a test namespace tenant; B5 quy tắc `THIRD_PARTY_NOTICES`. Spike hàng đợi **procrastinate và pgqueuer** (½ ngày). Cloudflare Tunnel + `KC_HOSTNAME`. **Smoke test Claude Free** (DCR, PKCE, `aud`, scope optional), thử ChatGPT dev mode → `research/connector-smoke.md`. Port code spike (model engine, IAM, Spiff SafeEngine/compiler, verifier) vào `src/xt` kèm test | Danh sách nghiệm thu **T0-01…T0-15** của VERD §7.1 |
+| **v0.0 nền** | 15–18/10 | v2.1 chốt, hòa giải với TCV1 (xong). **Cổng VERD B1–B6:** B6 = G-M1/G-M2 **đã đóng (SMT)**, còn G-P3/G-P8 chờ báo cáo workflow-v2 (T0-16); B2 hostname cố định (chủ dự án); B3 `research/spike-hitl.md` chạy thật step-up trên KC 26.8.1; B4 **đã đóng (SMT)**, port test cô lập tenant vào `tests/integration`; B5 quy tắc `THIRD_PARTY_NOTICES`. Spike hàng đợi **procrastinate và pgqueuer** (½ ngày). Cloudflare Tunnel + `KC_HOSTNAME`. **Smoke test Claude Free** (DCR, PKCE, `aud`, scope optional), thử ChatGPT dev mode → `research/connector-smoke.md`. Port code spike (model engine, IAM, Spiff SafeEngine/compiler, verifier) vào `src/xt` kèm test | Danh sách nghiệm thu **T0-01…T0-15** của VERD §7.1 |
 | **v0.1 walking skeleton** | **27/10** (tag v0.1.0 ≤ 28/10) | Realm scripted + Organizations; xt-api Streamable HTTP **qua APISIX passthrough** (tunnel → APISIX → xt-api; kiểm SSE/buffering sớm, VERD N6), 401 + PRM, sửa VS #1–#5; role DB + RLS + namespace tenant; model engine (spec JSON, states/transitions, planner, apply 2 pha); W1 tuần tự + SLA trên Spiff (in-process + worker); audit hash-chain; IAM mini; xt-desk **`/desk/confirm`** server-render: xác thực tươi, thực thi PendingOperation; SoD trigger; **đủ 17 tên tool của TCV1** (`upload_file`, `aggregate_records` trả `capability_unavailable` cho tới v0.2); 4 skill + 4 prompt; `LICENSING.md`; `make release` có SHA256SUMS + SBOM; **đo footprint `minimal` ghi vào INSTALL.md**; tarball | (1) Claude Free: "tạm ứng 8 triệu đi Đà Nẵng 3 ngày" → draft → submit (L1, không hỏi lại) → trưởng phòng mở `/desk/confirm` + TOTP → vượt 5 tr thì sang GĐ. (2) "ngày về trước ngày đi" → lỗi tiếng Việt từ CHECK/rule, agent tự sửa. (3) Agent gọi decide → `confirmation_required` + `confirm_url`; tự mở link trong trình duyệt không qua được TOTP; người duyệt xong thì agent gọi lại cùng key và nhận receipt replay. (4) SLA PT2M → leo thang. (5) Agent đề xuất thêm field → kế hoạch tiếng Việt → duyệt → cột mới có hiệu lực. (6) `verify` OK; superuser sửa một dòng → báo đúng seq. (7) Test RLS 2 tenant có model khác nhau xanh. (8) Goose CLI + qwen3.5:4b chạy (1) bằng LLM local. Danh sách đầy đủ: **T1-01…T1-21** của VERD §7.2 |
-| **v0.2** | **09/11** | APISIX 4 namespace; PostgREST (`aud xt-data`, `security_invoker`); SeaweedFS + upload + ClamAV (full); Telegram nonce ký; W2 + recurrence; process-spec `on_return`/`parallel`/triggers/resolver + BPMNDI; `org_unit`/`position`; aggregate; `sequence`; action `record.*`/`notify`; MCP Apps: thẻ duyệt + orgchart; `docs/headless-demo.sh`; INSTALL có số đo thật; instance công khai qua tunnel | (1) `curl` từng dịch vụ; W1 chạy không cần MCP. (2) Duyệt bằng Telegram 1 chạm. (3) BPMN mở trong Camunda Modeler. (4) "Trưởng phòng của người đề nghị" được resolve đúng; trả lại để bổ sung. (5) Token client lạ bị chặn. (6) Thẻ duyệt và orgchart render trong Claude (nếu gói Free cho phép) và trên basic-host |
+| **v0.2** | **09/11** | APISIX 4 namespace; PostgREST (`aud xt-data`, `Accept-Profile` + `db-schemas` động, view `security_invoker=false`); SeaweedFS + upload + ClamAV (full); Telegram nonce ký; W2 + recurrence; process-spec `on_return`/`parallel`/triggers/resolver + BPMNDI; `org_unit`/`position`; aggregate; `sequence`; action `record.*`/`notify`; MCP Apps: thẻ duyệt + orgchart; `docs/headless-demo.sh`; INSTALL có số đo thật; instance công khai qua tunnel | (1) `curl` từng dịch vụ; W1 chạy không cần MCP. (2) Duyệt bằng Telegram 1 chạm. (3) BPMN mở trong Camunda Modeler. (4) "Trưởng phòng của người đề nghị" được resolve đúng; trả lại để bổ sung. (5) Token client lạ bị chặn. (6) Thẻ duyệt và orgchart render trong Claude (nếu gói Free cho phép) và trên basic-host |
 | **v0.3** | **21/11** | **xt-desk đầy đủ**: React + AppRenderer + chat qwen3.5:4b (hồ sơ rút gọn, `reasoning_effort:none`) + trang Agent + delegation; Apps: form, Kanban + SLA, diff; W3 (thu hồi Keycloak có gate L3) + W4 Ledger; `children`/`computed`/quyền theo field/`views`; làn PII (`cloud` luôn masked); nhập lô; eval v1 có số; kiểm thử rút mạng + split-horizon | (1) "1 nghiệp vụ, 4 client": Desk local, Claude Free, Goose, ChatGPT (đọc). (2) Rút mạng: Desk + LLM local + workflow vẫn chạy. (3) Người không biết prompt tạo đơn bằng form và duyệt 1 chạm. (4) Cùng câu hỏi lương: Claude thấy dữ liệu che, Desk thấy số thật, audit ghi `egress`. (5) "Ai báo cáo cho Minh?" đúng nhờ `views` |
 | **v1.0** | Tính năng 22–28/11 (mỗi mục ≤ 1 ngày), **đóng băng 28/11**; 29/11–02/12 test, video, tài liệu VN/EN; **tag v1.0.0 03/12**; nộp ≤ 05/12 (hạn 17:00 06/12); diễn tập 07–09/12; chung kết 10/12 | Bản tin + lineage; DuckDB lake; Snapshot; Ed25519 cho văn bản (W6 rút gọn) + outbox; neo audit; backup/restore; **W7 + W5 chỉ YAML**; webhook; NATS/MQTT IT/OT tối thiểu; `server.json` MCP Registry | 6 màn demo ST S1–S6 + video dự phòng; CI chứng minh gói W5/W7 không có code mới; PoF tự kiểm CL §2 đạt toàn bộ |
 

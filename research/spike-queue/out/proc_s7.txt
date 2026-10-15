@@ -1,0 +1,5 @@
+[proc] S7 thong luong 10000 job noop, 2 worker (conc=1 va conc=8)
+[proc] enqueue 10000 job (1 job/transaction): 8.7s = 1154 job/s
+[proc] conc=1: job dau xong sau 0.2s (gom khoi dong); xong het sau 18.7s; toc do on dinh ~542 job/s
+[proc] enqueue 10000 job (1 job/transaction): 8.8s = 1136 job/s
+[proc] conc=8: job dau xong sau 0.2s (gom khoi dong); xong het sau 15.7s; toc do on dinh ~648 job/s

@@ -1,0 +1,5 @@
+[pgq] S7 thong luong 10000 job noop, 2 worker (conc=1 va conc=8)
+[pgq] enqueue 10000 job (1 job/transaction): 13.8s = 723 job/s
+[pgq] conc=1: job dau xong sau 0.5s (gom khoi dong); xong het sau 20.2s; toc do on dinh ~507 job/s
+[pgq] enqueue 10000 job (1 job/transaction): 11.3s = 888 job/s
+[pgq] conc=8: job dau xong sau 0.5s (gom khoi dong); xong het sau 3.7s; toc do on dinh ~3131 job/s

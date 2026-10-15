@@ -1,0 +1,25 @@
+### G-M2: nhãn PII
+describe_model nhan_vien: [('ho_ten', 'basic', 'gợi ý'), ('so_cccd', 'basic', 'khai báo'), ('so_dien_thoai', 'basic', 'gợi ý'), ('luong', 'sensitive', 'gợi ý'), ('suc_khoe', 'sensitive', 'khai báo'), ('ghi_chu', 'none', 'gợi ý'), ('phong_ban', 'none', 'gợi ý')]
+catalog_version lưu: {'ho_ten': 'basic', 'so_cccd': 'basic', 'so_dien_thoai': 'basic', 'luong': 'sensitive', 'suc_khoe': 'sensitive', 'ghi_chu': 'none', 'phong_ban': 'none'}
+  audit INSERT: {'ho_ten': 'Nguyễn Văn A', 'so_cccd': '001203004567', 'luong': 'hmac:49b2544f32b826e4bf653e5ecb8d8768', 'suc_khoe': 'hmac:3653dda3b954309066daf641a06c67e4', 'ghi_chu': None} | old: None
+  audit UPDATE: {'luong': 'hmac:1bcc5ae6062f57bffd851fa265f190c5', 'ghi_chu': 'tăng lương'} | old: hmac:49b2544f32b826e4bf653e5ecb8d8768
+  verify chuỗi audit tenant: (17, None)
+KẾ HOẠCH THAY ĐỔI MODEL v1 → v2  (mã kế hoạch b9dfeb3a38e75966)
+Tổng: 0 AN TOÀN, 1 RỦI RO, 0 PHÁ HỦY, 0 BỊ CHẶN
+  [RỦI RO] HẠ mức DLCN: ['luong'] (audit/egress sẽ xử lý như mức thấp hơn); đổi nhãn DLCN: ['luong: sensitive→basic', 'ghi_chu: none→basic']; cột audit chỉ lưu HMAC: ['suc_khoe']
+
+### G-M1: trường do workflow quản
+describe_model de_xuat managed_by: {'noi_dung': None, 'so_tien': None, 'trang_thai': 'workflow', 'nguoi_duyet': 'workflow', 'thoi_diem_duyet': 'workflow'}
+values_schema update (CRUD): ['department_id', 'noi_dung', 'owner_id', 'so_tien', 'team_id']
+create kèm trang_thai=da_duyet -> {'code': 'PRECONDITION_FAILED', 'message': "Trường 'Trạng thái' do quy trình (workflow) quản lý, không sửa trực tiếp được", 'fields': [{'field': 'trang_thai', 'label': 'Trạng thái', 'code': 'managed_field', 'message': "'Trạng thái' chỉ đổi qua bước duyệt/chuyển trạng thái"}], 'hint': 'Dùng transition_record / decide_request thay vì update_record.'}
+create hợp lệ -> trang_thai = nhap revision 1
+update_record ['trang_thai'] -> PRECONDITION_FAILED Trường 'Trạng thái' do quy trình (workflow) quản lý, không sửa trực tiếp được
+update_record ['nguoi_duyet'] -> PRECONDITION_FAILED Trường 'Người duyệt' do quy trình (workflow) quản lý, không sửa trực tiếp được
+update_record ['so_tien', 'thoi_diem_duyet'] -> PRECONDITION_FAILED Trường 'Thời điểm duyệt' do quy trình (workflow) quản lý, không sửa trực tiếp được
+update_record so_tien (trường thường) -> True revision 2
+  SQL thô xt_app: UPDATE "xt_t11"."de_xuat" SET trang_thai = 'da_duyet' WHERE  -> InsufficientPrivilege: permission denied for table de_xuat
+  SQL thô xt_app: INSERT INTO "xt_t11"."de_xuat" (noi_dung, so_tien, trang_tha -> InsufficientPrivilege: permission denied for table de_xuat
+  SQL thô xt_app: UPDATE "xt_t11"."de_xuat" SET noi_dung = 'sửa SQL thô' WHERE -> OK (1 dòng)
+workflow_write (đường transition, SET LOCAL ROLE xt_workflow) -> True da_duyet rev 4
+workflow_write của tenant 12 vào bảng tenant 11 (lỗi routing) -> NOT_FOUND
+["Bỏ quản lý workflow cho ['trang_thai']: CRUD tổng quát sẽ ghi được"] ['RISKY']

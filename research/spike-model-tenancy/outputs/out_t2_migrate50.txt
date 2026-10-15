@@ -1,0 +1,20 @@
+Cấp phát v1: A 88 ms (1 lần) | B1 4075 ms cho 50 tenant (81 ms/tenant)
+Nạp 100000 dòng cho mỗi biến thể (COPY bằng xt_migrator, tắt audit khi nạp): 5.1s; tenant 37 có 1 dòng 400tr (sẽ vi phạm max mới 300tr)
+
+### A: một bảng chung
+  lần 1: ApplyError: Còn thao tác BỊ CHẶN: ['check:m2:ck_m2_f2_max'] -> 1 dòng của tenant 37 chặn cả 50 tenant
+  lần 2 (một giao dịch đọc dài của tenant 12 đang mở): LockNotAvailable: canceling statement due to lock timeout sau 2.2s -> KHÔNG tenant nào được nâng cấp
+  lần 3 (đã sửa dữ liệu): pha 1 168 ms (12 câu, 3 job) | pha 2 152 ms {'done': 3, 'failed': 0, 'dead': 0} | ghi tenant 5: 77 lệnh, p50 4.6 ms, p99 81.1 ms, max 81 ms, lỗi 0
+
+### B1: 50 bảng, mỗi tenant 1 transaction pha 1 + job pha 2
+  pha 1: 4141 ms tổng, p50 44 ms/tenant | ok 48/50 | lỗi: {12: 'LockNotAvailable', 37: "BLOCKED: Còn thao tác BỊ CHẶN: ['check:m2:ck_m2_f2_max']"}
+   bị chặn bởi: [[(770, 'ALTER TABLE "xt_data"."t20__de_xuat_tam_ung" VALIDATE CONSTRAINT "ck_m', [778], 'autovacuum: VACUUM xt_data.t20__de_xuat_tam_ung')]]
+  pha 2 lượt 1 (tenant 20 bị giữ khóa): 2061 ms {'done': 141, 'failed': 1, 'dead': 0}
+   job lỗi: [(20, 'add_field:m2:f21', 'failed', 1, 'canceling statement due to lock timeout'), (20, 'check:m2:ck_m2_f2_max', 'pending', 0, None), (20, 'index:m2:i2', 'pending', 0, None)]
+  pha 2 lượt 2 (retry): {'done': 3, 'failed': 0, 'dead': 0}
+  retry tenant 12 sau khi khóa nhả: ok trong 59 ms
+  ghi tenant 5: 695 lệnh, p50 4.1 ms, p99 20.5 ms, max 44 ms, lỗi 0
+  phân bố phiên bản catalog B1: [(1, 1), (2, 49)] | index invalid: 0 | constraint NOT VALID: 0
+
+### B1: thêm 1 cột cho cả 50 tenant trong MỘT transaction (nguyên tử)
+  49 ALTER trong 1 transaction: 55 ms, giữ 52 khóa đồng thời (max_locks_per_transaction mặc định 64 x 100 kết nối)

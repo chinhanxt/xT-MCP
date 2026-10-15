@@ -1,0 +1,23 @@
+[proc] S1 outbox + RLS: enqueue cung transaction voi ghi nghiep vu
+[proc] sau commit/rollback, trang thai job: {'s1-commit-A': ('todo', 0, 'deferred '), 's1-commit-B': ('todo', 0, 'deferred '), 's1-rollback': None}
+[proc] orders 'rollback' ton tai: 0
+[proc] effect ('s1-commit-A', '88f9f915-b1c8-4397-8c51-7a154baafd1e', 3, '88f9f915-b1c8-4397-8c51-7a154baafd1e', 0) | tenant dung: True
+[proc] effect ('s1-commit-B', '6d055729-5bc6-4ed3-9703-368a2e3e9fa8', 3, '6d055729-5bc6-4ed3-9703-368a2e3e9fa8', 0) | tenant dung: True
+[proc] job s1-rollback co chay: 0 (ky vong 0); thoi gian toi khi xong: 0.6102614402770996
+[proc] S2 retry/backoff/dead-letter (max 3 lan)
+[proc] so lan chay: 4 khoang cach giua cac lan (s): [2.38, 2.98, 3.96]
+[proc] trang thai cuoi (dead-letter): ('failed', 4, 'failed ')
+[proc] S3 kill -9 worker giua job (lease/heartbeat 6s)
+[proc] da kill -9 pid 301440 -- state ngay sau kill: ('doing', 0, 'started ')
+[proc] hoi phuc sau 35.3 s tu luc kill (gom ~1.5s khoi dong worker moi); attempt_log (pid, s sau kill): [(301440, Decimal('-0.1')), (301460, Decimal('31.2'))]
+[proc] effects: [('s3-crash', 1, 301460)]
+[proc] S4 job tre (SLA timer), huy khi task xong som
+[proc] cancel s4-cancel -> 1
+[proc] job tre 3s chay sau 3.86 s; s4-cancel da chay: 0 ; s4-pt2m (PT2M) da chay: 0
+[proc] trang thai: {'s4-delay': ('succeeded', 1, 'succeeded '), 's4-cancel': ('cancelled', 0, 'cancelled '), 's4-pt2m': ('todo', 0, 'deferred ')}
+[proc] S5 cron/periodic: 2 worker, cron moi 5 giay, 22 giay
+[proc] so lan cron bat: 5 (ky vong 4-5, KHONG nhan doi); khoang cach: [3.77, 5.0, 5.01, 4.99] pid: [303131, 303132]
+[proc] '0 8 * * 1' theo thu vien (UTC): 2026-10-19T08:00:00+00:00 | theo mui gio HCM (hand): 2026-10-19T01:00:00+00:00 | cron UTC tuong duong '0 1 * * 1': 2026-10-19T01:00:00+00:00
+[proc] S7b do tre LISTEN/NOTIFY: worker ranh, polling 5s, 20 job cach nhau 0.7s
+[proc] n=20 median=18ms p95=31ms max=33ms
+[proc] S8 trang thai hang doi: {}

@@ -1,0 +1,23 @@
+[pgq] S1 outbox + RLS: enqueue cung transaction voi ghi nghiep vu
+[pgq] sau commit/rollback, trang thai job: {'s1-commit-A': ('queued', 0, None), 's1-commit-B': ('queued', 0, None), 's1-rollback': None}
+[pgq] orders 'rollback' ton tai: 0
+[pgq] effect ('s1-commit-A', 'a45720c1-95c9-4cea-a67e-94b76392a362', 3, 'a45720c1-95c9-4cea-a67e-94b76392a362', 0) | tenant dung: True
+[pgq] effect ('s1-commit-B', 'd3007762-ea92-457b-8831-530d5d137a41', 3, 'd3007762-ea92-457b-8831-530d5d137a41', 0) | tenant dung: True
+[pgq] job s1-rollback co chay: 0 (ky vong 0); thoi gian toi khi xong: 0.4600794315338135
+[pgq] S2 retry/backoff/dead-letter (max 3 lan)
+[pgq] so lan chay: 4 khoang cach giua cac lan (s): [3.01, 5.03, 5.09]
+[pgq] trang thai cuoi (dead-letter): ('failed', 3, None)
+[pgq] S3 kill -9 worker giua job (lease/heartbeat 6s)
+[pgq] da kill -9 pid 305477 -- state ngay sau kill: ('picked', 0, None)
+[pgq] hoi phuc sau 11.6 s tu luc kill (gom ~1.5s khoi dong worker moi); attempt_log (pid, s sau kill): [(305477, Decimal('-0.1')), (305494, Decimal('7.5'))]
+[pgq] effects: [('s3-crash', 1, 305494)]
+[pgq] S4 job tre (SLA timer), huy khi task xong som
+[pgq] cancel s4-cancel -> 1
+[pgq] job tre 3s chay sau 4.11 s; s4-cancel da chay: 0 ; s4-pt2m (PT2M) da chay: 0
+[pgq] trang thai: {'s4-delay': None, 's4-cancel': None, 's4-pt2m': ('queued', 0, None)}
+[pgq] S5 cron/periodic: 2 worker, cron moi 5 giay, 22 giay
+[pgq] so lan cron bat: 4 (ky vong 4-5, KHONG nhan doi); khoang cach: [5.02, 5.0, 5.04] pid: [306388]
+[pgq] '0 8 * * 1' theo thu vien (UTC): 2026-10-19T08:00:00+00:00 | theo mui gio HCM (hand): 2026-10-19T01:00:00+00:00 | cron UTC tuong duong '0 1 * * 1': 2026-10-19T01:00:00+00:00
+[pgq] S7b do tre LISTEN/NOTIFY: worker ranh, polling 5s, 20 job cach nhau 0.7s
+[pgq] n=20 median=751ms p95=848ms max=1077ms
+[pgq] S8 trang thai hang doi: {}

@@ -29,7 +29,7 @@ async def cron_every5s(timestamp: int): await cron_probe(timestamp)
 @app.periodic(cron="* * * * * */2")
 @app.task(name="recover_stalled")      # procrastinate KHONG tu nhat lai job cua worker chet: phai tu viet task nay
 async def recover_stalled(timestamp: int):
-    for j in await app.job_manager.get_stalled_jobs():
+    for j in await app.job_manager.get_stalled_jobs(seconds_since_heartbeat=6):
         await app.job_manager.retry_job_by_id_async(j.id, datetime.datetime.now(datetime.timezone.utc))
 
 def install(db):

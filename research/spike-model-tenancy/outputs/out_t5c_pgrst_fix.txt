@@ -1,0 +1,6 @@
+HTTP T7 + api_t7 -> (200, [{'truong_0': 'B1-T7-a'}, {'truong_0': 'B1-T7-b'}])
+HTTP T8 + api_t8 -> (200, [{'truong_0': 'B1-T8-a'}, {'truong_0': 'B1-T8-b'}])
+xt_web ngữ cảnh T7 đọc api_t8.model_00 -> 0 dòng; api_t7.model_00 -> 2
+xt_web SELECT count(*) FROM xt_data.t7__model_00  -> InsufficientPrivilege: permission denied for schema xt_data
+xt_web SET ROLE xt_workflow                       -> InsufficientPrivilege: permission denied to set role "xt_workflow"
+xt_web SET ROLE xt_app                            -> InsufficientPrivilege: permission denied to set role "xt_app"

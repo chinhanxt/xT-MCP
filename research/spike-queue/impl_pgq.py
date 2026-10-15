@@ -39,17 +39,21 @@ def job_state(db, key):
 def remaining(db): return admin(db, "SELECT count(*) FROM pgqueuer")[0][0]
 
 async def worker(name, conc):
-    async with await psycopg.AsyncConnection.connect(dsn(DB()), autocommit=True) as c:
-        pgq = PgQueuer.from_psycopg_connection(c)
-        @pgq.entrypoint("job", on_failure="hold", executor_factory=lambda prm: DatabaseRetryEntrypointExecutor(
-                parameters=prm, max_attempts=3, initial_delay=timedelta(seconds=1)))
-        async def job(j): await handler(json.loads(j.payload))
-        @pgq.schedule("cron_every5s", "* * * * * */5")
-        async def cron_every5s(schedule):
-            async with await psycopg.AsyncConnection.connect(dsn(DB())) as c2:
-                await c2.execute("INSERT INTO attempt_log(job_key, ts_py, pid) VALUES ('cron', %s, %s)", (time.time(), os.getpid())); await c2.commit()
-        await pgq.run(batch_size=conc, max_concurrent_tasks=2 * conc,  # lib bat buoc >= 2x batch
-                         heartbeat_timeout=timedelta(seconds=6), dequeue_timeout=timedelta(seconds=5))
+    # XT_PGQ_DRIVER=asyncpg (mac dinh) | psycopg: do tre NOTIFY cua driver psycopg bi duoi 1-2s (xem bao cao)
+    if os.environ.get("XT_PGQ_DRIVER", "asyncpg") == "psycopg":
+        cm = await psycopg.AsyncConnection.connect(dsn(DB()), autocommit=True); pgq = PgQueuer.from_psycopg_connection(cm)
+    else:
+        import asyncpg
+        cm = await asyncpg.connect(dsn(DB())); pgq = PgQueuer.from_asyncpg_connection(cm)
+    @pgq.entrypoint("job", on_failure="hold", executor_factory=lambda prm: DatabaseRetryEntrypointExecutor(
+            parameters=prm, max_attempts=3, initial_delay=timedelta(seconds=1)))
+    async def job(j): await handler(json.loads(j.payload))
+    @pgq.schedule("cron_every5s", "* * * * * */5")
+    async def cron_every5s(schedule):
+        async with await psycopg.AsyncConnection.connect(dsn(DB())) as c2:
+            await c2.execute("INSERT INTO attempt_log(job_key, ts_py, pid) VALUES ('cron', %s, %s)", (time.time(), os.getpid())); await c2.commit()
+    await pgq.run(batch_size=conc, max_concurrent_tasks=2 * conc,  # lib bat buoc >= 2x batch
+                  heartbeat_timeout=timedelta(seconds=6), dequeue_timeout=timedelta(seconds=5))
 
 if __name__ == "__main__" and sys.argv[1] == "worker":
     asyncio.run(worker(sys.argv[2], int(sys.argv[3])))

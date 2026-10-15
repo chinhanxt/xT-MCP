@@ -1,0 +1,7 @@
+kết nối mới, 1 tenant (30 bảng B1)   : lần đầu      96 ms (1 transaction), lần 2     36 ms; relcache    2229 KB/kết nối
+kết nối mới, A (30 bảng chung)       : lần đầu     111 ms (1 transaction), lần 2     38 ms; relcache    2229 KB/kết nối
+  toàn bộ 1500 bảng B1: đọc trong 1 transaction -> OutOfMemory: out of shared memory (You might need to increase "max_locks_per_transaction".)
+kết nối mới, toàn bộ 1500 bảng B1    : lần đầu    2608 ms (mỗi bảng 1 transaction), lần 2   2555 ms; relcache  115255 KB/kết nối
+
+ALTER cả 1500 bảng B1 trong MỘT transaction (max_locks_per_transaction=64, max_connections=100):
+  ok 1.5s, giữ 1503 khóa

@@ -1,0 +1,83 @@
+======== A. 6 spec v1 gốc (packs-draft) qua validator v2 (extra=forbid)
+  ban_tin_tuan.json: bị từ chối, 1 lỗi; 3 lỗi đầu:
+      - trigger: loại 'schedule' không được hỗ trợ; chỉ chấp nhận 'manual', 'timer'
+  de_xuat_phe_duyet.json: bị từ chối, 14 lỗi; 3 lỗi đầu:
+      - steps[1].assignee: thiếu trường bắt buộc
+      - steps[1].sla.escalate_to: người nhận 'director' không hợp lệ; cú pháp người nhận hợp lệ: role(x) | role(x) in department(requester) | role(x) in 'KD' | requester.manager | manager(
+      - steps[1].role: khóa lạ 'role' không được phép; khóa hợp lệ: assignee, id, name, on_return, outcomes, sla, sod, type, when
+  giao_viec_khan.json: bị từ chối, 9 lỗi; 3 lỗi đầu:
+      - steps[0].assignee: thiếu trường bắt buộc
+      - steps[0].sla.escalate_to: người nhận 'assigner' không hợp lệ; cú pháp người nhận hợp lệ: role(x) | role(x) in department(requester) | role(x) in 'KD' | requester.manager | manager(
+      - steps[0].role: khóa lạ 'role' không được phép; khóa hợp lệ: assignee, id, name, on_return, outcomes, sla, sod, type, when
+  giao_viec_thuong.json: bị từ chối, 9 lỗi; 3 lỗi đầu:
+      - steps[0].assignee: thiếu trường bắt buộc
+      - steps[0].sla.escalate_to: người nhận 'assigner' không hợp lệ; cú pháp người nhận hợp lệ: role(x) | role(x) in department(requester) | role(x) in 'KD' | requester.manager | manager(
+      - steps[0].role: khóa lạ 'role' không được phép; khóa hợp lệ: assignee, id, name, on_return, outcomes, sla, sod, type, when
+  nv_offboarding.json: bị từ chối, 17 lỗi; 3 lỗi đầu:
+      - steps[1].assignee: thiếu trường bắt buộc
+      - steps[1].sla.escalate_to: người nhận 'director' không hợp lệ; cú pháp người nhận hợp lệ: role(x) | role(x) in department(requester) | role(x) in 'KD' | requester.manager | manager(
+      - steps[1].role: khóa lạ 'role' không được phép; khóa hợp lệ: assignee, id, name, on_return, outcomes, sla, sod, type, when
+  nv_onboarding.json: bị từ chối, 12 lỗi; 3 lỗi đầu:
+      - steps[1].assignee: thiếu trường bắt buộc
+      - steps[1].sla.escalate_to: người nhận 'director' không hợp lệ; cú pháp người nhận hợp lệ: role(x) | role(x) in department(requester) | role(x) in 'KD' | requester.manager | manager(
+      - steps[1].role: khóa lạ 'role' không được phép; khóa hợp lệ: assignee, id, name, on_return, outcomes, sla, sod, type, when
+======== B0. Compile 6 spec v2
+  proposal_approval      bpmn= 58178B userTask=16 parallelGW=0 boundary=4 lanes=8 DI shapes=68 edges=85 timerStart=False
+  task_normal            bpmn= 26345B userTask= 8 parallelGW=0 boundary=3 lanes=6 DI shapes=37 edges=34 timerStart=False
+  task_urgent            bpmn= 26337B userTask= 8 parallelGW=0 boundary=3 lanes=6 DI shapes=37 edges=34 timerStart=False
+  weekly_digest          bpmn=  4129B userTask= 0 parallelGW=0 boundary=0 lanes=1 DI shapes=6 edges=3 timerStart=True
+  employee_onboarding    bpmn= 34702B userTask=10 parallelGW=2 boundary=4 lanes=10 DI shapes=52 edges=44 timerStart=False
+  employee_offboarding   bpmn= 44630B userTask=12 parallelGW=2 boundary=5 lanes=10 DI shapes=63 edges=55 timerStart=False
+======== B1. proposal_approval (de_xuat_phe_duyet v2)
+  tạm ứng 4tr                                          status=completed path=['dept_head[decision]@NV-0005:approve'] ledger=[('NV-0006', 4000000)]
+  tạm ứng 8tr                                          status=completed path=['dept_head[decision]@NV-0005:approve', 'director[decision]@NV-0001:approve'] ledger=[('NV-0006', 8000000)]
+  thanh toán 80tr                                      status=completed path=['dept_head[decision]@NV-0005:approve', 'kttt[decision]@NV-0003:approve', 'ktt[decision]@NV-0002:approve', 'director[decision]@NV-0001:approve'] ledger=[('NV-0006', 80000000)]
+  hoàn ứng 12tr                                        status=completed path=['dept_head[decision]@NV-0005:approve', 'kttt[decision]@NV-0003:approve', 'director[decision]@NV-0001:approve'] ledger=[('NV-0006', 12000000)]
+  từ chối ở bước 1                                     status=rejected  path=['dept_head[decision]@NV-0005:reject'] ledger=[]
+  từ chối ở bước cuối 80tr                             status=rejected  path=['dept_head[decision]@NV-0005:approve', 'kttt[decision]@NV-0003:approve', 'ktt[decision]@NV-0002:approve', 'director[decision]@NV-0001:reject'] ledger=[]
+  người đề nghị là TBP (NV-0005), không cần cờ requester_is_dept_head status=completed path=['dept_head[decision]@NV-0001:approve(via fallback)', 'director[decision]@NV-0001:approve'] ledger=[('NV-0005', 8000000)]
+  còn nợ quá hạn -> KTT xem xét                        status=completed path=['dept_head[decision]@NV-0005:approve', 'chief_acct_overdue[decision]@NV-0002:approve', 'director[decision]@NV-0001:approve'] ledger=[('NV-0006', 8000000)]
+  G-P3: outcome 'return_for_info' (giá trị cũ gây APPROVED) status=running   path=["DENY dept_head@NV-0005:return_for_info -> DecisionError: kết quả 'return_for_info' không hợp lệ cho bước 'Trưởng bộ phận duyệt'; chỉ chấp nhận ['approve', 'reject', 'r"] ledger=[]
+  trả lại bổ sung -> sửa 8tr thành 4tr -> chạy lại từ đầu status=completed path=['dept_head[decision]@NV-0005:approve', 'director[decision]@NV-0001:return_for_revision', 'director[revise]@NV-0006:resubmit', 'dept_head[decision]@NV-0005:approve'] ledger=[('NV-0006', 4000000)]
+  trả lại rồi người đề nghị rút                        status=withdrawn path=['dept_head[decision]@NV-0005:return_for_revision', 'dept_head[revise]@NV-0006:withdraw'] ledger=[]
+  ủy quyền TBP -> NV-0007                              status=completed path=['dept_head[decision]@NV-0005:delegate', 'dept_head[decision]@NV-0007:approve(via override)'] ledger=[('NV-0006', 4000000)]
+  hỏi thêm thông tin người đề nghị                     status=completed path=['dept_head[decision]@NV-0005:request_info', 'dept_head[info]@NV-0006:provide_info(via override)', 'dept_head[decision]@NV-0005:approve(via override)'] ledger=[('NV-0006', 4000000)]
+  Việt (NV-0006, người đề nghị) / NV-0012 (sai phòng) duyệt bước TBP status=running   path=["DENY dept_head@NV-0006:approve -> DecisionError: 'NV-0006' không phải người được giao bước 'Trưởng bộ phận duyệt' (người được giao: ['NV-0005'])", "DENY dept_head@NV-0012:approve -> DecisionError: 'NV-0012' không phải người được giao bước 'Trưởng bộ phận duyệt' (người được giao: ['NV-0005'])"] ledger=[]
+  giám đốc NV-0001 tự đề nghị (không có quản lý)       via=unresolved candidates=[] trail=['Trưởng phòng của requester: trưởng phòng BGD của requester NV-0001 [NV-0001 bị loại do SoD (người đề nghị không tự xử lý)]', 'Quản lý trực tiếp của requester: NV-0001 không có quản lý (cấp 1)', 'Vai trò director: vai trò director (toàn công ty) [NV-0001 bị loại do SoD (người đề nghị không tự xử lý)]']
+    -> quản trị NV-0012 gán lại cho NV-0002            status=completed path=['dept_head[decision]@NV-0002:approve(via admin)'] events=['assignment.unresolved'] ledger=[('NV-0001', 1000000)]
+  SLA 24h quá hạn -> leo thang requester.manager       status=completed path=['dept_head[decision]@NV-0001:approve(via process_fallback)'] spec=ut_dept_head_esc via=process_fallback trail=['Quản lý trực tiếp của requester: quản lý cấp 1 của NV-0006 [NV-0005 bị loại do SoD (đang giữ việc bị quá hạn)]'] notes=['SLA vượt hạn: Trưởng bộ phận duyệt']
+======== B2. task_normal (giao_viec_thuong v2)
+  happy: NV-0007 làm, NV-0005 giao & nghiệm thu        status=completed path=['accept[task]@NV-0007:done', 'work[task]@NV-0007:done', 'acceptance[decision]@NV-0005:approve'] closed=True
+  nghiệm thu không đạt -> làm lại -> đạt               status=completed path=['accept[task]@NV-0007:done', 'work[task]@NV-0007:done', 'acceptance[decision]@NV-0005:return_for_revision', 'work[task]@NV-0007:done', 'acceptance[decision]@NV-0005:approve'] closed=True
+  nghiệm thu không đạt -> từ chối                      status=rejected  path=['accept[task]@NV-0007:done', 'work[task]@NV-0007:done', 'acceptance[decision]@NV-0005:reject'] closed=False
+  tự giao cho mình: không được tự nghiệm thu           status=completed path=['accept[task]@NV-0005:done', 'work[task]@NV-0005:done', "DENY acceptance@NV-0005:approve -> DecisionError: 'NV-0005' không phải người được giao bước 'Nghiệm thu kết quả' (người được giao: ['NV-0001'])", 'acceptance[decision]@NV-0001:approve(via process_fallback)'] closed=True
+  người làm cố nhận nghiệm thu                         status=running   path=['accept[task]@NV-0007:done', 'work[task]@NV-0007:done', "DENY acceptance@NV-0007:approve -> DecisionError: 'NV-0007' không phải người được giao bước 'Nghiệm thu kết quả' (người được giao: ['NV-0005'])"] closed=False
+  SLA bước work quá hạn -> trưởng phòng của người làm  spec=ut_work_esc candidates=['NV-0012'] reason=Trưởng phòng của assignee_user: trưởng phòng IT của assignee_user NV-0013
+======== B2. task_urgent (giao_viec_khan v2)
+  happy: NV-0007 làm, NV-0005 giao & nghiệm thu        status=completed path=['accept[task]@NV-0007:done', 'work[task]@NV-0007:done', 'acceptance[decision]@NV-0005:approve'] closed=True
+  nghiệm thu không đạt -> làm lại -> đạt               status=completed path=['accept[task]@NV-0007:done', 'work[task]@NV-0007:done', 'acceptance[decision]@NV-0005:return_for_revision', 'work[task]@NV-0007:done', 'acceptance[decision]@NV-0005:approve'] closed=True
+  nghiệm thu không đạt -> từ chối                      status=rejected  path=['accept[task]@NV-0007:done', 'work[task]@NV-0007:done', 'acceptance[decision]@NV-0005:reject'] closed=False
+  tự giao cho mình: không được tự nghiệm thu           status=completed path=['accept[task]@NV-0005:done', 'work[task]@NV-0005:done', "DENY acceptance@NV-0005:approve -> DecisionError: 'NV-0005' không phải người được giao bước 'Nghiệm thu kết quả' (người được giao: ['NV-0001'])", 'acceptance[decision]@NV-0001:approve(via process_fallback)'] closed=True
+  người làm cố nhận nghiệm thu                         status=running   path=['accept[task]@NV-0007:done', 'work[task]@NV-0007:done', "DENY acceptance@NV-0007:approve -> DecisionError: 'NV-0007' không phải người được giao bước 'Nghiệm thu kết quả' (người được giao: ['NV-0005'])"] closed=False
+  SLA bước work quá hạn -> trưởng phòng của người làm  spec=ut_work_esc candidates=['NV-0012'] reason=Trưởng phòng của assignee_user: trưởng phòng IT của assignee_user NV-0013
+======== B3. weekly_digest (ban_tin_tuan v2): timer start + poller
+  poll worker0 2026-10-19T07:59:00+07:00 -> []
+  poll worker1 2026-10-19T07:59:00+07:00 -> []
+  poll worker0 2026-10-19T08:00:30+07:00 -> [('2026-10-19T08:00:00+07:00', 'fired')]
+  poll worker1 2026-10-19T08:00:30+07:00 -> [('2026-10-19T08:00:00+07:00', 'already')]
+  poll worker0 2026-10-19T08:05:00+07:00 -> [('2026-10-19T08:00:00+07:00', 'already')]
+  poll worker1 2026-10-19T08:05:00+07:00 -> [('2026-10-19T08:00:00+07:00', 'already')]
+  poll worker0 2026-10-26T08:01:00+07:00 -> [('2026-10-26T08:00:00+07:00', 'fired')]
+  poll worker1 2026-10-26T08:01:00+07:00 -> [('2026-10-26T08:00:00+07:00', 'already')]
+  poll worker0 2026-11-16T09:00:00+07:00 -> [('2026-11-16T08:00:00+07:00', 'fired')]
+  poll worker1 2026-11-16T09:00:00+07:00 -> [('2026-11-16T08:00:00+07:00', 'already')]
+  wf_timer_fire=[('2026-10-19T08:00:00+07:00', 'fired'), ('2026-10-26T08:00:00+07:00', 'fired'), ('2026-11-16T08:00:00+07:00', 'fired')]
+  rollup calls=[('weekly_rollup', '2026-10-12', '2026-10-18'), ('weekly_rollup', '2026-10-19', '2026-10-25'), ('weekly_rollup', '2026-11-09', '2026-11-15')]
+  notify=['Tuần 2026-10-12..2026-10-18', 'Tuần 2026-10-19..2026-10-25', 'Tuần 2026-11-09..2026-11-15']
+======== B4. employee_onboarding (song song)
+  sau HR: READY=[('it', ['NV-0012', 'NV-0013', 'NV-0014']), ('accounting', ['NV-0003']), ('manager', ['NV-0005'])]
+  HR -> (QL ‖ IT hỏi thêm ‖ KT) -> kích hoạt           status=completed path=['hr[task]@NV-0010:done', 'manager[task]@NV-0005:done', 'it[task]@NV-0013:request_info', 'it[info]@NV-0005:provide_info(via override)', 'accounting[task]@NV-0003:done', 'it[task]@NV-0013:done(via override)'] activate=[('activate_employee', {'employee_id': 'E-15'})]
+======== B5. employee_offboarding (song song + service trong nhánh)
+  không nợ, đã trả tài sản                             status=completed path=['hr_confirm[task]@NV-0010:done', 'it[task]@NV-0014:done', 'manager[task]@NV-0009:done', 'accounting[task]@NV-0003:done', 'hr_close[task]@NV-0010:done'] closed=[('close_lifecycle_case', 'HS-11')] inbox=[]
+  còn nợ tạm ứng                                       status=completed path=['hr_confirm[task]@NV-0010:done', 'it[task]@NV-0014:done', 'manager[task]@NV-0009:done', 'accounting[task]@NV-0003:done', 'chief_acct_overdue[decision]@NV-0002:approve', 'hr_close[task]@NV-0010:done'] closed=[('close_lifecycle_case', 'HS-11')] inbox=[]
+  còn tài sản -> close_lifecycle_case chặn             status=running   path=['hr_confirm[task]@NV-0010:done', 'it[task]@NV-0014:done', 'manager[task]@NV-0009:done', 'accounting[task]@NV-0003:done', 'chief_acct_overdue[decision]@NV-0002:approve', "DENY hr_close@NV-0010:done -> EngineError: engine lỗi, đã khôi phục state: WorkflowTaskException: ServiceError:service 'close_lifecycle_case' lỗi: Runtim"] closed=[] inbox=['hr_close']

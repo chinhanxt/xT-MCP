@@ -1,0 +1,14 @@
+api_t7.* sau khi t6 DROP TABLE t7__* CASCADE + pg_restore -t:  còn
+### Tenant 7 dùng DuckDB truy cập thẳng Postgres
+  A  (role xt_bi_a,  bảng chung):   đếm api.model_00 = 1002
+  (DuckDB mở kết nối riêng cho mỗi lần quét nên SET qua postgres_execute không bám; tấn công dưới đây dùng client SQL bất kỳ)
+  xt_bi_a   tự `SET xt.tenant_id = T8` rồi đọc api.model_00     -> 1002 dòng, tenant 00000000-0000-0000-0000-00007e000008  <- RÒ tenant 8
+  xt_bi_t7  tự `SET xt.tenant_id = T8` rồi đọc api_t7.model_00  -> 0 dòng, tenant None
+  xt_bi_t7  tự `SET xt.tenant_id = T8` rồi đọc api_t8.model_00  -> InsufficientPrivilege: permission denied for schema api_t8
+
+### Xuất snapshot Parquet của tenant 7 (30 model)
+  B qua role tenant (api_t7): 0.85s, 1.30 MB | A qua migrator + WHERE tenant_id (control plane): 0.74s, 1.30 MB
+  đọc lại Parquet: 30002 dòng
+
+### Truy vấn xuyên tenant (control plane, migrator BYPASSRLS): tổng truong_2 theo tenant trên model_00
+  A: 1 bảng GROUP BY -> 10 tenant, 5 ms | B1: UNION ALL 50 bảng -> 11 tenant, 89 ms (truy vấn sinh tự động; model khác nhau giữa tenant thì không UNION được)

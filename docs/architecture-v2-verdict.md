@@ -334,3 +334,17 @@ Ngoài V2 còn phải sửa (không chặn):
 Ghi nhận thêm:
 - PACK cho thấy W3 on/offboarding đã chạy được (PACK:163-175), dù V2 xếp ở v0.3. Có thể kéo sớm nếu cần.
 - 3 gói hiện **chưa có `pack.json` nào được engine đọc** (PACK:311). Phải có loader trước khi đếm "W5/W7 chỉ YAML" ở v1.0 (V2:126).
+
+---
+
+## Trạng thái điều kiện (ghi chú của ARCHITECT, 15/10/2026; không sửa phần phán quyết ở trên)
+
+- **B4: ĐÃ ĐÓNG.** Bằng chứng: `research/spike-model-tenancy.md`, chạy thật trên PG 17 + PostgREST 16.4.
+  - D6 chuyển sang schema riêng cho từng tenant `xt_t<seq>.<model>` + `api_t<seq>`, vẫn giữ `tenant_id` + RLS FORCE.
+  - PostgREST dùng `Accept-Profile` + `db-schemas` động + pre-request ràng tenant. B4(b) không cần phương án dự phòng.
+  - Đã đưa vào `architecture-v2.md` bản v2.2: D5, D6, §3.3(c), §6.3.
+- **B6, phần G-M1: ĐÃ ĐÓNG** (SMT §8): `managed_by: workflow`, quyền cột, role `xt_workflow`.
+- **B6, phần G-M2: ĐÃ ĐÓNG** (SMT §9): nhãn `none/basic/sensitive` bắt buộc, HMAC có khóa trong audit.
+- **B6, phần G-P3 và G-P8: CÒN MỞ.** Chờ báo cáo workflow-v2 spike (T0-16).
+- **B1: ĐÃ HÒA GIẢI** trong v2.1 (E1–E12). Còn việc sửa TCV1 ở `:49`, `:183`, `:3491-3492`; việc này thuộc người giữ hợp đồng tool.
+- **B2, B3, B5:** không đổi so với phán quyết.

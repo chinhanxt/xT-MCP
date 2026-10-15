@@ -1,0 +1,3 @@
+xt_web, ngữ cảnh T7, đọc api_t8.model_00 (bỏ qua pre-request) -> 0 dòng
+xt_web, ngữ cảnh T7, đọc api_t7.model_00 -> 2 dòng
+xt_web SET ROLE xt_workflow -> ĐƯỢC (lỗi!)
