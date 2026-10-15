@@ -1,0 +1,16 @@
+[1/12] PASS universal.org_headcount_marketing skills=none rep=0 27.98s calls=2
+[2/12] PASS universal.org_find_by_name skills=none rep=0 6.05s calls=1
+[3/12] PASS universal.org_headcount_marketing skills=auto rep=0 5.85s calls=1
+[4/12] PASS universal.org_find_by_name skills=auto rep=0 5.09s calls=1
+[5/12] PASS universal.org_headcount_marketing skills=none rep=1 3.78s calls=1
+[6/12] PASS universal.org_find_by_name skills=none rep=1 5.42s calls=1
+[7/12] PASS universal.org_headcount_marketing skills=auto rep=1 4.74s calls=1
+[8/12] PASS universal.org_find_by_name skills=auto rep=1 5.29s calls=1
+[9/12] PASS universal.org_headcount_marketing skills=none rep=2 3.57s calls=1
+[10/12] PASS universal.org_find_by_name skills=none rep=2 5.07s calls=1
+[11/12] PASS universal.org_headcount_marketing skills=auto rep=2 4.67s calls=1
+[12/12] PASS universal.org_find_by_name skills=auto rep=2 5.34s calls=1
+
+Kết quả: results/qwen35-4b-core10-r3-org/results.json, results/qwen35-4b-core10-r3-org/report.md
+  [none] pass 100% | tool 1.0 | args 1.0 | forbidden 0% | 8.6s
+  [auto] pass 100% | tool 1.0 | args 1.0 | forbidden 0% | 5.2s

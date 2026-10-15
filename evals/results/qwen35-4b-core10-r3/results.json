@@ -32,62 +32,63 @@
   "admin": true,
   "wall_total_s": 5255.8,
   "date": "2026-10-16 02:10:19",
-  "scenarios": 73
+  "scenarios": 73,
+  "note": "gộp: 2 scenario org chạy lại ở results/qwen35-4b-core10-r3-org sau khi sửa mock (find_people thấy danh bạ org) và đổi phòng Kế toán -> Marketing"
  },
  "configs": {
   "none": {
    "runs": 192,
    "scenarios": 64,
-   "pass_rate": 0.5885416666666666,
-   "consistent_pass_rate": 0.484375,
-   "tool_choice_accuracy": 0.7777777777777778,
+   "pass_rate": 0.6197916666666666,
+   "consistent_pass_rate": 0.515625,
+   "tool_choice_accuracy": 0.8148148148148148,
    "tool_choice_n": 162,
-   "arg_validity": 0.9337539432176656,
-   "calls": 317,
-   "semantic_pass": 0.59375,
-   "answer_pass": 0.6787878787878788,
+   "arg_validity": 0.9339622641509434,
+   "calls": 318,
+   "semantic_pass": 0.625,
+   "answer_pass": 0.696969696969697,
    "answer_n": 165,
    "forbidden_rate": 0.03125,
    "forbidden_calls": 13,
-   "tool_error_rate": 0.3280757097791798,
+   "tool_error_rate": 0.3270440251572327,
    "errors": 0,
    "step_limit": 3,
-   "latency_mean_s": 12.89140625,
-   "latency_p50_s": 8.614999999999998,
+   "latency_mean_s": 13.031822916666666,
+   "latency_p50_s": 8.735,
    "latency_p95_s": 40.15,
-   "llm_calls_mean": 2.6510416666666665,
-   "prompt_tokens_total": 2280697,
-   "completion_tokens_total": 36534,
-   "prompt_tokens_mean": 11878.630208333334,
-   "completion_tokens_mean": 190.28125,
-   "first_prompt_tokens_mean": 4057.6875
+   "llm_calls_mean": 2.65625,
+   "prompt_tokens_total": 2287358,
+   "completion_tokens_total": 36783,
+   "prompt_tokens_mean": 11913.322916666666,
+   "completion_tokens_mean": 191.578125,
+   "first_prompt_tokens_mean": 4057.640625
   },
   "auto": {
    "runs": 192,
    "scenarios": 64,
-   "pass_rate": 0.5625,
-   "consistent_pass_rate": 0.5,
-   "tool_choice_accuracy": 0.6666666666666666,
+   "pass_rate": 0.59375,
+   "consistent_pass_rate": 0.53125,
+   "tool_choice_accuracy": 0.7037037037037037,
    "tool_choice_n": 162,
    "arg_validity": 0.8401486988847584,
    "calls": 269,
-   "semantic_pass": 0.5625,
-   "answer_pass": 0.6524390243902439,
+   "semantic_pass": 0.59375,
+   "answer_pass": 0.6707317073170732,
    "answer_n": 164,
    "forbidden_rate": 0.015625,
    "forbidden_calls": 6,
    "tool_error_rate": 0.3308550185873606,
    "errors": 1,
    "step_limit": 3,
-   "latency_mean_s": 14.47421875,
+   "latency_mean_s": 14.475208333333333,
    "latency_p50_s": 11.055,
    "latency_p95_s": 40.03,
    "llm_calls_mean": 2.3802083333333335,
-   "prompt_tokens_total": 3285346,
-   "completion_tokens_total": 37724,
-   "prompt_tokens_mean": 17111.177083333332,
-   "completion_tokens_mean": 196.47916666666666,
-   "first_prompt_tokens_mean": 6683.807291666667
+   "prompt_tokens_total": 3286894,
+   "completion_tokens_total": 37866,
+   "prompt_tokens_mean": 17119.239583333332,
+   "completion_tokens_mean": 197.21875,
+   "first_prompt_tokens_mean": 6683.760416666667
   }
  },
  "rows": [
@@ -5157,148 +5158,6 @@
    "repeat": 0
   },
   {
-   "id": "universal.org_headcount_accounting",
-   "pack": "universal",
-   "category": "aggregate",
-   "profile": "core-10",
-   "skills": "none",
-   "skills_loaded": [],
-   "wall_s": 5.06,
-   "llm_s": 5.05,
-   "error": null,
-   "prompt_tokens": 8560,
-   "completion_tokens": 51,
-   "llm_calls": 2,
-   "first_prompt_tokens": 4074,
-   "step_limit": false,
-   "calls": [
-    {
-     "turn": 0,
-     "tool": "find_people",
-     "args": {
-      "org_unit": "Kế toán",
-      "include_inactive": false
-     },
-     "ok": true,
-     "code": null,
-     "arg_valid": true,
-     "hallucinated_tool": false,
-     "latency": 0.007,
-     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"org_unit\", \"summary\": \"3 người khớp: Trần Thu Hà, Phạm Quốc Bảo, Đỗ Minh Châu.\", \"people\": [{\"ref\": \"person:ha\", \"employee_ref\": \"employee:nv-0002\", \"name\": \"Trần Thu Hà\", \"title\": \"Kế toán trưởng\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [\"chief_accountant\"], \"manager\": {\"ref\": \"person:long\", \"name\": \"Nguyễn Hoàng Long\"}}, {\"ref\": \"person:bao\", \"employee_ref\": \"employee:nv-0003\", \"name\": \"Phạm Quốc Bảo\", \"title\": \"Kế toán thanh toán\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [\"payment_accountant\"], \"manager\": {\"ref\": \"person:ha\", \"name\": \"Trần Thu Hà\"}}, {\"ref\": \"person:chau\", \"employee_ref\": \"employee:nv-0004\", \"name\": \"Đỗ Minh Châu\", \"title\": \"Thủ quỹ, kế toán công nợ\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [], \"manager\": {\"ref\": \"person:ha\", \"name\": \"Trần Thu Hà\"}}], \"next_cursor\": null, \"total\": 3}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
-    }
-   ],
-   "answers": [
-    "{\"ke_toan\": 3}"
-   ],
-   "first_tool_ok": false,
-   "required_missing": [
-    {
-     "index": 0,
-     "step": {
-      "tool": "aggregate_records",
-      "args": {
-       "model_id": "employee"
-      }
-     }
-    }
-   ],
-   "forbidden": [],
-   "answer_checks": [
-    {
-     "fact": {
-      "json": {
-       "ke_toan": {
-        "oracle": "org_active_by_dept",
-        "key": "Kế toán"
-       }
-      }
-     },
-     "ok": false,
-     "why": "ke_toan: 3 != 6"
-    }
-   ],
-   "soft_checks": [],
-   "state_checks": [],
-   "answer_ok": false,
-   "state_ok": true,
-   "semantic_pass": false,
-   "passed": false,
-   "calls_total": 1,
-   "calls_valid": 1,
-   "calls_error": 0,
-   "hallucinated_tools": 0,
-   "repeat": 0
-  },
-  {
-   "id": "universal.org_find_by_name",
-   "pack": "universal",
-   "category": "people",
-   "profile": "core-10",
-   "skills": "none",
-   "skills_loaded": [],
-   "wall_s": 5.88,
-   "llm_s": 5.87,
-   "error": null,
-   "prompt_tokens": 8247,
-   "completion_tokens": 72,
-   "llm_calls": 2,
-   "first_prompt_tokens": 4051,
-   "step_limit": false,
-   "calls": [
-    {
-     "turn": 0,
-     "tool": "find_people",
-     "args": {
-      "query": "Đạt"
-     },
-     "ok": true,
-     "code": null,
-     "arg_valid": true,
-     "hallucinated_tool": false,
-     "latency": 0.011,
-     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"search\", \"summary\": \"0 người khớp: không có ai.\", \"people\": [], \"next_cursor\": null, \"total\": 0}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
-    }
-   ],
-   "answers": [
-    "Không tìm thấy nhân viên nào tên Đạt trong công ty. Bạn có thể thử thêm họ hoặc chức danh để tìm kiếm chính xác hơn không? Ví dụ: \"Đạt IT\", \"Anh Đạt phòng...\", v.v."
-   ],
-   "first_tool_ok": false,
-   "required_missing": [
-    {
-     "index": 0,
-     "step": {
-      "tool": "search_records",
-      "args": {
-       "model_id": "employee"
-      }
-     }
-    }
-   ],
-   "forbidden": [],
-   "answer_checks": [
-    {
-     "fact": {
-      "contains_any": [
-       "Đạt"
-      ]
-     },
-     "ok": true,
-     "why": ""
-    }
-   ],
-   "soft_checks": [],
-   "state_checks": [],
-   "answer_ok": true,
-   "state_ok": true,
-   "semantic_pass": false,
-   "passed": false,
-   "calls_total": 1,
-   "calls_valid": 1,
-   "calls_error": 0,
-   "hallucinated_tools": 0,
-   "repeat": 0
-  },
-  {
    "id": "approvals.inbox_pending",
    "pack": "approvals",
    "category": "positive",
@@ -10134,152 +9993,6 @@
    "state_ok": true,
    "semantic_pass": true,
    "passed": true,
-   "calls_total": 1,
-   "calls_valid": 1,
-   "calls_error": 0,
-   "hallucinated_tools": 0,
-   "repeat": 0
-  },
-  {
-   "id": "universal.org_headcount_accounting",
-   "pack": "universal",
-   "category": "aggregate",
-   "profile": "core-10",
-   "skills": "auto",
-   "skills_loaded": [
-    "xt-core"
-   ],
-   "wall_s": 7.41,
-   "llm_s": 7.4,
-   "error": null,
-   "prompt_tokens": 12670,
-   "completion_tokens": 51,
-   "llm_calls": 2,
-   "first_prompt_tokens": 6129,
-   "step_limit": false,
-   "calls": [
-    {
-     "turn": 0,
-     "tool": "find_people",
-     "args": {
-      "org_unit": "Kế toán",
-      "include_inactive": false
-     },
-     "ok": true,
-     "code": null,
-     "arg_valid": true,
-     "hallucinated_tool": false,
-     "latency": 0.014,
-     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"org_unit\", \"summary\": \"3 người khớp: Trần Thu Hà, Phạm Quốc Bảo, Đỗ Minh Châu.\", \"people\": [{\"ref\": \"person:ha\", \"employee_ref\": \"employee:nv-0002\", \"name\": \"Trần Thu Hà\", \"title\": \"Kế toán trưởng\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [\"chief_accountant\"], \"manager\": {\"ref\": \"person:long\", \"name\": \"Nguyễn Hoàng Long\"}}, {\"ref\": \"person:bao\", \"employee_ref\": \"employee:nv-0003\", \"name\": \"Phạm Quốc Bảo\", \"title\": \"Kế toán thanh toán\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [\"payment_accountant\"], \"manager\": {\"ref\": \"person:ha\", \"name\": \"Trần Thu Hà\"}}, {\"ref\": \"person:chau\", \"employee_ref\": \"employee:nv-0004\", \"name\": \"Đỗ Minh Châu\", \"title\": \"Thủ quỹ, kế toán công nợ\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [], \"manager\": {\"ref\": \"person:ha\", \"name\": \"Trần Thu Hà\"}}], \"next_cursor\": null, \"total\": 3}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
-    }
-   ],
-   "answers": [
-    "{\"ke_toan\": 3}"
-   ],
-   "first_tool_ok": false,
-   "required_missing": [
-    {
-     "index": 0,
-     "step": {
-      "tool": "aggregate_records",
-      "args": {
-       "model_id": "employee"
-      }
-     }
-    }
-   ],
-   "forbidden": [],
-   "answer_checks": [
-    {
-     "fact": {
-      "json": {
-       "ke_toan": {
-        "oracle": "org_active_by_dept",
-        "key": "Kế toán"
-       }
-      }
-     },
-     "ok": false,
-     "why": "ke_toan: 3 != 6"
-    }
-   ],
-   "soft_checks": [],
-   "state_checks": [],
-   "answer_ok": false,
-   "state_ok": true,
-   "semantic_pass": false,
-   "passed": false,
-   "calls_total": 1,
-   "calls_valid": 1,
-   "calls_error": 0,
-   "hallucinated_tools": 0,
-   "repeat": 0
-  },
-  {
-   "id": "universal.org_find_by_name",
-   "pack": "universal",
-   "category": "people",
-   "profile": "core-10",
-   "skills": "auto",
-   "skills_loaded": [
-    "xt-core"
-   ],
-   "wall_s": 4.75,
-   "llm_s": 4.73,
-   "error": null,
-   "prompt_tokens": 12357,
-   "completion_tokens": 68,
-   "llm_calls": 2,
-   "first_prompt_tokens": 6106,
-   "step_limit": false,
-   "calls": [
-    {
-     "turn": 0,
-     "tool": "find_people",
-     "args": {
-      "query": "Đạt"
-     },
-     "ok": true,
-     "code": null,
-     "arg_valid": true,
-     "hallucinated_tool": false,
-     "latency": 0.017,
-     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"search\", \"summary\": \"0 người khớp: không có ai.\", \"people\": [], \"next_cursor\": null, \"total\": 0}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
-    }
-   ],
-   "answers": [
-    "Không tìm thấy nhân viên nào tên Đạt trong công ty. Bạn có thể thử thêm họ hoặc chức danh để tìm chính xác hơn, ví dụ \"Đạt IT\" hay \"Anh Đạt phòng X\"."
-   ],
-   "first_tool_ok": false,
-   "required_missing": [
-    {
-     "index": 0,
-     "step": {
-      "tool": "search_records",
-      "args": {
-       "model_id": "employee"
-      }
-     }
-    }
-   ],
-   "forbidden": [],
-   "answer_checks": [
-    {
-     "fact": {
-      "contains_any": [
-       "Đạt"
-      ]
-     },
-     "ok": true,
-     "why": ""
-    }
-   ],
-   "soft_checks": [],
-   "state_checks": [],
-   "answer_ok": true,
-   "state_ok": true,
-   "semantic_pass": false,
-   "passed": false,
    "calls_total": 1,
    "calls_valid": 1,
    "calls_error": 0,
@@ -15320,148 +15033,6 @@
    "state_ok": true,
    "semantic_pass": true,
    "passed": true,
-   "calls_total": 1,
-   "calls_valid": 1,
-   "calls_error": 0,
-   "hallucinated_tools": 0,
-   "repeat": 1
-  },
-  {
-   "id": "universal.org_headcount_accounting",
-   "pack": "universal",
-   "category": "aggregate",
-   "profile": "core-10",
-   "skills": "none",
-   "skills_loaded": [],
-   "wall_s": 4.82,
-   "llm_s": 4.8,
-   "error": null,
-   "prompt_tokens": 8560,
-   "completion_tokens": 51,
-   "llm_calls": 2,
-   "first_prompt_tokens": 4074,
-   "step_limit": false,
-   "calls": [
-    {
-     "turn": 0,
-     "tool": "find_people",
-     "args": {
-      "org_unit": "Kế toán",
-      "include_inactive": false
-     },
-     "ok": true,
-     "code": null,
-     "arg_valid": true,
-     "hallucinated_tool": false,
-     "latency": 0.017,
-     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"org_unit\", \"summary\": \"3 người khớp: Trần Thu Hà, Phạm Quốc Bảo, Đỗ Minh Châu.\", \"people\": [{\"ref\": \"person:ha\", \"employee_ref\": \"employee:nv-0002\", \"name\": \"Trần Thu Hà\", \"title\": \"Kế toán trưởng\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [\"chief_accountant\"], \"manager\": {\"ref\": \"person:long\", \"name\": \"Nguyễn Hoàng Long\"}}, {\"ref\": \"person:bao\", \"employee_ref\": \"employee:nv-0003\", \"name\": \"Phạm Quốc Bảo\", \"title\": \"Kế toán thanh toán\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [\"payment_accountant\"], \"manager\": {\"ref\": \"person:ha\", \"name\": \"Trần Thu Hà\"}}, {\"ref\": \"person:chau\", \"employee_ref\": \"employee:nv-0004\", \"name\": \"Đỗ Minh Châu\", \"title\": \"Thủ quỹ, kế toán công nợ\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [], \"manager\": {\"ref\": \"person:ha\", \"name\": \"Trần Thu Hà\"}}], \"next_cursor\": null, \"total\": 3}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
-    }
-   ],
-   "answers": [
-    "{\"ke_toan\": 3}"
-   ],
-   "first_tool_ok": false,
-   "required_missing": [
-    {
-     "index": 0,
-     "step": {
-      "tool": "aggregate_records",
-      "args": {
-       "model_id": "employee"
-      }
-     }
-    }
-   ],
-   "forbidden": [],
-   "answer_checks": [
-    {
-     "fact": {
-      "json": {
-       "ke_toan": {
-        "oracle": "org_active_by_dept",
-        "key": "Kế toán"
-       }
-      }
-     },
-     "ok": false,
-     "why": "ke_toan: 3 != 6"
-    }
-   ],
-   "soft_checks": [],
-   "state_checks": [],
-   "answer_ok": false,
-   "state_ok": true,
-   "semantic_pass": false,
-   "passed": false,
-   "calls_total": 1,
-   "calls_valid": 1,
-   "calls_error": 0,
-   "hallucinated_tools": 0,
-   "repeat": 1
-  },
-  {
-   "id": "universal.org_find_by_name",
-   "pack": "universal",
-   "category": "people",
-   "profile": "core-10",
-   "skills": "none",
-   "skills_loaded": [],
-   "wall_s": 3.34,
-   "llm_s": 3.32,
-   "error": null,
-   "prompt_tokens": 8247,
-   "completion_tokens": 39,
-   "llm_calls": 2,
-   "first_prompt_tokens": 4051,
-   "step_limit": false,
-   "calls": [
-    {
-     "turn": 0,
-     "tool": "find_people",
-     "args": {
-      "query": "Đạt"
-     },
-     "ok": true,
-     "code": null,
-     "arg_valid": true,
-     "hallucinated_tool": false,
-     "latency": 0.015,
-     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"search\", \"summary\": \"0 người khớp: không có ai.\", \"people\": [], \"next_cursor\": null, \"total\": 0}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
-    }
-   ],
-   "answers": [
-    "Không tìm thấy nhân viên nào tên Đạt trong công ty."
-   ],
-   "first_tool_ok": false,
-   "required_missing": [
-    {
-     "index": 0,
-     "step": {
-      "tool": "search_records",
-      "args": {
-       "model_id": "employee"
-      }
-     }
-    }
-   ],
-   "forbidden": [],
-   "answer_checks": [
-    {
-     "fact": {
-      "contains_any": [
-       "Đạt"
-      ]
-     },
-     "ok": true,
-     "why": ""
-    }
-   ],
-   "soft_checks": [],
-   "state_checks": [],
-   "answer_ok": true,
-   "state_ok": true,
-   "semantic_pass": false,
-   "passed": false,
    "calls_total": 1,
    "calls_valid": 1,
    "calls_error": 0,
@@ -20529,152 +20100,6 @@
    "repeat": 1
   },
   {
-   "id": "universal.org_headcount_accounting",
-   "pack": "universal",
-   "category": "aggregate",
-   "profile": "core-10",
-   "skills": "auto",
-   "skills_loaded": [
-    "xt-core"
-   ],
-   "wall_s": 6.48,
-   "llm_s": 6.46,
-   "error": null,
-   "prompt_tokens": 12670,
-   "completion_tokens": 51,
-   "llm_calls": 2,
-   "first_prompt_tokens": 6129,
-   "step_limit": false,
-   "calls": [
-    {
-     "turn": 0,
-     "tool": "find_people",
-     "args": {
-      "org_unit": "Kế toán",
-      "include_inactive": false
-     },
-     "ok": true,
-     "code": null,
-     "arg_valid": true,
-     "hallucinated_tool": false,
-     "latency": 0.013,
-     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"org_unit\", \"summary\": \"3 người khớp: Trần Thu Hà, Phạm Quốc Bảo, Đỗ Minh Châu.\", \"people\": [{\"ref\": \"person:ha\", \"employee_ref\": \"employee:nv-0002\", \"name\": \"Trần Thu Hà\", \"title\": \"Kế toán trưởng\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [\"chief_accountant\"], \"manager\": {\"ref\": \"person:long\", \"name\": \"Nguyễn Hoàng Long\"}}, {\"ref\": \"person:bao\", \"employee_ref\": \"employee:nv-0003\", \"name\": \"Phạm Quốc Bảo\", \"title\": \"Kế toán thanh toán\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [\"payment_accountant\"], \"manager\": {\"ref\": \"person:ha\", \"name\": \"Trần Thu Hà\"}}, {\"ref\": \"person:chau\", \"employee_ref\": \"employee:nv-0004\", \"name\": \"Đỗ Minh Châu\", \"title\": \"Thủ quỹ, kế toán công nợ\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [], \"manager\": {\"ref\": \"person:ha\", \"name\": \"Trần Thu Hà\"}}], \"next_cursor\": null, \"total\": 3}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
-    }
-   ],
-   "answers": [
-    "{\"ke_toan\": 3}"
-   ],
-   "first_tool_ok": false,
-   "required_missing": [
-    {
-     "index": 0,
-     "step": {
-      "tool": "aggregate_records",
-      "args": {
-       "model_id": "employee"
-      }
-     }
-    }
-   ],
-   "forbidden": [],
-   "answer_checks": [
-    {
-     "fact": {
-      "json": {
-       "ke_toan": {
-        "oracle": "org_active_by_dept",
-        "key": "Kế toán"
-       }
-      }
-     },
-     "ok": false,
-     "why": "ke_toan: 3 != 6"
-    }
-   ],
-   "soft_checks": [],
-   "state_checks": [],
-   "answer_ok": false,
-   "state_ok": true,
-   "semantic_pass": false,
-   "passed": false,
-   "calls_total": 1,
-   "calls_valid": 1,
-   "calls_error": 0,
-   "hallucinated_tools": 0,
-   "repeat": 1
-  },
-  {
-   "id": "universal.org_find_by_name",
-   "pack": "universal",
-   "category": "people",
-   "profile": "core-10",
-   "skills": "auto",
-   "skills_loaded": [
-    "xt-core"
-   ],
-   "wall_s": 4.61,
-   "llm_s": 4.58,
-   "error": null,
-   "prompt_tokens": 12357,
-   "completion_tokens": 65,
-   "llm_calls": 2,
-   "first_prompt_tokens": 6106,
-   "step_limit": false,
-   "calls": [
-    {
-     "turn": 0,
-     "tool": "find_people",
-     "args": {
-      "query": "Đạt"
-     },
-     "ok": true,
-     "code": null,
-     "arg_valid": true,
-     "hallucinated_tool": false,
-     "latency": 0.017,
-     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"search\", \"summary\": \"0 người khớp: không có ai.\", \"people\": [], \"next_cursor\": null, \"total\": 0}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
-    }
-   ],
-   "answers": [
-    "Không tìm thấy nhân viên nào tên Đạt trong công ty. Bạn có thể thử cung cấp thêm thông tin như họ hàng, chức vụ hoặc email để tôi tra cứu chính xác hơn không?"
-   ],
-   "first_tool_ok": false,
-   "required_missing": [
-    {
-     "index": 0,
-     "step": {
-      "tool": "search_records",
-      "args": {
-       "model_id": "employee"
-      }
-     }
-    }
-   ],
-   "forbidden": [],
-   "answer_checks": [
-    {
-     "fact": {
-      "contains_any": [
-       "Đạt"
-      ]
-     },
-     "ok": true,
-     "why": ""
-    }
-   ],
-   "soft_checks": [],
-   "state_checks": [],
-   "answer_ok": true,
-   "state_ok": true,
-   "semantic_pass": false,
-   "passed": false,
-   "calls_total": 1,
-   "calls_valid": 1,
-   "calls_error": 0,
-   "hallucinated_tools": 0,
-   "repeat": 1
-  },
-  {
    "id": "approvals.inbox_pending",
    "pack": "approvals",
    "category": "positive",
@@ -25510,148 +24935,6 @@
    "state_ok": true,
    "semantic_pass": true,
    "passed": true,
-   "calls_total": 1,
-   "calls_valid": 1,
-   "calls_error": 0,
-   "hallucinated_tools": 0,
-   "repeat": 2
-  },
-  {
-   "id": "universal.org_headcount_accounting",
-   "pack": "universal",
-   "category": "aggregate",
-   "profile": "core-10",
-   "skills": "none",
-   "skills_loaded": [],
-   "wall_s": 3.19,
-   "llm_s": 3.17,
-   "error": null,
-   "prompt_tokens": 8560,
-   "completion_tokens": 51,
-   "llm_calls": 2,
-   "first_prompt_tokens": 4074,
-   "step_limit": false,
-   "calls": [
-    {
-     "turn": 0,
-     "tool": "find_people",
-     "args": {
-      "org_unit": "Kế toán",
-      "include_inactive": false
-     },
-     "ok": true,
-     "code": null,
-     "arg_valid": true,
-     "hallucinated_tool": false,
-     "latency": 0.017,
-     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"org_unit\", \"summary\": \"3 người khớp: Trần Thu Hà, Phạm Quốc Bảo, Đỗ Minh Châu.\", \"people\": [{\"ref\": \"person:ha\", \"employee_ref\": \"employee:nv-0002\", \"name\": \"Trần Thu Hà\", \"title\": \"Kế toán trưởng\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [\"chief_accountant\"], \"manager\": {\"ref\": \"person:long\", \"name\": \"Nguyễn Hoàng Long\"}}, {\"ref\": \"person:bao\", \"employee_ref\": \"employee:nv-0003\", \"name\": \"Phạm Quốc Bảo\", \"title\": \"Kế toán thanh toán\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [\"payment_accountant\"], \"manager\": {\"ref\": \"person:ha\", \"name\": \"Trần Thu Hà\"}}, {\"ref\": \"person:chau\", \"employee_ref\": \"employee:nv-0004\", \"name\": \"Đỗ Minh Châu\", \"title\": \"Thủ quỹ, kế toán công nợ\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [], \"manager\": {\"ref\": \"person:ha\", \"name\": \"Trần Thu Hà\"}}], \"next_cursor\": null, \"total\": 3}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
-    }
-   ],
-   "answers": [
-    "{\"ke_toan\": 3}"
-   ],
-   "first_tool_ok": false,
-   "required_missing": [
-    {
-     "index": 0,
-     "step": {
-      "tool": "aggregate_records",
-      "args": {
-       "model_id": "employee"
-      }
-     }
-    }
-   ],
-   "forbidden": [],
-   "answer_checks": [
-    {
-     "fact": {
-      "json": {
-       "ke_toan": {
-        "oracle": "org_active_by_dept",
-        "key": "Kế toán"
-       }
-      }
-     },
-     "ok": false,
-     "why": "ke_toan: 3 != 6"
-    }
-   ],
-   "soft_checks": [],
-   "state_checks": [],
-   "answer_ok": false,
-   "state_ok": true,
-   "semantic_pass": false,
-   "passed": false,
-   "calls_total": 1,
-   "calls_valid": 1,
-   "calls_error": 0,
-   "hallucinated_tools": 0,
-   "repeat": 2
-  },
-  {
-   "id": "universal.org_find_by_name",
-   "pack": "universal",
-   "category": "people",
-   "profile": "core-10",
-   "skills": "none",
-   "skills_loaded": [],
-   "wall_s": 2.62,
-   "llm_s": 2.59,
-   "error": null,
-   "prompt_tokens": 8247,
-   "completion_tokens": 39,
-   "llm_calls": 2,
-   "first_prompt_tokens": 4051,
-   "step_limit": false,
-   "calls": [
-    {
-     "turn": 0,
-     "tool": "find_people",
-     "args": {
-      "query": "Đạt"
-     },
-     "ok": true,
-     "code": null,
-     "arg_valid": true,
-     "hallucinated_tool": false,
-     "latency": 0.023,
-     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"search\", \"summary\": \"0 người khớp: không có ai.\", \"people\": [], \"next_cursor\": null, \"total\": 0}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
-    }
-   ],
-   "answers": [
-    "Không tìm thấy nhân viên nào tên Đạt trong công ty."
-   ],
-   "first_tool_ok": false,
-   "required_missing": [
-    {
-     "index": 0,
-     "step": {
-      "tool": "search_records",
-      "args": {
-       "model_id": "employee"
-      }
-     }
-    }
-   ],
-   "forbidden": [],
-   "answer_checks": [
-    {
-     "fact": {
-      "contains_any": [
-       "Đạt"
-      ]
-     },
-     "ok": true,
-     "why": ""
-    }
-   ],
-   "soft_checks": [],
-   "state_checks": [],
-   "answer_ok": true,
-   "state_ok": true,
-   "semantic_pass": false,
-   "passed": false,
    "calls_total": 1,
    "calls_valid": 1,
    "calls_error": 0,
@@ -30516,96 +29799,97 @@
    "repeat": 2
   },
   {
-   "id": "universal.org_headcount_accounting",
+   "id": "universal.org_headcount_marketing",
    "pack": "universal",
    "category": "aggregate",
    "profile": "core-10",
-   "skills": "auto",
-   "skills_loaded": [
-    "xt-core"
-   ],
-   "wall_s": 4.44,
-   "llm_s": 4.42,
+   "skills": "none",
+   "skills_loaded": [],
+   "wall_s": 27.98,
+   "llm_s": 27.82,
    "error": null,
-   "prompt_tokens": 12670,
-   "completion_tokens": 51,
-   "llm_calls": 2,
-   "first_prompt_tokens": 6129,
+   "prompt_tokens": 14016,
+   "completion_tokens": 119,
+   "llm_calls": 3,
+   "first_prompt_tokens": 4071,
    "step_limit": false,
    "calls": [
     {
      "turn": 0,
      "tool": "find_people",
      "args": {
-      "org_unit": "Kế toán",
+      "org_unit": "Marketing",
       "include_inactive": false
      },
      "ok": true,
      "code": null,
      "arg_valid": true,
      "hallucinated_tool": false,
-     "latency": 0.011,
-     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"org_unit\", \"summary\": \"3 người khớp: Trần Thu Hà, Phạm Quốc Bảo, Đỗ Minh Châu.\", \"people\": [{\"ref\": \"person:ha\", \"employee_ref\": \"employee:nv-0002\", \"name\": \"Trần Thu Hà\", \"title\": \"Kế toán trưởng\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [\"chief_accountant\"], \"manager\": {\"ref\": \"person:long\", \"name\": \"Nguyễn Hoàng Long\"}}, {\"ref\": \"person:bao\", \"employee_ref\": \"employee:nv-0003\", \"name\": \"Phạm Quốc Bảo\", \"title\": \"Kế toán thanh toán\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [\"payment_accountant\"], \"manager\": {\"ref\": \"person:ha\", \"name\": \"Trần Thu Hà\"}}, {\"ref\": \"person:chau\", \"employee_ref\": \"employee:nv-0004\", \"name\": \"Đỗ Minh Châu\", \"title\": \"Thủ quỹ, kế toán công nợ\", \"org_unit\": \"Kế toán - Tài chính\", \"roles\": [], \"manager\": {\"ref\": \"person:ha\", \"name\": \"Trần Thu Hà\"}}], \"next_cursor\": null, \"total\": 3}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
+     "latency": 0.008,
+     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"org_unit\", \"summary\": \"7 người khớp: Đỗ Mai Lan, Trịnh Quỳnh Chi, Lý Thùy Dương, Vũ Thanh Hằng, Nguyễn Ngọc Bích, Trần Mỹ Duyên, Lê Khánh Linh.\", \"people\": [{\"ref\": \"person:org-0044\", \"employee_ref\": \"employee:org-0044\", \"name\": \"Đỗ Mai Lan\", \"title\": \"Trưởng phòng\", \"org_unit\": \"Marketing\", \"roles\": [\"dept_head\"], \"manager\": {\"ref\": \"person:org-0001\", \"name\": \"Nguyễn Hữu Trí\"}}, {\"ref\": \"person:org-0045\", \"employee_ref\": \"employee:org-0045\", \"name\": \"Trịnh Quỳnh Chi\", \"title\": \"Chuyên viên chính\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0046\", \"employee_ref\": \"employee:org-0046\", \"name\": \"Lý Thùy Dương\", \"title\": \"Chuyên viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0047\", \"employee_ref\": \"employee:org-0047\", \"name\": \"Vũ Thanh Hằng\", \"title\": \"Chuyên viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0048\", \"employee_ref\": \"employee:org-0048\", \"name\": \"Nguyễn Ngọc Bích\", \"title\": \"Nhân viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0049\", \"employee_ref\": \"employee:org-0049\", \"name\": \"Trần Mỹ Duyên\", \"title\": \"Nhân viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"ma"
+    },
+    {
+     "turn": 0,
+     "tool": "aggregate_records",
+     "args": {
+      "model_id": "employee",
+      "date_field": "created_at",
+      "period": "2026-10-15..2026-10-15"
+     },
+     "ok": true,
+     "code": null,
+     "arg_valid": true,
+     "hallucinated_tool": false,
+     "latency": 0.009,
+     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"model_id\": \"employee\", \"model_revision\": 2, \"as_of\": \"2026-10-15T09:00:00+07:00\", \"scope\": \"authorized_records\", \"rows\": [], \"totals\": {\"count\": 0}, \"summary\": \"0 bản ghi; bộ lọc: không lọc; period: 2026-10-15..2026-10-15.\", \"lineage_ref\": \"explain:ex-001\", \"next_cursor\": null}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00002\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
     }
    ],
    "answers": [
-    "{\"ke_toan\": 3}"
+    "{\"marketing\": 7}"
    ],
-   "first_tool_ok": false,
-   "required_missing": [
-    {
-     "index": 0,
-     "step": {
-      "tool": "aggregate_records",
-      "args": {
-       "model_id": "employee"
-      }
-     }
-    }
-   ],
+   "first_tool_ok": true,
+   "required_missing": [],
    "forbidden": [],
    "answer_checks": [
     {
      "fact": {
       "json": {
-       "ke_toan": {
+       "marketing": {
         "oracle": "org_active_by_dept",
-        "key": "Kế toán"
+        "key": "Marketing"
        }
       }
      },
-     "ok": false,
-     "why": "ke_toan: 3 != 6"
+     "ok": true,
+     "why": ""
     }
    ],
    "soft_checks": [],
    "state_checks": [],
-   "answer_ok": false,
+   "answer_ok": true,
    "state_ok": true,
-   "semantic_pass": false,
-   "passed": false,
-   "calls_total": 1,
-   "calls_valid": 1,
+   "semantic_pass": true,
+   "passed": true,
+   "calls_total": 2,
+   "calls_valid": 2,
    "calls_error": 0,
    "hallucinated_tools": 0,
-   "repeat": 2
+   "repeat": 0
   },
   {
    "id": "universal.org_find_by_name",
    "pack": "universal",
    "category": "people",
    "profile": "core-10",
-   "skills": "auto",
-   "skills_loaded": [
-    "xt-core"
-   ],
-   "wall_s": 3.1,
-   "llm_s": 3.08,
+   "skills": "none",
+   "skills_loaded": [],
+   "wall_s": 6.05,
+   "llm_s": 5.99,
    "error": null,
-   "prompt_tokens": 12357,
-   "completion_tokens": 68,
+   "prompt_tokens": 8420,
+   "completion_tokens": 113,
    "llm_calls": 2,
-   "first_prompt_tokens": 6106,
+   "first_prompt_tokens": 4051,
    "step_limit": false,
    "calls": [
     {
@@ -30618,25 +29902,15 @@
      "code": null,
      "arg_valid": true,
      "hallucinated_tool": false,
-     "latency": 0.014,
-     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"search\", \"summary\": \"0 người khớp: không có ai.\", \"people\": [], \"next_cursor\": null, \"total\": 0}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
+     "latency": 0.042,
+     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"search\", \"summary\": \"2 người khớp: Ngô Thành Đạt, Nguyễn Văn Đạt.\", \"people\": [{\"ref\": \"person:org-0011\", \"employee_ref\": \"employee:org-0011\", \"name\": \"Ngô Thành Đạt\", \"title\": \"Phó Trưởng phòng\", \"org_unit\": \"Kinh doanh\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0010\", \"name\": \"Hoàng Quốc Bảo\"}}, {\"ref\": \"person:org-0052\", \"employee_ref\": \"employee:org-0052\", \"name\": \"Nguyễn Văn Đạt\", \"title\": \"Phó Trưởng phòng\", \"org_unit\": \"Vận hành\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0051\", \"name\": \"Bùi Đức Trọng\"}}], \"next_cursor\": null, \"total\": 2}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
     }
    ],
    "answers": [
-    "Không tìm thấy nhân viên nào tên Đạt trong công ty. Bạn có thể thử thêm họ hoặc chức danh để tìm chính xác hơn, ví dụ \"Đạt IT\", \"Anh Đạt bộ phận X\"..."
+    "Có 2 nhân viên tên Đạt trong công ty:\n\n1. **Ngô Thành Đạt** (ref: person:org-0011) - Phó Trưởng phòng, đơn vị Kinh doanh, báo cáo cho Hoàng Quốc Bảo.\n2. **Nguyễn Văn Đạt** (ref: person:org-0052) - Phó Trưởng phòng, đơn vị Vận hành, báo cáo cho Bùi Đức Trọng."
    ],
-   "first_tool_ok": false,
-   "required_missing": [
-    {
-     "index": 0,
-     "step": {
-      "tool": "search_records",
-      "args": {
-       "model_id": "employee"
-      }
-     }
-    }
-   ],
+   "first_tool_ok": true,
+   "required_missing": [],
    "forbidden": [],
    "answer_checks": [
     {
@@ -30653,8 +29927,630 @@
    "state_checks": [],
    "answer_ok": true,
    "state_ok": true,
-   "semantic_pass": false,
-   "passed": false,
+   "semantic_pass": true,
+   "passed": true,
+   "calls_total": 1,
+   "calls_valid": 1,
+   "calls_error": 0,
+   "hallucinated_tools": 0,
+   "repeat": 0
+  },
+  {
+   "id": "universal.org_headcount_marketing",
+   "pack": "universal",
+   "category": "aggregate",
+   "profile": "core-10",
+   "skills": "auto",
+   "skills_loaded": [
+    "xt-core"
+   ],
+   "wall_s": 5.85,
+   "llm_s": 5.8,
+   "error": null,
+   "prompt_tokens": 13013,
+   "completion_tokens": 47,
+   "llm_calls": 2,
+   "first_prompt_tokens": 6126,
+   "step_limit": false,
+   "calls": [
+    {
+     "turn": 0,
+     "tool": "find_people",
+     "args": {
+      "org_unit": "Marketing",
+      "include_inactive": false
+     },
+     "ok": true,
+     "code": null,
+     "arg_valid": true,
+     "hallucinated_tool": false,
+     "latency": 0.041,
+     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"org_unit\", \"summary\": \"7 người khớp: Đỗ Mai Lan, Trịnh Quỳnh Chi, Lý Thùy Dương, Vũ Thanh Hằng, Nguyễn Ngọc Bích, Trần Mỹ Duyên, Lê Khánh Linh.\", \"people\": [{\"ref\": \"person:org-0044\", \"employee_ref\": \"employee:org-0044\", \"name\": \"Đỗ Mai Lan\", \"title\": \"Trưởng phòng\", \"org_unit\": \"Marketing\", \"roles\": [\"dept_head\"], \"manager\": {\"ref\": \"person:org-0001\", \"name\": \"Nguyễn Hữu Trí\"}}, {\"ref\": \"person:org-0045\", \"employee_ref\": \"employee:org-0045\", \"name\": \"Trịnh Quỳnh Chi\", \"title\": \"Chuyên viên chính\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0046\", \"employee_ref\": \"employee:org-0046\", \"name\": \"Lý Thùy Dương\", \"title\": \"Chuyên viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0047\", \"employee_ref\": \"employee:org-0047\", \"name\": \"Vũ Thanh Hằng\", \"title\": \"Chuyên viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0048\", \"employee_ref\": \"employee:org-0048\", \"name\": \"Nguyễn Ngọc Bích\", \"title\": \"Nhân viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0049\", \"employee_ref\": \"employee:org-0049\", \"name\": \"Trần Mỹ Duyên\", \"title\": \"Nhân viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"ma"
+    }
+   ],
+   "answers": [
+    "{\"marketing\": 7}"
+   ],
+   "first_tool_ok": true,
+   "required_missing": [],
+   "forbidden": [],
+   "answer_checks": [
+    {
+     "fact": {
+      "json": {
+       "marketing": {
+        "oracle": "org_active_by_dept",
+        "key": "Marketing"
+       }
+      }
+     },
+     "ok": true,
+     "why": ""
+    }
+   ],
+   "soft_checks": [],
+   "state_checks": [],
+   "answer_ok": true,
+   "state_ok": true,
+   "semantic_pass": true,
+   "passed": true,
+   "calls_total": 1,
+   "calls_valid": 1,
+   "calls_error": 0,
+   "hallucinated_tools": 0,
+   "repeat": 0
+  },
+  {
+   "id": "universal.org_find_by_name",
+   "pack": "universal",
+   "category": "people",
+   "profile": "core-10",
+   "skills": "auto",
+   "skills_loaded": [
+    "xt-core"
+   ],
+   "wall_s": 5.09,
+   "llm_s": 5.04,
+   "error": null,
+   "prompt_tokens": 12530,
+   "completion_tokens": 91,
+   "llm_calls": 2,
+   "first_prompt_tokens": 6106,
+   "step_limit": false,
+   "calls": [
+    {
+     "turn": 0,
+     "tool": "find_people",
+     "args": {
+      "query": "Đạt"
+     },
+     "ok": true,
+     "code": null,
+     "arg_valid": true,
+     "hallucinated_tool": false,
+     "latency": 0.025,
+     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"search\", \"summary\": \"2 người khớp: Ngô Thành Đạt, Nguyễn Văn Đạt.\", \"people\": [{\"ref\": \"person:org-0011\", \"employee_ref\": \"employee:org-0011\", \"name\": \"Ngô Thành Đạt\", \"title\": \"Phó Trưởng phòng\", \"org_unit\": \"Kinh doanh\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0010\", \"name\": \"Hoàng Quốc Bảo\"}}, {\"ref\": \"person:org-0052\", \"employee_ref\": \"employee:org-0052\", \"name\": \"Nguyễn Văn Đạt\", \"title\": \"Phó Trưởng phòng\", \"org_unit\": \"Vận hành\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0051\", \"name\": \"Bùi Đức Trọng\"}}], \"next_cursor\": null, \"total\": 2}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
+    }
+   ],
+   "answers": [
+    "Có 2 nhân viên tên Đạt trong công ty:\n\n1. **Ngô Thành Đạt** – Phó Trưởng phòng, đơn vị Kinh doanh (báo cáo cho Hoàng Quốc Bảo)\n2. **Nguyễn Văn Đạt** – Phó Trưởng phòng, đơn vị Vận hành (báo cáo cho Bùi Đức Trọng)"
+   ],
+   "first_tool_ok": true,
+   "required_missing": [],
+   "forbidden": [],
+   "answer_checks": [
+    {
+     "fact": {
+      "contains_any": [
+       "Đạt"
+      ]
+     },
+     "ok": true,
+     "why": ""
+    }
+   ],
+   "soft_checks": [],
+   "state_checks": [],
+   "answer_ok": true,
+   "state_ok": true,
+   "semantic_pass": true,
+   "passed": true,
+   "calls_total": 1,
+   "calls_valid": 1,
+   "calls_error": 0,
+   "hallucinated_tools": 0,
+   "repeat": 0
+  },
+  {
+   "id": "universal.org_headcount_marketing",
+   "pack": "universal",
+   "category": "aggregate",
+   "profile": "core-10",
+   "skills": "none",
+   "skills_loaded": [],
+   "wall_s": 3.78,
+   "llm_s": 3.74,
+   "error": null,
+   "prompt_tokens": 8903,
+   "completion_tokens": 47,
+   "llm_calls": 2,
+   "first_prompt_tokens": 4071,
+   "step_limit": false,
+   "calls": [
+    {
+     "turn": 0,
+     "tool": "find_people",
+     "args": {
+      "org_unit": "Marketing",
+      "include_inactive": false
+     },
+     "ok": true,
+     "code": null,
+     "arg_valid": true,
+     "hallucinated_tool": false,
+     "latency": 0.028,
+     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"org_unit\", \"summary\": \"7 người khớp: Đỗ Mai Lan, Trịnh Quỳnh Chi, Lý Thùy Dương, Vũ Thanh Hằng, Nguyễn Ngọc Bích, Trần Mỹ Duyên, Lê Khánh Linh.\", \"people\": [{\"ref\": \"person:org-0044\", \"employee_ref\": \"employee:org-0044\", \"name\": \"Đỗ Mai Lan\", \"title\": \"Trưởng phòng\", \"org_unit\": \"Marketing\", \"roles\": [\"dept_head\"], \"manager\": {\"ref\": \"person:org-0001\", \"name\": \"Nguyễn Hữu Trí\"}}, {\"ref\": \"person:org-0045\", \"employee_ref\": \"employee:org-0045\", \"name\": \"Trịnh Quỳnh Chi\", \"title\": \"Chuyên viên chính\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0046\", \"employee_ref\": \"employee:org-0046\", \"name\": \"Lý Thùy Dương\", \"title\": \"Chuyên viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0047\", \"employee_ref\": \"employee:org-0047\", \"name\": \"Vũ Thanh Hằng\", \"title\": \"Chuyên viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0048\", \"employee_ref\": \"employee:org-0048\", \"name\": \"Nguyễn Ngọc Bích\", \"title\": \"Nhân viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0049\", \"employee_ref\": \"employee:org-0049\", \"name\": \"Trần Mỹ Duyên\", \"title\": \"Nhân viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"ma"
+    }
+   ],
+   "answers": [
+    "{\"marketing\": 7}"
+   ],
+   "first_tool_ok": true,
+   "required_missing": [],
+   "forbidden": [],
+   "answer_checks": [
+    {
+     "fact": {
+      "json": {
+       "marketing": {
+        "oracle": "org_active_by_dept",
+        "key": "Marketing"
+       }
+      }
+     },
+     "ok": true,
+     "why": ""
+    }
+   ],
+   "soft_checks": [],
+   "state_checks": [],
+   "answer_ok": true,
+   "state_ok": true,
+   "semantic_pass": true,
+   "passed": true,
+   "calls_total": 1,
+   "calls_valid": 1,
+   "calls_error": 0,
+   "hallucinated_tools": 0,
+   "repeat": 1
+  },
+  {
+   "id": "universal.org_find_by_name",
+   "pack": "universal",
+   "category": "people",
+   "profile": "core-10",
+   "skills": "none",
+   "skills_loaded": [],
+   "wall_s": 5.42,
+   "llm_s": 5.36,
+   "error": null,
+   "prompt_tokens": 8420,
+   "completion_tokens": 113,
+   "llm_calls": 2,
+   "first_prompt_tokens": 4051,
+   "step_limit": false,
+   "calls": [
+    {
+     "turn": 0,
+     "tool": "find_people",
+     "args": {
+      "query": "Đạt"
+     },
+     "ok": true,
+     "code": null,
+     "arg_valid": true,
+     "hallucinated_tool": false,
+     "latency": 0.039,
+     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"search\", \"summary\": \"2 người khớp: Ngô Thành Đạt, Nguyễn Văn Đạt.\", \"people\": [{\"ref\": \"person:org-0011\", \"employee_ref\": \"employee:org-0011\", \"name\": \"Ngô Thành Đạt\", \"title\": \"Phó Trưởng phòng\", \"org_unit\": \"Kinh doanh\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0010\", \"name\": \"Hoàng Quốc Bảo\"}}, {\"ref\": \"person:org-0052\", \"employee_ref\": \"employee:org-0052\", \"name\": \"Nguyễn Văn Đạt\", \"title\": \"Phó Trưởng phòng\", \"org_unit\": \"Vận hành\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0051\", \"name\": \"Bùi Đức Trọng\"}}], \"next_cursor\": null, \"total\": 2}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
+    }
+   ],
+   "answers": [
+    "Có 2 nhân viên tên Đạt trong công ty:\n\n1. **Ngô Thành Đạt** (ref: person:org-0011) - Phó Trưởng phòng, đơn vị Kinh doanh, báo cáo cho Hoàng Quốc Bảo.\n2. **Nguyễn Văn Đạt** (ref: person:org-0052) - Phó Trưởng phòng, đơn vị Vận hành, báo cáo cho Bùi Đức Trọng."
+   ],
+   "first_tool_ok": true,
+   "required_missing": [],
+   "forbidden": [],
+   "answer_checks": [
+    {
+     "fact": {
+      "contains_any": [
+       "Đạt"
+      ]
+     },
+     "ok": true,
+     "why": ""
+    }
+   ],
+   "soft_checks": [],
+   "state_checks": [],
+   "answer_ok": true,
+   "state_ok": true,
+   "semantic_pass": true,
+   "passed": true,
+   "calls_total": 1,
+   "calls_valid": 1,
+   "calls_error": 0,
+   "hallucinated_tools": 0,
+   "repeat": 1
+  },
+  {
+   "id": "universal.org_headcount_marketing",
+   "pack": "universal",
+   "category": "aggregate",
+   "profile": "core-10",
+   "skills": "auto",
+   "skills_loaded": [
+    "xt-core"
+   ],
+   "wall_s": 4.74,
+   "llm_s": 4.72,
+   "error": null,
+   "prompt_tokens": 13013,
+   "completion_tokens": 47,
+   "llm_calls": 2,
+   "first_prompt_tokens": 6126,
+   "step_limit": false,
+   "calls": [
+    {
+     "turn": 0,
+     "tool": "find_people",
+     "args": {
+      "org_unit": "Marketing",
+      "include_inactive": false
+     },
+     "ok": true,
+     "code": null,
+     "arg_valid": true,
+     "hallucinated_tool": false,
+     "latency": 0.02,
+     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"org_unit\", \"summary\": \"7 người khớp: Đỗ Mai Lan, Trịnh Quỳnh Chi, Lý Thùy Dương, Vũ Thanh Hằng, Nguyễn Ngọc Bích, Trần Mỹ Duyên, Lê Khánh Linh.\", \"people\": [{\"ref\": \"person:org-0044\", \"employee_ref\": \"employee:org-0044\", \"name\": \"Đỗ Mai Lan\", \"title\": \"Trưởng phòng\", \"org_unit\": \"Marketing\", \"roles\": [\"dept_head\"], \"manager\": {\"ref\": \"person:org-0001\", \"name\": \"Nguyễn Hữu Trí\"}}, {\"ref\": \"person:org-0045\", \"employee_ref\": \"employee:org-0045\", \"name\": \"Trịnh Quỳnh Chi\", \"title\": \"Chuyên viên chính\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0046\", \"employee_ref\": \"employee:org-0046\", \"name\": \"Lý Thùy Dương\", \"title\": \"Chuyên viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0047\", \"employee_ref\": \"employee:org-0047\", \"name\": \"Vũ Thanh Hằng\", \"title\": \"Chuyên viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0048\", \"employee_ref\": \"employee:org-0048\", \"name\": \"Nguyễn Ngọc Bích\", \"title\": \"Nhân viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0049\", \"employee_ref\": \"employee:org-0049\", \"name\": \"Trần Mỹ Duyên\", \"title\": \"Nhân viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"ma"
+    }
+   ],
+   "answers": [
+    "{\"marketing\": 7}"
+   ],
+   "first_tool_ok": true,
+   "required_missing": [],
+   "forbidden": [],
+   "answer_checks": [
+    {
+     "fact": {
+      "json": {
+       "marketing": {
+        "oracle": "org_active_by_dept",
+        "key": "Marketing"
+       }
+      }
+     },
+     "ok": true,
+     "why": ""
+    }
+   ],
+   "soft_checks": [],
+   "state_checks": [],
+   "answer_ok": true,
+   "state_ok": true,
+   "semantic_pass": true,
+   "passed": true,
+   "calls_total": 1,
+   "calls_valid": 1,
+   "calls_error": 0,
+   "hallucinated_tools": 0,
+   "repeat": 1
+  },
+  {
+   "id": "universal.org_find_by_name",
+   "pack": "universal",
+   "category": "people",
+   "profile": "core-10",
+   "skills": "auto",
+   "skills_loaded": [
+    "xt-core"
+   ],
+   "wall_s": 5.29,
+   "llm_s": 5.27,
+   "error": null,
+   "prompt_tokens": 12530,
+   "completion_tokens": 131,
+   "llm_calls": 2,
+   "first_prompt_tokens": 6106,
+   "step_limit": false,
+   "calls": [
+    {
+     "turn": 0,
+     "tool": "find_people",
+     "args": {
+      "query": "Đạt"
+     },
+     "ok": true,
+     "code": null,
+     "arg_valid": true,
+     "hallucinated_tool": false,
+     "latency": 0.013,
+     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"search\", \"summary\": \"2 người khớp: Ngô Thành Đạt, Nguyễn Văn Đạt.\", \"people\": [{\"ref\": \"person:org-0011\", \"employee_ref\": \"employee:org-0011\", \"name\": \"Ngô Thành Đạt\", \"title\": \"Phó Trưởng phòng\", \"org_unit\": \"Kinh doanh\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0010\", \"name\": \"Hoàng Quốc Bảo\"}}, {\"ref\": \"person:org-0052\", \"employee_ref\": \"employee:org-0052\", \"name\": \"Nguyễn Văn Đạt\", \"title\": \"Phó Trưởng phòng\", \"org_unit\": \"Vận hành\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0051\", \"name\": \"Bùi Đức Trọng\"}}], \"next_cursor\": null, \"total\": 2}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
+    }
+   ],
+   "answers": [
+    "Có 2 nhân viên tên Đạt trong công ty:\n\n1. **Ngô Thành Đạt** (ref: person:org-0011)  \n   - Chức vụ: Phó Trưởng phòng  \n   - Phòng ban: Kinh doanh  \n   - Sếp: Hoàng Quốc Bảo  \n\n2. **Nguyễn Văn Đạt** (ref: person:org-0052)  \n   - Chức vụ: Phó Trưởng phòng  \n   - Phòng ban: Vận hành  \n   - Sếp: Bùi Đức Trọng"
+   ],
+   "first_tool_ok": true,
+   "required_missing": [],
+   "forbidden": [],
+   "answer_checks": [
+    {
+     "fact": {
+      "contains_any": [
+       "Đạt"
+      ]
+     },
+     "ok": true,
+     "why": ""
+    }
+   ],
+   "soft_checks": [],
+   "state_checks": [],
+   "answer_ok": true,
+   "state_ok": true,
+   "semantic_pass": true,
+   "passed": true,
+   "calls_total": 1,
+   "calls_valid": 1,
+   "calls_error": 0,
+   "hallucinated_tools": 0,
+   "repeat": 1
+  },
+  {
+   "id": "universal.org_headcount_marketing",
+   "pack": "universal",
+   "category": "aggregate",
+   "profile": "core-10",
+   "skills": "none",
+   "skills_loaded": [],
+   "wall_s": 3.57,
+   "llm_s": 3.54,
+   "error": null,
+   "prompt_tokens": 8903,
+   "completion_tokens": 47,
+   "llm_calls": 2,
+   "first_prompt_tokens": 4071,
+   "step_limit": false,
+   "calls": [
+    {
+     "turn": 0,
+     "tool": "find_people",
+     "args": {
+      "org_unit": "Marketing",
+      "include_inactive": false
+     },
+     "ok": true,
+     "code": null,
+     "arg_valid": true,
+     "hallucinated_tool": false,
+     "latency": 0.025,
+     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"org_unit\", \"summary\": \"7 người khớp: Đỗ Mai Lan, Trịnh Quỳnh Chi, Lý Thùy Dương, Vũ Thanh Hằng, Nguyễn Ngọc Bích, Trần Mỹ Duyên, Lê Khánh Linh.\", \"people\": [{\"ref\": \"person:org-0044\", \"employee_ref\": \"employee:org-0044\", \"name\": \"Đỗ Mai Lan\", \"title\": \"Trưởng phòng\", \"org_unit\": \"Marketing\", \"roles\": [\"dept_head\"], \"manager\": {\"ref\": \"person:org-0001\", \"name\": \"Nguyễn Hữu Trí\"}}, {\"ref\": \"person:org-0045\", \"employee_ref\": \"employee:org-0045\", \"name\": \"Trịnh Quỳnh Chi\", \"title\": \"Chuyên viên chính\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0046\", \"employee_ref\": \"employee:org-0046\", \"name\": \"Lý Thùy Dương\", \"title\": \"Chuyên viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0047\", \"employee_ref\": \"employee:org-0047\", \"name\": \"Vũ Thanh Hằng\", \"title\": \"Chuyên viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0048\", \"employee_ref\": \"employee:org-0048\", \"name\": \"Nguyễn Ngọc Bích\", \"title\": \"Nhân viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0049\", \"employee_ref\": \"employee:org-0049\", \"name\": \"Trần Mỹ Duyên\", \"title\": \"Nhân viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"ma"
+    }
+   ],
+   "answers": [
+    "{\"marketing\": 7}"
+   ],
+   "first_tool_ok": true,
+   "required_missing": [],
+   "forbidden": [],
+   "answer_checks": [
+    {
+     "fact": {
+      "json": {
+       "marketing": {
+        "oracle": "org_active_by_dept",
+        "key": "Marketing"
+       }
+      }
+     },
+     "ok": true,
+     "why": ""
+    }
+   ],
+   "soft_checks": [],
+   "state_checks": [],
+   "answer_ok": true,
+   "state_ok": true,
+   "semantic_pass": true,
+   "passed": true,
+   "calls_total": 1,
+   "calls_valid": 1,
+   "calls_error": 0,
+   "hallucinated_tools": 0,
+   "repeat": 2
+  },
+  {
+   "id": "universal.org_find_by_name",
+   "pack": "universal",
+   "category": "people",
+   "profile": "core-10",
+   "skills": "none",
+   "skills_loaded": [],
+   "wall_s": 5.07,
+   "llm_s": 5.03,
+   "error": null,
+   "prompt_tokens": 8420,
+   "completion_tokens": 113,
+   "llm_calls": 2,
+   "first_prompt_tokens": 4051,
+   "step_limit": false,
+   "calls": [
+    {
+     "turn": 0,
+     "tool": "find_people",
+     "args": {
+      "query": "Đạt"
+     },
+     "ok": true,
+     "code": null,
+     "arg_valid": true,
+     "hallucinated_tool": false,
+     "latency": 0.031,
+     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"search\", \"summary\": \"2 người khớp: Ngô Thành Đạt, Nguyễn Văn Đạt.\", \"people\": [{\"ref\": \"person:org-0011\", \"employee_ref\": \"employee:org-0011\", \"name\": \"Ngô Thành Đạt\", \"title\": \"Phó Trưởng phòng\", \"org_unit\": \"Kinh doanh\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0010\", \"name\": \"Hoàng Quốc Bảo\"}}, {\"ref\": \"person:org-0052\", \"employee_ref\": \"employee:org-0052\", \"name\": \"Nguyễn Văn Đạt\", \"title\": \"Phó Trưởng phòng\", \"org_unit\": \"Vận hành\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0051\", \"name\": \"Bùi Đức Trọng\"}}], \"next_cursor\": null, \"total\": 2}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
+    }
+   ],
+   "answers": [
+    "Có 2 nhân viên tên Đạt trong công ty:\n\n1. **Ngô Thành Đạt** (ref: person:org-0011) - Phó Trưởng phòng, đơn vị Kinh doanh, báo cáo cho Hoàng Quốc Bảo.\n2. **Nguyễn Văn Đạt** (ref: person:org-0052) - Phó Trưởng phòng, đơn vị Vận hành, báo cáo cho Bùi Đức Trọng."
+   ],
+   "first_tool_ok": true,
+   "required_missing": [],
+   "forbidden": [],
+   "answer_checks": [
+    {
+     "fact": {
+      "contains_any": [
+       "Đạt"
+      ]
+     },
+     "ok": true,
+     "why": ""
+    }
+   ],
+   "soft_checks": [],
+   "state_checks": [],
+   "answer_ok": true,
+   "state_ok": true,
+   "semantic_pass": true,
+   "passed": true,
+   "calls_total": 1,
+   "calls_valid": 1,
+   "calls_error": 0,
+   "hallucinated_tools": 0,
+   "repeat": 2
+  },
+  {
+   "id": "universal.org_headcount_marketing",
+   "pack": "universal",
+   "category": "aggregate",
+   "profile": "core-10",
+   "skills": "auto",
+   "skills_loaded": [
+    "xt-core"
+   ],
+   "wall_s": 4.67,
+   "llm_s": 4.65,
+   "error": null,
+   "prompt_tokens": 13013,
+   "completion_tokens": 47,
+   "llm_calls": 2,
+   "first_prompt_tokens": 6126,
+   "step_limit": false,
+   "calls": [
+    {
+     "turn": 0,
+     "tool": "find_people",
+     "args": {
+      "org_unit": "Marketing",
+      "include_inactive": false
+     },
+     "ok": true,
+     "code": null,
+     "arg_valid": true,
+     "hallucinated_tool": false,
+     "latency": 0.01,
+     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"org_unit\", \"summary\": \"7 người khớp: Đỗ Mai Lan, Trịnh Quỳnh Chi, Lý Thùy Dương, Vũ Thanh Hằng, Nguyễn Ngọc Bích, Trần Mỹ Duyên, Lê Khánh Linh.\", \"people\": [{\"ref\": \"person:org-0044\", \"employee_ref\": \"employee:org-0044\", \"name\": \"Đỗ Mai Lan\", \"title\": \"Trưởng phòng\", \"org_unit\": \"Marketing\", \"roles\": [\"dept_head\"], \"manager\": {\"ref\": \"person:org-0001\", \"name\": \"Nguyễn Hữu Trí\"}}, {\"ref\": \"person:org-0045\", \"employee_ref\": \"employee:org-0045\", \"name\": \"Trịnh Quỳnh Chi\", \"title\": \"Chuyên viên chính\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0046\", \"employee_ref\": \"employee:org-0046\", \"name\": \"Lý Thùy Dương\", \"title\": \"Chuyên viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0047\", \"employee_ref\": \"employee:org-0047\", \"name\": \"Vũ Thanh Hằng\", \"title\": \"Chuyên viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0048\", \"employee_ref\": \"employee:org-0048\", \"name\": \"Nguyễn Ngọc Bích\", \"title\": \"Nhân viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0044\", \"name\": \"Đỗ Mai Lan\"}}, {\"ref\": \"person:org-0049\", \"employee_ref\": \"employee:org-0049\", \"name\": \"Trần Mỹ Duyên\", \"title\": \"Nhân viên\", \"org_unit\": \"Marketing\", \"roles\": [\"employee\"], \"ma"
+    }
+   ],
+   "answers": [
+    "{\"marketing\": 7}"
+   ],
+   "first_tool_ok": true,
+   "required_missing": [],
+   "forbidden": [],
+   "answer_checks": [
+    {
+     "fact": {
+      "json": {
+       "marketing": {
+        "oracle": "org_active_by_dept",
+        "key": "Marketing"
+       }
+      }
+     },
+     "ok": true,
+     "why": ""
+    }
+   ],
+   "soft_checks": [],
+   "state_checks": [],
+   "answer_ok": true,
+   "state_ok": true,
+   "semantic_pass": true,
+   "passed": true,
+   "calls_total": 1,
+   "calls_valid": 1,
+   "calls_error": 0,
+   "hallucinated_tools": 0,
+   "repeat": 2
+  },
+  {
+   "id": "universal.org_find_by_name",
+   "pack": "universal",
+   "category": "people",
+   "profile": "core-10",
+   "skills": "auto",
+   "skills_loaded": [
+    "xt-core"
+   ],
+   "wall_s": 5.34,
+   "llm_s": 5.32,
+   "error": null,
+   "prompt_tokens": 12530,
+   "completion_tokens": 133,
+   "llm_calls": 2,
+   "first_prompt_tokens": 6106,
+   "step_limit": false,
+   "calls": [
+    {
+     "turn": 0,
+     "tool": "find_people",
+     "args": {
+      "query": "Đạt"
+     },
+     "ok": true,
+     "code": null,
+     "arg_valid": true,
+     "hallucinated_tool": false,
+     "latency": 0.016,
+     "result": "{\"ok\": true, \"untrusted\": true, \"data\": {\"relation\": \"search\", \"summary\": \"2 người khớp: Ngô Thành Đạt, Nguyễn Văn Đạt.\", \"people\": [{\"ref\": \"person:org-0011\", \"employee_ref\": \"employee:org-0011\", \"name\": \"Ngô Thành Đạt\", \"title\": \"Phó Trưởng phòng\", \"org_unit\": \"Kinh doanh\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0010\", \"name\": \"Hoàng Quốc Bảo\"}}, {\"ref\": \"person:org-0052\", \"employee_ref\": \"employee:org-0052\", \"name\": \"Nguyễn Văn Đạt\", \"title\": \"Phó Trưởng phòng\", \"org_unit\": \"Vận hành\", \"roles\": [\"employee\"], \"manager\": {\"ref\": \"person:org-0051\", \"name\": \"Bùi Đức Trọng\"}}], \"next_cursor\": null, \"total\": 2}, \"meta\": {\"contract_version\": \"1.0.0\", \"trace_id\": \"tr-00001\", \"as_of\": \"2026-10-15T09:00:00+07:00\"}}"
+    }
+   ],
+   "answers": [
+    "Có 2 nhân viên tên Đạt trong công ty:\n\n1. **Ngô Thành Đạt** (ref: person:org-0011)\n   - Chức vụ: Phó Trưởng phòng\n   - Đơn vị: Kinh doanh\n   - Báo cáo cho: Hoàng Quốc Bảo\n\n2. **Nguyễn Văn Đạt** (ref: person:org-0052)\n   - Chức vụ: Phó Trưởng phòng\n   - Đơn vị: Vận hành\n   - Báo cáo cho: Bùi Đức Trọng"
+   ],
+   "first_tool_ok": true,
+   "required_missing": [],
+   "forbidden": [],
+   "answer_checks": [
+    {
+     "fact": {
+      "contains_any": [
+       "Đạt"
+      ]
+     },
+     "ok": true,
+     "why": ""
+    }
+   ],
+   "soft_checks": [],
+   "state_checks": [],
+   "answer_ok": true,
+   "state_ok": true,
+   "semantic_pass": true,
+   "passed": true,
    "calls_total": 1,
    "calls_valid": 1,
    "calls_error": 0,

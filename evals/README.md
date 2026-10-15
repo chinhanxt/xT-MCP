@@ -9,8 +9,8 @@ Chạy một LLM thật (OpenAI-compatible, mặc định ollama) điều khiể
 ```bash
 cd evals
 pip install -r requirements.txt            # chỉ dep đã có dòng trong THIRD_PARTY_NOTICES.md
-python -m xt_evals validate                # kiểm schema 71 scenario
-python -m pytest -c pytest.ini --rootdir=. tests -q    # 28 test: mock + bộ chấm (LLM giả có kịch bản)
+python -m xt_evals validate                # kiểm schema 73 scenario
+python -m pytest -c pytest.ini --rootdir=. tests -q    # 30 test: mock + bộ chấm (LLM giả có kịch bản)
 
 # Eval thật: tự bật mock ở cổng 20180, so sánh không skill và có skill, core-10
 python -m xt_evals run --llm-url http://127.0.0.1:11434/v1 --model qwen3.5:4b \
@@ -82,7 +82,7 @@ Cờ `--num-ctx` (mặc định 0 = không gửi) chỉ nên dùng khi `--llm-ur
 
 ## Số scenario
 
-71 scenario (63 chạy ở core-10): approvals 18, tasks 16, onboarding 13, universal 24. Theo loại: positive 19, aggregate 7, ambiguity 7, confirmation 6, negative 6, people 4, pii 4, search 6, injection 3, model_change 3, multi_turn 3, error_recovery 3. Bao phủ: ba pack (tạm ứng/phê duyệt, giao việc + SLA, onboarding/offboarding), tìm người, search/aggregate, đề xuất đổi model, nghi thức PII (chép nguyên token, không ghi ngược, bị từ chối quyền), prompt injection trong nội dung bản ghi (trường `purpose`, mô tả việc, comment kèm lệnh rò PII), mơ hồ (hai người tên Mai, thiếu lý do từ chối, thiếu đối tượng), và luồng `confirm_url` (đưa link, không thử lại, không giả mạo, gọi lại cùng key sau khi người xác nhận).
+73 scenario (64 chạy ở core-10): approvals 18, tasks 16, onboarding 13, universal 26. Theo loại: positive 19, aggregate 7, ambiguity 7, confirmation 6, negative 6, people 4, pii 4, search 6, injection 3, model_change 3, multi_turn 3, error_recovery 3. Bao phủ: ba pack (tạm ứng/phê duyệt, giao việc + SLA, onboarding/offboarding), tìm người, search/aggregate, đề xuất đổi model, nghi thức PII (chép nguyên token, không ghi ngược, bị từ chối quyền), prompt injection trong nội dung bản ghi (trường `purpose`, mô tả việc, comment kèm lệnh rò PII), mơ hồ (hai người tên Mai, thiếu lý do từ chối, thiếu đối tượng), và luồng `confirm_url` (đưa link, không thử lại, không giả mạo, gọi lại cùng key sau khi người xác nhận).
 
 ## Chỉ số
 
@@ -90,7 +90,7 @@ Chọn tool đúng (lời gọi đầu), tham số hợp schema (`jsonschema` v�
 
 ## Mock MCP server
 
-`python -m xt_evals.mock --port 20180` dựng 17 tool đúng inputSchema của contract 1.0.0 (`data/tools.json`, sinh bằng `tools/export_tools.py` từ `research/tool-contracts-v1-build/contracts.py`), dữ liệu công ty Bình Minh lấy từ `research/packs-draft` (15 người, 9 đề nghị tạm ứng, 2 đề nghị thanh toán, 5 việc, hồ sơ onboarding của Yến, thiết bị, quyền hệ thống, CCCD/lương che bằng `[PII:token]`). Hành vi bám contract: envelope `{ok, untrusted, data, meta}`, lỗi 15 mã có `remediation`/`continuation`/`explain_ref`, `idempotency_key` (replay, `idempotency_conflict`), CAS `expected_revision`, SoD, `confirmation_required` + `confirm_url` cho `decide_request` (human_only), giao việc ngoài tuyến báo cáo (L2) và chuyển nhân viên sang nghỉ việc (L3); người xác nhận được giả lập bằng `POST /admin/confirm`, trang `/desk/confirm/{id}` chỉ hiển thị. Mock là deterministic, **không phải server thật**: kết quả đo trên mock chỉ nói về agent + contract, không nói về hiệu năng/độ đúng của xT thật.
+`python -m xt_evals.mock --port 20180` dựng 17 tool đúng inputSchema của contract 1.0.0 (`data/tools.json`, sinh bằng `uv run python evals/tools/export_tools.py` từ `xt.contracts.tools` thật; `tests/test_golden.py` so lại với catalog để không lệch), dữ liệu công ty Bình Minh lấy từ `research/packs-draft` (biến thể seed `binhminh+org` nạp thêm danh bạ 60 người từ `seed/binh-minh/org.json`) (15 người, 9 đề nghị tạm ứng, 2 đề nghị thanh toán, 5 việc, hồ sơ onboarding của Yến, thiết bị, quyền hệ thống, CCCD/lương che bằng `[PII:token]`). Hành vi bám contract: envelope `{ok, untrusted, data, meta}`, lỗi 15 mã có `remediation`/`continuation`/`explain_ref`, `idempotency_key` (replay, `idempotency_conflict`), CAS `expected_revision`, SoD, `confirmation_required` + `confirm_url` cho `decide_request` (human_only), giao việc ngoài tuyến báo cáo (L2) và chuyển nhân viên sang nghỉ việc (L3); người xác nhận được giả lập bằng `POST /admin/confirm`, trang `/desk/confirm/{id}` chỉ hiển thị. Mock là deterministic, **không phải server thật**: kết quả đo trên mock chỉ nói về agent + contract, không nói về hiệu năng/độ đúng của xT thật.
 
 Điểm cố ý để lộ lỗi của agent: `where` sai field trả `unknown_field` kèm `valid_fields`; `find_people("Mai")` trả hai người; tên không có trong danh bạ trả 0; PII bị che; `employee_pii` đòi quyền `hr_pii`; hạn mức tạm ứng 30 triệu; ngưỡng giám đốc > 5 triệu.
 
@@ -101,15 +101,15 @@ evals/
   xt_evals/        cli, runner (chạy + chấm), agent (LLM + MCP), checks (matcher/fact), oracles, report, scenario
   xt_evals/mock/   world.py (fixture + 17 tool), server.py (MCP Streamable HTTP + /admin)
   scenarios/       4 file scenario + scenario.schema.json
-  data/tools.json  inputSchema 21 tool (17 v0.1 + 4 v1.0) trích từ contract
-  tests/           28 test (LLM giả có kịch bản: hành vi đúng phải PASS, sai phải FAIL đúng lý do)
+  data/tools.json  inputSchema 17 tool trích từ `xt.contracts.tools`
+  tests/           30 test (LLM giả có kịch bản: hành vi đúng phải PASS, sai phải FAIL đúng lý do)
   results/         đầu ra các lần chạy
 ```
 
 ## Giới hạn đã biết
 
 - Mock xác định, không phải xT thật; lỗi/độ trễ/phân trang của server thật chưa được đo.
-- Chỉ đo qwen3.5:4b (core-10). Chưa đo Claude/GPT, chưa đo profile `full` trên model local.
+- Chỉ đo qwen3.5:4b (core-10): kết quả 3 lần lặp (temperature 0.3) pass 62% không skill / 59% skills=auto, xem `docs/evals.md` mục 5 (mẫu lỗi và đề xuất sửa tool description/skill). Chưa đo Claude/GPT, chưa đo profile `full` trên model local.
 - Temperature 0 làm các lần lặp gần như giống nhau (xem `docs/evals.md`); `--temperature` để đo biến thiên.
 - `skills auto` chỉ nạp `SKILL.md`, không nạp `references/`.
 - Một vài scenario chấm lý do/đáp án bằng regex tiếng Việt (ví dụ "không tìm thấy"); đã giữ ở mức tối thiểu và đánh `soft` khi chỉ để chẩn đoán, nhưng vẫn có thể từ chối oan một câu trả lời đúng bằng cách diễn đạt khác.
