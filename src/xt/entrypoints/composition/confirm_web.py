@@ -52,6 +52,7 @@ from xt.domain.identity import (
     StepUpEvidence,
 )
 from xt.domain.model.context import ModelActor, TenantRef
+from xt.entrypoints.composition.model_changes import MODEL_PROPOSAL, ModelChangeDecisions
 from xt.entrypoints.composition.runtime import NIL, WORKFLOW_ROLE, Runtime
 from xt.entrypoints.composition.util import parse_record_ref
 
@@ -124,8 +125,11 @@ class ConfirmPages:
         verifier_for: Callable[[Any], StepUpVerifier],
         receipts_for: Callable[[Any], ReceiptService],
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        *,
+        model_changes: ModelChangeDecisions | None = None,
     ) -> None:
         self.rt = rt
+        self.model_changes = model_changes
         self.confirmations = ConfirmationService(dispatcher, settings.step_up.client_id)
         self.settings = settings
         self.verifier_for = verifier_for
@@ -161,6 +165,8 @@ class ConfirmPages:
             ctx = CallContext(op.actor, op.client_class, "tr_confirm", self.clock())
             model, rid = parse_record_ref(ctx, str(op.arguments["ref"]))
             actor = ModelActor(tenant, NIL, (WORKFLOW_ROLE,))
+            if model == MODEL_PROPOSAL and self.model_changes is not None:
+                return self.model_changes.requester_subject(tenant, actor, rid)
             row = self.rt.records.get(actor, model, rid)["record"]
             owner = self.rt.store.person(actor, UUID(str(row["owner_id"])))
             if owner is None or not owner.subject:

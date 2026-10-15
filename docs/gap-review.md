@@ -18,7 +18,7 @@ Người rà soát: product reviewer thay chủ dự án. Chỉ đọc mã và t
 - **Ba lỗ chức năng chặn e2e:**
   1. `propose_model_change` không bao giờ được áp dụng: `approve_and_apply` không được gọi ở runtime.
   2. Server không có `/pii/reveal`.
-  3. Production chưa đăng ký MCP App (`ui://`) nào.
+  3. Production chưa đăng ký MCP App (`ui://`) nào. (Cập nhật 16/10: đã có `orgchart`, `approval-card`, `record-table` trong `xt.adapters.mcp.apps`, e2e Desk xanh; còn chờ composition gọi `register_apps`, xem `integration-notes.md`.)
 - **Hai lỗ chặn yêu cầu đề thi:**
   1. Không có REST `/workflow/v1`. APISIX có route, nhưng xt-api không có handler.
   2. Dữ liệu phi cấu trúc chưa có: `upload_file` trả `capability_unavailable`, SeaweedFS chỉ có trong profile full.

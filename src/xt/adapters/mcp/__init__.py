@@ -6,6 +6,7 @@ Chỉ module này được import `mcp`. Không import adapter khác: danh tính
 và các callable do composition root (`xt.entrypoints.serve`) nối với `xt.adapters.identity`.
 """
 
+from xt.adapters.mcp.apps import AppsBundle, register_apps
 from xt.adapters.mcp.http_app import (
     AuthGate,
     Challenge,
@@ -16,6 +17,7 @@ from xt.adapters.mcp.http_app import (
 )
 from xt.adapters.mcp.instructions import SERVER_INSTRUCTIONS, instructions_for
 from xt.adapters.mcp.server import (
+    AppTool,
     Caller,
     ClientClassifier,
     UiResource,
@@ -29,6 +31,8 @@ from xt.adapters.mcp.strict_body import DUPLICATE_KEYS_META, mark_duplicate_keys
 __all__ = [
     "DUPLICATE_KEYS_META",
     "SERVER_INSTRUCTIONS",
+    "AppTool",
+    "AppsBundle",
     "AuthGate",
     "Caller",
     "Challenge",
@@ -41,6 +45,7 @@ __all__ = [
     "http_caller",
     "instructions_for",
     "mark_duplicate_keys",
+    "register_apps",
     "serve_stdio",
     "stdio_caller",
     "to_call_tool_result",

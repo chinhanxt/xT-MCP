@@ -418,7 +418,7 @@ _tool(
     max_autonomy="L0",
     effects=READ,
     iam=["person.read"],
-    ui_resource="ui://xt/org-chart",
+    ui_resource="ui://xt/orgchart",
     description=(
         "Company directory and org chart. Answers 'who reports to X' (direct_reports_of), 'who is X's manager' (manager_of), "
         "members of a unit or role, or finds a person by name to get their ref for assigning work. "
@@ -508,6 +508,7 @@ _tool(
         "(requests, tasks, documents, customers...). Not for totals/counts -> aggregate_records. Not for people -> find_people. "
         "VD: 'Các đề xuất tạm ứng đang chờ duyệt của tôi'"
     ),
+    ui_resource="ui://xt/record-table",
     errors=["invalid_request", "not_found"],
     input_schema=inp(
         {
@@ -1347,7 +1348,7 @@ _tool(
     max_autonomy="L2",
     effects=WRITE_NOTIFY,
     iam=["request.submit"],
-    ui_resource="ui://xt/request-card",
+    ui_resource="ui://xt/approval-card",
     description=(
         "Send a request draft (or a returned request) for approval. The server computes the approval route from policy; "
         "you do not choose approvers. Withdraw -> transition_record(to_state='withdrawn'). VD: 'Gửi đề xuất đi duyệt'"
@@ -1427,7 +1428,7 @@ _tool(
     human_only=True,
     effects=replace(WRITE_NOTIFY, mutates_definitions=True),
     iam=["request.decide"],
-    ui_resource="ui://xt/request-card",
+    ui_resource="ui://xt/approval-card",
     description=(
         "Approve, reject, return or delegate a request step assigned to the current user. Always needs that human's own click on "
         "the xT confirmation page: the first call returns confirmation_required with confirm_url; show it to the user, then "

@@ -88,6 +88,14 @@ class ToolAccessGuard:
             return f"xrn:{ctx.tenant}:{model}:{model}", res
         model, rid = parse_record_ref(ctx, ref)
         res = {}
+        if model == "model_proposal":
+            from xt.entrypoints.composition.model_changes import proposer_person
+
+            prop = self.rt.models.proposals.get(caller.tenant, rid)
+            owner_id = proposer_person(prop.proposed_by) if prop else None
+            if owner_id is not None:
+                res = {"owner": str(owner_id), "creator": str(owner_id)}
+            return f"xrn:{ctx.tenant}:{model}:{rid}", res
         try:
             out = self.rt.records.get(caller.workflow(), model, rid)
         except Exception:  # không thấy / không có model: policy quyết trên thuộc tính rỗng
@@ -141,6 +149,26 @@ class ToolAccessGuard:
             None if result.allowed else f"explain:{ctx.trace_id}",
             dict(result.detail),
         )
+
+    def allows(
+        self,
+        caller: Caller,
+        person: Any,
+        action: str,
+        xrn: str,
+        now: int,
+        resource: Mapping[str, Any] | None = None,
+    ) -> bool:
+        """`person` (xt_meta.person) có được `action` trên `xrn` theo policy đã duyệt không (chọn
+        người duyệt thứ hai cho đề xuất model PHÁ HỦY)."""
+        ev = self._evaluator(caller)
+        if ev is None or not person.active:
+            return False
+        pep = IamGuard(ev, _People(self.rt, caller), _NoGrant(), _NoGrant(), catalog=_PEP_CATALOG)
+        req = AccessRequest(
+            iam_person(caller.alias, person), action, xrn, dict(resource or {}), now=now
+        )
+        return bool(pep.evaluate(req).allowed)
 
     def autonomy_ceiling(self, ctx: CallContext) -> RiskLevel:
         caller = self.rt.caller(ctx)

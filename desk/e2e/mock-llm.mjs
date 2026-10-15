@@ -63,7 +63,12 @@ createServer((req, res) => {
       let name = null;
       let args = {};
       const asked = [...names].find((n) => text.includes(`chạy ${n}`));
-      if (asked) name = asked;
+      if (asked) {
+        name = asked;
+        // "chạy <tool> {json}": tham số do test chỉ định (lấy từ nội dung gốc, không hạ chữ thường)
+        const m = String(last.content || "").match(new RegExp(`chạy ${asked}\\s*(\\{.*\\})`, "is"));
+        if (m) args = JSON.parse(m[1]);
+      }
       else if (text.includes("sơ đồ") && names.has("show_org_chart")) name = "show_org_chart";
       else if (text.includes("phê duyệt") && names.has("show_approval_card")) (name = "show_approval_card"), (args = { task_id: "T-1" });
       if (!name) return sse(res, [{ content: "Xin chào, tôi có thể giúp gì?" }]);

@@ -44,3 +44,6 @@ research/.*.log
 # Đề thi VFOSSA: không phát hành (docs/decisions.md)
 research/de_thi_OLP2026.pdf
 research/de_thi_OLP2026.txt
+
+# Báo cáo e2e (bằng chứng chạy, sinh mỗi lần make e2e)
+e2e/reports/

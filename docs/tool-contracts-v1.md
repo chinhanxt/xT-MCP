@@ -308,8 +308,8 @@ Client `cloud` không bao giờ nhận `full` (`architecture-v2.md`: "`cloud` lu
 | 1 | `inspect_workspace` | Tôi là ai, có model/quy trình/loại việc/policy nào, giới hạn, tool khả dụng | L0 | T | F | T | F | - |
 | 2 | `describe_model` | Field, PII, state machine, rule, metric của một model | L0 | T | F | T | F | - |
 | 3 | `describe_process` | Bước, người duyệt, SLA, trigger; tính tuyến cho một bộ giá trị | L0 | T | F | T | F | - |
-| 4 | `find_people` | Danh bạ, sơ đồ tổ chức: ai báo cáo cho ai, sếp của ai, tìm người để lấy ref | L0 | T | F | T | F | ui://xt/org-chart |
-| 5 | `search_records` | Lọc có kiểu trong một model hoặc full-text xuyên model | L0 | T | F | T | F | - |
+| 4 | `find_people` | Danh bạ, sơ đồ tổ chức: ai báo cáo cho ai, sếp của ai, tìm người để lấy ref | L0 | T | F | T | F | ui://xt/orgchart |
+| 5 | `search_records` | Lọc có kiểu trong một model hoặc full-text xuyên model | L0 | T | F | T | F | ui://xt/record-table |
 | 6 | `aggregate_records` | count/sum/avg/min/max, group_by, period, time_bucket; metric có tên; lineage | L0 | T | F | T | F | ui://xt/report |
 | 7 | `get_record` | Đọc một ref: record, request + bước, process instance, file + text | L0 | T | F | T | F | ui://xt/record-card |
 | 8 | `get_inbox` | Việc, đề xuất chờ tôi, thông báo, kèm SLA | L0 | T | F | T | F | ui://xt/inbox |
@@ -318,8 +318,8 @@ Client `cloud` không bao giờ nhận `full` (`architecture-v2.md`: "`cloud` lu
 | 11 | `update_record` | Sửa field (gồm đổi người phụ trách, dời hạn task) | L2 | F | F | T | F | - |
 | 12 | `transition_record` | Chuyển trạng thái theo state machine (task, rút request, đã đọc, offboarding...) | L3 | F | F | T | F | - |
 | 13 | `upload_file` | text / base64 / upload_link → file ref | L1 | F | F | T | F | - |
-| 14 | `submit_request` | Gửi đề xuất; tuyến do policy tính | L2 | F | F | T | F | ui://xt/request-card |
-| 15 | `decide_request` | Duyệt / từ chối / trả lại / ủy quyền (luôn qua confirm_url) | human-only | F | F | T | F | ui://xt/request-card |
+| 14 | `submit_request` | Gửi đề xuất; tuyến do policy tính | L2 | F | F | T | F | ui://xt/approval-card |
+| 15 | `decide_request` | Duyệt / từ chối / trả lại / ủy quyền (luôn qua confirm_url) | human-only | F | F | T | F | ui://xt/approval-card |
 | 16 | `create_task` | Giao việc: hạn, cha-con, phụ thuộc, định kỳ | L2 | F | F | T | F | ui://xt/task-board |
 | 17 | `propose_model_change` | Dry-run diff rồi gửi đề xuất đổi model | L1 | F | F | T | F | ui://xt/diff-preview |
 
@@ -820,7 +820,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
   "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
   "iam": ["person.read"],
   "errors": ["invalid_request", "not_found"],
-  "ui_resource": "ui://xt/org-chart",
+  "ui_resource": "ui://xt/orgchart",
   "returns_untrusted_content": true,
   "input_schema": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -948,7 +948,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
   "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
   "iam": ["record.search"],
   "errors": ["invalid_request", "not_found"],
-  "ui_resource": null,
+  "ui_resource": "ui://xt/record-table",
   "returns_untrusted_content": true,
   "input_schema": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2221,7 +2221,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
     "confirmation_required",
     "idempotency_conflict"
   ],
-  "ui_resource": "ui://xt/request-card",
+  "ui_resource": "ui://xt/approval-card",
   "returns_untrusted_content": true,
   "input_schema": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2321,7 +2321,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
     "confirmation_declined",
     "idempotency_conflict"
   ],
-  "ui_resource": "ui://xt/request-card",
+  "ui_resource": "ui://xt/approval-card",
   "returns_untrusted_content": true,
   "input_schema": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",

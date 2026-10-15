@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- SPDX-FileCopyrightText: 2026 xT contributors -->
+<html lang="vi"><head><meta charset="utf-8"><title>Sơ đồ tổ chức</title>
+<style>
+body{font:14px system-ui,sans-serif;margin:8px;color:#1b2430}
+h3{margin:0 0 6px;font-size:15px}
+#wrap{overflow:auto;border:1px solid #d5dbe4;border-radius:6px;background:#fafbfd}
+.node{cursor:pointer;outline:none}.node rect{fill:#eef3ff;stroke:#3b5bdb;stroke-width:1}
+.node:hover rect,.node:focus rect{fill:#d0ddff}.node.sel rect{fill:#3b5bdb}.node.sel text{fill:#fff}
+.node text{fill:#1b2430;pointer-events:none}.edge{fill:none;stroke:#8895a7;stroke-width:1.2}
+#detail{margin-top:8px;padding:8px 10px;border:1px solid #d5dbe4;border-radius:6px;min-height:40px}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:3px 12px;margin:6px 0 0}dt{color:#5b6777}dd{margin:0}
+.mask{font-family:ui-monospace,monospace;color:#6b7280}.err{color:#b42318}
+.reports button{margin:2px 6px 2px 0;padding:2px 8px;border:1px solid #3b5bdb;background:#fff;color:#3b5bdb;border-radius:4px;cursor:pointer}
+</style></head>
+<body>
+<h3 id="t">Sơ đồ tổ chức</h3>
+<div id="wrap"><svg id="svg" role="group" aria-label="Sơ đồ tổ chức" width="300" height="80"></svg></div>
+<div id="detail" aria-live="polite">Bấm vào một người để xem chi tiết.</div>
+<script>/*BRIDGE*/</script>
+<script>
+(function () {
+  "use strict";
+  var B = window.xtBridge, NS = "http://www.w3.org/2000/svg";
+  var W = 156, H = 48, GX = 16, GY = 44, PAD = 12;
+  var STATUS = { active: "Đang làm việc", on_leave: "Nghỉ phép", offboarding: "Đang nghỉ việc", inactive: "Đã nghỉ" };
+  var svg = document.getElementById("svg"), detail = document.getElementById("detail"), seq = 0;
+
+  function el(tag, attrs, text) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+  function clip(s, n) { s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+
+  function build(d) {
+    var nodes = {}, order = [];
+    function add(p) {
+      if (!p || typeof p.ref !== "string") return null;
+      var n = nodes[p.ref];
+      if (!n) { n = nodes[p.ref] = { ref: p.ref, name: p.name || p.ref, title: "", parent: null, kids: [] }; order.push(n); }
+      if (p.title) n.title = p.title;
+      return n;
+    }
+    function reaches(from, target) { for (var x = from; x; x = x.parent) if (x === target) return true; return false; }
+    function link(child, parent) {
+      if (child && parent && child !== parent && !child.parent && !reaches(parent, child)) child.parent = parent;
+    }
+    var anchor = add(d.anchor), raw = Array.isArray(d.people) ? d.people : [];
+    var people = raw.map(add);
+    raw.forEach(function (p, i) { if (p && p.manager) link(people[i], add(p.manager)); });
+    if (d.relation === "direct_reports_of") people.forEach(function (n) { link(n, anchor); });
+    if (d.relation === "manager_of" && people[0]) link(anchor, people[0]);
+    order.forEach(function (n) { if (n.parent) n.parent.kids.push(n); });
+    return order.filter(function (n) { return !n.parent; });
+  }
+
+  function layout(n, x, y) {
+    var w = 0, cx = x;
+    n.kids.forEach(function (k) { var kw = layout(k, cx, y + H + GY); cx += kw + GX; w += kw + GX; });
+    w = Math.max(W, w - (n.kids.length ? GX : 0));
+    n.w = w; n.y = y;
+    n.x = n.kids.length ? (n.kids[0].x + n.kids[n.kids.length - 1].x) / 2 : x;
+    if (!n.kids.length) n.x = x + (w - W) / 2;
+    return w;
+  }
+
+  function draw(roots) {
+    svg.textContent = "";
+    var x = PAD, maxX = 0, maxY = 0;
+    roots.forEach(function (r) { var w = layout(r, x, PAD); x += w + GX; });
+    var edges = el("g", {}), boxes = el("g", {});
+    function walk(n) {
+      maxX = Math.max(maxX, n.x + W); maxY = Math.max(maxY, n.y + H);
+      n.kids.forEach(function (k) {
+        var ay = n.y + H, by = k.y, my = (ay + by) / 2, ax = n.x + W / 2, bx = k.x + W / 2;
+        edges.appendChild(el("path", { class: "edge", d: "M" + ax + " " + ay + "V" + my + "H" + bx + "V" + by }));
+        walk(k);
+      });
+      var g = el("g", { class: "node", "data-ref": n.ref, tabindex: "0", role: "button", "aria-label": n.name + (n.title ? ", " + n.title : "") });
+      g.appendChild(el("rect", { x: n.x, y: n.y, width: W, height: H, rx: 6 }));
+      g.appendChild(el("text", { x: n.x + W / 2, y: n.y + 20, "text-anchor": "middle", "font-weight": "600" }, clip(n.name, 22)));
+      g.appendChild(el("text", { x: n.x + W / 2, y: n.y + 37, "text-anchor": "middle", "font-size": "11" }, clip(n.title, 26)));
+      g.addEventListener("click", function () { select(n.ref); });
+      g.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(n.ref); } });
+      boxes.appendChild(g);
+    }
+    roots.forEach(walk);
+    svg.appendChild(edges); svg.appendChild(boxes);
+    svg.setAttribute("width", Math.max(maxX + PAD, 120)); svg.setAttribute("height", maxY + PAD);
+  }
+
+  function value(v) {
+    if (typeof v !== "string" || !v) return document.createTextNode("-");
+    var s = document.createElement("span");
+    if (/\[PII:[^\]]+\]/.test(v)) { s.className = "mask"; s.title = v; s.textContent = "•••• (đã che)"; } else s.textContent = v;
+    return s;
+  }
+  function row(dl, k, v) {
+    var dt = document.createElement("dt"), dd = document.createElement("dd");
+    dt.textContent = k; dd.appendChild(value(v)); dl.appendChild(dt); dl.appendChild(dd);
+  }
+  function showError(msg) { detail.textContent = ""; var s = document.createElement("span"); s.className = "err"; s.textContent = msg; detail.appendChild(s); B.sendSize(); }
+
+  function show(d) {
+    detail.textContent = "";
+    var h = document.createElement("strong"); h.textContent = d.name; detail.appendChild(h);
+    var dl = document.createElement("dl");
+    row(dl, "Chức danh", d.title); row(dl, "Đơn vị", d.org_unit && d.org_unit.name);
+    row(dl, "Quản lý", d.manager && d.manager.name); row(dl, "Trạng thái", STATUS[d.status] || d.status);
+    row(dl, "Email", d.email); row(dl, "Điện thoại", d.phone);
+    detail.appendChild(dl);
+    var rs = d.direct_reports || [];
+    if (rs.length) {
+      var box = document.createElement("div"); box.className = "reports";
+      box.appendChild(document.createTextNode("Báo cáo trực tiếp: "));
+      rs.forEach(function (r) {
+        var b = document.createElement("button"); b.type = "button"; b.textContent = r.name;
+        b.addEventListener("click", function () { select(r.ref); }); box.appendChild(b);
+      });
+      detail.appendChild(box);
+    }
+    B.sendSize();
+  }
+
+  function select(ref) {
+    var mine = ++seq;
+    Array.prototype.forEach.call(svg.querySelectorAll(".node"), function (g) { g.classList.toggle("sel", g.getAttribute("data-ref") === ref); });
+    detail.textContent = "Đang tải...";
+    B.callTool("org_person_details", { ref: ref }).then(function (r) {
+      if (mine !== seq) return;
+      var p = B.payload(r);
+      if (!p || p.ok !== true) return showError((p && p.error && p.error.message) || "Không tải được chi tiết.");
+      show(p.data);
+    }, function (e) { if (mine === seq) showError("Lỗi: " + e.message); });
+  }
+
+  B.on("ui/notifications/tool-result", function (r) {
+    var p = B.payload(r);
+    if (!p || p.ok !== true) { svg.textContent = ""; return showError((p && p.error && p.error.message) || "Không có dữ liệu sơ đồ."); }
+    if (p.data.summary) document.getElementById("t").textContent = p.data.summary;
+    draw(build(p.data)); B.sendSize();
+  });
+  B.connect("xt-orgchart");
+})();
+</script></body></html>

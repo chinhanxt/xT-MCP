@@ -72,7 +72,7 @@ Port nhận `args` đã qua schema, ném `ToolError` (có hàm tạo sẵn: `not
 
 - **HTTP:** `StreamableHTTPSessionManager(stateless=True, json_response=True)` (nhiều replica sau APISIX, không phụ thuộc buffering SSE). Route: endpoint MCP = path của `XT_MCP_RESOURCE` (mặc định `/mcp`), PRM `/.well-known/oauth-protected-resource/<path>` (công khai), `/healthz`. `AuthGate` áp cho mọi method: thiếu token → 401 `WWW-Authenticate: Bearer resource_metadata="…", scope="mcp-xt"`; token sai → 401 `error="invalid_token"`; thiếu scope → 403 `insufficient_scope`; IdP không tới được → 503; principal `human` (client trong `XT_MCP_HUMAN_CLIENTS`) → 401 (M6: Desk chat dùng client agent `xt-desk-agent` (public, tier masked; xem giá trị thật qua `/pii/reveal`); chỉ trang `/desk/confirm` là người). Có token: GET → 405; parse/kiểm khóa trùng O(n) chạy trong thread pool, không chặn event loop (stateless không có stream SSE); body lồng > 64 cấp → 400 `-32700`, batch hoặc khóa trùng ngoài `tools/call` → 400 `-32600`. Chống DNS rebinding bằng allowlist Host (host công khai của `XT_MCP_RESOURCE` + bind + `XT_MCP_ALLOWED_HOSTS`). Body POST > 4 MiB → 413.
 - **stdio (dev):** không có danh tính người cục bộ; mỗi `tools/call` đọc lại `XT_MCP_TOKEN_FILE` (token client-credentials của một agent) và kiểm bằng cùng verifier.
-- **MCP Apps:** `_meta.ui.resourceUri` chỉ gắn khi resource `ui://` tương ứng được đăng ký (`UiResource`, mime `text/html;profile=mcp-app`); hiện chưa đăng ký view nào nên `tools/list` không quảng bá link hỏng.
+- **MCP Apps:** `_meta.ui.resourceUri` chỉ gắn khi resource `ui://` tương ứng được đăng ký (`UiResource`, mime `text/html;profile=mcp-app`); composition root gọi `register_apps(...)` (xem mục MCP Apps) nên `tools/list` không bao giờ quảng bá link hỏng.
 
 ## Cấu hình `xt serve`
 
@@ -112,8 +112,34 @@ Byte đo trên entry thật server gửi (có title, annotations, `_meta`, input
 - `tests/unit/mcp/test_mcp_http.py`: client `mcp` thật qua Streamable HTTP trong tiến trình (client tự kiểm `structuredContent` theo `outputSchema`), 401 + `WWW-Authenticate` khi gọi tool không có token, 403 thiếu scope, PRM, chặn Host lạ, core-10, verifier thật của lớp danh tính với khóa ký cục bộ.
 - `tests/unit/mcp/test_mcp_stdio_and_cli.py`: stdio, `xt serve` thiếu cấu hình, smoke chạy thật `xt serve --transport http` (uvicorn) kiểm PRM + 401 qua socket.
 
+## MCP Apps (`ui://xt/*`)
+
+Ba view HTML/SVG/JS thuần (không thư viện UI, không tài nguyên ngoài), tiếng Việt, ở `src/xt/adapters/mcp/apps/`:
+
+| View | Tool của model gắn view (`ToolContract.ui_resource`) | Tool app-only (`_meta.ui.visibility:["app"]`) | Hành vi |
+|---|---|---|---|
+| `ui://xt/orgchart` | `find_people` | `org_person_details` (cổng `PersonDetails`) | Cây tổ chức SVG từ `people[]` + `manager`; bấm/Enter trên nút gọi tool app-only lấy chức danh, đơn vị, quản lý, báo cáo trực tiếp. Email/điện thoại đi qua làn PII, hiện "đã che" |
+| `ui://xt/approval-card` | `decide_request`, `submit_request` | không có | Tóm tắt `confirmation_required` (summary, người xác nhận, hạn, trạng thái) hoặc tuyến duyệt của `submit_request`. Nút "Mở trang xác nhận" chỉ gửi `ui/open-link` tới `confirm_url`; không có nút duyệt/từ chối và HTML không chứa đường gọi tool |
+| `ui://xt/record-table` | `search_records` | `records_table_page` (cùng schema, chuyển nguyên cho `search_records`) | Bảng phân trang (cursor ký của port) + lọc từ khóa, mô hình, trạng thái, số dòng |
+
+- **Một nguồn:** view và tool app-only khai ở `xt.contracts.tools.apps` (`UI_VIEWS`, `APP_TOOLS`); tool của model chỉ khai `ui_resource` trong catalog. Server tự nối: `tools/list` gắn `_meta.ui.resourceUri` khi resource đã đăng ký; tool app-only chỉ được liệt kê khi view của nó đã đăng ký và có tool của model dùng view đó (nên core-10 vẫn gọn). Tool app-only không thuộc 17 tool của model, chỉ đọc, đi qua cùng IAM + làn PII + cursor ký; mọi lời gọi tool app-only đã qua kiểm xác thực/tenant như tool thường. Lưu ý lỗi thứ tự `MCPServer(extensions=[apps])` không áp dụng vì dùng lowlevel `Server`.
+- **Resource:** `resources/list` + `resources/read`, mime `text/html;profile=mcp-app`, `_meta.ui = {prefersBorder, csp:{connectDomains:[<origin xT>], resourceDomains:[], frameDomains:[], baseUriDomains:[]}}`. Origin xT lấy từ `register_apps(xt_origin=...)` (chỉ `https`, `http` cho loopback; không path/query/userinfo); cùng giá trị được nhúng vào thẻ phê duyệt để tự kiểm `confirm_url` (đúng origin, đường dẫn `/desk/confirm/{id}`, không query/hash/credentials) trước khi bật nút; không đạt thì nút bị vô hiệu.
+- **Sandbox:** Desk chạy App trong iframe không `allow-forms`, nên bảng dùng nút + phím Enter, không dùng `<form>` (xem `docs/audit-desk.md`). Desk chỉ cho App gọi tool có `visibility` chứa `"app"` tường minh và đúng `inputSchema`; `ui/open-link` ra ngoài origin xT phải qua hộp thoại xác nhận.
+- **PII:** App chỉ nhận token/gợi ý che; không có đường lấy giá trị thật trong các view này (kênh vé `/pii/reveal` ở `spike-pii-lane.md` vẫn chỉ ở Desk).
+- **Đăng ký (composition root):**
+
+```python
+from xt.adapters.mcp import XtMcpServer, register_apps
+
+apps = register_apps(xt_origin=settings.desk_url, dispatcher=dispatcher, people=person_details_port)
+server = XtMcpServer(dispatcher, resolve_caller, prompts=..., ui_resources=apps.ui_resources, app_tools=apps.app_tools)
+```
+
+- **Kiểm thử:** `tests/unit/mcp/test_mcp_apps.py` (resources/list|read, mime, CSP, HTML tự chứa và không có đường duyệt, liên kết `_meta.ui`, visibility app-only, hành vi tool, nhất quán đăng ký); `desk/e2e/apps.spec.ts` (`npx playwright test --project=apps`) chạy cả ba App trong Desk thật trên server xT thật (`desk/e2e/xt_apps_server.py`, port giả của `tests/unit/mcp/apps_support.py`): bấm nút orgchart gọi `org_person_details`, thẻ phê duyệt mở `confirm_url` đúng origin cấu hình và bị vô hiệu với origin lạ, bảng phân trang/lọc. Ảnh: `docs/img/app-*.png`.
+
 ## Còn mở
 
 - Adapter thật cho các port (Postgres `OperationStore` cùng UoW, model engine, process, IAM bridge từ `xt.application.iam.AccessGuard`, làn PII v0.3) do các nhóm tương ứng làm.
 - Trang `/desk/confirm/{id}` (Desk backend) gọi `ConfirmationService`; Telegram (v0.2); elicitation dạng URL chưa kiểm chứng trên Claude/ChatGPT.
-- View MCP Apps (`ui://xt/*`) chưa có HTML; khi có thì đăng ký qua `UiResource`.
+- View `report`, `record-card`, `inbox`, `task-board`, `diff-preview`, `process` mới ở mức contract (chưa có HTML). Composition root chưa gọi `register_apps` (xem `docs/integration-notes.md`).
+- Desk: `confirmInfo` đọc `structuredContent.error`, nhưng lỗi của xT không có `structuredContent` (chỉ `content[0].text`), nên thẻ `confirm-card` của Desk chưa hiện với server thật; thẻ `ui://xt/approval-card` đã tự đọc `content[0].text`.

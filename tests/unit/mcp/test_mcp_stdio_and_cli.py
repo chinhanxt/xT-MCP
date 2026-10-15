@@ -95,13 +95,13 @@ def test_mark_duplicate_keys_variants() -> None:
 async def test_ui_resources_are_linked_only_when_registered(tmp_path: Path) -> None:
     tf = tmp_path / "token"
     tf.write_text("tok-mai", encoding="utf-8")
-    ui = UiResource("ui://xt/org-chart", "org_chart", "<!DOCTYPE html><p>org</p>")
+    ui = UiResource("ui://xt/orgchart", "org_chart", "<!DOCTYPE html><p>org</p>")
     server = _server(tf, ui_resources=[ui])
     async with Client(server.server) as c:
         tools = {t.name: t for t in (await c.list_tools()).tools}
         res = await c.list_resources()
-        read = await c.read_resource("ui://xt/org-chart")
-    assert tools["find_people"].meta["ui"] == {"resourceUri": "ui://xt/org-chart"}
+        read = await c.read_resource("ui://xt/orgchart")
+    assert tools["find_people"].meta["ui"] == {"resourceUri": "ui://xt/orgchart"}
     assert "ui" not in tools["get_inbox"].meta
     assert [r.mime_type for r in res.resources] == ["text/html;profile=mcp-app"]
     assert read.contents[0].text.startswith("<!DOCTYPE html>")  # type: ignore[union-attr]

@@ -40,13 +40,16 @@ from xt.application.tools.errors import invalid_request
 from xt.application.tools.safe_log import log_failure
 from xt.contracts.prompt_catalog import PromptContract, PromptError
 from xt.contracts.tools import (
+    APP_TOOLS_BY_NAME,
     CATALOG,
+    AppToolContract,
     ErrorCode,
     Profile,
     ToolContract,
     profile_tools,
     profiles_of,
     success_envelope,
+    title_from_name,
 )
 from xt.domain.autonomy import RiskLevel
 from xt.domain.identity import IdentityError, Principal, PrincipalKind
@@ -77,10 +80,29 @@ class UiResource:
     name: str
     html: str
     description: str = ""
+    csp: Mapping[str, Sequence[str]] | None = (
+        None  # _meta.ui.csp; None = CSP mặc định chặt của host
+    )
+    prefers_border: bool = False
+
+    @property
+    def meta(self) -> dict[str, Any]:
+        ui: dict[str, Any] = {"prefersBorder": self.prefers_border}
+        if self.csp is not None:
+            ui["csp"] = {k: list(v) for k, v in self.csp.items()}
+        return {"ui": ui}
 
     def __post_init__(self) -> None:
         if not self.uri.startswith("ui://"):
             raise ValueError(f"UI resource phải dùng scheme ui://: {self.uri}")
+
+
+@dataclass(frozen=True, slots=True)
+class AppTool:
+    """Tool CHỈ DÀNH CHO APP (visibility = app). `run(ctx, args, dups)` chạy trong thread worker."""
+
+    contract: AppToolContract
+    run: Callable[[CallContext, Mapping[str, Any], Sequence[str]], ToolOutcome]
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,6 +148,25 @@ def tool_definition(contract: ToolContract, ui_uris: frozenset[str]) -> types.To
     )
 
 
+def app_tool_definition(tool: AppTool) -> types.Tool:
+    c = tool.contract
+    return types.Tool(
+        name=c.name,
+        title=title_from_name(c.name),
+        description=c.description,
+        input_schema=json.loads(json.dumps(c.input_schema)),
+        output_schema=success_envelope(c.output_schema),
+        annotations=types.ToolAnnotations(
+            title=title_from_name(c.name),
+            read_only_hint=True,
+            destructive_hint=False,
+            idempotent_hint=True,
+            open_world_hint=False,
+        ),
+        _meta={"ui": {"resourceUri": c.ui_resource, "visibility": ["app"]}},
+    )
+
+
 def to_call_tool_result(outcome: ToolOutcome) -> types.CallToolResult:
     text = json.dumps(outcome.envelope, ensure_ascii=False, separators=(",", ":"))
     content: list[types.ContentBlock] = [types.TextContent(type="text", text=text)]
@@ -148,6 +189,7 @@ class XtMcpServer:
         classify: Callable[[Principal], ClientClass] = CLOUD_BY_DEFAULT,
         ensure_active: RevocationCheck | None = None,
         ui_resources: Sequence[UiResource] = (),
+        app_tools: Sequence[AppTool] = (),
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self.dispatcher = dispatcher
@@ -157,6 +199,7 @@ class XtMcpServer:
         self._clock = clock
         self._ui = {r.uri: r for r in ui_resources}
         known_ui = {c.ui_resource for c in CATALOG if c.ui_resource}
+        known_ui |= {t.ui_resource for t in APP_TOOLS_BY_NAME.values()}
         stray = set(self._ui) - known_ui
         if stray:
             raise ValueError(f"UI resource không gắn với tool nào: {sorted(stray)}")
@@ -164,6 +207,22 @@ class XtMcpServer:
         self._tool_names = {c.name for c in self.tools}
         ui_uris = frozenset(self._ui)
         self._listed = [tool_definition(c, ui_uris) for c in self.tools]
+        # Tool app-only chỉ khai khi App của nó đã đăng ký VÀ có tool của model dùng view đó
+        # (hồ sơ core-10 không có view thì cũng không có tool app-only mồ côi).
+        shown_ui = {c.ui_resource for c in self.tools if c.ui_resource} & set(self._ui)
+        self._app_tools: dict[str, AppTool] = {}
+        for at in app_tools:
+            if APP_TOOLS_BY_NAME.get(at.contract.name) is not at.contract:
+                raise ValueError(f"Tool app-only chưa có trong contract: {at.contract.name}")
+            if at.contract.ui_resource not in self._ui:
+                raise ValueError(
+                    f"Tool app-only {at.contract.name} thiếu resource ui:// đã đăng ký"
+                )
+            if at.contract.name in self._app_tools or at.contract.name in {c.name for c in CATALOG}:
+                raise ValueError(f"Tên tool app-only bị trùng: {at.contract.name}")
+            if at.contract.ui_resource in shown_ui:
+                self._app_tools[at.contract.name] = at
+                self._listed.append(app_tool_definition(at))
         # Prompt chỉ giữ bước có tool đang quảng bá; prompt không còn bước nào thì bỏ (core-10).
         self._prompts = {}
         for p in prompts:
@@ -255,7 +314,8 @@ class XtMcpServer:
                 )
             )
             return to_call_tool_result(self.dispatcher.reject(params.name, trace_id, err))
-        if name not in self._tool_names:
+        app_tool = self._app_tools.get(name)
+        if app_tool is None and name not in self._tool_names:
             # Tool ngoài hồ sơ đang quảng bá: cùng câu trả lời như tool không tồn tại.
             err = invalid_request(
                 f"Unknown tool {name[:64]!r}.",
@@ -278,6 +338,11 @@ class XtMcpServer:
         raw_dups = meta.get(DUPLICATE_KEYS_META) or ()
         dups = [str(k) for k in raw_dups] if isinstance(raw_dups, list | tuple) else ["?"]
         arguments = dict(params.arguments or {})
+        if app_tool is not None:
+            run = app_tool.run
+            return to_call_tool_result(
+                await anyio.to_thread.run_sync(lambda: run(call_ctx, arguments, dups))
+            )
         outcome = await anyio.to_thread.run_sync(
             lambda: self.dispatcher.call(name, arguments, call_ctx, duplicate_keys=dups)
         )
@@ -333,7 +398,11 @@ class XtMcpServer:
         return types.ListResourcesResult(
             resources=[
                 types.Resource(
-                    uri=r.uri, name=r.name, description=r.description, mime_type=APP_MIME_TYPE
+                    uri=r.uri,
+                    name=r.name,
+                    description=r.description,
+                    mime_type=APP_MIME_TYPE,
+                    _meta=r.meta,
                 )
                 for r in self._ui.values()
             ]
@@ -346,5 +415,9 @@ class XtMcpServer:
         if r is None:
             raise MCPError(types.INVALID_PARAMS, f"unknown resource: {params.uri}")
         return types.ReadResourceResult(
-            contents=[types.TextResourceContents(uri=r.uri, mime_type=APP_MIME_TYPE, text=r.html)]
+            contents=[
+                types.TextResourceContents(
+                    uri=r.uri, mime_type=APP_MIME_TYPE, text=r.html, _meta=r.meta
+                )
+            ]
         )

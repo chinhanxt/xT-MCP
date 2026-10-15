@@ -212,4 +212,26 @@ Phạm vi: `src/xt/entrypoints/composition/*`, `src/xt/entrypoints/{serve,admin}
 | Đọc bản ghi tenant khác: `access_denied` của PEP, giống hệt id không tồn tại | decisions D-INT-4 |
 | Import-linter: contract SpiffWorkflow/lxml thêm `allow_indirect_imports` | decisions D-INT-1; composition chỉ import `xt.adapters.workflow.bpmn.spiff` |
 
+Deploy (`deploy/compose.yaml`) cần thêm cho `xt-worker`: `XT_WORKER_HANDLERS=xt.entrypoints.composition.worker:handlers`, `XT_WORKFLOW_RELAY_SECONDS`, `XT_DB_MIGRATOR_URL`, `XT_AUDIT_KEY_FILE/ID`; và một bước một lần `xt tenant bind-queue --tenant <alias>` (cần `XT_DB_OWNER_URL`) sau khi tạo tenant.
+
 Còn mở cho tích hợp: I-3 (instance do `TimerPoller` tạo chưa vào inbox: chưa có quy trình `trigger=schedule` nào được bind trong gói v0.1), I-AUD-META ở trên, `/pii/reveal`.
+
+## MCP Apps (`ui://xt/*`), 16/10/2026
+
+Phạm vi: `src/xt/adapters/mcp/apps/`, `xt.contracts.tools.apps`, `PersonDetails` trong `ports.py`. Không sửa `src/xt/entrypoints/composition`; integrator cần nối:
+
+1. Hiện thực cổng `xt.application.tools.ports.PersonDetails.person_details(ctx, ref) -> Data | None` (một phần tử dạng `people[]` của `find_people` + `direct_reports: [{ref,name}]`; email/điện thoại là giá trị thật, làn PII che). Gợi ý: thêm vào adapter thư mục đang dùng cho `Directory` (`composition/security.py`).
+2. Khi dựng `XtMcpServer` (cả HTTP lẫn stdio), gọi:
+
+```python
+from xt.adapters.mcp import register_apps
+
+apps = register_apps(xt_origin=<XT_DESK_URL>, dispatcher=dispatcher, people=<PersonDetails>)
+XtMcpServer(..., ui_resources=apps.ui_resources, app_tools=apps.app_tools)
+```
+
+   `xt_origin` phải cùng origin với `confirm_base_url` (`XT_DESK_URL`) và `DESK_XT_ORIGIN` của Desk; `register_apps` ném `ValueError` nếu không phải origin hợp lệ.
+3. Catalog đổi tên view: `ui://xt/org-chart` thành `ui://xt/orgchart`, `ui://xt/request-card` thành `ui://xt/approval-card`; `search_records` nay có `ui://xt/record-table` (đã cập nhật `tool-contracts-v1.md`). Digest catalog đổi theo.
+4. Tool app-only (`org_person_details`, `records_table_page`) không nằm trong `CATALOG` và không đổi số 17 tool; chúng được liệt kê trong `tools/list` chỉ khi view tương ứng đã đăng ký. Ngân sách token của core-10 không đổi khi chưa gọi `register_apps`.
+5. IAM: thêm quyền `person.read` cho `org_person_details` (đã dùng action đầu của contract) và `record.search` cho `records_table_page`; `AccessGuard.check` nhận tên tool app-only.
+6. Desk: `confirmInfo` (`desk/src/confirm.ts`) chưa đọc `content[0].text` khi lỗi không có `structuredContent`; thẻ `approval-card` đã tự đọc nên không phụ thuộc.

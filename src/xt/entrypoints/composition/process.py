@@ -52,6 +52,11 @@ from xt.domain.process.assignment import OrgUser
 from xt.domain.process.errors import EngineError
 from xt.domain.process.expr import evaluate
 from xt.domain.process.spec import ApproveStep, ProcessSpec, TaskStep
+from xt.entrypoints.composition.model_changes import (
+    MODEL_PROPOSAL,
+    ModelChangeDecisions,
+    ModelDecidePlan,
+)
 from xt.entrypoints.composition.runtime import Caller, Runtime, after_rollback
 from xt.entrypoints.composition.util import (
     engine_call,
@@ -296,10 +301,18 @@ def _intish(v: Any) -> Any:
 class ProcessToolAdapter:
     """`ProcessService` + `InboxService` port của tool, và transition `withdrawn` của request."""
 
-    def __init__(self, rt: Runtime, *, cursor_key: bytes, engine: SpiffProcessEngine) -> None:
+    def __init__(
+        self,
+        rt: Runtime,
+        *,
+        cursor_key: bytes,
+        engine: SpiffProcessEngine,
+        model_changes: ModelChangeDecisions | None = None,
+    ) -> None:
         self.rt = rt
         self.cursor_key = cursor_key
         self.engine = engine
+        self.model_changes = model_changes
 
     def pc(self, caller: Caller) -> ProcessContext:
         return ProcessContext(self.rt, self.engine, caller.workflow(), caller.profile.timezone)
@@ -570,6 +583,11 @@ class ProcessToolAdapter:
     # ---- decide_request -----------------------------------------------------------------------
     def plan_decide(self, ctx: CallContext, args: Args) -> MutationPlan:
         caller = self.rt.caller(ctx)
+        kind, pid = parse_record_ref(ctx, args["ref"])
+        if kind == MODEL_PROPOSAL:
+            if self.model_changes is None:
+                unavailable("model change approval")
+            return self.model_changes.plan_decide(ctx, caller, pid, args)
         model, rid, _config, row = self._request(ctx, caller, args["ref"])
         revision = self._cas(row, args["expected_revision"])
         ref = f"{model}:{rid}"
@@ -772,10 +790,13 @@ class ProcessToolAdapter:
         p = plan.payload
         caller = self.rt.caller(ctx)
         if (
-            not isinstance(p, SubmitPlan | DecidePlan | WithdrawPlan)
+            not isinstance(p, SubmitPlan | DecidePlan | WithdrawPlan | ModelDecidePlan)
             or p.actor_key != ctx.actor.key
         ):
             raise invalid_request("Unknown process mutation plan.", "invalid_plan")
+        if isinstance(p, ModelDecidePlan):
+            assert self.model_changes is not None
+            return self.model_changes.commit(ctx, caller, p)
         if isinstance(p, SubmitPlan):
             return self._commit_submit(ctx, caller, p)
         if isinstance(p, DecidePlan):

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- SPDX-FileCopyrightText: 2026 xT contributors -->
+<html lang="vi"><head><meta charset="utf-8"><title>Bảng bản ghi</title>
+<style>
+body{font:14px system-ui,sans-serif;margin:8px;color:#1b2430}
+#f{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-bottom:8px}
+label{display:flex;flex-direction:column;font-size:12px;color:#5b6777;gap:2px}
+input,select{font:inherit;padding:4px 6px;border:1px solid #c9d1dc;border-radius:4px}
+button{font:inherit;padding:5px 12px;border:1px solid #3b5bdb;background:#3b5bdb;color:#fff;border-radius:4px;cursor:pointer}
+button.sec{background:#fff;color:#3b5bdb}button:disabled{opacity:.45;cursor:not-allowed}
+table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #e1e6ee;padding:5px 8px;text-align:left;vertical-align:top}
+th{background:#f3f5f9;font-size:12px;color:#44505f}.mask{font-family:ui-monospace,monospace;color:#6b7280}
+#pager{display:flex;gap:8px;align-items:center;margin-top:8px}#info{color:#5b6777;font-size:12px}.err{color:#b42318;margin:6px 0}
+</style></head>
+<body>
+<div id="f">
+  <label>Từ khóa<input id="q" type="search" maxlength="200"></label>
+  <label>Mô hình<input id="m" type="text" maxlength="64" placeholder="vd: advance_request"></label>
+  <label>Trạng thái<select id="s"><option value="">Theo yêu cầu ban đầu</option><option value="*">Mọi trạng thái</option></select></label>
+  <label>Số dòng<select id="l"><option>5</option><option selected>10</option><option>20</option><option>50</option></select></label>
+  <button type="button" id="go">Lọc</button>
+</div>
+<div id="err" class="err" role="alert"></div>
+<table id="t"><thead><tr id="h"></tr></thead><tbody id="b"></tbody></table>
+<div id="pager"><button type="button" class="sec" id="prev">Trước</button><span id="info"></span><button type="button" class="sec" id="next">Sau</button></div>
+<script>/*BRIDGE*/</script>
+<script>
+(function () {
+  "use strict";
+  var B = window.xtBridge, $ = function (id) { return document.getElementById(id); };
+  var base = {}, cursors = [null], page = 0, nextCursor = null, busy = false, states = {};
+  var BASE_COLS = [["ref", "Mã"], ["title", "Tiêu đề"], ["model_id", "Mô hình"], ["state", "Trạng thái"]];
+
+  function cell(tr, v) {
+    var td = document.createElement("td");
+    if (typeof v === "string" && /\[PII:[^\]]+\]/.test(v)) { var s = document.createElement("span"); s.className = "mask"; s.title = v; s.textContent = "•••• (đã che)"; td.appendChild(s); }
+    else td.textContent = v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
+    tr.appendChild(td);
+  }
+  function valueCols(items) {
+    var seen = [];
+    items.forEach(function (it) { Object.keys(it.values || {}).forEach(function (k) { if (seen.indexOf(k) < 0) seen.push(k); }); });
+    return seen.slice(0, 4);
+  }
+  function render(d) {
+    var items = Array.isArray(d.items) ? d.items : [], vc = valueCols(items), h = $("h"), b = $("b");
+    h.textContent = ""; b.textContent = "";
+    BASE_COLS.forEach(function (c) { var th = document.createElement("th"); th.textContent = c[1]; h.appendChild(th); });
+    vc.forEach(function (k) { var th = document.createElement("th"); th.textContent = k; h.appendChild(th); });
+    items.forEach(function (it) {
+      var tr = document.createElement("tr");
+      BASE_COLS.forEach(function (c) { cell(tr, it[c[0]]); });
+      vc.forEach(function (k) { cell(tr, (it.values || {})[k]); });
+      b.appendChild(tr);
+      if (it.state) states[it.state] = 1;
+    });
+    if (!items.length) { var tr = document.createElement("tr"), td = document.createElement("td"); td.colSpan = BASE_COLS.length; td.textContent = "Không có bản ghi nào."; tr.appendChild(td); b.appendChild(tr); }
+    var sel = $("s"), cur = sel.value;
+    Array.prototype.slice.call(sel.options, 2).forEach(function (o) { sel.removeChild(o); });
+    Object.keys(states).sort().forEach(function (k) { var o = document.createElement("option"); o.value = k; o.textContent = k; sel.appendChild(o); });
+    sel.value = cur;
+    nextCursor = d.next_cursor || null;
+    $("prev").disabled = page === 0; $("next").disabled = !nextCursor || busy;
+    $("info").textContent = "Trang " + (page + 1) + (typeof d.total === "number" ? " - tổng " + d.total + " bản ghi" : "");
+    $("err").textContent = ""; B.sendSize();
+  }
+  function args(cursor) {
+    var a = {}, q = $("q").value.trim(), m = $("m").value.trim(), st = $("s").value;
+    if (m) a.model_id = m;
+    if (q) a.query = q;
+    var w = Object.assign({}, base.where || {});
+    if (st === "*") delete w.state; else if (st) w.state = st;
+    if (Object.keys(w).length) a.where = w;
+    if (base.sort) a.sort = base.sort;
+    if (base.fields) a.fields = base.fields;
+    if (base.workspace) a.workspace = base.workspace;
+    a.limit = Number($("l").value);
+    if (cursor) a.cursor = cursor;
+    return a;
+  }
+  function load(idx) {
+    if (busy) return;
+    busy = true; $("go").disabled = true; $("prev").disabled = true; $("next").disabled = true;
+    B.callTool("records_table_page", args(cursors[idx])).then(function (r) {
+      var p = B.payload(r);
+      if (!p || p.ok !== true) { $("err").textContent = (p && p.error && p.error.message) || "Không tải được dữ liệu."; return; }
+      page = idx; render(p.data); cursors[idx + 1] = p.data.next_cursor || null; cursors.length = idx + 2;
+    }, function (e) { $("err").textContent = "Lỗi: " + e.message; }).then(function () {
+      busy = false; $("go").disabled = false; $("prev").disabled = page === 0; $("next").disabled = !nextCursor;
+    });
+  }
+  /* Sandbox của host không cho gửi form (không allow-forms): dùng nút + phím Enter, không dùng <form>. */
+  function refilter() { cursors = [null]; load(0); }
+  $("go").addEventListener("click", refilter);
+  $("f").addEventListener("keydown", function (e) { if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); refilter(); } });
+  $("prev").addEventListener("click", function () { if (page > 0) load(page - 1); });
+  $("next").addEventListener("click", function () { if (nextCursor) load(page + 1); });
+
+  B.on("ui/notifications/tool-input", function (p) {
+    base = (p && p.arguments) || {};
+    $("q").value = base.query || ""; $("m").value = base.model_id || "";
+    if (base.limit) { var l = $("l"), v = String(base.limit); if (!Array.prototype.some.call(l.options, function (o) { return o.value === v; })) { var o = document.createElement("option"); o.textContent = v; l.appendChild(o); } l.value = v; }
+    var st = base.where && base.where.state;
+    if (typeof st === "string") { states[st] = 1; }
+  });
+  B.on("ui/notifications/tool-result", function (r) {
+    var p = B.payload(r);
+    if (!p || p.ok !== true) { $("err").textContent = (p && p.error && p.error.message) || "Không có dữ liệu."; return; }
+    cursors = [null]; page = 0; render(p.data); cursors[1] = p.data.next_cursor || null;
+    var st = base.where && base.where.state;
+    if (typeof st === "string") $("s").value = st;
+  });
+  B.connect("xt-record-table");
+})();
+</script></body></html>

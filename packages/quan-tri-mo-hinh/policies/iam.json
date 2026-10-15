@@ -1,0 +1,22 @@
+{
+  "version": "1",
+  "tenant": "binhminh",
+  "statements": [
+    {
+      "id": "mdl.propose",
+      "effect": "Allow",
+      "subjects": ["role:agent", "role:dept_head", "role:director", "role:it"],
+      "actions": ["model.propose", "model.read", "workspace.read"],
+      "resources": ["xrn:binhminh:*"],
+      "conditions": []
+    },
+    {
+      "id": "mdl.approve",
+      "effect": "Allow",
+      "subjects": ["role:agent", "role:director", "role:it"],
+      "actions": ["request.decide", "record.read", "history.read"],
+      "resources": ["xrn:binhminh:model_proposal:*"],
+      "conditions": []
+    }
+  ]
+}

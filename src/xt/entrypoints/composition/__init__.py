@@ -15,6 +15,8 @@ danh sách lỗi (không mặc định giả, không fallback in-memory):
 | `XT_DESK_URL` | URL công khai của trang xác nhận (`/desk/confirm/{id}`) |
 | `XT_CONFIRM_AUTHORIZATION_URL`, `XT_CONFIRM_TOKEN_URL` | Endpoint OIDC của client confirm |
 | `XT_CONFIRM_*`, `XT_RECEIPT_*`, `XT_IDP_*` | Step-up + biên nhận (docs/identity.md) |
+
+Luồng và output thật: `docs/integration.md`.
 """
 
 from __future__ import annotations
@@ -40,6 +42,7 @@ from xt.adapters.workflow.bpmn.spiff import SpiffProcessEngine
 from xt.application.tools import ToolDispatcher, ToolServices, ToolSettings
 from xt.application.tools.handlers import HANDLERS
 from xt.entrypoints.composition.confirm_web import ConfirmPages, ConfirmSettings
+from xt.entrypoints.composition.model_changes import ModelChangeDecisions
 from xt.entrypoints.composition.pii import PostgresPiiLane
 from xt.entrypoints.composition.process import ProcessToolAdapter
 from xt.entrypoints.composition.records import (
@@ -158,15 +161,20 @@ class Composition:
 
     def services(self, settings: ToolSettings) -> ToolServices:
         rt, key = self.runtime, self.config.cursor_key
-        process = ProcessToolAdapter(rt, cursor_key=key, engine=self.engine)
+        guard = ToolAccessGuard(rt)
+        model_changes = ModelChangeDecisions(rt, guard)
+        process = ProcessToolAdapter(
+            rt, cursor_key=key, engine=self.engine, model_changes=model_changes
+        )
         records = RecordServiceAdapter(
             rt,
             cursor_key=key,
             transitions=process.plan_transition,
             transition_commit=process.commit,
+            model_changes=model_changes,
         )
         return ToolServices(
-            access=ToolAccessGuard(rt),
+            access=guard,
             workspace=Workspace(rt, settings),
             models=ModelCatalogAdapter(rt),
             directory=PeopleDirectory(rt, key),
@@ -196,7 +204,10 @@ class Composition:
                 cfg.receipts, store, max_evidence_age_s=cfg.confirm.step_up.max_auth_age_s
             )
 
-        return ConfirmPages(self.runtime, dispatcher, cfg.confirm, verifier, receipts)
+        decisions = ModelChangeDecisions(self.runtime, ToolAccessGuard(self.runtime))
+        return ConfirmPages(
+            self.runtime, dispatcher, cfg.confirm, verifier, receipts, model_changes=decisions
+        )
 
     def http_routes(self, dispatcher: ToolDispatcher) -> list[BaseRoute]:
         return list(self.confirm_pages(dispatcher).routes())

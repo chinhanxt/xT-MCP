@@ -116,6 +116,15 @@ class Directory(Protocol):
     def person_for_subject(self, ctx: CallContext, subject: str) -> PersonRef | None: ...
 
 
+class PersonDetails(Protocol):
+    """Cổng đọc chi tiết một người cho MCP App sơ đồ tổ chức (tool app-only `org_person_details`).
+
+    Trả dạng một phần tử `people[]` của `find_people` cộng `direct_reports` (`{ref,name}`);
+    email/điện thoại là giá trị thật, làn PII lo việc che. None = không có / không được biết."""
+
+    def person_details(self, ctx: CallContext, ref: str) -> Data | None: ...
+
+
 class RecordService(Protocol):
     def search(self, ctx: CallContext, args: Args) -> Data: ...
 

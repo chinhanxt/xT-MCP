@@ -1,0 +1,19 @@
+{
+  "format": "xt-pack/1",
+  "pack": "quan-tri-mo-hinh",
+  "version": "0.1.0",
+  "title": "Quản trị mô hình nghiệp vụ (đề xuất và duyệt thay đổi model)",
+  "depends_on": [],
+  "models": [],
+  "processes": [],
+  "policies": ["iam"],
+  "notes": {
+    "roles": {
+      "director": "Duyệt đề xuất thay đổi model (người duyệt thứ nhất hoặc thứ hai)",
+      "it": "Duyệt đề xuất thay đổi model; đề xuất thay đổi",
+      "dept_head": "Đề xuất thay đổi model cho nghiệp vụ của phòng",
+      "agent": "Soạn đề xuất (L1); không bao giờ tự duyệt (decide_request luôn qua /desk/confirm)"
+    },
+    "destructive": "Thay đổi PHÁ HỦY cần hai người duyệt khác nhau, khác người đề xuất (tool-contracts-v1 §5.17)"
+  }
+}

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- SPDX-FileCopyrightText: 2026 xT contributors -->
+<html lang="vi"><head><meta charset="utf-8"><title>Thẻ phê duyệt</title>
+<meta name="xt-origin" content="__XT_ORIGIN__">
+<style>
+body{font:14px system-ui,sans-serif;margin:8px;color:#1b2430}
+.card{border:1px solid #c9d1dc;border-radius:8px;padding:12px 14px;max-width:460px;background:#fff}
+h3{margin:0 0 6px;font-size:15px}.sum{margin:6px 0 10px}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:3px 12px;margin:0 0 10px}dt{color:#5b6777}dd{margin:0}
+ol{margin:4px 0 10px;padding-left:20px}
+button{padding:7px 16px;border:0;border-radius:5px;background:#3b5bdb;color:#fff;font:inherit;cursor:pointer}
+button:disabled{background:#9aa5b8;cursor:not-allowed}
+.note{margin-top:10px;font-size:12px;color:#5b6777}.warn{color:#b42318;margin:8px 0 0}
+code{word-break:break-all;font-size:12px}
+</style></head>
+<body>
+<div class="card" id="card"><h3 id="title">Thẻ phê duyệt</h3><div id="body">Đang chờ dữ liệu...</div></div>
+<script>/*BRIDGE*/</script>
+<script>
+(function () {
+  "use strict";
+  var B = window.xtBridge;
+  var ORIGIN = document.querySelector('meta[name="xt-origin"]').getAttribute("content");
+  var CONFIRM_PATH = /^\/desk\/confirm\/[\w-]+$/;
+  var body = document.getElementById("body"), title = document.getElementById("title");
+
+  /* Cùng quy tắc với Desk: đúng origin xT đã cấu hình, đúng đường dẫn /desk/confirm/{id}, không query/hash/credentials. */
+  function safeConfirmUrl(u) {
+    if (typeof u !== "string") return null;
+    try {
+      var x = new URL(u), o = new URL(ORIGIN).origin;
+      if (x.origin !== o || x.username || x.password || x.search || x.hash || !CONFIRM_PATH.test(x.pathname)) return null;
+      return x.href;
+    } catch (e) { return null; }
+  }
+  function add(parent, tag, text, cls) {
+    var e = document.createElement(tag);
+    if (text !== undefined) e.textContent = text;
+    if (cls) e.className = cls;
+    parent.appendChild(e);
+    return e;
+  }
+  function dl(rows) {
+    var d = document.createElement("dl");
+    rows.forEach(function (r) { if (r[1]) { add(d, "dt", r[0]); add(d, "dd", r[1]); } });
+    return d;
+  }
+  function when(s) { var t = new Date(s); return isNaN(t) ? s : t.toLocaleString("vi-VN"); }
+
+  function renderConfirm(det) {
+    var url = safeConfirmUrl(det.confirm_url);
+    title.textContent = "Cần bạn xác nhận";
+    add(body, "p", det.plan_summary || "Có một thao tác đang chờ xác nhận.", "sum");
+    body.appendChild(dl([
+      ["Người xác nhận", det.confirmer && det.confirmer.name],
+      ["Hạn", det.expires_at && when(det.expires_at)],
+      ["Trạng thái", det.status === "awaiting_second_approver" ? "Chờ người duyệt thứ hai" : "Chờ xác nhận"]
+    ]));
+    var btn = add(body, "button", "Mở trang xác nhận");
+    btn.type = "button"; btn.id = "open";
+    var msg = add(body, "div", "", "warn"); msg.id = "msg";
+    if (!url) {
+      btn.disabled = true;
+      msg.textContent = "Liên kết xác nhận không thuộc xT hoặc không hợp lệ; đã vô hiệu hóa nút.";
+    } else {
+      btn.addEventListener("click", function () {
+        msg.textContent = "";
+        B.openLink(url).then(function (r) {
+          if (r && r.isError) msg.textContent = "Trình chủ không mở được liên kết. Hãy mở trang xác nhận của xT theo cách khác.";
+        }, function () { msg.textContent = "Trình chủ không hỗ trợ mở liên kết."; });
+      });
+    }
+    add(body, "div", "Thẻ này chỉ hiển thị. Việc duyệt chỉ diễn ra trên trang xác nhận của xT, sau khi bạn đăng nhập.", "note");
+  }
+
+  function renderRequest(d) {
+    title.textContent = "Đề xuất đã gửi duyệt";
+    var r = d.request || {};
+    body.appendChild(dl([["Mã", r.ref], ["Trạng thái", r.state]]));
+    if (Array.isArray(d.route) && d.route.length) {
+      add(body, "div", "Tuyến duyệt");
+      var ol = add(body, "ol");
+      d.route.forEach(function (s) { add(ol, "li", (s.label || s.step) + (s.approver ? " - " + s.approver.name : "")); });
+    }
+    add(body, "div", "Mỗi người duyệt sẽ nhận một liên kết xác nhận riêng khi đến lượt.", "note");
+  }
+
+  B.on("ui/notifications/tool-result", function (res) {
+    body.textContent = "";
+    var p = B.payload(res);
+    if (p && p.ok === false && p.error && p.error.code === "confirmation_required" && p.error.details) renderConfirm(p.error.details);
+    else if (p && p.ok === true && p.data && p.data.request) renderRequest(p.data);
+    else { title.textContent = "Thẻ phê duyệt"; add(body, "p", (p && p.error && p.error.message) || "Không có yêu cầu nào đang chờ xác nhận."); }
+    B.sendSize();
+  });
+  B.connect("xt-approval-card");
+})();
+</script></body></html>

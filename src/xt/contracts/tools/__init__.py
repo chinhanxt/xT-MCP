@@ -2,6 +2,16 @@
 # SPDX-FileCopyrightText: 2026 xT contributors
 """ToolContract v1: một nguồn sinh đăng ký MCP, catalog/docs, annotations và contract test."""
 
+from xt.contracts.tools.apps import (
+    APP_TOOLS,
+    APP_TOOLS_BY_NAME,
+    APPROVAL_CARD_URI,
+    ORGCHART_URI,
+    RECORD_TABLE_URI,
+    UI_VIEWS,
+    AppToolContract,
+    UiViewContract,
+)
 from xt.contracts.tools.catalog import BY_NAME, CATALOG, get_contract
 from xt.contracts.tools.contract import (
     Annotations,
@@ -33,6 +43,9 @@ from xt.contracts.tools.strict_json import (
 from xt.contracts.tools.validation import StrictValidator, ecma_pattern, input_issues
 
 __all__ = [
+    "APPROVAL_CARD_URI",
+    "APP_TOOLS",
+    "APP_TOOLS_BY_NAME",
     "BY_NAME",
     "CATALOG",
     "CONFIRMATION_DETAILS",
@@ -41,10 +54,14 @@ __all__ = [
     "ERROR_CODES",
     "ERROR_ENVELOPE",
     "GUIDANCE",
+    "ORGCHART_URI",
     "PROFILES",
+    "RECORD_TABLE_URI",
     "RETRYABLE",
+    "UI_VIEWS",
     "UNIVERSAL_ERRORS",
     "Annotations",
+    "AppToolContract",
     "DuplicateKeyError",
     "Effects",
     "ErrorCode",
@@ -52,6 +69,7 @@ __all__ = [
     "Profile",
     "StrictValidator",
     "ToolContract",
+    "UiViewContract",
     "catalog_digest",
     "check_depth",
     "derive_annotations",

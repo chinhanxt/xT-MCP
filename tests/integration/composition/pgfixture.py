@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Postgres 17 thật cho test ghép (composition): docker `postgres:17-alpine` có sẵn, cổng ngẫu nhiên.
+"""Postgres 17 thật cho test ghép (composition): `postgres:17-alpine` có sẵn, cổng ngẫu nhiên.
 
 Không pull image (đĩa `/` gần đầy): thiếu image thì lỗi rõ. Mật khẩu/pepper sinh ngẫu nhiên mỗi lần
 chạy; container `--rm` và được xóa khi xong.

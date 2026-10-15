@@ -27,6 +27,7 @@ from xt.contracts.tools import ErrorCode
 from xt.domain.autonomy import RiskLevel
 from xt.domain.model.context import ModelActor
 from xt.domain.model.spec import ModelSpec
+from xt.entrypoints.composition.model_changes import MODEL_PROPOSAL, ModelChangeDecisions
 from xt.entrypoints.composition.runtime import Caller, Runtime
 from xt.entrypoints.composition.util import (
     engine_call,
@@ -130,6 +131,7 @@ class RecordServiceAdapter:
         cursor_key: bytes,
         transitions: Callable[[CallContext, Args], MutationPlan] | None = None,
         transition_commit: Callable[[CallContext, MutationPlan], CommitResult] | None = None,
+        model_changes: ModelChangeDecisions | None = None,
     ) -> None:
         if len(cursor_key) < 32:
             raise ValueError("cursor signing key must contain at least 32 bytes")
@@ -138,6 +140,7 @@ class RecordServiceAdapter:
         self.planner = EngineRecords(rt.catalogs, _PlanningRepository(rt.repo))
         self.transitions = transitions
         self.transition_commit = transition_commit
+        self.model_changes = model_changes
 
     # ---- tiện ích ----------------------------------------------------------------------------
     def _model(self, actor: ModelActor, name: str) -> tuple[int, ModelSpec]:
@@ -240,7 +243,9 @@ class RecordServiceAdapter:
         if args.get("include") or args.get("text_cursor"):
             unavailable("record expansions (include/text_cursor)")
         caller = self.rt.caller(ctx)
-        name, _ = parse_record_ref(ctx, args["ref"])
+        name, rid = parse_record_ref(ctx, args["ref"])
+        if name == MODEL_PROPOSAL and self.model_changes is not None:
+            return self.model_changes.record(caller, rid)
         ver, model = self._model(caller.actor, name)
         self._check_fields(model, args)
         try:
@@ -584,4 +589,7 @@ class ModelChangeServiceAdapter:
         )
         if result.get("plan_hash") not in (None, payload.plan_hash):
             raise ToolError(ErrorCode.REVISION_CONFLICT, "Kế hoạch thay đổi model đã đổi.")
+        if result.get("request") is None and result.get("proposal"):
+            # Request quản trị = chính đề xuất: theo dõi bằng get_record, duyệt bằng decide_request.
+            result["request"] = result["proposal"]
         return CommitResult(result, f"operation:{uuid4().hex}")

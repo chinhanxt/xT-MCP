@@ -48,6 +48,9 @@ PACK = ROOT / "packages" / "de-xuat-phe-duyet"
 LOCAL_AGENT = "it-bff-confidential"
 # Nhân sự của tệp seed: người đề nghị (Kinh doanh), trưởng phòng Kinh doanh, giám đốc.
 REQUESTER, DEPT_HEAD, DIRECTOR = "NV-0013", "NV-0010", "NV-0001"
+IT_ADMIN = "NV-0031"  # vai trò `it`: người duyệt thứ hai của thay đổi model PHÁ HỦY
+LINKED = (REQUESTER, DEPT_HEAD, DIRECTOR, IT_ADMIN)
+MODEL_PACK = ROOT / "packages" / "quan-tri-mo-hinh"
 
 
 def sub(alias: str, key: str) -> str:
@@ -143,10 +146,10 @@ def stack(
         )  # fmt: skip
         assert rc == 0, out
         links = {
-            "subjects": {k: sub(alias, k) for k in (REQUESTER, DEPT_HEAD, DIRECTOR)},
+            "subjects": {k: sub(alias, k) for k in LINKED},
             "agent_grants": [
                 {"person": k, "client_id": c, "autonomy": 1, "roles": ["agent"]}
-                for k in (REQUESTER, DEPT_HEAD, DIRECTOR)
+                for k in LINKED
                 for c in (AGENT_CLIENT, LOCAL_AGENT)
             ],
         }
@@ -171,6 +174,13 @@ def stack(
         assert rc == 0, out
         outputs[f"plan-{alias}"] = plan
         outputs[f"install-{alias}"] = out
+        mp = ["pack", "install", "--tenant", alias, str(MODEL_PACK)]
+        rc, mplan = run_admin([*mp, *who], env)
+        assert rc == 0, mplan
+        mdigest = re.search(r"\(digest\): (sha256:[0-9a-f]{64})", mplan)
+        assert mdigest, mplan
+        rc, out = run_admin([*mp, *who, "--confirm", mdigest.group(1)], env)
+        assert rc == 0, out
         with connect(pg.migrator_dsn) as c:
             tenants[alias] = tenant_of_alias(c, alias)
     ns = argparse.Namespace(transport="http", host="127.0.0.1", port=mcp_port, profile="full")
@@ -242,7 +252,7 @@ def confirm_in_desk(
 
 # ---------------------------------------------------------------------- kiểm thử ----
 def test_admin_outputs(stack: Stack) -> None:
-    assert "{'units': 7, 'people': 60, 'agent_grants': 6}" in stack.outputs["org-acme"]
+    assert "{'units': 7, 'people': 60, 'agent_grants': 8}" in stack.outputs["org-acme"]
     plan = stack.outputs["plan-acme"]
     assert "Gói de-xuat-phe-duyet 0.2.0" in plan and "proposal_approval v3" in plan
     assert "đã cài de-xuat-phe-duyet 0.2.0 vào acme" in stack.outputs["install-acme"]
@@ -506,18 +516,20 @@ def _url(role: str, password: str) -> str:
     return f"postgresql://{role}:{password}@127.0.0.1:{pgfixture.PORT}/xt"
 
 
-@pytest.mark.anyio
-async def test_worker_relays_process_timers_to_queue(stack: Stack, pg: pgfixture.Pg) -> None:
-    """SLA của bước duyệt -> outbox (cùng transaction tool) -> relay -> JobQueue.schedule_at;
-    job `workflow.tick` gọi ProcessService.tick; `xt worker` thật chạy với handler composition."""
+@dataclass
+class Worker:
+    env: dict[str, str]
+    xt_bin: str
+
+
+@pytest.fixture(scope="module")
+def worker(stack: Stack, pg: pgfixture.Pg) -> Worker:
+    """Hàng đợi thật: role xt_control/xt_job, `xt worker --install-schema`, `xt tenant
+    bind-queue` (job role + chuỗi relay) cho tenant acme."""
     import subprocess
     import sys
 
     from psycopg import sql
-
-    from xt.adapters.db.workflow_bridge import tenant_async_tx
-    from xt.application.jobs import JobRequest
-    from xt.entrypoints.composition.worker import RELAY, build_jobs
 
     control_pw = secrets.token_urlsafe(16)
     with pg.su() as su:
@@ -547,20 +559,29 @@ async def test_worker_relays_process_timers_to_queue(stack: Stack, pg: pgfixture
         "XT_WORKFLOW_RELAY_SECONDS": "60",
     }
     xt_bin = str(Path(sys.executable).with_name("xt"))
-    with pg.su() as su:
-        has_queue = su.execute("SELECT to_regclass('xt_queue.requests') IS NOT NULL").fetchone()
-    if not (has_queue and has_queue[0]):
-        inst = subprocess.run(
-            [xt_bin, "worker", "--install-schema"], env=wenv, capture_output=True, timeout=120
-        )
-        assert inst.returncode == 0, inst.stderr.decode()
-    import anyio.to_thread
-
-    rc, out = await anyio.to_thread.run_sync(
-        run_admin, ["tenant", "bind-queue", "--tenant", "acme"], wenv
+    inst = subprocess.run(
+        [xt_bin, "worker", "--install-schema"], env=wenv, capture_output=True, timeout=120
     )
+    assert inst.returncode == 0, inst.stderr.decode()
+    rc, out = run_admin(["tenant", "bind-queue", "--tenant", "acme"], wenv)
     assert rc == 0, out
     stack.outputs["bind-queue"] = out
+    return Worker(wenv, xt_bin)
+
+
+@pytest.mark.anyio
+async def test_worker_relays_process_timers_to_queue(
+    stack: Stack, pg: pgfixture.Pg, worker: Worker
+) -> None:
+    """SLA của bước duyệt -> outbox (cùng transaction tool) -> relay -> JobQueue.schedule_at;
+    job `workflow.tick` gọi ProcessService.tick; `xt worker` thật chạy với handler composition."""
+    import subprocess
+
+    from xt.adapters.db.workflow_bridge import tenant_async_tx
+    from xt.application.jobs import JobRequest
+    from xt.entrypoints.composition.worker import RELAY, build_jobs
+
+    wenv, xt_bin = worker.env, worker.xt_bin
     tid = stack.tenants["acme"].id
 
     c = await stack.call(
@@ -675,3 +696,166 @@ def test_pg_operation_store_contract(stack: Stack, pg: pgfixture.Pg) -> None:
         run_operation_store_contract(new_pair)
     finally:
         db.close()
+
+
+# ------------------------------------------------- W2: đề xuất model -> duyệt -> worker áp ----
+def _column_exists(pg: pgfixture.Pg, seq: int, table: str, column: str) -> bool:
+    with pg.su() as su:
+        row = su.execute(
+            "SELECT 1 FROM information_schema.columns WHERE table_schema=%s AND table_name=%s"
+            " AND column_name=%s",
+            (f"xt_t{seq}", table, column),
+        ).fetchone()
+    return row is not None
+
+
+@pytest.mark.anyio
+async def test_w2_model_change_approved_then_applied_by_worker(
+    stack: Stack, pg: pgfixture.Pg, worker: Worker
+) -> None:
+    """E6: agent đề xuất thêm `ma_du_an` -> agent không tự áp được -> giám đốc duyệt ở
+    /desk/confirm -> worker `model.apply` (pha 1 + 2) -> cột có trong information_schema -> tạo
+    bản ghi với field mới; xóa field (PHÁ HỦY) cần hai người duyệt."""
+    import anyio.to_thread
+
+    from xt.adapters.db.workflow_bridge import tenant_async_tx
+    from xt.application.jobs import JobRequest
+    from xt.entrypoints.composition.worker import RELAY, build_jobs
+
+    s = stack
+    tenant = s.tenants["acme"]
+    jobs = build_jobs(worker.env)
+
+    async def relay_and_apply() -> list[dict[str, Any]]:
+        async with tenant_async_tx(worker.env["XT_WORKER_DATABASE_URL"], tenant.id) as conn:
+            await jobs.relay(conn, JobRequest(tenant.id, RELAY, f"it.relay.{uuid.uuid4()}", {}))
+        with pg.su() as su:
+            rows = su.execute(
+                "SELECT r.idempotency_key FROM xt_queue.requests r WHERE r.tenant_id=%s"
+                " AND r.idempotency_key LIKE 'model.apply:%%'",
+                (tenant.id,),
+            ).fetchall()
+        outs = []
+        for (key,) in rows:
+            pid = uuid.UUID(key.split(":", 1)[1])
+            outs.append(await anyio.to_thread.run_sync(jobs.apply_sync, tenant.id, pid))
+        return outs
+
+    add = {
+        "model_id": "advance_request",
+        "operations": [
+            {
+                "op": "add_field",
+                "field": {"id": "ma_du_an", "label": "Mã dự án", "type": "string"},
+            }
+        ],
+        "rationale": "Theo dõi tạm ứng theo dự án",
+        "idempotency_key": "it-key-w2-add",
+    }
+    preview = await s.call("acme", DEPT_HEAD, "propose_model_change", {**add, "dry_run": True})
+    assert preview["ok"], preview
+    proposed = await s.call("acme", DEPT_HEAD, "propose_model_change", {**add, "dry_run": False})
+    assert proposed["ok"], proposed
+    pref = proposed["data"]["proposal"]
+    assert pref.startswith("model_proposal:")
+    s.outputs["w2-propose"] = json.dumps(proposed["data"], ensure_ascii=False, indent=1)
+
+    st = await s.call("acme", DIRECTOR, "get_record", {"ref": pref})
+    assert st["ok"] and st["data"]["record"]["state"] == "pending_approval", st
+    # Người đề xuất không tự duyệt (SoD).
+    own = await s.call(
+        "acme",
+        DEPT_HEAD,
+        "decide_request",
+        {
+            "ref": pref,
+            "decision": "approve",
+            "expected_revision": 1,
+            "idempotency_key": "it-key-w2-own",
+        },
+    )
+    assert not own["ok"] and own["error"]["code"] == "access_denied", own
+    # Chưa duyệt -> worker không áp gì.
+    assert await relay_and_apply() == []
+    assert not _column_exists(pg, tenant.seq, "advance_request", "ma_du_an")
+
+    args = {
+        "ref": pref,
+        "decision": "approve",
+        "expected_revision": 1,
+        "idempotency_key": "it-key-w2-approve",
+    }
+    pending = await s.call("acme", DIRECTOR, "decide_request", args)
+    assert pending["error"]["code"] == "confirmation_required", json.dumps(
+        pending, ensure_ascii=False
+    )
+    r = await anyio.to_thread.run_sync(
+        lambda: confirm_in_desk(
+            s, pending["error"]["details"]["confirm_url"], sub("acme", DIRECTOR)
+        )
+    )
+    assert r.status_code == 200 and "Đã thực hiện" in r.text, r.text
+    done = await s.call("acme", DIRECTOR, "decide_request", args)
+    assert done["ok"] and done["data"]["outcome"] == "request_approved", done
+    st = await s.call("acme", DIRECTOR, "get_record", {"ref": pref})
+    assert st["data"]["record"]["state"] == "approved"
+
+    applied = await relay_and_apply()
+    assert [a["state"] for a in applied] == ["applied"], applied
+    s.outputs["w2-applied"] = json.dumps(applied, ensure_ascii=False)
+    assert _column_exists(pg, tenant.seq, "advance_request", "ma_du_an")
+    st = await s.call("acme", DIRECTOR, "get_record", {"ref": pref})
+    rec = st["data"]["record"]
+    assert rec["state"] == "applied" and rec["values"]["applied_version"] >= 2, rec
+    c = await s.call(
+        "acme",
+        REQUESTER,
+        "create_record",
+        {
+            "model_id": "advance_request",
+            "values": advance(1_500_000, ma_du_an="DA-2026-07"),
+            "idempotency_key": "it-key-w2-rec",
+        },
+    )
+    assert c["ok"] and c["data"]["record"]["values"]["ma_du_an"] == "DA-2026-07", c
+
+    # PHÁ HỦY: xóa field đã có dữ liệu -> hai người duyệt khác nhau.
+    rm = {
+        "model_id": "advance_request",
+        "operations": [{"op": "remove_field", "field_id": "ma_du_an"}],
+        "rationale": "Bỏ mã dự án",
+        "idempotency_key": "it-key-w2-rm",
+        "dry_run": False,
+    }
+    proposed = await s.call("acme", DEPT_HEAD, "propose_model_change", rm)
+    assert proposed["ok"], proposed
+    rref = proposed["data"]["proposal"]
+    rargs = {
+        "ref": rref,
+        "decision": "approve",
+        "expected_revision": 1,
+        "idempotency_key": "it-key-w2-rm-ok",
+    }
+    pending = await s.call("acme", DIRECTOR, "decide_request", rargs)
+    assert pending["error"]["code"] == "confirmation_required", pending
+    url = pending["error"]["details"]["confirm_url"]
+    r = await anyio.to_thread.run_sync(lambda: confirm_in_desk(s, url, sub("acme", DIRECTOR)))
+    assert r.status_code == 200 and "người xác nhận thứ hai" in r.text, r.text
+    # Một người duyệt chưa đủ: agent gọi lại vẫn chưa thực thi, worker không áp.
+    again = await s.call("acme", DIRECTOR, "decide_request", rargs)
+    assert not again["ok"], again
+    assert await relay_and_apply() == [
+        {"proposal": str(applied[0]["proposal"]), "state": "applied"}
+    ]
+    assert _column_exists(pg, tenant.seq, "advance_request", "ma_du_an")
+    r = await anyio.to_thread.run_sync(lambda: confirm_in_desk(s, url, sub("acme", IT_ADMIN)))
+    assert r.status_code == 200 and "Đã thực hiện" in r.text, r.text
+    final = await s.call("acme", DIRECTOR, "decide_request", rargs)
+    assert final["ok"] and final["data"]["outcome"] == "request_approved", final
+    outs = await relay_and_apply()
+    removed = [o for o in outs if o["proposal"] == rref.split(":", 1)[1]]
+    assert removed and removed[0]["state"] == "applied", outs
+    assert not _column_exists(pg, tenant.seq, "advance_request", "ma_du_an")
+    st = await s.call("acme", DIRECTOR, "get_record", {"ref": rref})
+    assert st["data"]["record"]["values"]["destructive_confirmed"], st
+    assert len(st["data"]["record"]["values"]["decided_by"]) == 2

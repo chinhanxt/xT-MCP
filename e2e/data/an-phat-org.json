@@ -1,0 +1,16 @@
+{
+  "departments": [
+    {"id": "D01", "name": "Ban Giám đốc"},
+    {"id": "D02", "name": "Vận hành"}
+  ],
+  "positions": [
+    {"id": "P01", "name": "Giám đốc", "level": 5},
+    {"id": "P02", "name": "Trưởng phòng", "level": 4},
+    {"id": "P05", "name": "Chuyên viên", "level": 2}
+  ],
+  "employees": [
+    {"id": "AP-001", "full_name": "Lâm Quốc Hưng", "email": "hung.lamquoc@anphat.example", "department_id": "D01", "position_id": "P01", "manager_id": null, "hire_date": "2019-01-07", "active": true, "roles": ["director"]},
+    {"id": "AP-002", "full_name": "Tạ Minh Châu", "email": "chau.taminh@anphat.example", "department_id": "D02", "position_id": "P02", "manager_id": "AP-001", "hire_date": "2020-05-11", "active": true, "roles": ["dept_head"]},
+    {"id": "AP-003", "full_name": "Kiều Thanh Bình", "email": "binh.kieuthanh@anphat.example", "department_id": "D02", "position_id": "P05", "manager_id": "AP-002", "hire_date": "2023-08-21", "active": true, "roles": ["employee"]}
+  ]
+}

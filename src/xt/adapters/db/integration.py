@@ -357,6 +357,53 @@ class PgIntegrationStore:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    # ---- quyết định đề xuất thay đổi model (outbox của `model.apply`)
+    def model_change(self, actor: ModelActor, proposal_id: UUID) -> dict[str, Any] | None:
+        with self.uow.tenant_tx(actor) as cur:
+            row = cur.execute(
+                "SELECT * FROM xt_meta.model_change_request WHERE proposal_id = %s",
+                (proposal_id,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def decide_model_change(
+        self,
+        actor: ModelActor,
+        proposal_id: UUID,
+        *,
+        state: str,
+        plan_hash: str,
+        confirm: Sequence[str],
+        decided_by: Sequence[str],
+        reason: str | None,
+    ) -> bool:
+        """Ghi quyết định một lần (PK): False = đã có quyết định khác."""
+        with self.uow.tenant_tx(actor) as cur:
+            row = cur.execute(
+                "INSERT INTO xt_meta.model_change_request (tenant_id, proposal_id, state,"
+                " plan_hash, confirm, decided_by, reason) VALUES (xt.tenant(), %s, %s, %s, %s,"
+                " %s, %s) ON CONFLICT DO NOTHING RETURNING proposal_id",
+                (proposal_id, state, plan_hash, list(confirm), list(decided_by), reason),
+            ).fetchone()
+        return row is not None
+
+    def finish_model_change(
+        self,
+        actor: ModelActor,
+        proposal_id: UUID,
+        *,
+        state: str,
+        applied_version: int | None,
+        error: str | None,
+    ) -> None:
+        with self.uow.tenant_tx(actor) as cur:
+            cur.execute(
+                "UPDATE xt_meta.model_change_request SET state = %s, applied_version = %s,"
+                " error = %s, updated_at = clock_timestamp()"
+                " WHERE proposal_id = %s AND state = 'approved'",
+                (state, applied_version, error[:1000] if error else None, proposal_id),
+            )
+
     # ---- làn PII
     def pii_put(self, actor: ModelActor, token: str, value: str) -> None:
         with self.uow.tenant_tx(actor) as cur:
