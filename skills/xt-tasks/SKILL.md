@@ -22,6 +22,7 @@ Quy tắc chung ở `xt-core`. Chỉ gọi tool có trong danh sách tool của 
 6. "Hằng tuần / hằng tháng" -> **luôn đặt `recurrence`** (RRULE). Thứ Hai `MO`, Ba `TU`, Tư `WE`, Năm `TH`, **Sáu `FR`**, Bảy `SA`, Chủ nhật `SU`. Thứ Sáu hằng tuần = `FREQ=WEEKLY;BYDAY=FR` (không phải `SA`).
 7. **Liệt kê việc quá hạn / bị chặn:** `search_records {model_id:"task", where:{...}}` theo field hạn và trạng thái (không biết tên field: lỗi trả `valid_fields`); quá hạn = hạn < hôm nay và chưa xong. **Đếm** (bao nhiêu) -> `aggregate_records`. `get_inbox` chỉ là việc của chính tôi.
 8. Chưa gọi `transition_record`/`create_task` thành công thì không nói "đã cập nhật / đã giao".
+9. **Bước của quy trình** (nhận việc, nộp kết quả, nghiệm thu, bước HR/IT/Kế toán của hồ sơ nhân sự): `get_inbox` -> mục có `suggested_tool:"transition_record"` cho sẵn `ref`, `revision`, `to_states` -> `transition_record {ref, to_state (một giá trị trong to_states), expected_revision: revision, idempotency_key}`. Nộp kết quả: thêm `values:{result:"..."}`; trả lại làm lại: thêm `reason`. Chỉ người được giao bước làm được (`access_denied` `not_assigned`: nói ai đang giữ bước, không thử lại). Bước chỉ người làm (nghiệm thu, bước HR...) ra `confirmation_required`: chép `confirm_url`, nói chính người đó bấm, dừng; sau khi bấm gọi lại y hệt (cùng key).
 
 ## Chuỗi tool
 
@@ -32,6 +33,7 @@ Quy tắc chung ở `xt-core`. Chỉ gọi tool có trong danh sách tool của 
 | Việc nào quá hạn / bị chặn | `search_records {model_id:"task", where:{...}}` (loại việc đã xong) |
 | Bao nhiêu việc bị chặn / theo trạng thái | `aggregate_records {model_id:"task", where:{state:"blocked"}}` hoặc `group_by:["state"]` |
 | Tôi xong việc X | `get_record` -> `transition_record` |
+| Tôi nhận việc / nộp kết quả / nghiệm thu đạt | `get_inbox` -> `transition_record {ref, to_state, expected_revision}` (từ mục inbox) |
 | Vì sao việc bị chặn | `get_record` (đọc lý do trong bản ghi) |
 
 ## Ví dụ

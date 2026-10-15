@@ -17,7 +17,7 @@ function mem(): KvStorage & { data: Map<string, string> } {
   return { data, getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v), removeItem: (k) => void data.delete(k) };
 }
 
-function setup(over: { token?: (form: URLSearchParams, n: number) => { status?: number; body: unknown }; issuer?: string; endpointOrigin?: string; dpop?: DpopSigner } = {}) {
+function setup(over: { token?: (form: URLSearchParams, n: number) => { status?: number; body: unknown }; issuer?: string; endpointOrigin?: string; dpop?: DpopSigner; endSession?: string } = {}) {
   const session = mem();
   let t = 1_000_000;
   const nav: string[] = [];
@@ -27,7 +27,7 @@ function setup(over: { token?: (form: URLSearchParams, n: number) => { status?: 
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
     if (url.endsWith("/.well-known/openid-configuration")) {
       const o = over.endpointOrigin ?? "https://kc.example";
-      return new Response(JSON.stringify({ issuer: over.issuer ?? ISS, authorization_endpoint: `${o}/realms/xt/auth`, token_endpoint: `${o}/realms/xt/token` }));
+      return new Response(JSON.stringify({ issuer: over.issuer ?? ISS, authorization_endpoint: `${o}/realms/xt/auth`, token_endpoint: `${o}/realms/xt/token`, ...(over.endSession ? { end_session_endpoint: over.endSession } : {}) }));
     }
     const form = new URLSearchParams(String(init!.body));
     forms.push(form);
@@ -35,7 +35,7 @@ function setup(over: { token?: (form: URLSearchParams, n: number) => { status?: 
     const r = over.token?.(form, forms.length) ?? { body: { access_token: `at${++issued}`, refresh_token: `rt${issued}`, expires_in: 300 } };
     return new Response(JSON.stringify(r.body), { status: r.status ?? 200 });
   });
-  const s = new OidcSession(CFG, { fetch: fetchMock as never, session, navigate: (u) => nav.push(u), now: () => t, dpop: over.dpop });
+  const s = new OidcSession({ ...CFG, postLogoutRedirectUri: "https://desk.example/" }, { fetch: fetchMock as never, session, navigate: (u) => nav.push(u), now: () => t, dpop: over.dpop });
   return { s, session, nav, forms, tokenHeaders, fetchMock, advance: (ms: number) => (t += ms) };
 }
 
@@ -320,5 +320,39 @@ describe("DPoP (RFC 9449)", () => {
       jtis.add(p.jti);
     }
     expect(jtis.size).toBe(seen.length);
+  });
+});
+
+describe("đăng xuất (audit DPA-03)", () => {
+  const END = "https://kc.example/realms/xt/protocol/openid-connect/logout";
+  it("xoay khóa DPoP (xóa khỏi kho) và RP-initiated logout với id_token_hint", async () => {
+    const store = memoryKeyStore();
+    const dpop = new DpopSigner({ store, subtle: webcrypto.subtle as SubtleCrypto });
+    const before = await dpop.thumbprint();
+    expect(await store.get()).toBeDefined();
+    let nonce = "";
+    const h = setup({
+      dpop,
+      endSession: END,
+      token: () => ({ body: { access_token: "at1", refresh_token: "rt1", expires_in: 300, id_token: idToken({ iss: ISS, aud: CFG.clientId, nonce }) } }),
+    });
+    const l = await loginUrl(h);
+    nonce = l.nonce;
+    expect(await h.s.handleCallback(l.cb)).toBe(true);
+    h.s.logout();
+    await h.s.loggingOut;
+    await expect(h.s.authHeaders()).rejects.toBeInstanceOf(AuthRequiredError);
+    expect(await store.get()).toBeUndefined(); // IndexedDB không còn khóa của người trước
+    expect(await dpop.thumbprint()).not.toBe(before); // người sau nhận jkt khác
+    const u = new URL(h.nav.at(-1)!);
+    expect(u.origin + u.pathname).toBe(END);
+    expect(u.searchParams.get("id_token_hint")).toBe(idToken({ iss: ISS, aud: CFG.clientId, nonce }));
+    expect(u.searchParams.get("post_logout_redirect_uri")).toBe("https://desk.example/");
+    expect(u.searchParams.get("client_id")).toBe(CFG.clientId);
+  });
+  it("end_session_endpoint khác origin issuer => không điều hướng ra ngoài", async () => {
+    const h = setup({ endSession: "https://evil.example/logout" });
+    await h.s.startLogin();
+    expect(h.s.state.status).toBe("error");
   });
 });

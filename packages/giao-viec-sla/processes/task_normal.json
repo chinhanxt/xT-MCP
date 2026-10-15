@@ -1,7 +1,7 @@
 {
   "id": "task_normal",
   "name": "Giao việc có SLA (lớp thường)",
-  "version": 2,
+  "version": 3,
   "roles": [
     "director"
   ],
@@ -38,6 +38,16 @@
       "sla": {
         "after": "PT4H",
         "escalate_to": "user(assigner_user)"
+      },
+      "complete_via": {
+        "model": "task",
+        "match": {
+          "id": "task_id"
+        },
+        "states": {
+          "accepted": "done"
+        },
+        "autonomy": "L1"
       }
     },
     {
@@ -48,6 +58,16 @@
       "sla": {
         "after": "PT72H",
         "escalate_to": "department_head(department(assignee_user))"
+      },
+      "complete_via": {
+        "model": "task",
+        "match": {
+          "id": "task_id"
+        },
+        "states": {
+          "awaiting_acceptance": "done"
+        },
+        "autonomy": "L1"
       }
     },
     {
@@ -73,6 +93,18 @@
       "sla": {
         "after": "PT48H",
         "escalate_to": "department_head(department(assigner_user))"
+      },
+      "complete_via": {
+        "model": "task",
+        "match": {
+          "id": "task_id"
+        },
+        "states": {
+          "done": "approve",
+          "in_progress": "return_for_revision",
+          "not_accepted": "reject"
+        },
+        "autonomy": "human_only"
       }
     },
     {

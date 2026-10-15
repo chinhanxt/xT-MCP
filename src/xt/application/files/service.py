@@ -51,7 +51,7 @@ from xt.application.tools.errors import (
 )
 from xt.contracts.tools import ErrorCode
 
-UnscannedPolicy = Literal["deny", "uploader", "allow"]
+UnscannedPolicy = Literal["deny", "uploader", "readers", "allow"]
 SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 DOWNLOADABLE: frozenset[FileStatus] = frozenset({"clean", "not_scanned"})
 PENDING_UPLOAD: frozenset[FileStatus] = frozenset({"awaiting_upload", "uploaded"})
@@ -76,7 +76,7 @@ class FilePolicy:
     max_inline_bytes: int = 1024 * 1024
     upload_ttl: timedelta = timedelta(minutes=15)
     scanning: bool = False
-    unscanned_download: UnscannedPolicy = "uploader"
+    unscanned_download: UnscannedPolicy = "readers"
     allowed_types: frozenset[str] = field(default_factory=lambda: frozenset(ALLOWED_TYPES))
     # FB-02: quota (đếm từ metadata, cùng transaction có khóa tư vấn theo tenant).
     max_pending_per_user: int = 20
@@ -531,7 +531,7 @@ class FileManager:
             repo.update(row)
             repo.event(row.id, "finalized", {"sha256": sha256, "scan": "pending"})
             return Outcome(row)
-        row = self._promote(tenant, replace(row, status="not_scanned"))
+        row = self._promote(repo, replace(row, status="not_scanned"))
         repo.update(row)
         repo.event(row.id, "finalized", {"sha256": sha256, "scan": "disabled"})
         return Outcome(row)
@@ -545,8 +545,12 @@ class FileManager:
             "finalize with the sha256 of exactly those bytes.",
         )
 
-    def _promote(self, tenant: UUID, row: FileRow) -> FileRow:
+    def _promote(self, repo: FileRepository, row: FileRow) -> FileRow:
+        """Chuyển quarantine -> khóa theo nội dung, GIỮ khóa nội dung tới commit (R2-F3): purge
+        đang chạy thì chờ nó xong rồi mới HEAD (object có thể vừa bị xóa -> copy lại)."""
         assert row.sha256 is not None
+        tenant = repo.tenant_id()
+        repo.lock_content(row.sha256)
         qkey = self.quarantine_key(tenant, row.id)
         ckey = self.content_key(tenant, row.sha256)
         if self.store.head(ckey) is None:
@@ -583,7 +587,7 @@ class FileManager:
                 repo.update(row)
             return row
         if verdict.clean:
-            row = self._promote(tenant, replace(row, status="clean"))
+            row = self._promote(repo, replace(row, status="clean"))
         else:
             self.store.delete(qkey)
             row = replace(row, status="infected", object_key=None, scan_signature=verdict.signature)
@@ -614,6 +618,10 @@ class FileManager:
         for row in repo.purgeable_deleted(secs, limit):
             key = row.object_key
             assert key is not None
+            if row.sha256 is not None and "/sha256/" in key:
+                # R2-F3: quyết định xóa + xóa trong cùng transaction, sau khi giữ khóa nội dung
+                # (finalize cùng nội dung chưa commit -> chờ; đã commit -> object_in_use thấy).
+                repo.lock_content(row.sha256)
             if not repo.object_in_use(key, row.id):
                 self.store.delete(key)
             repo.update(replace(row, object_key=None))
@@ -655,7 +663,12 @@ class FileManager:
             return None
         if row.status == "not_scanned":
             p = self.policy.unscanned_download
-            if p == "allow" or (p == "uploader" and row.created_by == person):
+            # Profile full (có ClamAV): chỉ `clean` tải về được (decisions "Tải tệp chưa quét").
+            # `readers` = ai qua được `file.read` (người tải lên, phòng, người đọc được bản ghi
+            # gắn kèm); tải về luôn `attachment` + `nosniff`, audit ghi trạng thái.
+            if self.scanner is None and (
+                p in ("allow", "readers") or (p == "uploader" and row.created_by == person)
+            ):
                 return None
             return precondition_failed(
                 "This file was not scanned for malware, so only its uploader can download it.",
@@ -689,7 +702,7 @@ class FileManager:
 
     def open(self, repo: FileRepository, row: FileRow) -> Iterator[bytes]:
         assert row.object_key is not None
-        repo.event(row.id, "downloaded", {})
+        repo.event(row.id, "downloaded", {"status": row.status})
         return self.store.stream(row.object_key)
 
     def soft_delete(self, repo: FileRepository, row: FileRow, now: datetime) -> FileRow:

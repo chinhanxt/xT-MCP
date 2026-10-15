@@ -354,12 +354,67 @@ class SoD(Strict):
     )
 
 
+StepAutonomy = Literal["L1", "L2", "L3", "human_only"]
+StateId = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,62}$")]
+FieldName = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,62}$")]
+SubjectOutcome = Literal["done", "approve", "reject", "return_for_revision"]
+
+
+class CompleteVia(Strict):
+    """Bước người hoàn thành bằng `transition_record` trên bản ghi chủ thể của bước (không cần
+    tool riêng): người được giao chuyển bản ghi sang `to_state` -> bước nhận outcome tương ứng."""
+
+    model: Annotated[
+        str, Field(pattern=r"^[a-z][a-z0-9_]{0,62}$", description="Model của bản ghi chủ thể")
+    ]
+    match: dict[FieldName, Expr] = Field(
+        min_length=1,
+        max_length=10,
+        description=(
+            "Cách tìm bản ghi của bước: trường -> biểu thức trên biến quy trình ('id' = id bản "
+            'ghi), ví dụ {"id": "task_id"} hoặc {"lifecycle_case": "case_id", '
+            '"step": "\'hr\'"}'
+        ),
+    )
+    states: dict[StateId, SubjectOutcome] = Field(
+        min_length=1,
+        max_length=10,
+        description='Trạng thái đích -> outcome của bước, ví dụ {"accepted": "done"}',
+    )
+    state_field: FieldName = Field("state", description="Trường trạng thái của model")
+    autonomy: StepAutonomy = Field(
+        "human_only",
+        description=(
+            "Agent (đại diện người được giao) được hoàn thành bước tới mức nào: L1/L2/L3 theo "
+            "trần tự chủ; human_only = luôn cần chính người được giao xác nhận"
+        ),
+    )
+
+    @field_validator("match")
+    @classmethod
+    def _match(cls, v: dict[str, str]) -> dict[str, str]:
+        return {k: safe_expr(x, k) for k, x in v.items()}
+
+
 class _Human(Strict):
     id: Id
     name: Text
     assignee: AssigneeField
     when: Expr | None = None
     sla: Sla | None = None
+    complete_via: CompleteVia | None = Field(
+        None, description="Bản ghi chủ thể + transition hoàn thành bước (transition_record)"
+    )
+
+    def _check_complete_via(self, outcomes: list[str]) -> None:
+        cv = self.complete_via
+        if cv is None:
+            return
+        bad = sorted({o for o in cv.states.values() if o not in outcomes})
+        if bad:
+            raise ValueError(
+                f"complete_via.states dùng outcome {bad} không có trong outcomes {outcomes}"
+            )
 
     @field_validator("assignee", mode="after")
     @classmethod
@@ -400,6 +455,9 @@ class ApproveStep(_Human):
             raise ValueError("on_return chỉ dùng khi outcomes có 'return_for_revision'")
         if "return_for_revision" in self.outcomes and self.on_return is None:
             self.on_return = OnReturn.model_validate({})
+        self._check_complete_via(list(self.outcomes))
+        if self.complete_via is not None and self.complete_via.autonomy != "human_only":
+            raise ValueError("bước approve chỉ dùng complete_via.autonomy = human_only")
         return self
 
 
@@ -416,6 +474,7 @@ class TaskStep(_Human):
     def _outcomes(self) -> TaskStep:
         if len(set(self.outcomes)) != len(self.outcomes) or "done" not in self.outcomes:
             raise ValueError("outcomes của task phải có 'done' và không trùng")
+        self._check_complete_via(list(self.outcomes))
         return self
 
 
@@ -792,6 +851,9 @@ class _CrossCheck:
                 avail.add(f"{st.id}_result")
                 continue
             self._human(st, steps[:i], w, in_parallel=in_parallel)
+            if st.complete_via is not None:
+                for k, e in st.complete_via.match.items():
+                    self._names(e, avail, f"{w}.complete_via.match.{k}")
             avail |= {f"{st.id}_decision", f"{st.id}_comment"}
         return avail
 

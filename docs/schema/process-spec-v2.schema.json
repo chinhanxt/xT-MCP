@@ -57,6 +57,18 @@
           ],
           "default": null
         },
+        "complete_via": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CompleteVia"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Bản ghi chủ thể + transition hoàn thành bước (transition_record)"
+        },
         "type": {
           "const": "approve",
           "title": "Type",
@@ -222,6 +234,77 @@
         "kind"
       ],
       "title": "Assignee",
+      "type": "object"
+    },
+    "CompleteVia": {
+      "additionalProperties": false,
+      "description": "Bước người hoàn thành bằng `transition_record` trên bản ghi chủ thể của bước (không cần\ntool riêng): người được giao chuyển bản ghi sang `to_state` -> bước nhận outcome tương ứng.",
+      "properties": {
+        "model": {
+          "description": "Model của bản ghi chủ thể",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "Model",
+          "type": "string"
+        },
+        "match": {
+          "description": "Cách tìm bản ghi của bước: trường -> biểu thức trên biến quy trình ('id' = id bản ghi), ví dụ {\"id\": \"task_id\"} hoặc {\"lifecycle_case\": \"case_id\", \"step\": \"'hr'\"}",
+          "maxProperties": 10,
+          "minProperties": 1,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,62}$": {
+              "description": "Biểu thức an toàn: so sánh, and/or/not, in, chỉ mục, + - /; không gọi hàm, không thuộc tính",
+              "maxLength": 500,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "title": "Match",
+          "type": "object"
+        },
+        "states": {
+          "description": "Trạng thái đích -> outcome của bước, ví dụ {\"accepted\": \"done\"}",
+          "maxProperties": 10,
+          "minProperties": 1,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,62}$": {
+              "enum": [
+                "done",
+                "approve",
+                "reject",
+                "return_for_revision"
+              ],
+              "type": "string"
+            }
+          },
+          "title": "States",
+          "type": "object"
+        },
+        "state_field": {
+          "default": "state",
+          "description": "Trường trạng thái của model",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$",
+          "title": "State Field",
+          "type": "string"
+        },
+        "autonomy": {
+          "default": "human_only",
+          "description": "Agent (đại diện người được giao) được hoàn thành bước tới mức nào: L1/L2/L3 theo trần tự chủ; human_only = luôn cần chính người được giao xác nhận",
+          "enum": [
+            "L1",
+            "L2",
+            "L3",
+            "human_only"
+          ],
+          "title": "Autonomy",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model",
+        "match",
+        "states"
+      ],
+      "title": "CompleteVia",
       "type": "object"
     },
     "InputSpec": {
@@ -616,6 +699,18 @@
             }
           ],
           "default": null
+        },
+        "complete_via": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CompleteVia"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Bản ghi chủ thể + transition hoàn thành bước (transition_record)"
         },
         "type": {
           "const": "task",

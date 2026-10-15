@@ -62,8 +62,19 @@ def _cond(var: str, val: str) -> str:
     return f"{var} == {val!r}"
 
 
+def _drop_unset_complete_via(steps: list[Any]) -> None:
+    """`complete_via` (thêm sau) vắng mặt không đổi sha của định nghĩa đã duyệt trước đó."""
+    for st in steps:
+        if "complete_via" in st and st["complete_via"] is None:
+            del st["complete_via"]
+        for br in st.get("branches") or ():
+            _drop_unset_complete_via(br)
+
+
 def spec_sha256(spec: ProcessSpec) -> str:
-    raw = json.dumps(spec.model_dump(mode="json"), sort_keys=True, ensure_ascii=False)
+    dumped = spec.model_dump(mode="json")
+    _drop_unset_complete_via(dumped["steps"])
+    raw = json.dumps(dumped, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(raw.encode()).hexdigest()
 
 

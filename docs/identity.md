@@ -68,6 +68,7 @@ Không có host, realm hay secret mặc định. Thiếu hoặc sai thì hàm `l
 | `XT_DPOP_ALGORITHMS` | không | `ES256` | `alg` nhận cho proof; tập con của `{ES256, ES384, RS256, PS256}`. `none`/`HS*` bị từ chối lúc khởi động |
 | `XT_DPOP_PROOF_MAX_AGE_SECONDS` | không | `60` | Tuổi tối đa của proof theo `iat` (1–300), cộng thêm `XT_DPOP_LEEWAY_SECONDS` |
 | `XT_DPOP_LEEWAY_SECONDS` | không | `30` | Lệch đồng hồ cho `iat` (0–120): tương lai ≤ leeway, quá khứ ≤ max_age + leeway |
+| `XT_DPOP_REPLAY_STORE` | không | `memory` | `postgres`: cache jti chung qua `XT_DB_APP_URL` (bắt buộc trong compose, DPA-02); `memory`: chỉ unit test |
 | `XT_DPOP_ORIGINS` | không | rỗng | Origin công khai bổ sung cho `htu` (vd dev `http://localhost:5173`; http cần `XT_IDP_ALLOW_HTTP`). Luôn gồm origin của `XT_MCP_RESOURCE` và `XT_DESK_URL` |
 
 ## Access token cho MCP resource server
@@ -121,7 +122,7 @@ Bề mặt không có ngữ cảnh DPoP (REST `/workflow/v1`, `/files/v1`, stdio
 6. `ath` == base64url(SHA-256(access token)) (với `/pii/reveal`: hash của vé).
 7. Thumbprint RFC 7638 của `jwk` == `cnf.jkt` (so sánh hằng thời gian).
 8. `iat` số: `now − max_age − leeway ≤ iat ≤ now + leeway`. Kiểm sau ath/jkt để "stale" (không tiêu vé PII) chỉ báo cho đúng chủ khóa.
-9. Cuối cùng mới tiêu `jti` (khóa `dpop|jkt|jti`, hết hạn sau cửa sổ iat): proof sai không đốt jti của proof thật; phát lại bị `dpop_replay`. Cache trong bộ nhớ của tiến trình (`xt-api` chạy một tiến trình; nhiều replica cần store chung).
+9. Cuối cùng mới tiêu `jti` (khóa `dpop|jkt|jti`, hết hạn sau cửa sổ iat): proof sai không đốt jti của proof thật; phát lại bị `dpop_replay`. `XT_DPOP_REPLAY_STORE=postgres` (compose): bảng chung `xt_identity.dpop_jti` (UNIQUE (jkt, jti), migration `0013_dpop_jti.sql`, xt_app chỉ gọi hàm SECURITY DEFINER `dpop_jti_consume`/`dpop_jti_purge`), đúng cho nhiều worker/replica và qua restart; job relay của `xt worker` dọn mục hết hạn; DB lỗi → 503. `memory` chỉ cho unit test/một tiến trình (heap theo hạn, O(log n)); `WEB_CONCURRENCY > 1` với `memory` bị từ chối lúc khởi động. `iat` không hữu hạn (NaN/±inf) → `dpop_iat` (DPA-01).
 
 Challenge: `WWW-Authenticate: DPoP error="…", error_description="…", algs="ES256", Bearer resource_metadata="…", scope="…"` (vẫn có PRM cho client MCP). Server không phát `DPoP-Nonce`.
 

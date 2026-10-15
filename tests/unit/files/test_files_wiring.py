@@ -33,7 +33,7 @@ def _env(tmp_path: Path, **over: str) -> dict[str, str]:
 def test_config_defaults_and_derived_url_key(tmp_path: Path) -> None:
     cfg = FilesConfig.from_env(_env(tmp_path))
     assert cfg.bucket == "xt-files" and cfg.clamd is None and not cfg.policy.scanning
-    assert cfg.policy.unscanned_download == "uploader"
+    assert cfg.policy.unscanned_download == "readers"
     assert cfg.url_key != b"c" * 40 and len(cfg.url_key) == 32  # nhãn riêng, không dùng lại khóa
     full = FilesConfig.from_env(_env(tmp_path, XT_FILES_CLAMD="clamav:3310"))
     assert full.clamd == ("clamav", 3310) and full.policy.scanning
@@ -95,3 +95,17 @@ def test_s3_client_signs_and_maps_errors() -> None:
         st.copy("a", "boom")
     with pytest.raises(ValueError):
         S3FileStore("ftp://x", "b", "a", "s")
+
+
+def test_parse_file_ref_all_forms() -> None:
+    """R2-F2: mọi dạng ref chuẩn hóa về id; tenant khác / dạng lạ -> None (bị từ chối)."""
+    from uuid import uuid4
+
+    from xt.entrypoints.files_http import parse_file_ref
+
+    fid = uuid4()
+    for ref in (f"file:{fid}", f"xrn:acme:file:{fid}", str(fid)):
+        assert parse_file_ref("acme", ref) == fid, ref
+    for bad in (f"xrn:beta:file:{fid}", f"xrn:acme:tai_lieu:{fid}", f"person:{fid}", "file:x",
+                f"xrn:acme:file:{fid}:x"):  # fmt: skip
+        assert parse_file_ref("acme", bad) is None, bad

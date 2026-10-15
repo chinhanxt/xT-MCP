@@ -27,6 +27,15 @@ Tenant có thể đổi. Luôn lấy `available_transitions` từ `get_record` t
 - Transition khai L2/L3 hoặc người khác thực hiện: có thể `confirmation_required`.
 - `blocked`: nên kèm `reason` (lời người dùng) để người sau hiểu.
 
+## Bước người của quy trình (giao việc có nghiệm thu, vòng đời nhân sự)
+
+Bước người của quy trình không gắn đề nghị hoàn thành bằng `transition_record` trên **bản ghi chủ thể của bước** (gói khai `complete_via`): `task_normal`/`task_urgent` trên chính `task` (`accepted` = nhận việc, `awaiting_acceptance` + `values.result` = nộp kết quả, nghiệm thu: `done` đạt / `in_progress` + `reason` làm lại / `not_accepted`); tiếp nhận/nghỉ việc trên dòng checklist `lifecycle_task` của bước (`done`, hoặc `skipped` + `values.note`).
+
+- `get_inbox` cho `ref`, `revision`, `step`, `to_states`, `suggested_tool:"transition_record"`; `get_record` (nếu đọc được) cho `available_transitions` kèm `level`.
+- Mức tự chủ theo bước: nhận việc / nộp kết quả L1 (agent làm ngay); nghiệm thu và mọi bước HR/IT/Kế toán/Quản lý là chỉ-người -> `confirmation_required`, chỉ chính người được giao bấm xác nhận.
+- Lỗi: `access_denied` `not_assigned` (bước của người khác), `precondition_failed` `transition_not_allowed` (dùng `details.available_transitions`) / `no_open_step` (quy trình đã xong hoặc chưa chạy), `rule_violation` (thiếu `result`/`note`), `invalid_request` `reason_required` (trả lại cần lý do).
+- REST: `POST /workflow/v1/tasks/{ref}/decision` (`approve` = hoàn thành bước, `values` tùy chọn) đi cùng service.
+
 ## SLA
 
 SLA tính từ loại việc; `get_inbox` và `get_record` cho thấy trạng thái SLA và hạn. Đừng tự tính giờ làm việc; đọc `due_at`/SLA từ server. Quá hạn có thể kích hoạt leo thang ở process; agent chỉ báo.

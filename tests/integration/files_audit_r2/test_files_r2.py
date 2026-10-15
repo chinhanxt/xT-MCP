@@ -132,7 +132,6 @@ def test_storage_quota_enforced_for_live_files(xstack: Stack) -> None:
     )
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="R2-F1: quota bỏ qua tệp xóa mềm")
 def test_quota_counts_soft_deleted_bytes(xstack: Stack) -> None:
     """Quyết định "Quyền đọc tệp đính kèm": xóa mềm vẫn tính vào quota tới khi bị dọn hẳn. Tải lên
     -> xóa -> lặp lại phải chạm quota (byte vẫn nằm trên S3 trong thời gian lưu); sau `maintain`
@@ -173,7 +172,6 @@ async def test_record_file_field_rejects_colleagues_file_bare_ref(xstack: Stack)
 
 
 @pytest.mark.anyio
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="R2-F2: xrn bỏ qua AttachmentPolicy")
 async def test_record_file_field_xrn_ref_validated_like_bare_id(xstack: Stack) -> None:
     """`xrn:<tenant>:file:<id>` được lớp records chấp nhận (parse_record_ref) nên phải qua đúng kiểm
     tra "người ghi đọc được tệp + tệp sẵn sàng" như `file:<id>`. Tệp của chính mình qua xrn vẫn
@@ -221,9 +219,6 @@ def _download(s: Stack, fid: str) -> httpx.Response:
         return c.get(f"{F}/{fid}/content")
 
 
-@pytest.mark.xfail(
-    strict=True, raises=AssertionError, reason="R2-F3: purge xóa object finalize vừa dùng lại"
-)
 def test_purge_during_finalize_head_check_keeps_bytes(
     xstack: Stack, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -272,9 +267,6 @@ def test_purge_during_finalize_head_check_keeps_bytes(
     assert real_head(key) is not None
 
 
-@pytest.mark.xfail(
-    strict=True, raises=AssertionError, reason="R2-F3: purge xóa object finalize vừa dùng lại"
-)
 def test_finalize_between_purge_check_and_delete_keeps_bytes(
     xstack: Stack, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -351,7 +343,6 @@ def test_compose_seaweed_only_on_internal_files_network() -> None:
     assert re.search(r"^  files:\n    internal: true$", text, re.M)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="R2-F4: master không có [guard]")
 def test_compose_seaweed_master_has_guard_whitelist() -> None:
     """security.toml của compose phải có `[guard] white_list` (chỉ 127.0.0.1 / tiến trình S3 cùng
     container): master :9333 bọc `/dir/assign`, `/col/delete`, `/vol/grow`, `/vol/vacuum` bằng
@@ -401,9 +392,6 @@ def _peer_get(sw: Any, paths: list[str]) -> list[tuple[str, str]]:
     return out
 
 
-@pytest.mark.xfail(
-    strict=True, raises=AssertionError, reason="R2-F4: master nhận admin/assign không xác thực"
-)
 def test_seaweed_master_rejects_unauthenticated_admin_from_peer(xstack: Stack, sw: Any) -> None:
     """Peer cùng mạng gọi master :9333 không xác thực. Kỳ vọng `guard` chặn (401/403):
     `/dir/assign` (cấp fid ghi, kích hoạt grow volume) và `/col/delete` (xóa cả collection = mọi
@@ -526,9 +514,6 @@ async def test_attachment_of_unreadable_record_stays_private(xstack: Stack, payp
 
 
 @pytest.mark.anyio
-@pytest.mark.xfail(
-    strict=True, raises=AssertionError, reason="R2-F5: file.read chưa theo bản ghi đã gắn"
-)
 async def test_accountant_reads_attachment_of_readable_cross_department_record(
     xstack: Stack, paypack: str
 ) -> None:
@@ -647,9 +632,6 @@ def test_put_cl_te_server_reads_bounded(xstack: Stack, server_bytes: dict[int, i
 # ---- worker: job files.maintain đã được đăng ký? -----------------------------------------------
 
 
-@pytest.mark.xfail(
-    strict=True, raises=AssertionError, reason="R2-W1: files.maintain chưa nối vào xt worker"
-)
 def test_worker_registers_files_maintain(
     xstack: Stack, pg: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:

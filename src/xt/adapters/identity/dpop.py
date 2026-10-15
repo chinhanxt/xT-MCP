@@ -16,6 +16,7 @@ import base64
 import hashlib
 import hmac
 import json
+import math
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -24,10 +25,14 @@ from urllib.parse import urlsplit, urlunsplit
 
 import jwt
 
-from xt.adapters.identity.config import _Env
+from xt.adapters.identity.config import IdentityConfigError, _Env
 from xt.adapters.identity.single_use import InMemorySingleUseStore
 from xt.application.ports import SingleUseStore
-from xt.domain.identity import InvalidTokenError, safe_detail
+from xt.domain.identity import (
+    IdentityProviderUnavailableError,
+    InvalidTokenError,
+    safe_detail,
+)
 
 PROOF_TYP = "dpop+jwt"
 SUPPORTED_DPOP_ALGORITHMS = frozenset({"ES256", "ES384", "RS256", "PS256"})
@@ -74,6 +79,9 @@ class DpopSettings:
     max_age_s: int = 60
     leeway_s: int = 30
     origins: tuple[str, ...] = ()  # origin công khai bổ sung (Desk proxy /mcp cùng origin)
+    # `memory` (một tiến trình, test) | `postgres` (bảng xt_identity.dpop_jti, dùng chung mọi
+    # worker/replica, sống qua restart; DPA-02). Store Postgres do composition root truyền vào.
+    replay_store: str = "memory"
 
 
 def load_dpop_settings(env: Mapping[str, str] | None = None) -> DpopSettings:
@@ -91,6 +99,16 @@ def load_dpop_settings(env: Mapping[str, str] | None = None) -> DpopSettings:
     max_age = e.integer("XT_DPOP_PROOF_MAX_AGE_SECONDS", 60, 1, 300)
     leeway = e.integer("XT_DPOP_LEEWAY_SECONDS", 30, 0, 120)
     allow_http = e.boolean("XT_IDP_ALLOW_HTTP", False)
+    replay = (e.optional("XT_DPOP_REPLAY_STORE") or "memory").lower()
+    e.check(
+        replay in ("memory", "postgres"),
+        f"XT_DPOP_REPLAY_STORE={replay!r} phải là 'memory' hoặc 'postgres'",
+    )
+    workers = e.integer("WEB_CONCURRENCY", 1, 1, 1024)
+    e.check(
+        replay == "postgres" or workers == 1,
+        "WEB_CONCURRENCY > 1 cần XT_DPOP_REPLAY_STORE=postgres (cache jti dùng chung, DPA-02)",
+    )
     origins: list[str] = []
     for raw in (
         e.optional("XT_MCP_RESOURCE"),
@@ -117,6 +135,7 @@ def load_dpop_settings(env: Mapping[str, str] | None = None) -> DpopSettings:
             max_age_s=max_age,
             leeway_s=leeway,
             origins=tuple(dict.fromkeys(origins)),
+            replay_store=replay,
         )
     )
 
@@ -218,7 +237,7 @@ class DpopVerifier:
     ) -> None:
         self.settings = settings
         self._clock = clock
-        self._replay = replay or InMemorySingleUseStore(clock)
+        self._replay = replay if replay is not None else InMemorySingleUseStore(clock)
 
     def _err(
         self, reason: str, detail: str | None = None, *, error: str = "invalid_dpop_proof"
@@ -316,8 +335,8 @@ class DpopVerifier:
         # iat sau ath/jkt: proof cũ chỉ được báo "stale" khi đúng khóa + đúng giá trị ràng buộc
         # (/pii/reveal không tiêu vé với stale; kẻ không có khóa không được dò vé bằng iat cũ).
         iat = claims.get("iat")
-        if isinstance(iat, bool) or not isinstance(iat, int | float):
-            raise self._err("dpop_iat")
+        if isinstance(iat, bool) or not isinstance(iat, int | float) or not math.isfinite(iat):
+            raise self._err("dpop_iat")  # DPA-01: NaN/±inf (json.loads nhận NaN) -> 401, không 500
         now = self._clock()
         if iat > now + s.leeway_s:
             raise self._err("dpop_iat_future")
@@ -325,7 +344,13 @@ class DpopVerifier:
             raise self._err("dpop_iat_stale")
         # Cuối cùng mới tiêu jti: proof sai không đốt jti của proof thật.
         expires = int(iat) + s.max_age_s + 2 * s.leeway_s
-        if not self._replay.consume(f"dpop|{jkt}|{jti}", expires):
+        try:
+            first = self._replay.consume(f"dpop|{jkt}|{jti}", expires)
+        except Exception as exc:  # store chung lỗi: fail-closed 503, không lùi về bộ nhớ
+            raise IdentityProviderUnavailableError(
+                "dpop_replay_store", type(exc).__name__
+            ) from exc
+        if not first:
             raise self._err("dpop_replay")
         return jkt
 
@@ -333,4 +358,11 @@ class DpopVerifier:
 def build_dpop_verifier(
     env: Mapping[str, str] | None = None, replay: SingleUseStore | None = None
 ) -> DpopVerifier:
-    return DpopVerifier(load_dpop_settings(env), replay)
+    """`XT_DPOP_REPLAY_STORE=postgres` bắt buộc truyền `replay` (store Postgres dùng chung);
+    thiếu thì dừng khởi động thay vì lặng lẽ dùng bộ nhớ."""
+    settings = load_dpop_settings(env)
+    if settings.replay_store == "postgres" and replay is None:
+        raise IdentityConfigError(
+            ["XT_DPOP_REPLAY_STORE=postgres nhưng chưa có store Postgres (XT_DB_APP_URL)"]
+        )
+    return DpopVerifier(settings, replay)

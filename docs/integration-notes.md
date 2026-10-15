@@ -371,4 +371,21 @@ Quyết định: `docs/decisions.md` "start_process + timer start". Catalog MCP 
 | Migration `0012_workflow_timer_fire.sql`: `xt_meta.workflow_timer_fire` (PK tenant+process+kỳ, RLS `tenant_isolation`, xt_app SELECT/INSERT/UPDATE) | `xt db migrate` |
 | `TimerPoller(store, defs, processes=ProcessService)` tạo instance qua `ProcessService.start(requester=None, fire=..., version=...)`; `PgTimerFireStore` (`workflow_bridge.py`) | — |
 | Worker: job mới `workflow.timer_starts` trong `handlers()` của `composition/worker.py`; relay mỗi chu kỳ hẹn một job (khóa `workflow.timer_starts:<mốc>`). Kỳ trước lúc tạo định nghĩa (`process_definition.created_at`) bỏ qua | Không cần env mới; tenant đã `bind-queue` tự có. `ProcessDefinition.created_at` (mới, mặc định None) |
-| Còn mở | Bước người của quy trình không gắn đề nghị (vd `accept`/`work` của `task_normal`, bước `hr` của onboarding) chưa có tool hoàn thành (`decide_request` chỉ nhận ref đề nghị). `GET /instances/{id}` của instance không có subject trả 404 |
+| ~~Còn mở~~ Đã đóng (D-STEP) | Bước người không gắn đề nghị hoàn thành bằng `transition_record` trên bản ghi chủ thể (`complete_via` trong spec); `GET /instances/{id}` của instance không gắn bản ghi trả cho người tham gia |
+
+### REST `/files/v1` vòng 2 (R2-F1…F5, R2-W1)
+
+- **R2-W1 đã nối (tự làm vì integrator chưa nối):** `composition/worker.py`. `build_jobs` dựng `CompositionFilesBackend` + `FilesMaintenance` khi đặt `XT_FILES_S3_ENDPOINT` (không cần ClamAV); `handlers()` có thêm `files.maintain`; `register_relay` (dùng bởi `xt tenant bind-queue`) khởi động chuỗi `files.maintain`. Nếu đã có `files.maintain` thì relay không gọi `rescan_files` nữa.
+- **R2-F3:** port `FileRepository.lock_content(sha256)` (advisory lock). Adapter khác phải hiện thực cùng ngữ nghĩa.
+- **R2-F5:** `FilesPep.linked_readable` tìm bản ghi trỏ tới tệp qua mọi field `file` của catalog (dưới RLS của người gọi), rồi `ToolAccessGuard.can_read`. Chưa có bảng liên kết; tìm theo quét bảng model, nên mỗi field `file` cần index (compiler đã có `ref_index`).
+- **Mặc định mới:** `XT_FILES_UNSCANNED_DOWNLOAD=readers`. Compose: thêm `[guard]` vào `configs.seaweed-security`.
+
+## Hoàn thành bước người qua bản ghi chủ thể (D-STEP, 16/10/2026)
+
+| Thay đổi | Ảnh hưởng |
+|---|---|
+| ProcessSpec: `complete_via {model, match, states, state_field, autonomy}` trên bước `task`/`approve` (`docs/schema/process-spec-v2.schema.json` sinh lại). Khóa vắng mặt không đổi sha256 của định nghĩa cũ | Gói khai được bước nào hoàn thành bằng transition nào, mức tự chủ của agent |
+| `transition_record` (không đổi contract): ngoài `withdrawn` của đề nghị, hoàn thành bước người khi người gọi là ứng viên của task đang mở; lỗi `not_assigned`, `transition_not_allowed` (`details.available_transitions`), `no_open_step`, `reason_required`, `state_in_values` | Không thêm tool; catalog 18 |
+| `get_inbox`: mục của bước có `complete_via` -> `ref` bản ghi chủ thể, `revision`, `to_states`, `suggested_tool:"transition_record"`; `get_record.available_transitions` có transition của bước người gọi giữ | Agent đi thẳng inbox -> transition_record |
+| REST `POST /tasks/{ref}/decision` nhận `values` (chỉ bước người); ref không phải đề nghị -> `transition_record`. `GET /instances/{id}`: `request` có thể `null`, `tasks[].task_id` = ref bản ghi chủ thể | OpenAPI `x-xt-tools` thêm `transition_record`, `describe_process` |
+| Gói `giao-viec-sla` 0.3.2 (`task_normal`/`task_urgent` v3, statement `tsk.step-transition`), `nhan-su-vong-doi` 0.3.2 (onboarding v4, offboarding v3, `lifecycle_task.step`, `owner_unit` + `chief_accountant`, statement `hr.step-transition`) | Tenant đã cài 0.3.1 cài lại gói (chỉ thêm); instance cũ chạy bản cũ (không `complete_via`) |

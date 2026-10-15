@@ -61,7 +61,7 @@ describe("proof", () => {
 describe("khóa", () => {
   it("private key non-extractable: exportKey ném lỗi", async () => {
     const pairs: CryptoKeyPair[] = [];
-    const store: KeyStore = { get: async () => pairs[0], put: async (p) => void pairs.push(p) };
+    const store: KeyStore = { get: async () => pairs[0], put: async (p) => void pairs.push(p), clear: async () => void pairs.splice(0) };
     await signer(store).thumbprint();
     expect(pairs[0].privateKey.extractable).toBe(false);
     await expect(subtle.exportKey("jwk", pairs[0].privateKey)).rejects.toThrow();
@@ -75,7 +75,7 @@ describe("khóa", () => {
     expect(await signer(memoryKeyStore()).thumbprint()).not.toBe(a);
   });
   it("store lỗi (không có IndexedDB) => vẫn có khóa cho vòng đời trang", async () => {
-    const broken: KeyStore = { get: async () => Promise.reject(new Error("no idb")), put: async () => Promise.reject(new Error("no idb")) };
+    const broken: KeyStore = { get: async () => Promise.reject(new Error("no idb")), put: async () => Promise.reject(new Error("no idb")), clear: async () => Promise.reject(new Error("no idb")) };
     const s = signer(broken);
     const t = await s.thumbprint();
     expect(await s.thumbprint()).toBe(t);
@@ -102,5 +102,18 @@ describe("htu", () => {
   });
   it("b64url không padding", () => {
     expect(b64url(new Uint8Array([0xfb, 0xff]))).toBe("-_8");
+  });
+});
+
+describe("reset (đăng xuất)", () => {
+  it("xóa cặp khóa khỏi kho, lần ký sau là khóa mới", async () => {
+    const store = memoryKeyStore();
+    const s = new DpopSigner({ store, subtle: webcrypto.subtle as SubtleCrypto });
+    const a = await s.thumbprint();
+    await s.reset();
+    expect(await store.get()).toBeUndefined();
+    const b = await s.thumbprint();
+    expect(b).not.toBe(a);
+    expect(await store.get()).toBeDefined();
   });
 });

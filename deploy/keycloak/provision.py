@@ -145,12 +145,15 @@ def desk_agent_client_rep(env: dict[str, str], desk: str, mappers: list[dict[str
     Attribute Keycloak 26: `dpop.bound.access.tokens` (OIDCConfigAttributes.DPOP_BOUND_ACCESS_TOKENS,
     "Require DPoP bound tokens" trong Admin Console)."""
     redirects = desk_agent_redirects(env, desk)
+    origins = desk_agent_web_origins(desk, redirects)
     return {
         "clientId": env.get("XT_DESK_AGENT_CLIENT_ID", "xt-desk-agent"), "name": "xT Desk agent (chat thay mặt người dùng)",
         "publicClient": True, "standardFlowEnabled": True, "directAccessGrantsEnabled": False, "serviceAccountsEnabled": False,
-        "implicitFlowEnabled": False, "redirectUris": redirects, "webOrigins": desk_agent_web_origins(desk, redirects),
+        "implicitFlowEnabled": False, "redirectUris": redirects, "webOrigins": origins,
         "attributes": {"pkce.code.challenge.method": "S256",
-                       "dpop.bound.access.tokens": "true" if dpop_required(env) else "false"},
+                       "dpop.bound.access.tokens": "true" if dpop_required(env) else "false",
+                       # RP-initiated logout của Desk (audit DPA-03): chỉ về trang gốc của chính origin Desk.
+                       "post.logout.redirect.uris": "##".join(f"{o}/" for o in origins)},
         "protocolMappers": mappers}
 
 

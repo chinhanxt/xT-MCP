@@ -279,3 +279,55 @@ def test_published_json_schema_matches_code() -> None:
     print(json.dumps(json_schema(), ensure_ascii=False, indent=2))" > docs/schema/..."""
     path = FIX.parents[2] / "docs" / "schema" / "process-spec-v2.schema.json"
     assert json.loads(path.read_text()) == json_schema()
+
+
+# ---- complete_via: bước người hoàn thành bằng transition_record (D-STEP) ----------------------
+TASK_OPS = {"close_task": ["task_id"], "notify": ["msg"]}
+
+
+def _task_pack() -> dict[str, Any]:
+    root = FIX.parents[2] / "packages" / "giao-viec-sla" / "processes" / "task_normal.json"
+    spec: dict[str, Any] = json.loads(root.read_text(encoding="utf-8"))
+    return spec
+
+
+def test_complete_via_of_packaged_task_normal_compiles() -> None:
+    spec = _task_pack()
+    c = compile_process(spec, TASK_OPS)
+    by = {s.id: s for s in c.spec.steps}
+    assert by["accept"].complete_via.autonomy == "L1"  # type: ignore[union-attr]
+    assert by["acceptance"].complete_via.states == {  # type: ignore[union-attr]
+        "done": "approve", "in_progress": "return_for_revision", "not_accepted": "reject"
+    }  # fmt: skip
+
+
+def test_complete_via_validation_errors() -> None:
+    spec = _task_pack()
+    bad = copy.deepcopy(spec)
+    bad["steps"][0]["complete_via"]["states"] = {"accepted": "approve"}  # task không có approve
+    assert any("complete_via.states" in e for e in errors_of(bad, TASK_OPS))
+    bad = copy.deepcopy(spec)
+    bad["steps"][2]["complete_via"]["autonomy"] = "L1"  # bước approve chỉ human_only
+    assert any("human_only" in e for e in errors_of(bad, TASK_OPS))
+    bad = copy.deepcopy(spec)
+    bad["steps"][0]["complete_via"]["match"] = {"id": "khong_co_bien"}
+    assert any("khong_co_bien" in e for e in errors_of(bad, TASK_OPS))
+
+
+def test_sha_unchanged_for_specs_without_complete_via() -> None:
+    """Định nghĩa duyệt trước khi có complete_via giữ nguyên sha256 (không spec_mismatch)."""
+    import hashlib
+
+    from xt.domain.process.spec import parse_spec
+
+    spec = _task_pack()
+    for st in spec["steps"]:
+        st.pop("complete_via", None)
+    parsed = parse_spec(spec)
+    legacy = parsed.model_dump(mode="json")
+    for st in legacy["steps"]:
+        st.pop("complete_via", None)
+    want = hashlib.sha256(
+        json.dumps(legacy, sort_keys=True, ensure_ascii=False).encode()
+    ).hexdigest()
+    assert compile_process(spec, TASK_OPS).sha256 == want

@@ -1,7 +1,7 @@
 {
   "id": "employee_offboarding",
   "name": "Nghỉ việc (HR, Quản lý, IT, Kế toán, đóng hồ sơ)",
-  "version": 2,
+  "version": 3,
   "roles": [
     "hr",
     "it_admin",
@@ -40,6 +40,18 @@
       "sla": {
         "after": "PT24H",
         "escalate_to": "department_head('NS')"
+      },
+      "complete_via": {
+        "model": "lifecycle_task",
+        "match": {
+          "lifecycle_case": "case_id",
+          "step": "'hr_confirm'"
+        },
+        "states": {
+          "done": "done",
+          "skipped": "done"
+        },
+        "autonomy": "human_only"
       }
     },
     {
@@ -56,6 +68,18 @@
             "sla": {
               "after": "PT48H",
               "escalate_to": "department_head(department(employee_user))"
+            },
+            "complete_via": {
+              "model": "lifecycle_task",
+              "match": {
+                "lifecycle_case": "case_id",
+                "step": "'manager'"
+              },
+              "states": {
+                "done": "done",
+                "skipped": "done"
+              },
+              "autonomy": "human_only"
             }
           }
         ],
@@ -68,6 +92,18 @@
             "sla": {
               "after": "PT4H",
               "escalate_to": "department_head('IT')"
+            },
+            "complete_via": {
+              "model": "lifecycle_task",
+              "match": {
+                "lifecycle_case": "case_id",
+                "step": "'it'"
+              },
+              "states": {
+                "done": "done",
+                "skipped": "done"
+              },
+              "autonomy": "human_only"
             }
           },
           {
@@ -98,6 +134,18 @@
             "sla": {
               "after": "PT24H",
               "escalate_to": "role(chief_accountant)"
+            },
+            "complete_via": {
+              "model": "lifecycle_task",
+              "match": {
+                "lifecycle_case": "case_id",
+                "step": "'accounting'"
+              },
+              "states": {
+                "done": "done",
+                "skipped": "done"
+              },
+              "autonomy": "human_only"
             }
           }
         ]
@@ -113,7 +161,18 @@
         "approve",
         "reject",
         "request_info"
-      ]
+      ],
+      "complete_via": {
+        "model": "lifecycle_task",
+        "match": {
+          "lifecycle_case": "case_id",
+          "step": "'chief_acct_overdue'"
+        },
+        "states": {
+          "done": "approve"
+        },
+        "autonomy": "human_only"
+      }
     },
     {
       "id": "hr_close",
@@ -123,6 +182,18 @@
       "sla": {
         "after": "PT24H",
         "escalate_to": "department_head('NS')"
+      },
+      "complete_via": {
+        "model": "lifecycle_task",
+        "match": {
+          "lifecycle_case": "case_id",
+          "step": "'hr_close'"
+        },
+        "states": {
+          "done": "done",
+          "skipped": "done"
+        },
+        "autonomy": "human_only"
       }
     },
     {

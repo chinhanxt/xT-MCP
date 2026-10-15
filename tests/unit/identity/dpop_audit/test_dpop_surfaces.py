@@ -87,7 +87,6 @@ async def test_desk_origin_proof_replay_on_mcp_origin_blocked(env: Env) -> None:
     assert first.status_code == 200 and again.status_code == 401
 
 
-@pytest.mark.xfail(strict=True, reason="DPA-01: iat=NaN -> 500 thay vì 401 invalid_dpop_proof")
 async def test_nan_iat_gets_401_not_500(env: Env) -> None:
     holder = DpopKey(env.clock)
     tok = env.bound(holder)

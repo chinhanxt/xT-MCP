@@ -369,6 +369,7 @@ class DeskAgentDpop(unittest.TestCase):
         self.assertEqual(rep["redirectUris"], [f"{self.DESK}/auth/callback"])
         self.assertEqual(rep["webOrigins"], [self.DESK])
         self.assertEqual(rep["protocolMappers"], [amr])
+        self.assertEqual(rep["attributes"]["post.logout.redirect.uris"], f"{self.DESK}/")
         self.assertNotIn("secret", rep)
         self.assertEqual(self.mod.desk_agent_client_rep({"XT_DESK_AGENT_CLIENT_ID": "x"}, self.DESK, [])["clientId"], "x")
 
@@ -376,6 +377,9 @@ class DeskAgentDpop(unittest.TestCase):
         compose = (DEPLOY / "compose.yaml").read_text()
         self.assertIn("XT_DPOP_REQUIRED: ${XT_DPOP_REQUIRED:-false}", compose)
         self.assertIn("XT_DPOP_REQUIRED=false", (DEPLOY / ".env.example").read_text())
+        self.assertIn("XT_DPOP_CLIENTS: ${XT_DPOP_CLIENTS:-${XT_DESK_AGENT_CLIENT_ID:-xt-desk-agent}}", compose)
+        self.assertIn("XT_DPOP_REPLAY_STORE: postgres", compose)
+        self.assertIn("XT_DPOP_CLIENTS=", (DEPLOY / ".env.example").read_text())
 
 
 class CliDropsMcpScope(unittest.TestCase):

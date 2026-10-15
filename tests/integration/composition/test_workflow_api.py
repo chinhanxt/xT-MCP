@@ -411,3 +411,135 @@ def test_requester_withdraws_running_request_rest_and_mcp(wstack: Stack) -> None
 
     out = anyio.run(mcp)
     assert out["ok"] and out["data"]["record"]["state"] == "withdrawn", out
+
+
+def test_process_steps_not_tied_to_request_over_rest(wstack: Stack) -> None:
+    """Bước người của quy trình không gắn đề nghị (giao việc task_normal) qua REST: inbox ->
+    POST /tasks/{ref}/decision đi transition_record (cùng service MCP, mức tự chủ của bước);
+    GET /instances/{id} của instance không gắn bản ghi: người tham gia thấy, người khác 404."""
+    from dataclasses import replace
+
+    from xt.adapters.db.integration import person_id
+    from xt.application.tools.context import Actor
+    from xt.domain.identity import PrincipalKind
+
+    s = wstack
+    pack = ["pack", "install", "--tenant", B, str(PACK.parent / "giao-viec-sla")]
+    who = ["--proposed-by", "agent:it", "--approved-by", "person:admin"]
+    rc, plan = run_admin([*pack, *who], s.env)
+    assert rc == 0 and "KHÔNG CÀI ĐƯỢC" not in plan, plan
+    digest = re.search(r"\(digest\): (sha256:[0-9a-f]{64})", plan)
+    assert digest, plan
+    rc, out = run_admin([*pack, *who, "--confirm", digest.group(1)], s.env)
+    assert rc == 0, out
+    rt = s.prepared.services.runtime  # type: ignore[attr-defined]
+    actor = Actor(B, sub(B, DEPT_HEAD), PrincipalKind.HUMAN, DESK_CLIENT, None)
+    caller = rt.resolve(actor, "it-wf-step-setup")
+    admin = replace(caller.actor, roles=("admin",))
+    kind = rt.run_as(
+        caller, actor,
+        lambda: rt.records.create(admin, "task_type", {"code": "bao_cao", "name": "Báo cáo",
+                                                       "sla_accept_hours": 4,
+                                                       "sla_complete_hours": 72})["record"],
+    )  # fmt: skip
+    tenant = s.tenants[B]
+    pid = {k: str(person_id(tenant.id, k)) for k in (REQUESTER, DEPT_HEAD, DIRECTOR)}
+
+    def new_task(no: str) -> str:
+        row = rt.run_as(
+            caller, actor,
+            lambda: rt.records.create(
+                caller.actor, "task",
+                {"task_no": no, "title": f"Việc {no}", "kind": kind["id"],
+                 "assigner": pid[DEPT_HEAD], "assignee": pid[REQUESTER],
+                 "deadline": "2099-12-31T17:00:00+07:00", "done_criteria": "Có kết quả"},
+            )["record"],
+        )  # fmt: skip
+        return f"task:{row['id']}"
+
+    params = {"assignee_user": f"person:{pid[REQUESTER]}", "assigner_user": "me"}
+    ref = new_task("CV-2026-0501")
+    with http(s, wf_token(s, B, DEPT_HEAD)) as c:
+        started = c.post(
+            f"{WF}/instances",
+            json={"definition_id": "task_normal", "subject_ref": ref, "parameters": params},
+            headers={"Idempotency-Key": "it-wf-step-start-1"},
+        )
+    assert started.status_code == 201, started.text
+
+    def item_of(c: httpx.Client) -> dict[str, Any]:
+        r = c.get(f"{WF}/inbox", params={"kinds": "task,approval"})
+        assert r.status_code == 200, r.text
+        found = [i for i in r.json()["data"]["items"] if i["ref"] == ref]
+        assert found, r.json()
+        return dict(found[0])
+
+    with http(s, wf_token(s, B, REQUESTER)) as c:
+        it = item_of(c)
+        assert it["task_id"] == ref and it["links"]["decision"].endswith("/decision"), it
+        acc = c.post(
+            it["links"]["decision"],
+            json={"decision": "approve", "expected_revision": it["revision"]},
+            headers={"Idempotency-Key": "it-wf-step-acc"},
+        )
+        assert acc.status_code == 200, acc.text  # bước accept autonomy L1: không cần 428
+        assert acc.json()["data"]["record"]["state"] == "accepted"
+        it = item_of(c)
+        work = c.post(
+            it["links"]["decision"],
+            json={"decision": "approve", "expected_revision": it["revision"],
+                  "values": {"result": "Đã xong"}},
+            headers={"Idempotency-Key": "it-wf-step-work"},
+        )  # fmt: skip
+        assert work.status_code == 200, work.text
+        assert work.json()["data"]["record"]["state"] == "awaiting_acceptance"
+    iid = started.json()["data"]["instance"]["id"]
+    with http(s, wf_token(s, B, DEPT_HEAD)) as c:
+        inst = c.get(f"{WF}/instances/{iid}")
+        assert inst.status_code == 200, inst.text
+        (task,) = inst.json()["data"]["instance"]["tasks"]
+        assert (task["step"], task["task_id"]) == ("acceptance", ref)
+        link = inst.json()["data"]["instance"]["links"]["decision"]
+        dec = {"decision": "approve", "expected_revision": item_of(c)["revision"]}
+        hk = {"Idempotency-Key": "it-wf-step-ok"}
+        pending = c.post(link, json=dec, headers=hk)  # nghiệm thu human_only -> 428
+        assert pending.status_code == 428, pending.text
+        url = pending.json()["error"]["details"]["confirm_url"]
+        r = confirm_in_desk(s, url, sub(B, DEPT_HEAD))
+        assert r.status_code == 200 and "Đã thực hiện" in r.text, r.text
+        done = c.post(link, json=dec, headers=hk)
+        assert done.status_code == 200, done.text
+        assert done.json()["data"]["record"]["state"] == "done"
+        final = c.get(f"{WF}/instances/{iid}").json()["data"]["instance"]
+    assert final["status"] == "completed" and final["tasks"] == []
+
+    # Instance không gắn bản ghi (task_id truyền thẳng làm tham số): trước đây 404.
+    ref = new_task("CV-2026-0502")
+    with http(s, wf_token(s, B, DEPT_HEAD)) as c:
+        started = c.post(
+            f"{WF}/instances",
+            json={"definition_id": "task_normal", "parameters": {**params, "task_id": ref}},
+            headers={"Idempotency-Key": "it-wf-step-start-2"},
+        )
+        assert started.status_code == 201, started.text
+        iid = started.json()["data"]["instance"]["id"]
+        mine = c.get(f"{WF}/instances/{iid}")
+    assert mine.status_code == 200, mine.text
+    data = mine.json()["data"]
+    assert data["request"] is None and data["instance"]["process_id"] == "task_normal"
+    assert data["instance"]["tasks"][0]["task_id"] == ref
+    assert data["instance"]["links"]["decision"] == f"{WF}/tasks/{ref}/decision"
+    with http(s, wf_token(s, B, REQUESTER)) as c:
+        assert c.get(f"{WF}/instances/{iid}").status_code == 200  # người đang giữ bước
+        it = item_of(c)
+        acc = c.post(
+            it["links"]["decision"],
+            json={"decision": "approve", "expected_revision": it["revision"]},
+            headers={"Idempotency-Key": "it-wf-step-acc2"},
+        )
+        assert acc.status_code == 200, acc.text
+    with http(s, wf_token(s, B, DIRECTOR)) as c:  # không tham gia quy trình
+        other = c.get(f"{WF}/instances/{iid}")
+        ghost = c.get(f"{WF}/instances/{uuid.uuid4()}")
+    assert other.status_code == ghost.status_code == 404
+    assert other.json()["error"] == ghost.json()["error"]

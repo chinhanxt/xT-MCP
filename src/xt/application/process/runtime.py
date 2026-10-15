@@ -480,6 +480,23 @@ class ProcessInstance:
             )
         self._delegate_target(m, actor, delegate_to)
 
+    def check_actor(self, task_id: str, actor: str) -> None:
+        """Kiểm trước (không đổi state) rằng `actor` là người được giao task và không vướng SoD
+        của bước: plan của transition_record báo lỗi trước khi tạo PendingOperation."""
+        t = self._task(task_id)
+        m = self._manifest_task(t.name)
+        a = self.meta["assign"].get(t.id) or {}
+        if actor not in a.get("candidates", ()):
+            raise DecisionError(
+                f"{actor!r} không phải người được giao bước '{m['name']}'",
+                code="access_denied",
+                reason="not_assigned_approver",
+            )
+        if m["kind"] in DECISION_KINDS and actor in self._exclude(m):
+            raise DecisionError(
+                f"{actor} bị loại do SoD ở bước '{m['name']}'", code="access_denied", reason="sod"
+            )
+
     def withdraw(self, actor: str, reason: str | None = None) -> None:
         """Người đề nghị rút đề nghị đang chạy (kể cả bước đang kẹt): hủy mọi task mở, trạng thái
         `withdrawn`. Đề nghị bị trả lại thì rút qua task sửa (`act(..., "withdraw")`)."""

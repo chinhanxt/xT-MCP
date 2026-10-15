@@ -181,6 +181,27 @@
       "conditions": []
     },
     {
+      "id": "hr.step-transition",
+      "effect": "Allow",
+      "subjects": [
+        "role:employee",
+        "role:hr",
+        "role:it_admin",
+        "role:payment_accountant",
+        "role:chief_accountant",
+        "role:dept_head",
+        "role:director",
+        "role:agent"
+      ],
+      "actions": [
+        "record.transition"
+      ],
+      "resources": [
+        "xrn:binhminh:lifecycle_task:*"
+      ],
+      "conditions": []
+    },
+    {
       "id": "hr.agent-l0-l1",
       "effect": "Allow",
       "subjects": [

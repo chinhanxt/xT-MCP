@@ -65,7 +65,7 @@ def start() -> Seaweed:
     }
     (cfg_dir / "s3.json").write_text(json.dumps(cfg), encoding="utf-8")
     # Như deploy/compose.yaml (FB-03): JWT cho volume + filer, chỉ S3 (SigV4) đọc/ghi được byte.
-    sec = "".join(
+    sec = '[guard]\nwhite_list = "127.0.0.1,@"\n' + "".join(
         f'[{s}]\nkey = "{secrets.token_urlsafe(32)}"\nexpires_after_seconds = 10\n'
         for s in ("jwt.signing", "jwt.signing.read", "jwt.filer_signing", "jwt.filer_signing.read")
     )

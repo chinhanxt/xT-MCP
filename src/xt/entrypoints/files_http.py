@@ -96,6 +96,7 @@ from xt.domain.model.context import ModelActor, TenantRef
 from xt.entrypoints.composition import Composition
 from xt.entrypoints.composition.pii import effective_mode
 from xt.entrypoints.composition.runtime import Caller, CallerError, Runtime, iam_person
+from xt.entrypoints.composition.security import ToolAccessGuard
 
 DEFAULT_AUDIENCE = "xt-files"
 REALM = "xt-files"
@@ -106,7 +107,7 @@ _DESCRIPTIONS = {
     "client_not_allowed": "The client is not allowed to access the files API",
     "token_revoked": "The access token is no longer active",
 }
-UNSCANNED_POLICIES = ("deny", "uploader", "allow")
+UNSCANNED_POLICIES = ("deny", "uploader", "readers", "allow")
 
 
 class FilesConfigError(ValueError):
@@ -180,7 +181,7 @@ class FilesConfig:
             if not base:
                 p.append("XT_FILES_URL_KEY_FILE (hoặc XT_CURSOR_KEY_FILE) chưa đặt")
             key = hmac.new(base, b"xt-files-url-key-v1", hashlib.sha256).digest() if base else b""
-        unscanned = env.get("XT_FILES_UNSCANNED_DOWNLOAD", "").strip() or "uploader"
+        unscanned = env.get("XT_FILES_UNSCANNED_DOWNLOAD", "").strip() or "readers"
         if unscanned not in UNSCANNED_POLICIES:
             p.append(f"XT_FILES_UNSCANNED_DOWNLOAD phải là một trong {list(UNSCANNED_POLICIES)}")
             unscanned = "deny"
@@ -240,6 +241,25 @@ class FilesConfig:
         )
 
 
+def parse_file_ref(tenant_alias: str, ref: str) -> UUID | None:
+    """R2-F2: mọi dạng ref tệp mà lớp records nhận (`file:<id>`, `xrn:<tenant>:file:<id>`, id
+    trần) chuẩn hóa về một id; tenant khác / dạng khác -> None (người gọi từ chối, không bỏ qua)."""
+    raw = ref.strip()
+    if raw.startswith("xrn:"):
+        parts = raw.split(":")
+        if len(parts) != 4 or parts[1] != tenant_alias or parts[2] != "file":
+            return None
+        raw = parts[3]
+    elif raw.startswith("file:"):
+        raw = raw[5:]
+    elif ":" in raw:
+        return None
+    try:
+        return UUID(raw)
+    except ValueError:
+        return None
+
+
 def mask_name(name: str, mode: PiiMode) -> str:
     """Tên tệp là văn bản tự do có thể mang PII (spike-pii-lane): ngoài tier `full`, che số
     CCCD / điện thoại / email bằng bộ nhận dạng của làn PII (không đảo ngược được)."""
@@ -278,8 +298,28 @@ class FilesPep:
         self.rt = rt
         self._cache: dict[tuple[UUID, int], PolicyEvaluator] = {}
         self._lock = threading.Lock()
+        self._records = ToolAccessGuard(rt)
 
     def allowed(self, caller: Caller, action: str, row: FileRow, now: int) -> bool:
+        if self._policy_allows(caller, action, row, now):
+            return True
+        # R2-F5 (decisions "Quyền đọc tệp đính kèm"): đọc tệp đi theo quyền đọc bản ghi gắn kèm.
+        return action == "file.read" and self.linked_readable(caller, row, now)
+
+    def linked_readable(self, caller: Caller, row: FileRow, now: int) -> bool:
+        """Có bản ghi (field kiểu `file` trỏ tới tệp) mà người gọi đọc được NGAY BÂY GIỜ (IAM
+        `record.read` + RLS của model, `ToolAccessGuard.can_read`)."""
+        current = self.rt.catalogs.current(caller.actor)
+        if current is None:
+            return False
+        fields = [(m.name, f.name) for m in current[1].models for f in m.fields if f.type == "file"]
+        if not fields:
+            return False
+        repo = PgFileRepository(self.rt.uow, caller.actor)
+        refs = repo.linked_records(caller.tenant.seq, fields, row.id)
+        return any(self._records.can_read(caller, ref, now) for ref in refs)
+
+    def _policy_allows(self, caller: Caller, action: str, row: FileRow, now: int) -> bool:
         found = self.rt.store.active_policy(caller.actor)
         if found is None:
             return False
@@ -351,18 +391,14 @@ class FileToolService:
         repo = PgFileRepository(self.rt.uow, caller.actor)
         now = int(ctx.now.timestamp())
         for ref in refs:
-            raw = ref.split(":", 1)[1] if ref.startswith("file:") else ref
-            try:
-                fid = UUID(raw)
-            except ValueError:
-                continue  # sai định dạng: lớp records báo bad_reference
-            row = repo.get(fid)
+            fid = parse_file_ref(caller.alias, ref)
+            row = repo.get(fid) if fid is not None else None
             if row is None or not self.pep.allowed(caller, "file.read", row, now):
                 raise invalid_request(
                     "The attached file does not exist or you are not allowed to read it.",
                     "file_not_attachable",
                     remediation="Upload the file yourself with upload_file and use its ref.",
-                    ref=f"file:{fid}",
+                    ref=f"file:{fid}" if fid else "file:?",
                 )
             if row.status not in ("clean", "not_scanned"):
                 raise invalid_request(

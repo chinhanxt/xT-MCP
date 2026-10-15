@@ -105,7 +105,7 @@ class StepUpVerifier:
         self._s = settings
         self._jwks = jwks
         self._clock = clock
-        self._store: SingleUseStore = store or InMemorySingleUseStore(clock)
+        self._store: SingleUseStore = store if store is not None else InMemorySingleUseStore(clock)
 
     def verify(self, id_token: str, ctx: ConfirmationContext) -> StepUpEvidence:
         try:

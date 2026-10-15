@@ -50,6 +50,7 @@ TICK = "workflow.tick"
 RELAY = "workflow.relay_timers"
 TIMER_STARTS = "workflow.timer_starts"
 APPLY = APPLY_TASK
+FILES_MAINTAIN = "files.maintain"  # = xt.entrypoints.files_http.MAINTAIN_TASK
 Handler = Callable[[Any, JobRequest], Awaitable[None]]
 log = logging.getLogger(__name__)
 
@@ -75,7 +76,8 @@ class WorkflowJobs:
             raise ValueError("relay interval must be >= 5 seconds")
         self.rt, self.queue, self.tenant_dsn = rt, queue, tenant_dsn
         self.relay_interval_s = relay_interval_s
-        self.files: Any = files  # CompositionFilesBackend khi bật files + ClamAV
+        self.files: Any = files  # CompositionFilesBackend khi bật dịch vụ tệp
+        self.files_maintenance: Any = None  # FilesMaintenance (job files.maintain)
         self.engine = SpiffProcessEngine()
 
     def tick_sync(self, tenant_id: UUID, instance_id: str) -> dict[str, Any]:
@@ -215,6 +217,13 @@ class WorkflowJobs:
         with self.rt.uow.scope(actor):
             return self.rt.uow.run(lambda: self.rt.store.pii_tickets_purge(actor, 3600))
 
+    def purge_dpop_jti(self) -> int:
+        """Dọn jti DPoP đã hết hạn (bảng chung `xt_identity.dpop_jti`, DPA-02). Không theo tenant:
+        chuỗi relay của tenant nào chạy trước thì dọn; lặp lại vô hại."""
+        from xt.adapters.db.dpop_replay import PgDpopReplayStore
+
+        return PgDpopReplayStore(self.rt.app_db).purge()
+
     async def apply(self, connection: Any, job: JobRequest) -> None:
         await anyio.to_thread.run_sync(
             self.apply_sync, job.tenant_id, UUID(str(job.payload["proposal_id"]))
@@ -229,7 +238,8 @@ class WorkflowJobs:
         tenant = self._tenant(job.tenant_id)
         await anyio.to_thread.run_sync(self.rt.models.migrator.run_jobs, tenant.seq)
         await anyio.to_thread.run_sync(self.purge_reveal_tickets, tenant)
-        if self.files is not None:  # ClamAV bật: quét lại tệp `scanning` (clamd từng lỗi)
+        await anyio.to_thread.run_sync(self.purge_dpop_jti)
+        if self.files is not None and self.files_maintenance is None:  # quét lại `scanning`
             await anyio.to_thread.run_sync(self.rescan_files, tenant)
         await self._schedule_timer_starts(connection, job.tenant_id)
         await self._schedule_relay(connection, job.tenant_id, after=self.relay_interval_s)
@@ -252,6 +262,8 @@ class WorkflowJobs:
 
     async def register_relay(self, tenant_id: UUID) -> int:
         """Khởi động chuỗi relay của một tenant (idempotent theo mốc thời gian)."""
+        if self.files_maintenance is not None:  # chuỗi files.maintain của tenant (idempotent)
+            await self.files_maintenance.register(tenant_id)
         async with tenant_async_tx(self.tenant_dsn, tenant_id) as conn:
             return await self._schedule_relay(conn, tenant_id, after=0)
 
@@ -287,11 +299,20 @@ def build_jobs(env: Mapping[str, str]) -> WorkflowJobs:
     async def timer_starts(c: Any, j: JobRequest) -> None:
         await holder["jobs"].timer_starts(c, j)
 
+    async def files_maintain(c: Any, j: JobRequest) -> None:
+        await holder["jobs"].files_maintenance.maintain(c, j)
+
     # Chỉ dùng `.queue` để enqueue trong transaction của người gọi (không mở pool/worker).
     enq = create_runtime(
         queue_dsn=queue_dsn,
         tenant_dsn=tenant_dsn,
-        handlers={TICK: tick, RELAY: relay, APPLY: apply, TIMER_STARTS: timer_starts},
+        handlers={
+            TICK: tick,
+            RELAY: relay,
+            APPLY: apply,
+            TIMER_STARTS: timer_starts,
+            FILES_MAINTAIN: files_maintain,  # chỉ để enqueue (hẹn lại chuỗi files.maintain)
+        },
         concurrency=1,
         stalled_seconds=30,
         recover_seconds=5,
@@ -299,23 +320,34 @@ def build_jobs(env: Mapping[str, str]) -> WorkflowJobs:
         retry_seconds=5,
     )
     files = None
-    if env.get("XT_FILES_CLAMD", "").strip():
-        # Profile full (ClamAV): relay mỗi chu kỳ quét lại tệp `scanning`. Cần đủ XT_FILES_*.
-        from xt.entrypoints.files_http import CompositionFilesBackend, FilesPep, FilesStack
+    maintenance = None
+    if env.get("XT_FILES_S3_ENDPOINT", "").strip():
+        # Dịch vụ tệp bật: job `files.maintain` (dọn ý định hết hạn/quarantine/xóa mềm quá hạn,
+        # quét lại khi có ClamAV; FB-01/FB-02). Cần đủ XT_FILES_*.
+        from xt.entrypoints.files_http import (
+            CompositionFilesBackend,
+            FilesMaintenance,
+            FilesPep,
+            FilesStack,
+        )
 
         files = CompositionFilesBackend(
             rt, FilesStack.build(env, ensure_bucket=False), FilesPep(rt)
         )
+        maintenance = FilesMaintenance(files, enq.queue, tenant_dsn)
     jobs = WorkflowJobs(rt, enq.queue, tenant_dsn, relay_interval_s=int(interval), files=files)
+    jobs.files_maintenance = maintenance
     holder["jobs"] = jobs
     return jobs
 
 
 def handlers() -> dict[str, Handler]:
     jobs = build_jobs(dict(os.environ))
+    extra = jobs.files_maintenance.handlers() if jobs.files_maintenance is not None else {}
     return {
         TICK: jobs.tick,
         RELAY: jobs.relay,
         APPLY: jobs.apply,
         TIMER_STARTS: jobs.timer_starts,
+        **extra,
     }

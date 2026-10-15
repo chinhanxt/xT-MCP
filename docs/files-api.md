@@ -59,7 +59,7 @@ agent/curl --Bearer--> GET /files/v1/{id}/content   (luồng, ETag = sha256)
 | `scanning` | `scanning` | Chờ ClamAV ("pending_scan"). Quét chạy ngoài transaction; clamd lỗi thì tăng `scan.attempts`, job `files.maintain` quét lại |
 | `scan_failed` | `scan_failed` | clamd lỗi `XT_FILES_SCAN_MAX_ATTEMPTS` lần liên tiếp: bị chặn (409 `file_scan_failed`), không đính kèm được; quản trị quét lại bằng `FileManager.retry_scan` |
 | `clean` | `clean` | ClamAV báo sạch |
-| `not_scanned` | `not_scanned` | Profile không quét ("unscanned"). Ai được tải về do `XT_FILES_UNSCANNED_DOWNLOAD` quyết định |
+| `not_scanned` | `not_scanned` | Profile không quét ("unscanned"). Mặc định `XT_FILES_UNSCANNED_DOWNLOAD=readers`: ai qua được `file.read` (gồm người đọc được bản ghi gắn kèm) tải về được, luôn `attachment` + `nosniff`, audit ghi `status: not_scanned`. Profile full (có `XT_FILES_CLAMD`): chỉ `clean` tải về được |
 | `infected` | `infected` | ClamAV phát hiện mã độc; byte đã xóa, chỉ giữ tên chữ ký |
 | `expired` | `expired` | Quá hạn tải lên mà chưa finalize |
 
@@ -86,9 +86,10 @@ agent/curl --Bearer--> GET /files/v1/{id}/content   (luồng, ETag = sha256)
 - **IAM** (`packages/tep-dinh-kem`):
   - `file.create` (L1): employee và agent.
   - `file.read`: người tải lên; `director` mọi tệp; `dept_head`, `chief_accountant`, `accountant`, `hr` chỉ tệp của người cùng phòng (`resource.department = subject.department`).
+  - **Theo bản ghi (R2-F5):** ngoài policy trên, ai đọc được (IAM `record.read` + RLS) một bản ghi có field kiểu `file` trỏ tới tệp thì đọc/tải được tệp đó (decisions "Quyền đọc tệp đính kèm"). Gắn tệp vào bản ghi chỉ được khi người ghi đọc được tệp (FB-09), ref dạng `file:`, `xrn:<tenant>:file:` hay id trần đều kiểm như nhau (R2-F2).
   - `file.delete` (xóa mềm, L1): người tải lên.
   - Agent bị kiểm hai lớp: quyền `role:agent` và quyền của người được đại diện, cùng trần tự chủ.
-- **Mạng (FB-03):** `seaweedfs` (và `clamav`) chỉ nối mạng compose `files` (`internal: true`), chung với `xt-api` và `xt-worker`; không publish cổng, không route APISIX. `security.toml` bật JWT cho volume và filer: truy cập thẳng `:8080`/`:8888` trả 401, chỉ S3 (SigV4) đọc/ghi được byte. Kiểm offline: `tests/unit/test_files_deploy.py`. Kiểm trên stack thật: `docker compose exec seaweedfs wget -S -O- http://127.0.0.1:8888/buckets/xt-files/` phải ra 401; `docker compose exec postgrest getent hosts seaweedfs` không phân giải được.
+- **Mạng (FB-03):** `seaweedfs` (và `clamav`) chỉ nối mạng compose `files` (`internal: true`), chung với `xt-api` và `xt-worker`; không publish cổng, không route APISIX. `security.toml` bật JWT cho volume và filer (truy cập thẳng `:8080`/`:8888` trả 401, chỉ S3 SigV4 đọc/ghi được byte) và `[guard] white_list = "127.0.0.1,@"` (R2-F4): lệnh quản trị master/volume (`/dir/assign`, `/col/delete`, `/vol/grow`…) chỉ nhận từ loopback/gRPC nội tiến trình, peer trong mạng `files` bị từ chối. Kiểm offline: `tests/unit/test_files_deploy.py`. Kiểm trên stack thật: `docker compose exec seaweedfs wget -S -O- http://127.0.0.1:8888/buckets/xt-files/` phải ra 401; `docker compose exec postgrest getent hosts seaweedfs` không phân giải được.
 - **Cô lập tenant ba lớp:**
   - RLS `tenant_id = xt.tenant()` trên `file_object` và `file_event`.
   - Khóa object có tiền tố `t/<tenant_id>/`.
@@ -103,6 +104,7 @@ agent/curl --Bearer--> GET /files/v1/{id}/content   (luồng, ETag = sha256)
   - S3 PUT ký payload sha256 và kèm `x-amz-checksum-sha256`. SeaweedFS trả `BadDigest` nếu lệch (đã kiểm trên 4.48 thật).
   - Khi finalize, server so sha256 của client với sha256 tự tính, rồi đối chiếu `HEAD` của object (kích thước + sha256 lưu trong metadata).
 - **Khóa theo nội dung:** hai tệp cùng nội dung trong một tenant dùng chung một object.
+- **Khóa theo nội dung khi dọn (R2-F3):** finalize (dùng lại/copy object `sha256/`) và purge cùng lấy `pg_advisory_xact_lock(tenant, sha256)` tới hết transaction; purge chỉ quyết định xóa sau khi giữ khóa và mọi finalize cùng nội dung đã commit; finalize HEAD lại sau purge (object vừa xóa → copy lại từ quarantine). Byte xóa mềm vẫn tính vào quota tới khi bị dọn (R2-F1).
 - **Dọn rác + quota (FB-02):** job worker `files.maintain` (mỗi tenant, mặc định 5 phút) chuyển ý định quá hạn sang `expired` và xóa byte `quarantine/`; tệp xóa mềm quá `XT_FILES_RETENTION_SECONDS` (mặc định 30 ngày) được xóa object khi không còn hàng nào cùng nội dung (sự kiện `purged`); quét lại tệp `scanning`. Kho minimal: 32 volume × 64 MB ≈ 2 GiB.
 - **PII:**
   - Tên tệp là văn bản tự do (vd "CCCD_<số>.pdf"). Với client cloud (tier masked), số CCCD, điện thoại, email trong tên bị thay bằng `[PII]` ở mọi đầu ra REST/MCP.

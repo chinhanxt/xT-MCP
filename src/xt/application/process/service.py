@@ -150,6 +150,10 @@ class ProcessService:
         """Kiểm đích ủy quyền mà không lưu gì (plan của decide_request)."""
         self._load(instance_id).check_delegate(task_id, actor, delegate_to)
 
+    def check_act(self, instance_id: str, task_id: str, actor: str) -> None:
+        """Người được giao + SoD của task, không lưu gì (plan của transition_record)."""
+        self._load(instance_id).check_actor(task_id, actor)
+
     def withdraw(self, instance_id: str, actor: str, reason: str | None = None) -> dict[str, Any]:
         return self._apply(instance_id, lambda i: i.withdraw(actor, reason))
 

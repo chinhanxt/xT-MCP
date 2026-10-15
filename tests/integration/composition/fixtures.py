@@ -218,6 +218,7 @@ def stack_base(
         "XT_MCP_REQUIRED_SCOPES": "mcp-xt",
         "XT_MCP_SCOPES_SUPPORTED": "openid mcp-xt",
         "XT_MCP_SERVICES": "xt.entrypoints.composition:build",
+        "XT_DPOP_REPLAY_STORE": "postgres",  # cache jti DPoP chung (DPA-02); bộ nhớ chỉ ở unit
     }
     outputs: dict[str, str] = {}
     tenants: dict[str, Any] = {}

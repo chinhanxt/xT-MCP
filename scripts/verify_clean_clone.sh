@@ -7,7 +7,7 @@
 set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 DIR="$(mktemp -d /tmp/xt-clean-XXXXXX)"
-trap 'rm -rf "$DIR"' EXIT
+trap '[ -n "${XT_KEEP_CLONE:-}" ] || rm -rf "$DIR"' EXIT
 untracked="$(git -C "$ROOT" ls-files --others --exclude-standard -- src desk/src tests packages deploy scripts)"
 if [ -n "$untracked" ]; then
   echo "CẢNH BÁO: tệp chưa commit (clone sạch sẽ không có):" >&2

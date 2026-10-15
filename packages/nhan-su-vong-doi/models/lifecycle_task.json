@@ -34,6 +34,10 @@
         {
           "value": "manager",
           "label": "Quản lý trực tiếp"
+        },
+        {
+          "value": "chief_accountant",
+          "label": "Kế toán trưởng"
         }
       ]
     },
@@ -85,6 +89,13 @@
       "type": "text",
       "label": "Ghi chú",
       "max": 1000
+    },
+    {
+      "id": "f8",
+      "name": "step",
+      "type": "text",
+      "label": "Bước quy trình",
+      "max": 41
     }
   ],
   "indexes": [

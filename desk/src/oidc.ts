@@ -10,6 +10,8 @@ export interface OidcConfig {
   clientId: string;
   scope: string;
   redirectUri: string;
+  /** Đích sau RP-initiated logout (phải đăng ký ở `post.logout.redirect.uris` của client). */
+  postLogoutRedirectUri?: string;
 }
 
 export interface KvStorage {
@@ -50,12 +52,14 @@ interface Discovery {
   issuer: string;
   authorization_endpoint: string;
   token_endpoint: string;
+  end_session_endpoint?: string;
 }
 interface Tokens {
   access: string;
   refresh?: string;
   expiresAt: number; // ms
   bound: boolean; // DPoP-bound
+  idToken?: string; // id_token_hint cho end_session (chỉ trong bộ nhớ)
 }
 interface TokenResponse {
   access_token: string;
@@ -120,6 +124,8 @@ export class OidcSession {
       const j = (await r.json()) as Discovery;
       if (j.issuer !== this.cfg.issuer.replace(/\/$/, "")) throw new Error("issuer của OIDC không khớp cấu hình");
       const origin = new URL(base).origin;
+      if (j.end_session_endpoint !== undefined && (typeof j.end_session_endpoint !== "string" || new URL(j.end_session_endpoint).origin !== origin))
+        throw new Error("end_session_endpoint không cùng origin với issuer");
       for (const u of [j.authorization_endpoint, j.token_endpoint]) {
         if (typeof u !== "string" || new URL(u).origin !== origin) throw new Error("endpoint OIDC không cùng origin với issuer");
       }
@@ -221,7 +227,8 @@ export class OidcSession {
   }
 
   private store(t: TokenResponse, bound: boolean) {
-    this.tokens = { access: t.access_token, refresh: t.refresh_token, expiresAt: this.d.now() + (t.expires_in ?? 60) * 1000, bound };
+    const idToken = t.id_token ?? this.tokens?.idToken; // refresh có thể không trả id_token mới
+    this.tokens = { access: t.access_token, refresh: t.refresh_token, expiresAt: this.d.now() + (t.expires_in ?? 60) * 1000, bound, idToken };
   }
 
   /** Access token hợp lệ; làm mới (refresh token rotation, single-flight) khi sắp hết hạn. Null nếu chưa đăng nhập. */
@@ -252,8 +259,32 @@ export class OidcSession {
   }
 
   logout(): void {
+    const idToken = this.tokens?.idToken;
     this.tokens = null;
     this.set({ status: "unauthenticated" });
+    this.loggingOut = this.endSession(idToken);
+  }
+
+  /** Promise của lần đăng xuất gần nhất (test/UI chờ được). */
+  loggingOut: Promise<void> = Promise.resolve();
+
+  /** DPA-03: xoay khóa DPoP (xóa khỏi IndexedDB) rồi kết thúc phiên SSO Keycloak (RP-initiated
+   * logout, `id_token_hint`), để người đăng nhập sau trên cùng trình duyệt có khóa và phiên mới. */
+  private async endSession(idToken: string | undefined): Promise<void> {
+    await this.d.dpop?.reset?.();
+    let end: string | undefined;
+    try {
+      end = (await this.discover()).end_session_endpoint;
+    } catch {
+      return; // không đọc được discovery: token đã xóa, khóa đã xoay
+    }
+    if (!end) return;
+    const u = new URL(end);
+    const q = new URLSearchParams({ client_id: this.cfg.clientId });
+    if (idToken) q.set("id_token_hint", idToken);
+    if (this.cfg.postLogoutRedirectUri) q.set("post_logout_redirect_uri", this.cfg.postLogoutRedirectUri);
+    u.search = q.toString();
+    this.d.navigate(u.toString());
   }
 
   /** Phiên hiện tại có token ràng khóa DPoP. */

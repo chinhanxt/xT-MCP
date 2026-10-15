@@ -50,7 +50,12 @@ from xt.application.tools import Actor
 from xt.domain.identity import IdentityError, InsufficientScopeError, InvalidTokenError, Principal
 from xt.domain.process.errors import DecisionError
 from xt.entrypoints.composition import Composition
-from xt.entrypoints.composition.process import ProcessContext
+from xt.entrypoints.composition.process import (
+    ProcessContext,
+    ProcessToolAdapter,
+    bound_record,
+    human_step,
+)
 from xt.entrypoints.composition.runtime import CallerError
 
 DEFAULT_AUDIENCE = "xt-workflow"
@@ -193,13 +198,35 @@ class CompositionWorkflowBackend:
                 return "person:unknown"
 
         def body() -> InstanceView | None:
-            ref = PgWorkflowStore(rt.uow).ref_for(instance_id)
-            if ref is None:
-                return None
+            store = PgWorkflowStore(rt.uow)
+            ref = store.ref_for(instance_id)
             try:
                 info = pc.service().get(instance_id)
             except DecisionError:
                 return None
+            rec = store.get_for_update(instance_id)
+            if rec is None:
+                return None
+            if ref is None:
+                # Không gắn bản ghi: chỉ người tham gia (khởi tạo, đang/đã giữ bước) thấy; người
+                # khác nhận đúng câu trả lời của id không tồn tại.
+                me = str(caller.person.id)
+                meta = rec.state.get("meta") or {}
+                involved = {str(meta.get("requester") or "")}
+                involved |= {str(h.get("actor")) for h in info.get("history") or ()}
+                involved |= {str(u) for t in info["tasks"] for u in t.get("candidates") or ()}
+                if me not in involved:
+                    return None
+            prt = pc.get(rec.process_id, rec.version)
+            data = dict(prt.load(rec.state).data()) if prt is not None else {}
+
+            def bound(step: str) -> str | None:
+                st = human_step(prt.compiled.spec, step) if prt is not None else None
+                if st is None or st.complete_via is None:
+                    return None
+                row = bound_record(pc, st.complete_via, data)
+                return f"{st.complete_via.model}:{row['id']}" if row else None
+
             tasks = tuple(
                 InstanceTask(
                     task_id=str(t["task_id"]),
@@ -208,6 +235,7 @@ class CompositionWorkflowBackend:
                     kind=str(t["kind"]),
                     outcomes=tuple(str(o) for o in t.get("outcomes") or ()),
                     assignees=tuple(person(u) for u in t.get("candidates") or ()),
+                    ref=bound(str(t["step"])) if t["kind"] in ("decision", "task") else None,
                 )
                 for t in info["tasks"]
             )
@@ -221,6 +249,58 @@ class CompositionWorkflowBackend:
             )
 
         out: InstanceView | None = rt.run_as(caller, actor, body)
+        return out
+
+    def step_state(
+        self, actor: Actor, trace_id: str, ref: str, decision: str, idempotency_key: str = ""
+    ) -> str | None:
+        rt = self.c.runtime
+        try:
+            caller, pc = self._pc(actor, trace_id)
+        except CallerError:
+            return None
+        model, _, raw = ref.partition(":")
+        try:
+            rid = UUID(raw)
+        except ValueError:
+            return None
+        adapter = ProcessToolAdapter(rt, cursor_key=self.c.config.cursor_key, engine=self.c.engine)
+
+        def body() -> str | None:
+            binding = rt.store.bindings(caller.actor).get(model)
+            if binding is not None and binding.primitive == "request":
+                return None
+            if idempotency_key:
+                # Gửi lại cùng Idempotency-Key (sau khi người xác nhận): bước đã xong, lấy đúng
+                # to_state của lần đầu để dispatcher trả lại receipt/pending cũ.
+                with rt.uow.tenant_tx(caller.actor) as cur:
+                    prev = cur.execute(
+                        "SELECT pending, receipt FROM xt_meta.tool_operation WHERE tenant_id=%s"
+                        " AND actor_key=%s AND tool='transition_record' AND idempotency_key=%s",
+                        (caller.tenant.id, actor.key, idempotency_key),
+                    ).fetchone()
+                if prev is not None:
+                    if prev["receipt"] and prev["receipt"].get("data", {}).get("to_state"):
+                        return str(prev["receipt"]["data"]["to_state"])
+                    if prev["pending"]:
+                        return str(prev["pending"]["arguments"].get("to_state") or "") or None
+            try:
+                row = rt.records.get(caller.workflow(), model, rid)["record"]
+            except Exception:  # không có bản ghi/model: để tool trả lỗi chuẩn
+                return None
+            me = str(caller.person.id)
+            for s in adapter.open_steps(caller, pc, model, rid, row):
+                if me not in s.task.get("candidates", ()):
+                    continue
+                want = decision
+                if decision == "approve" and "approve" not in s.step.outcomes:
+                    want = "done"  # bước công việc: "approve" của REST = hoàn thành bước
+                for to_state, outcome in s.via.states.items():
+                    if outcome == want:
+                        return to_state
+            return None
+
+        out: str | None = rt.run_as(caller, actor, body)
         return out
 
 

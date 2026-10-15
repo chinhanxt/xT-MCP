@@ -127,6 +127,7 @@ def fstack(
         "XT_FILES_PUBLIC_URL": base,
         "XT_FILES_MAX_BYTES": str(MAX),
         "XT_FILES_UPLOAD_TTL_SECONDS": str(TTL),
+        "XT_FILES_UNSCANNED_DOWNLOAD": "uploader",  # kiểm riêng policy chặt nhất
     }
     tenants: dict[str, Any] = {}
     for alias, name, packs in ((A, "Files A", (FILES_PACK,)), (B, "Files B", ())):

@@ -151,6 +151,23 @@
       "conditions": []
     },
     {
+      "id": "tsk.step-transition",
+      "effect": "Allow",
+      "subjects": [
+        "role:employee",
+        "role:dept_head",
+        "role:director",
+        "role:agent"
+      ],
+      "actions": [
+        "record.transition"
+      ],
+      "resources": [
+        "xrn:binhminh:task:*"
+      ],
+      "conditions": []
+    },
+    {
       "id": "tsk.agent-l0-l1",
       "effect": "Allow",
       "subjects": [

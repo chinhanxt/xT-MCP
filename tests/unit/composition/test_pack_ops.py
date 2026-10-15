@@ -19,7 +19,7 @@ from xt.entrypoints.composition.process import OPS, check_pack_ops
 
 ROOT = Path(__file__).resolve().parents[3]
 PACKS = sorted(p.parent for p in (ROOT / "packages").glob("*/pack.json"))
-UNITS = {"hr", "it", "accounting", "manager"}
+UNITS = {"hr", "it", "accounting", "manager", "chief_accountant"}
 
 
 @pytest.mark.parametrize("pack", PACKS, ids=lambda p: p.name)
@@ -47,10 +47,14 @@ def _definition(pack: str, process: str) -> ProcessDefinition:
 
 def test_checklist_from_process_steps() -> None:
     on = _checklist(_definition("nhan-su-vong-doi", "employee_onboarding"), UNITS)
-    assert sorted(u for u, _ in on) == ["accounting", "hr", "it", "manager"]
+    assert sorted(u for u, _, _ in on) == ["accounting", "hr", "it", "manager"]
+    assert {s for _, _, s in on} == {"hr", "it", "accounting", "manager"}
     off = _checklist(_definition("nhan-su-vong-doi", "employee_offboarding"), UNITS)
-    # chief_acct_overdue có `when` -> không vào checklist cố định
-    assert [u for u, _ in off] == ["hr", "manager", "it", "accounting", "hr"]
+    # mỗi bước người (kể cả chief_acct_overdue có `when`) có đúng một dòng chủ thể, khóa = id bước
+    assert [(u, s) for u, _, s in off] == [
+        ("hr", "hr_confirm"), ("manager", "manager"), ("it", "it"), ("accounting", "accounting"),
+        ("chief_accountant", "chief_acct_overdue"), ("hr", "hr_close"),
+    ]  # fmt: skip
 
 
 def test_record_id_validation() -> None:

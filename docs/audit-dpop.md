@@ -147,3 +147,14 @@ ràng proof vào thời điểm server (đồng hồ client lệch > 30 s hiện
 **Verdict: ĐƯỢC bật `XT_DPOP_REQUIRED=true` trên triển khai hiện tại (một tiến trình xt-api)** sau khi sửa DPA-01 (một dòng).
 DPA-03 nên sửa trước demo trên máy dùng chung. DPA-02 (store dùng chung qua Postgres, biến thể không theo tenant) là điều kiện
 bắt buộc trước mọi scale-out. Không có lỗi nào cho phép dùng token/proof bị trộm mà thiếu khóa riêng.
+
+## 7. Đã sửa (16/10/2026, chủ dự án: sửa hết)
+
+| # | Sửa | Kiểm chứng |
+|---|---|---|
+| DPA-01 | `math.isfinite(iat)` cùng chỗ kiểm kiểu → `dpop_iat` (401) | `test_iat_nan_is_a_dpop_error`, `test_nan_iat_gets_401_not_500` (bỏ xfail) |
+| DPA-02 | `xt_identity.dpop_jti` (migration 0013, không theo tenant, PK (jkt, jti), chỉ hàm SECURITY DEFINER), `PgDpopReplayStore`, `XT_DPOP_REPLAY_STORE=postgres` trong compose, /mcp và /pii/reveal dùng chung bảng, purge trong job relay của worker, DB lỗi → 503; `postgres` thiếu store hoặc `WEB_CONCURRENCY>1` với `memory` → dừng khởi động. Kèm sửa: `DpopVerifier`/`StepUpVerifier` bỏ qua store rỗng truyền vào (`replay or …` với `__len__ == 0`) | `test_replay_rejected_by_second_process` (bỏ xfail), `tests/integration/test_dpop_replay_pg.py` (2 pool + restart, purge, quyền xt_app, fail-closed) |
+| DPA-03 | Desk `logout()`: `DpopSigner.reset()` → `KeyStore.clear()` (IndexedDB `delete`), RP-initiated logout (`id_token_hint`, `post_logout_redirect_uri`); `provision.py` đăng ký `post.logout.redirect.uris` | `test_desk_logout_rotates_dpop_key_and_ends_sso` (bỏ xfail), vitest `đăng xuất (audit DPA-03)`, `reset (đăng xuất)` |
+| DPA-04 | `InMemorySingleUseStore`: heap theo hạn, không quét toàn dict | unit identity |
+| DPA-05 | SECURITY.md: proof ký sẵn iat tương lai, giới hạn bởi `ath`/đời token | tài liệu |
+| DPA-06 | compose truyền `XT_DPOP_CLIENTS` (mặc định `XT_DESK_AGENT_CLIENT_ID`) + `.env.example` | `test_deploy_offline.DeskAgentDpop` |

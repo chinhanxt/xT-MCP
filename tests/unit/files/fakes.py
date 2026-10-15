@@ -55,6 +55,7 @@ class MemRepo:
     rows: dict[UUID, FileRow] = field(default_factory=dict)
     events: list[tuple[UUID, str, dict[str, Any]]] = field(default_factory=list)
     now: Any = None  # đồng hồ của test (datetime) cho quota/hết hạn
+    locks: list[str] = field(default_factory=list)
 
     def tenant_id(self) -> UUID:
         return self.tenant
@@ -104,6 +105,9 @@ class MemRepo:
             if r.deleted_at is not None and r.object_key is not None and self.now is not None
             and (self.now - r.deleted_at).total_seconds() >= older_than_s
         ][:limit]  # fmt: skip
+
+    def lock_content(self, sha256: str) -> None:
+        self.locks.append(sha256)
 
     def object_in_use(self, object_key: str, except_id: UUID) -> bool:
         return any(r.object_key == object_key and r.id != except_id for r in self.rows.values())

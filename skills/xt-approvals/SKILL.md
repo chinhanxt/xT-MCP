@@ -15,6 +15,7 @@ Quy tắc chung ở `xt-core`. Chỉ gọi tool có trong danh sách tool của 
 ## Quy tắc
 
 1. **Duyệt / từ chối / trả lại / ủy quyền:** `get_record` lấy `revision`, rồi gọi `decide_request` ngay. Đừng dừng ở bước đọc. Bước hiện tại là phần tử `steps` có `state:"active"`; các bước `pending` là bước sau, không phải bước đang chờ.
+   Mục inbox có `suggested_tool:"transition_record"` (vd nghiệm thu `task`, bước hồ sơ nhân sự) không phải đề nghị: dùng `transition_record {ref, to_state (trong to_states), expected_revision: revision}`; bước chỉ-người cũng ra `confirmation_required` như dưới.
 2. `decide_request` luôn trả `confirmation_required` kèm `confirm_url`. **Chép nguyên link nhận được** (không tự viết link), nói người được giao bước phải mở, rồi dừng. Không gọi lại khi người dùng chưa báo đã bấm.
 3. Người dùng báo đã bấm -> gọi lại `decide_request` **y hệt** (cùng tham số, cùng `idempotency_key`), báo `outcome`.
 4. `reject`/`return` cần lý do **do người dùng nói**. Chưa có lý do -> hỏi "Lý do từ chối là gì?" và dừng; không tự viết lý do, không gọi `decide_request`.

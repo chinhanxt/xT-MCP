@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
 """Port tool trên process engine: describe_process, submit_request, decide_request, start_process,
-get_inbox, transition_record (rút đề nghị).
+get_inbox, transition_record (rút đề nghị; hoàn thành bước người gắn bản ghi chủ thể).
 
 Nối (docs/process-engine.md §7):
 - `ProcessCatalog`: định nghĩa đã duyệt trong `xt_meta.process_definition`, compile lại theo đúng
@@ -15,6 +15,11 @@ Nối (docs/process-engine.md §7):
 
 Trạng thái bản ghi `request` (trường `state`, managed_by=workflow) chỉ đổi ở đây, qua
 `RecordService.workflow_write` với vai trò xt_workflow.
+
+Bước người của quy trình không gắn đề nghị (giao việc, vòng đời nhân sự) khai `complete_via` trong
+spec: `transition_record` trên đúng bản ghi chủ thể của bước, bởi người được giao (IAM
+`record.transition` + ứng viên của bước + SoD), mức tự chủ theo `complete_via.autonomy` của gói
+(`human_only` -> luôn cần chính người được giao xác nhận). Quyết định: docs/decisions.md D-STEP-*.
 """
 
 from __future__ import annotations
@@ -52,7 +57,7 @@ from xt.domain.model.context import ModelActor
 from xt.domain.process.assignment import OrgUser
 from xt.domain.process.errors import EngineError
 from xt.domain.process.expr import evaluate
-from xt.domain.process.spec import ApproveStep, ProcessSpec, TaskStep
+from xt.domain.process.spec import ApproveStep, CompleteVia, ProcessSpec, TaskStep
 from xt.entrypoints.composition.model_changes import (
     MODEL_PROPOSAL,
     ModelChangeDecisions,
@@ -300,6 +305,102 @@ class WithdrawPlan:
     reason: str | None = None
 
 
+@dataclass(frozen=True)
+class StepPlan:
+    actor_key: str
+    ref: str
+    model: str
+    record_id: UUID
+    revision: int
+    instance_id: str
+    task_id: str
+    step: str
+    step_name: str
+    outcome: str
+    to_state: str
+    state_field: str
+    values: dict[str, Any]
+    comment: str | None
+    person: str
+
+
+@dataclass(frozen=True)
+class OpenStep:
+    """Một task người đang mở có bản ghi chủ thể (`complete_via`) là bản ghi đang xét."""
+
+    instance_id: str
+    task: dict[str, Any]
+    step: ApproveStep | TaskStep
+    via: CompleteVia
+
+    @property
+    def human_only(self) -> bool:
+        return self.via.autonomy == "human_only" or isinstance(self.step, ApproveStep)
+
+    @property
+    def level(self) -> RiskLevel:
+        return RiskLevel.L3 if self.human_only else RiskLevel(self.via.autonomy)
+
+
+def _norm_ref(v: Any) -> str:
+    """`model:<uuid>` / `<uuid>` -> `<uuid>` (so khớp ref với giá trị lưu trong DB)."""
+    s = str(v)
+    try:
+        return str(UUID(s.rsplit(":", 1)[-1]))
+    except ValueError:
+        return s
+
+
+def human_step(spec: ProcessSpec, step_id: str) -> ApproveStep | TaskStep | None:
+    for st, _ in spec.iter_steps():
+        if st.id == step_id and isinstance(st, ApproveStep | TaskStep):
+            return st
+    return None
+
+
+def _wanted(via: CompleteVia, data: Mapping[str, Any]) -> dict[str, str] | None:
+    out: dict[str, str] = {}
+    for f, expr in via.match.items():
+        try:
+            v = evaluate(expr, dict(data))
+        except Exception:  # biến chưa có: bước chưa xác định được bản ghi
+            return None
+        if v is None or v == "":
+            return None
+        out[f] = _norm_ref(v)
+    return out
+
+
+def _matches(via: CompleteVia, data: Mapping[str, Any], row: Mapping[str, Any]) -> bool:
+    want = _wanted(via, data)
+    if want is None:
+        return False
+    for f, v in want.items():
+        got = row.get("id") if f == "id" else row.get(f)
+        if got is None or _norm_ref(got) != v:
+            return False
+    return True
+
+
+def bound_record(
+    pc: ProcessContext, via: CompleteVia, data: Mapping[str, Any]
+) -> dict[str, Any] | None:
+    """Bản ghi chủ thể của bước (đọc bằng vai trò xt_workflow), hoặc None."""
+    want = _wanted(via, data)
+    if want is None:
+        return None
+    try:
+        if "id" in want:
+            row = dict(pc.rt.records.get(pc.actor, via.model, UUID(want["id"]))["record"])
+            return row if _matches(via, data, row) else None
+        where = {"and": [{"field": f, "op": "=", "value": v} for f, v in want.items()]}
+        res = pc.rt.records.search(pc.actor, via.model, where, ("created_at",), 1, 0)
+    except Exception:  # model/bản ghi không có: bước không có chủ thể
+        return None
+    items = list(res["items"])
+    return dict(items[0]) if items else None
+
+
 def _intish(v: Any) -> Any:
     if isinstance(v, Decimal):
         return int(v) if v == v.to_integral_value() else float(v)
@@ -335,6 +436,8 @@ class ProcessToolAdapter:
         self.engine = engine
         self.model_changes = model_changes
         self.access = access
+        # `RecordServiceAdapter` (values_in/record_out) do composition nối sau khi tạo.
+        self.record_view: Any = None
 
     def pc(self, caller: Caller) -> ProcessContext:
         return ProcessContext(self.rt, self.engine, caller.workflow(), caller.profile.timezone)
@@ -939,13 +1042,292 @@ class ProcessToolAdapter:
 
         after_rollback(write)
 
-    # ---- transition_record: chỉ `withdrawn` của request (TCV1 §3.10) --------------------------
+    # ---- transition_record: hoàn thành bước người (complete_via) ------------------------------
+    def open_steps(
+        self, caller: Caller, pc: ProcessContext, model: str, rid: UUID, row: Mapping[str, Any]
+    ) -> list[OpenStep]:
+        """Task người đang mở mà bản ghi `model:rid` là chủ thể. Instance ứng viên: instance gắn
+        với chính bản ghi hoặc bản ghi nó tham chiếu (vd lifecycle_task -> lifecycle_case), và
+        instance đang có việc của người gọi (instance không gắn subject)."""
+        store = PgWorkflowStore(self.rt.uow)
+        refs = [f"{model}:{rid}"]
+        current = self.rt.catalogs.current(caller.actor)
+        if current is not None:
+            try:
+                fields = current[1].model(model).fields
+            except KeyError:
+                fields = []
+            refs += [
+                f"{f.ref}:{_norm_ref(row[f.name])}"
+                for f in fields
+                if f.type == "ref" and row.get(f.name)
+            ]
+        ids: list[str] = []
+        for r in refs:
+            found = store.instance_for(r)
+            if found and found not in ids:
+                ids.append(found)
+        ids += [i for i in store.open_for(str(caller.person.id)) if i not in ids]
+        me_row = {**row, "id": str(rid)}
+        out: list[OpenStep] = []
+        for iid in ids:
+            rec = store.get_for_update(iid)
+            if rec is None or rec.status != "running":
+                continue
+            rt = pc.get(rec.process_id, rec.version)
+            if rt is None:
+                continue
+            try:
+                inst = rt.load(rec.state)
+            except Exception:  # một instance hỏng không chặn các instance khác
+                continue
+            data = inst.data()
+            for t in inst.inbox(None):
+                if t["kind"] not in ("decision", "task"):
+                    continue
+                st = human_step(rt.compiled.spec, str(t["step"]))
+                via = st.complete_via if st is not None else None
+                if st is None or via is None or via.model != model:
+                    continue
+                if _matches(via, data, me_row):
+                    out.append(OpenStep(iid, t, st, via))
+        return out
+
+    def available_steps(
+        self, caller: Caller, model: str, rid: UUID, row: Mapping[str, Any]
+    ) -> list[Data]:
+        """`available_transitions` của get_record: transition hoàn thành bước người gọi giữ."""
+        me = str(caller.person.id)
+        out: list[Data] = []
+        for s in self.open_steps(caller, self.pc(caller), model, rid, row):
+            if me not in s.task.get("candidates", ()):
+                continue
+            for to_state, outcome in s.via.states.items():
+                out.append(
+                    {
+                        "to_state": to_state,
+                        "label": f"{s.task['name']} ({outcome})",
+                        "level": s.level.value,
+                    }
+                )
+        return out
+
+    def _readable(self, caller: Caller, model: str, rid: UUID) -> bool:
+        try:
+            self.rt.records.get(caller.actor, model, rid)
+        except Exception:
+            return False
+        return True
+
+    def _step_model(self, caller: Caller, model: str) -> bool:
+        """Có quy trình đang kích hoạt nào khai bước hoàn thành qua model này không."""
+        for d in self.rt.store.definitions(caller.actor, active_only=True):
+            try:
+                spec = ProcessSpec.model_validate(d.spec)
+            except ValueError:
+                continue
+            for st, _ in spec.iter_steps():
+                via = getattr(st, "complete_via", None)
+                if via is not None and via.model == model:
+                    return True
+        return False
+
+    def _plan_step(self, ctx: CallContext, caller: Caller, args: Args) -> MutationPlan:
+        model, rid = parse_record_ref(ctx, args["ref"])
+        current = self.rt.catalogs.current(caller.actor)
+        try:
+            spec_m = current[1].model(model) if current is not None else None
+        except KeyError:
+            spec_m = None
+        if spec_m is None:
+            raise not_found(str(args["ref"]))
+        wf = caller.workflow()
+        row = dict(engine_call(lambda: self.rt.records.get(wf, model, rid))["record"])
+        ref = f"{model}:{rid}"
+        to_state = str(args["to_state"])
+        me = str(caller.person.id)
+        pc = self.pc(caller)
+        steps = self.open_steps(caller, pc, model, rid, row)
+        mine = [s for s in steps if me in s.task.get("candidates", ())]
+        hit = next((s for s in mine if to_state in s.via.states), None)
+        if hit is None:
+            if not mine and not self._readable(caller, model, rid):
+                raise not_found(ref)  # không đọc được, không giữ bước: như không tồn tại
+            if mine:
+                raise precondition_failed(
+                    f"Bước '{mine[0].task['name']}' không hoàn thành bằng trạng thái '{to_state}'.",
+                    "transition_not_allowed",
+                    remediation="Use one of available_transitions as to_state.",
+                    available_transitions=sorted({x for m in mine for x in m.via.states}),
+                )
+            if steps:
+                names = [
+                    p["name"]
+                    for uid in steps[0].task.get("candidates", ())
+                    if (p := self._person(caller, uid))
+                ]
+                raise access_denied(
+                    f"Bước '{steps[0].task['name']}' đang giao cho "
+                    f"{', '.join(names) or 'người khác'}; chỉ người được giao mới hoàn thành được.",
+                    "not_assigned",
+                    None,
+                    remediation="Tell the user who holds this step; do not retry for them.",
+                )
+            if self._step_model(caller, model):
+                raise precondition_failed(
+                    "Bản ghi không có bước quy trình nào đang chờ hoàn thành.",
+                    "no_open_step",
+                    remediation="Check get_record / get_inbox: the process may be finished or not"
+                    " started yet (start_process).",
+                )
+            unavailable("state transitions for ordinary models")
+        revision = self._cas(row, args["expected_revision"])
+        task_id = str(hit.task["task_id"])
+        engine_call(lambda: pc.service().check_act(hit.instance_id, task_id, me))
+        outcome = hit.via.states[to_state]
+        comment = str(args["reason"]) if args.get("reason") else None
+        if outcome == "return_for_revision" and not comment:
+            raise invalid_request(
+                "Trả lại để làm lại cần lý do.",
+                "reason_required",
+                remediation="Ask the user what must be redone, then send it as reason.",
+            )
+        values: dict[str, Any] = dict(args.get("values") or {})
+        sf = hit.via.state_field
+        if sf in values:
+            raise invalid_request(
+                f"Trạng thái đích gửi bằng to_state, không đặt '{sf}' trong values.",
+                "state_in_values",
+            )
+        unknown = sorted(set(values) - set(spec_m.by_name()))
+        if unknown:
+            raise invalid_request(
+                "Unknown fields.",
+                "unknown_field",
+                fields=unknown,
+                valid_fields=sorted(spec_m.by_name()),
+            )
+        if self.record_view is not None:
+            values = dict(self.record_view.values_in(caller, ctx, spec_m, values))
+        confirmers: tuple[PersonRef, ...] = ()
+        if hit.human_only:
+            if caller.person.subject is None:
+                raise access_denied(
+                    "Người được giao bước chưa liên kết tài khoản đăng nhập.",
+                    "invalid_approver",
+                    None,
+                )
+            confirmers = (
+                PersonRef(f"person:{caller.person.id}", caller.person.name, caller.person.subject),
+            )
+        name = str(hit.task["name"])
+        plan = StepPlan(
+            ctx.actor.key,
+            ref,
+            model,
+            rid,
+            revision,
+            hit.instance_id,
+            task_id,
+            str(hit.task["step"]),
+            name,
+            outcome,
+            to_state,
+            sf,
+            values,
+            comment,
+            me,
+        )
+        return MutationPlan(
+            hit.level,
+            f"{caller.person.name} hoàn thành bước '{name}' ({to_state}) của {ref}",
+            {
+                "ref": ref,
+                "revision": revision,
+                "instance": hit.instance_id,
+                "task": task_id,
+                "to_state": to_state,
+                "outcome": outcome,
+                "values": jsonable(values),
+                "reason": comment,
+            },
+            target_ref=ref,
+            confirmers=confirmers,
+            payload=plan,
+        )
+
+    def _record_out(self, caller: Caller, model: str, row: Mapping[str, Any]) -> Data:
+        current = self.rt.catalogs.current(caller.actor)
+        if self.record_view is not None and current is not None:
+            spec_m = current[1].model(model)
+            out: Data = self.record_view.record_out(caller, spec_m, row, current[0])
+            return out
+        return {
+            "ref": f"{model}:{row['id']}",
+            "model_id": model,
+            "title": f"{model}:{row['id']}",
+            "state": row.get("state"),
+            "revision": int(row["revision"]),
+            "model_revision": self._model_revision(caller),
+            "values": {},
+            "available_transitions": [],
+        }
+
+    def _commit_step(self, ctx: CallContext, caller: Caller, p: StepPlan) -> CommitResult:
+        pc = self.pc(caller)
+        svc = pc.service()
+        wf = caller.workflow()
+        row = dict(engine_call(lambda: self.rt.records.get(wf, p.model, p.record_id))["record"])
+        self._cas(row, p.revision)
+        try:
+            summary = engine_call(
+                lambda: svc.act(p.instance_id, p.task_id, p.person, p.outcome, p.comment)
+            )
+        except EngineError as e:
+            self._incident(caller, p.instance_id, e)
+            raise ToolError(
+                ErrorCode.INTERNAL_ERROR, "Quy trình gặp sự cố; quản trị đã được ghi nhận."
+            ) from e
+        # Bước dịch vụ phía sau (vd close_task) có thể đã ghi bản ghi: đọc lại rồi mới ghi phần
+        # còn thiếu (trạng thái đích + values), một lần, bằng vai trò xt_workflow.
+        after = dict(engine_call(lambda: self.rt.records.get(wf, p.model, p.record_id))["record"])
+        patch = dict(p.values)
+        if after.get(p.state_field) != p.to_state:
+            patch[p.state_field] = p.to_state
+        if patch:
+            rev = int(after["revision"])
+            after = dict(
+                engine_call(
+                    lambda: self.rt.records.workflow_write(wf, p.model, p.record_id, rev, patch)
+                )["record"]
+            )
+        rec = self._record_out(caller, p.model, after)
+        rec["available_transitions"] = self.available_steps(caller, p.model, p.record_id, after)
+        data: Data = {
+            "record": rec,
+            "from_state": str(row.get(p.state_field) or ""),
+            "to_state": p.to_state,
+            "started_process": None,
+        }
+        nxt = next((t for t in summary["tasks"] if t["kind"] in ("decision", "task")), None)
+        if nxt is not None:
+            who = self._person(caller, nxt["candidates"][0]) if nxt.get("candidates") else None
+            data["suggested_next"] = [
+                {
+                    "tool": "get_inbox",
+                    "why": f"Bước kế tiếp '{nxt['name']}'"
+                    + (f" do {who['name']} làm." if who else "."),
+                }
+            ]
+        return CommitResult(data, f"operation:{uuid.uuid4().hex}")
+
+    # ---- transition_record: `withdrawn` của request (TCV1 §3.10) ------------------------------
     def plan_transition(self, ctx: CallContext, args: Args) -> MutationPlan:
         caller = self.rt.caller(ctx)
         model, _ = parse_record_ref(ctx, args["ref"])
         binding = self.rt.store.bindings(caller.actor).get(model)
         if binding is None or binding.primitive != "request":
-            unavailable("state transitions for ordinary models")
+            return self._plan_step(ctx, caller, args)
         if args.get("to_state") != "withdrawn":
             raise precondition_failed(
                 "Trạng thái đề nghị do quy trình điều khiển; chỉ rút được (to_state='withdrawn').",
@@ -1032,7 +1414,9 @@ class ProcessToolAdapter:
         p = plan.payload
         caller = self.rt.caller(ctx)
         if (
-            not isinstance(p, SubmitPlan | DecidePlan | WithdrawPlan | StartPlan | ModelDecidePlan)
+            not isinstance(
+                p, SubmitPlan | DecidePlan | WithdrawPlan | StartPlan | StepPlan | ModelDecidePlan
+            )
             or p.actor_key != ctx.actor.key
         ):
             raise invalid_request("Unknown process mutation plan.", "invalid_plan")
@@ -1045,6 +1429,8 @@ class ProcessToolAdapter:
             return self._commit_decide(ctx, caller, p)
         if isinstance(p, StartPlan):
             return self._commit_start(ctx, caller, p)
+        if isinstance(p, StepPlan):
+            return self._commit_step(ctx, caller, p)
         return self._commit_withdraw(ctx, caller, p)
 
     # ---- get_inbox ----------------------------------------------------------------------------
@@ -1066,7 +1452,15 @@ class ProcessToolAdapter:
             rec = store.get_for_update(iid)
             due = rec.next_due if rec else None
             title, state, revision, owner = t["name"], "in_review", None, None
-            if ":" in ref and not ref.startswith("process_instance:"):
+            bound = self._inbox_bound(pc, iid, t)
+            if bound is not None:
+                via, row, label = bound
+                ref = f"{via.model}:{row['id']}"
+                state = str(row.get(via.state_field) or state)
+                revision = int(row["revision"])
+                owner = row.get("owner_id")
+                title = f"{t['name']}: {label}"
+            elif ":" in ref and not ref.startswith("process_instance:"):
                 model, rid = ref.split(":", 1)
                 try:
                     out = self.rt.records.get(caller.workflow(), model, UUID(rid))["record"]
@@ -1097,6 +1491,9 @@ class ProcessToolAdapter:
                 "suggested_tool": "decide_request" if kind == "approval" else "update_record",
                 "step": t["step"],
             }
+            if bound is not None:
+                item["suggested_tool"] = "transition_record"
+                item["to_states"] = list(bound[0].states)
             if revision is not None:
                 item["revision"] = revision
             items.append(item)
@@ -1123,6 +1520,33 @@ class ProcessToolAdapter:
         window = items[off : off + limit]
         nxt = page.next(off + limit) if off + limit < len(items) else None
         return {"counts": counts, "items": window, "next_cursor": nxt}
+
+    def _inbox_bound(
+        self, pc: ProcessContext, iid: str, t: Mapping[str, Any]
+    ) -> tuple[CompleteVia, dict[str, Any], str] | None:
+        """(complete_via, bản ghi chủ thể, nhãn) của task inbox, hoặc None."""
+        if t.get("kind") not in ("decision", "task"):
+            return None
+        try:
+            rt, data = self._instance_data(pc, iid)
+        except EngineError:
+            return None
+        st = human_step(rt.compiled.spec, str(t["step"]))
+        if st is None or st.complete_via is None:
+            return None
+        row = bound_record(pc, st.complete_via, data)
+        if row is None:
+            return None
+        label = f"{st.complete_via.model}:{str(row['id'])[:8]}"
+        current = self.rt.catalogs.current(pc.actor)
+        if current is not None:
+            try:
+                tf = current[1].model(st.complete_via.model).title_field
+            except KeyError:
+                tf = None
+            if tf and row.get(tf):
+                label = str(row[tf])
+        return st.complete_via, row, label
 
 
 def today_in(tz: str) -> date:

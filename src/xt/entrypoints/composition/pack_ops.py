@@ -118,6 +118,10 @@ class _Data:
             raise OpInputError(f"{model}: quá {MAX_ROWS} bản ghi cho một bước dịch vụ")
         return [dict(r) for r in res["items"]]
 
+    def fields(self, model: str) -> set[str]:
+        current = self.pc.rt.catalogs.current(self.actor)
+        return set(current[1].model(model).by_name()) if current is not None else set()
+
     def enum_options(self, model: str, field: str) -> set[str]:
         current = self.pc.rt.catalogs.current(self.actor)
         if current is None:
@@ -300,17 +304,21 @@ def send_weekly_digest(pc: ProcessContext, d: ProcessDefinition) -> ServiceFn:
 
 
 # ------------------------------------------------------------------------ nhan-su-vong-doi ----
-def _checklist(d: ProcessDefinition, units: set[str]) -> list[tuple[str, str]]:
-    """(bộ phận, tên việc) từ các bước người của CHÍNH định nghĩa đã duyệt: id bước (hoặc tiền tố
-    trước `_`) trùng một giá trị `owner_unit` của model. Bước có `when` (có điều kiện) bỏ qua."""
+def _checklist(d: ProcessDefinition, units: set[str]) -> list[tuple[str, str, str]]:
+    """(bộ phận, tên việc, id bước) cho MỌI bước người của CHÍNH định nghĩa đã duyệt (kể cả bước có
+    `when`): mỗi dòng là bản ghi chủ thể của bước (`complete_via` khớp theo `step`). Bộ phận = id
+    bước, hoặc tiền tố trước `_`, hoặc vai trò `role(x)` của người nhận, nếu trùng một giá trị
+    `owner_unit` của model; không trùng thì bỏ qua."""
     spec = ProcessSpec.model_validate(d.spec)
-    out: list[tuple[str, str]] = []
+    out: list[tuple[str, str, str]] = []
     for st, _ in spec.iter_steps():
-        if not isinstance(st, ApproveStep | TaskStep) or st.when:
+        if not isinstance(st, ApproveStep | TaskStep):
             continue
-        unit = st.id if st.id in units else st.id.split("_", 1)[0]
-        if unit in units:
-            out.append((unit, st.name[:200]))
+        target = st.target()
+        for unit in (st.id, st.id.split("_", 1)[0], target.role if target.kind == "role" else None):
+            if unit in units:
+                out.append((unit, st.name[:200], st.id))
+                break
     return out
 
 
@@ -328,17 +336,18 @@ def create_lifecycle_tasks(pc: ProcessContext, d: ProcessDefinition) -> ServiceF
         existing = db.rows(LTASK, _eq("lifecycle_case", str(case["id"])))
         created: list[str] = []
         if not existing:
-            for unit, name in _checklist(d, db.enum_options(LTASK, "owner_unit")):
-                row = db.create(
-                    LTASK,
-                    {
-                        "lifecycle_case": str(case["id"]),
-                        "owner_unit": unit,
-                        "name": name,
-                        "state": "waiting",
-                        "due_on": case.get("effective_on"),
-                    },
-                )
+            has_step = "step" in db.fields(LTASK)
+            for unit, name, step in _checklist(d, db.enum_options(LTASK, "owner_unit")):
+                values = {
+                    "lifecycle_case": str(case["id"]),
+                    "owner_unit": unit,
+                    "name": name,
+                    "state": "waiting",
+                    "due_on": case.get("effective_on"),
+                }
+                if has_step:
+                    values["step"] = step
+                row = db.create(LTASK, values)
                 created.append(str(row["id"]))
         if not case.get("process_instance_id"):
             db.write(CASE, case, {"process_instance_id": _instance(idempotency_key)[:64]})
@@ -399,12 +408,21 @@ def check_unreturned_assets(pc: ProcessContext, d: ProcessDefinition) -> Service
     return op
 
 
-def close_lifecycle_case(pc: ProcessContext, d: ProcessDefinition) -> ServiceFn:
-    """Hồ sơ -> `completed` (closed_at), checklist còn chờ -> `done` (mọi bước người đã xong);
-    nghỉ việc: nhân viên -> `resigned`. Chốt "không đóng được khi chưa thu hồi": hồ sơ nghỉ việc
-    còn tài sản/quyền truy cập chưa thu hồi -> lỗi (bước dịch vụ thất bại, instance đứng nguyên)."""
+def _acted_steps(pc: ProcessContext, instance_id: str) -> set[str]:
+    from xt.adapters.db.workflow_bridge import PgWorkflowStore
 
-    def op(case_id: str) -> dict[str, Any]:
+    rec = PgWorkflowStore(pc.rt.uow).get_for_update(instance_id)
+    hist = (rec.state.get("meta") or {}).get("history", []) if rec else []
+    return {str(h["step"]) for h in hist if h.get("step")}
+
+
+def close_lifecycle_case(pc: ProcessContext, d: ProcessDefinition) -> ServiceFn:
+    """Hồ sơ -> `completed` (closed_at); checklist còn chờ: bước đã làm -> `done`, bước không
+    áp dụng (điều kiện `when` không thỏa, chưa từng chạy) -> `skipped` kèm ghi chú; nghỉ việc:
+    nhân viên -> `resigned`. Chốt "không đóng được khi chưa thu hồi": hồ sơ nghỉ việc còn tài
+    sản/quyền truy cập chưa thu hồi -> lỗi (bước dịch vụ thất bại, instance đứng nguyên)."""
+
+    def op(case_id: str, idempotency_key: str = "") -> dict[str, Any]:
         db = _Data(pc)
         case = db.get(CASE, record_id(case_id, CASE))
         if case.get("state") == "completed":
@@ -419,10 +437,19 @@ def close_lifecycle_case(pc: ProcessContext, d: ProcessDefinition) -> ServiceFn:
                     " truy cập chưa thu hồi, chưa đóng được"
                 )
         done = 0
+        # Bước có điều kiện chưa từng chạy -> skipped. Lịch sử đọc từ DB là trạng thái TRƯỚC lần
+        # hoàn thành đang chạy, nên chỉ xét bước có `when` (bước thường chắc chắn đã chạy).
+        spec = ProcessSpec.model_validate(d.spec)
+        conditional = {st.id for st, _ in spec.iter_steps() if getattr(st, "when", None)}
+        acted = _acted_steps(pc, _instance(idempotency_key)) if idempotency_key else set()
         for t in db.rows(LTASK, _eq("lifecycle_case", str(case["id"]))):
-            if t.get("state") == "waiting":
-                db.write(LTASK, t, {"state": "done"})
-                done += 1
+            if t.get("state") != "waiting":
+                continue
+            if t.get("step") in conditional and t["step"] not in acted:
+                db.write(LTASK, t, {"state": "skipped", "note": "Bước không áp dụng cho hồ sơ này"})
+                continue
+            db.write(LTASK, t, {"state": "done"})
+            done += 1
         if case.get("kind") == "offboarding":
             emp = db.get(EMPLOYEE, record_id(case["employee"], EMPLOYEE))
             if emp.get("state") != "resigned":

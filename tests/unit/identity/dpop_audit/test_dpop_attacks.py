@@ -154,7 +154,6 @@ def test_iat_non_numeric_or_infinite_rejected(dv: DpopVerifier, key: DpopKey, ia
     assert reason(dv, key.proof("POST", HTU, token=TOKEN, iat=iat), key).startswith("dpop_iat")
 
 
-@pytest.mark.xfail(strict=True, reason="DPA-01: iat=NaN -> ValueError (500) thay vì DpopError")
 def test_iat_nan_is_a_dpop_error(dv: DpopVerifier, key: DpopKey) -> None:
     with pytest.raises(DpopError):
         check(dv, key.proof("POST", HTU, token=TOKEN, iat=float("nan")), key)
@@ -206,15 +205,19 @@ def test_failed_proof_does_not_burn_jti(dv: DpopVerifier, key: DpopKey) -> None:
     assert check(dv, key.proof("POST", HTU, token=TOKEN, jti="keep"), key) == key.jkt
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="DPA-02: cache jti trong bộ nhớ từng tiến trình; restart/worker thứ 2 nhận lại proof",
-)
 def test_replay_rejected_by_second_process(clock: FakeClock, key: DpopKey) -> None:
-    from xt.adapters.identity import build_dpop_verifier
+    """DPA-02: hai tiến trình dùng chung store (bản Postgres: tests/integration/
+    test_dpop_replay_pg.py, kể cả restart). Cấu hình `postgres` mà thiếu store thì dừng khởi động,
+    không lặng lẽ lùi về bộ nhớ; nhiều worker với store bộ nhớ cũng bị từ chối."""
+    from xt.adapters.identity import IdentityConfigError, build_dpop_verifier
 
-    env = {"XT_DPOP_ORIGINS": ORIGIN}
-    worker_a, worker_b = build_dpop_verifier(env), build_dpop_verifier(env)
+    env = {"XT_DPOP_ORIGINS": ORIGIN, "XT_DPOP_REPLAY_STORE": "postgres"}
+    with pytest.raises(IdentityConfigError):
+        build_dpop_verifier(env)
+    with pytest.raises(IdentityConfigError):
+        build_dpop_verifier({"XT_DPOP_ORIGINS": ORIGIN, "WEB_CONCURRENCY": "4"})
+    shared = InMemorySingleUseStore(clock)  # thay cho bảng xt_identity.dpop_jti
+    worker_a, worker_b = build_dpop_verifier(env, shared), build_dpop_verifier(env, shared)
     worker_a._clock = worker_b._clock = clock
     p = key.proof("POST", HTU, token=TOKEN)
     check(worker_a, p, key)
@@ -357,10 +360,6 @@ def test_desk_private_key_non_extractable() -> None:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="DPA-03: logout không xoay khóa DPoP (IndexedDB) và không end_session Keycloak",
-)
 def test_desk_logout_rotates_dpop_key_and_ends_sso() -> None:
     dpop = (ROOT / "desk/src/dpop.ts").read_text()
     oidc = (ROOT / "desk/src/oidc.ts").read_text()

@@ -190,7 +190,7 @@ services:
       XT_FILES_ALLOWED_CLIENTS: ${XT_FILES_CLIENTS:-xt-cli}
       XT_FILES_MAX_BYTES: ${XT_FILES_MAX_BYTES:-26214400}
       XT_FILES_UPLOAD_TTL_SECONDS: ${XT_FILES_UPLOAD_TTL_SECONDS:-900}
-      XT_FILES_UNSCANNED_DOWNLOAD: ${XT_FILES_UNSCANNED_DOWNLOAD:-uploader}
+      XT_FILES_UNSCANNED_DOWNLOAD: ${XT_FILES_UNSCANNED_DOWNLOAD:-readers}
       XT_FILES_MAX_PENDING_PER_USER: ${XT_FILES_MAX_PENDING_PER_USER:-20}
       XT_FILES_USER_QUOTA_BYTES: ${XT_FILES_USER_QUOTA_BYTES:-268435456}
       XT_FILES_TENANT_QUOTA_BYTES: ${XT_FILES_TENANT_QUOTA_BYTES:-1073741824}
@@ -222,6 +222,8 @@ services:
       XT_PII_REVEAL_CLIENTS: ${XT_DESK_AGENT_CLIENT_ID:-xt-desk-agent}
       XT_PII_REVEAL_TICKETS_PER_MINUTE: ${XT_PII_REVEAL_TICKETS_PER_MINUTE:-10}
       XT_DPOP_REQUIRED: ${XT_DPOP_REQUIRED:-false}   # RFC 9449 cho xt-desk-agent; bật sau cổng e2e (provision.py dùng cùng cờ)
+      XT_DPOP_CLIENTS: ${XT_DPOP_CLIENTS:-${XT_DESK_AGENT_CLIENT_ID:-xt-desk-agent}}   # DPA-06: cùng client mà provision.py ép DPoP
+      XT_DPOP_REPLAY_STORE: postgres   # DPA-02: cache jti chung (xt_identity.dpop_jti), sống qua restart/nhiều worker
       XT_MCP_CONFIDENTIAL_CLIENTS: ${XT_MCP_CONFIDENTIAL_CLIENTS:-}
       # Desk gọi /mcp cùng origin qua host Desk (route desk-mcp): thêm host + origin Desk
       XT_MCP_ALLOWED_HOSTS: ${XT_DOMAIN_MCP},${XT_DOMAIN_DESK}
@@ -491,6 +493,10 @@ configs:
   # JWT nội bộ của SeaweedFS (volume ghi/đọc, filer ghi/đọc): truy cập thẳng :8080/:8888 bị 401.
   seaweed-security:
     content: |
+      # R2-F4: master/volume/filer chỉ nhận lệnh quản trị (/dir/assign, /col/delete, /vol/grow…)
+      # từ loopback = gateway S3 trong cùng tiến trình `weed server`; peer trong mạng `files` bị 401.
+      [guard]
+      white_list = "127.0.0.1,@"   # @ = gRPC nội tiến trình (S3/filer -> master/volume)
       [jwt.signing]
       key = "${XT_SEAWEED_JWT_WRITE_KEY:?chạy make env}"
       expires_after_seconds = 10

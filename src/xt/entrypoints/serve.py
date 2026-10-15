@@ -353,6 +353,7 @@ class Prepared:
     verifier: AccessTokenVerifier
     dispatcher: ToolDispatcher
     dpop: DpopVerifier | None = None
+    replay_db: Any = None  # pool Postgres của cache jti DPoP (XT_DPOP_REPLAY_STORE=postgres)
 
     def http_app(self) -> Any:
         """App Starlette: `/mcp` + PRM + `/healthz` và route phụ của composition (trang
@@ -381,6 +382,8 @@ class Prepared:
     def close(self) -> None:
         if isinstance(self.services, ComposedServices):
             self.services.close()
+        if self.replay_db is not None:
+            self.replay_db.close()
 
 
 def prepare(env: Mapping[str, str], args: argparse.Namespace) -> Prepared:
@@ -391,7 +394,7 @@ def prepare(env: Mapping[str, str], args: argparse.Namespace) -> Prepared:
     default_prompts()  # prompt lỗi -> dừng trước khi mở cổng
     registry = load_connector_registry_settings(env) if rs.dynamic_connectors else None
     services = load_services(cfg.services_factory, env)
-    dpop = build_dpop_verifier(env)
+    dpop, replay_db = _dpop_verifier(env)
     verifier = AccessTokenVerifier(
         rs, build_jwks_cache(rs.idp), clients=build_client_allowlist(rs, registry), dpop=dpop
     )
@@ -401,7 +404,26 @@ def prepare(env: Mapping[str, str], args: argparse.Namespace) -> Prepared:
         else ToolDispatcher(services, cfg.tool_settings)
     )
     server = build_server(cfg, services, rs, verifier, revocation, dispatcher)
-    return Prepared(cfg, server, services, rs, verifier, dispatcher, dpop)
+    return Prepared(cfg, server, services, rs, verifier, dispatcher, dpop, replay_db)
+
+
+def _dpop_verifier(env: Mapping[str, str]) -> tuple[DpopVerifier, Any]:
+    """Cache jti DPoP: `postgres` -> bảng chung `xt_identity.dpop_jti` qua XT_DB_APP_URL (DPA-02);
+    `memory` chỉ cho một tiến trình (unit test)."""
+    if (env.get("XT_DPOP_REPLAY_STORE") or "").strip().lower() != "postgres":
+        return build_dpop_verifier(env), None
+    dsn = env.get("XT_DB_APP_URL", "").strip()
+    if not dsn:
+        raise IdentityConfigError(["XT_DPOP_REPLAY_STORE=postgres cần XT_DB_APP_URL (role xt_app)"])
+    from xt.adapters.db.connection import Database
+    from xt.adapters.db.dpop_replay import PgDpopReplayStore
+
+    db = Database(dsn, min_size=1, max_size=4, statement_timeout_ms=3000)
+    try:
+        return build_dpop_verifier(env, PgDpopReplayStore(db)), db
+    except Exception:
+        db.close()
+        raise
 
 
 def main(argv: Sequence[str] | None = None) -> int:

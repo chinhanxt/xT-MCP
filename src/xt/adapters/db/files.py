@@ -15,8 +15,11 @@ from contextlib import AbstractContextManager
 from typing import Any, Protocol
 from uuid import UUID
 
+import psycopg
+from psycopg import sql
 from psycopg.types.json import Jsonb
 
+from xt.adapters.db.compiler import Layout
 from xt.application.files.ports import FileRow, Usage
 from xt.domain.model.audit import audit_hmac
 from xt.domain.model.context import ModelActor
@@ -143,10 +146,12 @@ class PgFileRepository:
                 "   AS user_bytes,"
                 " coalesce(sum(size_bytes) FILTER (WHERE held), 0) AS tenant_bytes"
                 " FROM (SELECT created_by, size_bytes,"
-                "   status IN ('awaiting_upload', 'uploaded')"
+                "   deleted_at IS NULL AND status IN ('awaiting_upload', 'uploaded')"
                 "     AND upload_expires_at > clock_timestamp() AS pend,"
-                "   status NOT IN ('expired', 'infected') AND size_bytes IS NOT NULL AS held"
-                "   FROM xt_meta.file_object WHERE deleted_at IS NULL) f",
+                # R2-F1: tệp xóa mềm vẫn giữ byte (object_key còn) tới khi job dọn.
+                "   status NOT IN ('expired', 'infected') AND size_bytes IS NOT NULL"
+                "     AND (deleted_at IS NULL OR object_key IS NOT NULL) AS held"
+                "   FROM xt_meta.file_object) f",
                 (person, person),
             ).fetchone()
         return Usage(
@@ -155,6 +160,39 @@ class PgFileRepository:
             int(r["user_bytes"]),
             int(r["tenant_bytes"]),
         )
+
+    def lock_content(self, sha256: str) -> None:
+        """R2-F3: khóa theo (tenant, sha256) tới hết transaction. finalize (dùng lại / copy object
+        theo nội dung) và purge (xóa object) cùng lấy khóa này, nên purge chỉ quyết định xóa sau
+        khi mọi finalize cùng nội dung đã commit, và finalize luôn HEAD lại sau purge."""
+        with self._tx() as cur:
+            cur.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended('xt:files:obj:' || %s || ':' || %s,"
+                " 0))",
+                (str(self.actor.tenant.id), sha256),
+            )
+
+    def linked_records(
+        self, tenant_seq: int, fields: list[tuple[str, str]], file_id: UUID
+    ) -> list[str]:
+        """Bản ghi (`model:id`) mà người gọi THẤY được qua RLS có field kiểu `file` trỏ tới tệp
+        (R2-F5: quyền đọc tệp đi theo quyền đọc bản ghi). `fields` = [(model, field)]."""
+        lay = Layout(tenant_seq)
+        out: list[str] = []
+        with self._tx() as cur:
+            for model, col in fields:
+                q = sql.SQL("SELECT id FROM {} WHERE {} = %s LIMIT 20").format(
+                    lay.table(model), sql.Identifier(col)
+                )
+                cur.execute("SAVEPOINT xt_files_link")
+                try:
+                    rows = cur.execute(q, (file_id,)).fetchall()
+                except psycopg.Error:  # bảng chưa áp / không có quyền: bỏ qua model này
+                    cur.execute("ROLLBACK TO SAVEPOINT xt_files_link")
+                    continue
+                cur.execute("RELEASE SAVEPOINT xt_files_link")
+                out += [f"{model}:{r['id']}" for r in rows]
+        return out
 
     def expired_pending(self, limit: int) -> list[FileRow]:
         with self._tx() as cur:

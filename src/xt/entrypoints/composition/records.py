@@ -132,6 +132,8 @@ class RecordServiceAdapter:
         transitions: Callable[[CallContext, Args], MutationPlan] | None = None,
         transition_commit: Callable[[CallContext, MutationPlan], CommitResult] | None = None,
         model_changes: ModelChangeDecisions | None = None,
+        step_transitions: Callable[[Caller, str, UUID, Mapping[str, Any]], list[Data]]
+        | None = None,
     ) -> None:
         if len(cursor_key) < 32:
             raise ValueError("cursor signing key must contain at least 32 bytes")
@@ -141,6 +143,7 @@ class RecordServiceAdapter:
         self.transitions = transitions
         self.transition_commit = transition_commit
         self.model_changes = model_changes
+        self.step_transitions = step_transitions
 
     # ---- tiện ích ----------------------------------------------------------------------------
     def _model(self, actor: ModelActor, name: str) -> tuple[int, ModelSpec]:
@@ -254,7 +257,11 @@ class RecordServiceAdapter:
             if exc.code in (ErrorCode.NOT_FOUND, ErrorCode.ACCESS_DENIED):
                 return None
             raise
-        return {"record": self.record_out(caller, model, raw, ver, args.get("fields"))}
+        rec = self.record_out(caller, model, raw, ver, args.get("fields"))
+        if self.step_transitions is not None:
+            # Bước quy trình người gọi đang giữ trên bản ghi (complete_via) -> transition_record.
+            rec["available_transitions"] = self.step_transitions(caller, name, rid, raw)
+        return {"record": rec}
 
     _OPS: ClassVar[dict[str, str]] = {
         "eq": "=",

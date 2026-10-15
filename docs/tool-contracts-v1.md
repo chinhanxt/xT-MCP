@@ -1932,7 +1932,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 
 - Mức: **L3** · effects: `mutates_records, enqueues_work, notifies_internal, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
 - Kích thước: input 1421 B, data 1898 B, outputSchema (envelope) 2965 B.
-- Ghi chú: `(current_state, to_state)` xác định duy nhất transition. Level do transition khai báo. Request: chỉ `withdrawn`; state khác → `precondition_failed` + continuation `submit_request`/`decide_request`. `depends_on` chưa xong → `precondition_failed` reason `dependency_open`.
+- Ghi chú: `(current_state, to_state)` xác định duy nhất transition. Level do transition khai báo. Request: chỉ `withdrawn`; state khác → `precondition_failed` + continuation `submit_request`/`decide_request`. `depends_on` chưa xong → `precondition_failed` reason `dependency_open`. Bước người của quy trình không gắn đề nghị (`complete_via` trong ProcessSpec, D-STEP): chỉ người được giao bước, level = `autonomy` của bước (`human_only` → L3 + người xác nhận = người được giao); `get_inbox` trả `ref`/`revision`/`to_states`.
 
 ```json
 {

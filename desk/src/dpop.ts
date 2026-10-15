@@ -6,6 +6,8 @@
 export interface KeyStore {
   get(): Promise<CryptoKeyPair | undefined>;
   put(pair: CryptoKeyPair): Promise<void>;
+  /** Xóa cặp khóa (đăng xuất, audit DPA-03): lần ký sau sinh khóa mới. */
+  clear(): Promise<void>;
 }
 
 export interface PublicJwk {
@@ -19,6 +21,8 @@ export interface PublicJwk {
 export interface DpopProver {
   thumbprint(): Promise<string>;
   proof(htm: string, htu: string, opts?: { accessToken?: string; ath?: string }): Promise<string>;
+  /** Bỏ khóa hiện tại (xóa khỏi kho); người đăng nhập sau nhận jkt khác. */
+  reset?(): Promise<void>;
 }
 
 export const b64url = (b: ArrayBuffer | Uint8Array): string => {
@@ -46,6 +50,7 @@ export function memoryKeyStore(): KeyStore {
   return {
     get: async () => pair,
     put: async (p) => void (pair = p),
+    clear: async () => void (pair = undefined),
   };
 }
 
@@ -86,6 +91,9 @@ export function indexedDbKeyStore(idb: IDBFactory | undefined = globalThis.index
     async put(p) {
       await tx("readwrite", (s) => s.put({ privateKey: p.privateKey, publicKey: p.publicKey }, KEY));
     },
+    async clear() {
+      await tx("readwrite", (s) => s.delete(KEY));
+    },
   };
 }
 
@@ -104,10 +112,22 @@ interface Loaded {
 
 export class DpopSigner implements DpopProver {
   private subtle: SubtleCrypto;
+  private store: KeyStore;
   private loaded: Promise<Loaded> | null = null;
 
   constructor(private o: DpopOptions = {}) {
     this.subtle = o.subtle ?? globalThis.crypto.subtle;
+    this.store = o.store ?? memoryKeyStore();
+  }
+
+  /** Đăng xuất: quên cặp khóa trong bộ nhớ và xóa khỏi kho (IndexedDB). */
+  async reset(): Promise<void> {
+    this.loaded = null;
+    try {
+      await this.store.clear();
+    } catch {
+      /* kho không dùng được: khóa vốn chỉ sống trong bộ nhớ, đã bỏ ở trên */
+    }
   }
 
   private gen() {
@@ -116,7 +136,7 @@ export class DpopSigner implements DpopProver {
 
   /** Nạp cặp khóa đã lưu, chưa có thì sinh + lưu. Kho lỗi (không có IndexedDB) => cặp khóa trong bộ nhớ cho trang này. */
   private async loadPair(): Promise<CryptoKeyPair> {
-    const store = this.o.store ?? memoryKeyStore();
+    const store = this.store;
     let pair: CryptoKeyPair | undefined;
     try {
       pair = await store.get();

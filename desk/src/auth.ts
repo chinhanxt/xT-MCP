@@ -19,6 +19,7 @@ export function createSession(): OidcSession {
       clientId: config.oidcClientId,
       scope: config.oidcScope,
       redirectUri: `${location.origin}${CALLBACK_PATH}`,
+      postLogoutRedirectUri: `${location.origin}/`,
     },
     {
       fetch: (...a) => fetch(...a),

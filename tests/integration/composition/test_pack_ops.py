@@ -80,13 +80,52 @@ class Ops:
     tenant: TenantRef
     plans: dict[str, str]
     dispatcher: Any = None
+    alias: str = ALIAS
+
+    def sub(self, key: str) -> str:
+        return f"kc-{self.alias}-{key}"
+
+    def agent(self, key: str) -> Actor:
+        return Actor(self.alias, self.sub(key), PrincipalKind.AGENT, AGENT_CLIENT, self.sub(key))
 
     def tool(self, key: str, name: str, args: dict[str, Any]) -> dict[str, Any]:
         """Agent (it-agent, trần L1) đại diện người `key` gọi tool qua dispatcher thật của MCP."""
-        actor = Actor(ALIAS, subject(key), PrincipalKind.AGENT, AGENT_CLIENT, subject(key))
-        ctx = CallContext(actor, ClientClass.CLOUD, f"it-{uuid.uuid4().hex[:8]}", datetime.now(UTC))
+        ctx = CallContext(
+            self.agent(key), ClientClass.CLOUD, f"it-{uuid.uuid4().hex[:8]}", datetime.now(UTC)
+        )
         out: dict[str, Any] = self.dispatcher.call(name, args, ctx).envelope
         return out
+
+    def confirm(self, pending: dict[str, Any], by: str, agent_of: str) -> Any:
+        """Người `by` bấm xác nhận trên Desk (sau step-up) cho thao tác agent của `agent_of` tạo:
+        đúng đường ConfirmationService của trang /desk/confirm."""
+        from xt.application.tools import ConfirmationService
+
+        assert pending["error"]["code"] == "confirmation_required", pending
+        cid = pending["error"]["details"]["confirmation_id"]
+        actor, trace = self.agent(agent_of), f"it-{uuid.uuid4().hex[:8]}"
+        svc = ConfirmationService(self.dispatcher, DESK_CLIENT)
+        return self.rt.run_as(
+            self.rt.resolve(actor, trace),
+            actor,
+            lambda: svc.confirm(cid, self.sub(by), datetime.now(UTC), trace),
+        )
+
+    def complete(
+        self, key: str, ref: str, to_state: str, key_id: str, **extra: Any
+    ) -> dict[str, Any]:
+        """transition_record của bước người do agent của `key` gửi (revision đọc từ inbox)."""
+        item = self.inbox_item(key, ref)
+        args = {"ref": ref, "to_state": to_state, "expected_revision": item["revision"],
+                "idempotency_key": key_id, **extra}  # fmt: skip
+        return self.tool(key, "transition_record", args)
+
+    def inbox_item(self, key: str, ref: str) -> dict[str, Any]:
+        out = self.tool(key, "get_inbox", {"kinds": ["task", "approval"], "limit": 200})
+        assert out["ok"], out
+        found = [i for i in out["data"]["items"] if i["ref"] == ref]
+        assert found, (key, ref, out["data"]["items"])
+        return dict(found[0])
 
     def pid(self, key: str) -> str:
         return str(person_id(self.tenant.id, key))
@@ -203,10 +242,10 @@ def ops(
 
 
 def test_packs_install_with_registered_ops(ops: Ops) -> None:
-    assert "task_normal v2" in ops.plans["giao-viec-sla"]
+    assert "task_normal v3" in ops.plans["giao-viec-sla"]
     assert "weekly_digest v3" in ops.plans["giao-viec-sla"]
-    assert "employee_onboarding v3" in ops.plans["nhan-su-vong-doi"]
-    assert "employee_offboarding v2" in ops.plans["nhan-su-vong-doi"]
+    assert "employee_onboarding v4" in ops.plans["nhan-su-vong-doi"]
+    assert "employee_offboarding v3" in ops.plans["nhan-su-vong-doi"]
 
 
 def test_task_normal_happy_path_closes_task(ops: Ops) -> None:
@@ -352,7 +391,9 @@ def test_offboarding_happy_path_with_unreturned_asset(ops: Ops) -> None:
     tasks = ops.search(
         "lifecycle_task", {"field": "lifecycle_case", "op": "=", "value": case["id"]}
     )
-    assert sorted(t["owner_unit"] for t in tasks) == ["accounting", "hr", "hr", "it", "manager"]
+    assert sorted(t["owner_unit"] for t in tasks) == [
+        "accounting", "chief_accountant", "hr", "hr", "it", "manager"
+    ]  # fmt: skip
     assert ops.steps(ops.act(iid, "hr_confirm", "NV-0003")) == {"manager", "it", "accounting"}
     ops.act(iid, "manager", "NV-0009")
     ops.act(iid, "it", "NV-0005")
@@ -376,6 +417,8 @@ def test_offboarding_happy_path_with_unreturned_asset(ops: Ops) -> None:
     assert ops.get("employee", emp["id"])["state"] == "resigned"
     c = ops.get("lifecycle_case", case["id"])
     assert c["state"] == "completed" and c["closed_at"]
+    tasks = ops.search("lifecycle_task", _of_case(case))
+    assert {t["state"] for t in tasks} == {"done"}  # kế toán trưởng đã xử lý -> không "skipped"
 
 
 # ------------------------------------------------------------------------------- W9 SoD ----
@@ -677,3 +720,192 @@ def test_timer_fire_migration_is_idempotent(pg: pgfixture.Pg) -> None:
         ).fetchone()
         with m.transaction():
             m.execute(body.encode())
+
+
+# ------------------------------- bước người qua transition_record (complete_via, D-STEP) ----
+def _task(ops: Ops, no: str, title: str) -> dict[str, Any]:
+    kinds = ops.search("task_type", {"field": "code", "op": "=", "value": "bao_cao"})
+    if not kinds:
+        kinds = [ops.create("NV-0001", "task_type", {"code": "bao_cao", "name": "Báo cáo"})]
+    kind = kinds[0]
+    return ops.create(
+        "NV-0009",
+        "task",
+        {"task_no": no, "title": title, "kind": kind["id"], "assigner": ops.pid("NV-0009"),
+         "assignee": ops.pid("NV-0010"), "deadline": "2099-12-31T17:00:00+07:00",
+         "done_criteria": "Có số liệu đầy đủ"},
+    )  # fmt: skip
+
+
+def _start_task(ops: Ops, task: dict[str, Any], key: str, **extra: Any) -> str:
+    args: dict[str, Any] = {
+        "process_id": "task_normal",
+        "subject_ref": f"task:{task['id']}",
+        "parameters": {"assignee_user": f"person:{ops.pid('NV-0010')}", "assigner_user": "me"},
+        "idempotency_key": key,
+        **extra,
+    }
+    out = ops.tool("NV-0009", "start_process", args)
+    assert out["ok"], out
+    return str(out["data"]["process_instance"]).split(":", 1)[1]
+
+
+def _instance(ops: Ops, iid: str) -> tuple[Any, dict[str, Any]]:
+    def body(_: Caller, pc: ProcessContext) -> tuple[Any, dict[str, Any]]:
+        return PgWorkflowStore(ops.rt.uow).get_for_update(iid), pc.service().get(iid)
+
+    out: tuple[Any, dict[str, Any]] = ops.run("NV-0001", body)
+    return out
+
+
+def _sla_left(ops: Ops, iid: str) -> timedelta:
+    rec, _ = _instance(ops, iid)
+    assert rec.next_due is not None
+    return rec.next_due - datetime.now(UTC)
+
+
+def test_task_normal_steps_complete_via_transition_record(ops: Ops) -> None:
+    """assign -> accept -> work -> nghiệm thu -> done bằng transition_record trên chính task:
+    người được giao + IAM + SoD + mức tự chủ của bước (accept/work L1, nghiệm thu human_only),
+    SLA từng bước vẫn hẹn đúng."""
+    from xt.application.tools.ports import PendingStatus
+
+    task = _task(ops, "CV-2026-0301", "Báo cáo công nợ quý")
+    ref = f"task:{task['id']}"
+    iid = _start_task(ops, task, "it-step-start-0301")
+    assert timedelta(hours=3, minutes=50) < _sla_left(ops, iid) <= timedelta(hours=4)
+
+    item = ops.inbox_item("NV-0010", ref)  # inbox người làm: ref = task, tool = transition_record
+    assert (item["kind"], item["step"], item["state"]) == ("task", "accept", "new"), item
+    assert item["suggested_tool"] == "transition_record" and item["to_states"] == ["accepted"]
+    assert item["sla_status"] == "on_track" and item["due_at"]
+    assert item["title"] == "Xác nhận nhận việc: Báo cáo công nợ quý"
+
+    # Người giao không giữ bước accept: không hoàn thành thay được.
+    other = ops.tool(
+        "NV-0009",
+        "transition_record",
+        {"ref": ref, "to_state": "accepted", "expected_revision": item["revision"],
+         "idempotency_key": "it-step-0301-x"},
+    )  # fmt: skip
+    assert other["error"]["code"] == "access_denied", other
+    assert other["error"]["details"]["reason"] == "not_assigned"
+
+    acc = ops.complete("NV-0010", ref, "accepted", "it-step-0301-acc")
+    assert acc["ok"], acc
+    assert acc["meta"]["effective_level"] == "L1"  # autonomy L1 của bước: agent làm ngay
+    rec = acc["data"]["record"]
+    assert (acc["data"]["from_state"], rec["state"]) == ("new", "accepted")
+    assert rec["available_transitions"] == [
+        {"to_state": "awaiting_acceptance", "label": "Hoàn thành và nộp kết quả (done)",
+         "level": "L1"}
+    ]  # fmt: skip
+    assert timedelta(hours=71, minutes=50) < _sla_left(ops, iid) <= timedelta(hours=72)
+
+    wrong = ops.complete("NV-0010", ref, "done", "it-step-0301-bad")
+    assert wrong["error"]["code"] == "precondition_failed", wrong
+    assert wrong["error"]["details"]["available_transitions"] == ["awaiting_acceptance"]
+    no_result = ops.complete("NV-0010", ref, "awaiting_acceptance", "it-step-0301-w0")
+    assert no_result["error"]["code"] == "rule_violation", no_result  # rule r1 của model task
+    work = ops.complete(
+        "NV-0010", ref, "awaiting_acceptance", "it-step-0301-w1",
+        values={"result": "Đã gửi báo cáo công nợ"},
+    )  # fmt: skip
+    assert work["ok"], work
+    assert work["data"]["record"]["state"] == "awaiting_acceptance"
+    assert timedelta(hours=47, minutes=50) < _sla_left(ops, iid) <= timedelta(hours=48)
+
+    # Người làm không tự nghiệm thu (không phải người được giao bước + SoD distinct_from work).
+    item = ops.inbox_item("NV-0009", ref)
+    assert item["kind"] == "approval" and item["suggested_tool"] == "transition_record"
+    assert item["to_states"] == ["done", "in_progress", "not_accepted"]
+    self_ok = ops.tool(
+        "NV-0010",
+        "transition_record",
+        {"ref": ref, "to_state": "done", "expected_revision": item["revision"],
+         "idempotency_key": "it-step-0301-self"},
+    )  # fmt: skip
+    assert self_ok["error"]["code"] in ("access_denied", "not_found"), self_ok
+    got = ops.tool("NV-0009", "get_record", {"ref": ref})
+    assert got["ok"], got
+    assert {t["to_state"]: t["level"] for t in got["data"]["record"]["available_transitions"]} == {
+        "done": "L3", "in_progress": "L3", "not_accepted": "L3"
+    }  # fmt: skip
+
+    # Nghiệm thu là human_only: agent của người giao chỉ tạo yêu cầu xác nhận.
+    args = {"ref": ref, "to_state": "done", "expected_revision": item["revision"],
+            "reason": "Đạt", "idempotency_key": "it-step-0301-ok"}  # fmt: skip
+    pending = ops.tool("NV-0009", "transition_record", args)
+    assert pending["error"]["code"] == "confirmation_required", pending
+    assert ops.get("task", task["id"])["state"] == "awaiting_acceptance"
+    by_worker = ops.confirm(pending, "NV-0010", "NV-0009")
+    assert by_worker.status is not PendingStatus.CONFIRMED and by_worker.error, by_worker
+    confirmed = ops.confirm(pending, "NV-0009", "NV-0009")
+    assert confirmed.status is PendingStatus.CONFIRMED, confirmed
+    done = ops.tool("NV-0009", "transition_record", args)
+    assert done["ok"] and done["meta"]["receipt"]["replayed"] is True, done
+    assert done["data"]["record"]["state"] == "done"
+
+    row = ops.get("task", task["id"])
+    assert row["state"] == "done" and int(row["progress"]) == 100 and row["completed_at"]
+    assert row["result"] == "Đã gửi báo cáo công nợ" and row["process_instance_id"] == iid
+    logs = ops.search("sla_log", {"field": "task", "op": "=", "value": task["id"]})
+    assert [x["event"] for x in logs] == ["completed_on_time"]
+    _, info = _instance(ops, iid)
+    assert info["status"] == "completed" and not info["tasks"]
+    assert [(h["step"], h["outcome"]) for h in info["history"]] == [
+        ("accept", "done"), ("work", "done"), ("acceptance", "approve")
+    ]  # fmt: skip
+    late = ops.tool(
+        "NV-0010",
+        "transition_record",
+        {"ref": ref, "to_state": "accepted", "expected_revision": int(row["revision"]),
+         "idempotency_key": "it-step-0301-late"},
+    )  # fmt: skip
+    assert late["error"]["code"] in ("precondition_failed", "not_found"), late
+
+
+def test_task_normal_return_and_sla_escalation(ops: Ops, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Nghiệm thu không đạt -> task về in_progress, bước work mở lại cho người làm; quá SLA PT4H
+    của accept -> leo thang người giao (đúng spec), người nhận leo thang hoàn thành được."""
+    import SpiffWorkflow.bpmn.specs.event_definitions.timer as spiff_timer
+
+    from tests.unit.process.support import FakeDT
+
+    # Leo thang: instance mới, đồng hồ của timer SpiffWorkflow tiến 5 giờ.
+    task = _task(ops, "CV-2026-0302", "Kiểm kê kho")
+    ref = f"task:{task['id']}"
+    FakeDT.offset = timedelta(0)
+    monkeypatch.setattr(spiff_timer, "datetime", FakeDT)
+    try:
+        iid = _start_task(ops, task, "it-step-start-0302")
+        FakeDT.offset = timedelta(hours=5)
+        ops.run("NV-0001", lambda _, pc: pc.service().tick(iid))
+    finally:
+        FakeDT.offset = timedelta(0)
+    _, info = _instance(ops, iid)
+    (t,) = info["tasks"]
+    assert (t["step"], t["candidates"]) == ("accept", [ops.pid("NV-0009")]), t
+    item = ops.inbox_item("NV-0009", ref)
+    assert item["suggested_tool"] == "transition_record" and item["to_states"] == ["accepted"]
+    acc = ops.complete("NV-0009", ref, "accepted", "it-step-0302-acc")
+    assert acc["ok"], acc
+    work = ops.complete("NV-0010", ref, "awaiting_acceptance", "it-step-0302-w",
+                        values={"result": "Bảng kiểm kê"})  # fmt: skip
+    assert work["ok"], work
+    item = ops.inbox_item("NV-0009", ref)
+    noreason = ops.tool(
+        "NV-0009", "transition_record",
+        {"ref": ref, "to_state": "in_progress", "expected_revision": item["revision"],
+         "idempotency_key": "it-step-0302-r0"},
+    )  # fmt: skip
+    assert noreason["error"]["code"] == "invalid_request", noreason
+    args = {"ref": ref, "to_state": "in_progress", "expected_revision": item["revision"],
+            "reason": "Thiếu kho Bình Dương", "idempotency_key": "it-step-0302-ret"}  # fmt: skip
+    pending = ops.tool("NV-0009", "transition_record", args)
+    ops.confirm(pending, "NV-0009", "NV-0009")
+    back = ops.tool("NV-0009", "transition_record", args)
+    assert back["ok"], back
+    assert ops.get("task", task["id"])["state"] == "in_progress"
+    item = ops.inbox_item("NV-0010", ref)
+    assert item["step"] == "work" and item["to_states"] == ["awaiting_acceptance"]

@@ -277,6 +277,7 @@ def test_maintenance_expires_abandoned_and_purges_deleted() -> None:
     repo.now = NOW + timedelta(days=4)
     m.expire_and_purge(repo, repo.now)
     assert not store.objects and repo.actions(twin.id)[-1] == "purged"
+    assert hashlib.sha256(PDF).hexdigest() in repo.locks  # R2-F3: purge giữ khóa nội dung
 
 
 def test_text_checked_beyond_sniff_window() -> None:
@@ -292,7 +293,12 @@ def test_text_checked_beyond_sniff_window() -> None:
 
 @pytest.mark.parametrize(
     ("policy", "alice", "bob"),
-    [("deny", False, False), ("uploader", True, False), ("allow", True, True)],
+    [
+        ("deny", False, False),
+        ("uploader", True, False),
+        ("readers", True, True),
+        ("allow", True, True),
+    ],
 )
 def test_unscanned_download_policy(policy: str, alice: bool, bob: bool) -> None:
     m, _, _ = mgr(unscanned_download=policy)

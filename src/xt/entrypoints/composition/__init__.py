@@ -246,7 +246,9 @@ class Composition:
             transitions=process.plan_transition,
             transition_commit=process.commit,
             model_changes=model_changes,
+            step_transitions=process.available_steps,
         )
+        process.record_view = records
         return ToolServices(
             access=guard,
             workspace=Workspace(rt, settings),
@@ -283,13 +285,21 @@ class Composition:
             self.runtime, dispatcher, cfg.confirm, verifier, receipts, model_changes=decisions
         )
 
+    def _dpop_replay(self) -> Any:
+        """Cùng bảng `xt_identity.dpop_jti` với /mcp khi `XT_DPOP_REPLAY_STORE=postgres`."""
+        if self.config.dpop.replay_store != "postgres":
+            return None
+        from xt.adapters.db.dpop_replay import PgDpopReplayStore
+
+        return PgDpopReplayStore(self.runtime.app_db)
+
     def reveal(self) -> PiiReveal:
         if self._reveal is None:
             self._reveal = PiiReveal(
                 self.runtime,
                 ToolAccessGuard(self.runtime),
                 self.config.reveal,
-                dpop=DpopVerifier(self.config.dpop),
+                dpop=DpopVerifier(self.config.dpop, self._dpop_replay()),
             )
         return self._reveal
 

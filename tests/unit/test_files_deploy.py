@@ -35,8 +35,10 @@ def compose(tmp_path_factory: pytest.TempPathFactory) -> dict:  # type: ignore[t
     lines = []
     for line in (DEPLOY / ".env.example").read_text(encoding="utf-8").splitlines():
         key = line.split("=", 1)[0]
-        if "=" in line and not line.startswith("#") and (
-            key in SECRETS or key.endswith(("PASSWORD", "SECRET"))
+        if (
+            "=" in line
+            and not line.startswith("#")
+            and (key in SECRETS or key.endswith(("PASSWORD", "SECRET")))
         ):
             line = f"{key}=test-{key.lower()}-0123456789"
         lines.append(line)

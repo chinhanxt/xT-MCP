@@ -154,14 +154,18 @@ class InstanceTask:
     kind: str
     outcomes: tuple[str, ...]
     assignees: tuple[str, ...]
+    # Bản ghi chủ thể của bước (`complete_via`): khóa thao tác POST /tasks/{ref}/decision.
+    ref: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class InstanceView:
-    """Trạng thái engine của một instance (không có comment/biến: chúng có thể mang PII)."""
+    """Trạng thái engine của một instance (không có comment/biến: chúng có thể mang PII).
+    `ref` = bản ghi gắn instance (đề nghị/subject); None = instance không gắn bản ghi (backend chỉ
+    trả cho người tham gia: người khởi tạo, người đang/đã giữ bước)."""
 
     instance_id: str
-    ref: str
+    ref: str | None
     process_id: str
     version: int
     status: str
@@ -180,6 +184,14 @@ class WorkflowBackend(Protocol):
 
     def instance_ref(self, actor: Actor, trace_id: str, instance_id: str) -> str | None:
         """Chỉ ref đề nghị của instance (một truy vấn, không nạp engine)."""
+        ...
+
+    def step_state(
+        self, actor: Actor, trace_id: str, ref: str, decision: str, idempotency_key: str = ""
+    ) -> str | None:
+        """Bản ghi `ref` là chủ thể (`complete_via`) của bước người gọi đang giữ: trạng thái đích
+        ứng với `decision` (approve/reject/return_for_revision). None = không phải bước như vậy
+        (đi decide_request như đề nghị)."""
         ...
 
 
@@ -381,6 +393,11 @@ DECISION_BODY: dict[str, Any] = {
         "reason": _tool_prop("decide_request", "reason"),
         "delegate_to": _tool_prop("decide_request", "delegate_to"),
         "expected_revision": _tool_prop("decide_request", "expected_revision"),
+        "values": {
+            **_tool_prop("transition_record", "values"),
+            "description": "Chỉ cho bước người gắn bản ghi chủ thể (không phải đề nghị): trường"
+            ' ghi cùng lúc hoàn thành bước, ví dụ {"result": "Đã gửi báo cáo"}.',
+        },
     },
 }
 
@@ -440,7 +457,10 @@ INSTANCE = _envelope(
         "required": ["instance", "request"],
         "properties": {
             "instance": INSTANCE_STATE,
-            "request": _tool_out("get_record")["properties"]["record"],
+            "request": {
+                "anyOf": [_tool_out("get_record")["properties"]["record"], {"type": "null"}],
+                "description": "Bản ghi gắn instance; null khi instance không gắn bản ghi.",
+            },
         },
     }
 )
@@ -462,7 +482,7 @@ STARTED = _envelope(
     }
 )
 INBOX = _envelope(_tool_out("get_inbox"))
-DECIDED = _envelope(_tool_out("decide_request"))
+DECIDED = _envelope({"anyOf": [_tool_out("decide_request"), _tool_out("transition_record")]})
 WITHDRAWN = _envelope(_tool_out("transition_record"))
 
 _BODY_VALIDATORS = {
@@ -576,8 +596,9 @@ OPERATIONS: tuple[Operation, ...] = (
         "get_instance",
         "GET",
         "/instances/{instance_id}",
-        "Trạng thái instance + đề nghị gắn với nó.",
-        ("get_record",),
+        "Trạng thái instance + bản ghi gắn với nó (null nếu không gắn; khi đó chỉ người tham gia"
+        " quy trình xem được).",
+        ("get_record", "describe_process"),
         {200: ("Instance.", INSTANCE), **_COMMON_ERRORS},
         (Param("instance_id", "path", {"type": "string", "format": "uuid"}, True),),
     ),
@@ -615,9 +636,11 @@ OPERATIONS: tuple[Operation, ...] = (
         "decide_task",
         "POST",
         "/tasks/{task_id}/decision",
-        "Quyết định bước đang chờ của một đề nghị (task_id = ref trong inbox). Agent luôn nhận "
-        "428 confirmation_required + confirm_url; người xác nhận trên Desk rồi agent gửi lại.",
-        ("decide_request",),
+        "Quyết định bước đang chờ của một đề nghị, hoặc hoàn thành bước người của quy trình không"
+        " gắn đề nghị (task_id = ref bản ghi chủ thể trong inbox; đi transition_record theo mức tự"
+        " chủ của bước). Bước duyệt/human_only: 428 confirmation_required + confirm_url; người"
+        " xác nhận trên Desk rồi gửi lại.",
+        ("decide_request", "transition_record"),
         {
             200: ("Đã thực hiện (sau khi người xác nhận).", DECIDED),
             **_WRITE_ERRORS,
@@ -1122,7 +1145,12 @@ class WorkflowApi:
         view = await self._view(request, ctx)
         iid = view.instance_id
         # IAM + RLS bản ghi qua đúng tool đọc; chỉ sau khi được phép mới trả trạng thái engine.
-        got = await self._tool("get_record", {"ref": view.ref}, ctx)
+        # Instance không gắn bản ghi: backend đã lọc người tham gia; IAM `process.read` của quy
+        # trình qua describe_process (envelope + meta như mọi lời gọi).
+        if view.ref is None:
+            got = await self._describe(ctx, view.process_id)
+        else:
+            got = await self._tool("get_record", {"ref": view.ref}, ctx)
         if got.is_error:
             code = got.envelope.get("error", {}).get("code")
             if code in (ErrorCode.NOT_FOUND.value, ErrorCode.ACCESS_DENIED.value):
@@ -1131,10 +1159,15 @@ class WorkflowApi:
             return outcome_response(got)
         env = got.envelope
         tasks = []
+        action_ref: str | None = None
         for t in view.tasks:
+            # Khóa thao tác = ref đề nghị (decisions.md câu 4) hoặc ref bản ghi chủ thể của bước
+            # (complete_via), không phải id task của engine.
+            task_ref = t.ref or view.ref
+            if action_ref is None and task_ref and (t.ref or t.kind == "decision"):
+                action_ref = task_ref
             item: dict[str, Any] = {
-                # Khóa thao tác = ref đề nghị (decisions.md câu 4), không phải id task của engine.
-                "task_id": view.ref,
+                "task_id": task_ref or t.task_id,
                 "step": t.step,
                 "name": t.name,
                 "kind": t.kind,
@@ -1146,8 +1179,8 @@ class WorkflowApi:
             "self": _href("instances", iid),
             "definition": _href("definitions", view.process_id),
         }
-        if any(t.kind == "decision" for t in view.tasks):
-            links["decision"] = _href("tasks", view.ref, "decision")
+        if action_ref is not None:
+            links["decision"] = _href("tasks", action_ref, "decision")
         if view.status == "running":
             links["withdraw"] = _href("instances", iid, "withdraw")
         instance = {
@@ -1158,7 +1191,8 @@ class WorkflowApi:
             "tasks": tasks,
             "links": links,
         }
-        return _json(200, {**env, "data": {"instance": instance, "request": env["data"]["record"]}})
+        record = env["data"]["record"] if view.ref is not None else None
+        return _json(200, {**env, "data": {"instance": instance, "request": record}})
 
     async def withdraw_instance(self, request: Request, ctx: CallContext) -> Response:
         key = self._idempotency_key(request)
@@ -1215,7 +1249,10 @@ class WorkflowApi:
         items = []
         for it in env["data"].get("items") or []:
             it = dict(it)
-            if it.get("kind") == "approval" and isinstance(it.get("ref"), str):
+            actionable = it.get("kind") == "approval" or it.get("suggested_tool") == (
+                "transition_record"
+            )
+            if actionable and isinstance(it.get("ref"), str):
                 it["task_id"] = it["ref"]
                 it["links"] = {"decision": _href("tasks", it["ref"], "decision")}
             items.append(it)
@@ -1234,6 +1271,31 @@ class WorkflowApi:
                 "decision_not_supported",
                 "Use return_for_revision with a reason, or ask the requester outside xT.",
                 allowed=[k for k, v in DECISIONS.items() if v is not None],
+            )
+        step_state = getattr(self.backend, "step_state", None)
+        to_state = None
+        if step_state is not None and body["decision"] != "delegate":
+            to_state = await anyio.to_thread.run_sync(
+                step_state, ctx.actor, ctx.trace_id, task_id, str(body["decision"]), key
+            )
+        if to_state is not None:
+            # Bước người gắn bản ghi chủ thể: cùng service với MCP transition_record (IAM,
+            # người được giao, SoD, mức tự chủ của bước).
+            targs: dict[str, Any] = {
+                "ref": task_id,
+                "to_state": to_state,
+                "expected_revision": body["expected_revision"],
+                "idempotency_key": key,
+            }
+            for k in ("reason", "values"):
+                if k in body:
+                    targs[k] = body[k]
+            return outcome_response(await self._tool("transition_record", targs, ctx))
+        if "values" in body:
+            raise _invalid(
+                "values is only for process steps bound to a record (not for requests).",
+                "values_not_supported",
+                "Remove values; change the request with update_record before submitting.",
             )
         args: dict[str, Any] = {
             "ref": task_id,

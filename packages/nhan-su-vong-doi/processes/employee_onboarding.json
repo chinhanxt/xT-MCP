@@ -1,7 +1,7 @@
 {
   "id": "employee_onboarding",
   "name": "Tiếp nhận nhân sự mới (HR, IT, Kế toán, Quản lý)",
-  "version": 3,
+  "version": 4,
   "roles": [
     "hr",
     "it_admin",
@@ -40,6 +40,18 @@
       "sla": {
         "after": "PT24H",
         "escalate_to": "department_head('NS')"
+      },
+      "complete_via": {
+        "model": "lifecycle_task",
+        "match": {
+          "lifecycle_case": "case_id",
+          "step": "'hr'"
+        },
+        "states": {
+          "done": "done",
+          "skipped": "done"
+        },
+        "autonomy": "human_only"
       }
     },
     {
@@ -60,6 +72,18 @@
             "sla": {
               "after": "PT24H",
               "escalate_to": "department_head('IT')"
+            },
+            "complete_via": {
+              "model": "lifecycle_task",
+              "match": {
+                "lifecycle_case": "case_id",
+                "step": "'it'"
+              },
+              "states": {
+                "done": "done",
+                "skipped": "done"
+              },
+              "autonomy": "human_only"
             }
           }
         ],
@@ -72,6 +96,18 @@
             "sla": {
               "after": "PT24H",
               "escalate_to": "role(chief_accountant)"
+            },
+            "complete_via": {
+              "model": "lifecycle_task",
+              "match": {
+                "lifecycle_case": "case_id",
+                "step": "'accounting'"
+              },
+              "states": {
+                "done": "done",
+                "skipped": "done"
+              },
+              "autonomy": "human_only"
             }
           }
         ],
@@ -84,6 +120,18 @@
             "sla": {
               "after": "PT48H",
               "escalate_to": "department_head(department(employee_user))"
+            },
+            "complete_via": {
+              "model": "lifecycle_task",
+              "match": {
+                "lifecycle_case": "case_id",
+                "step": "'manager'"
+              },
+              "states": {
+                "done": "done",
+                "skipped": "done"
+              },
+              "autonomy": "human_only"
             }
           }
         ]
