@@ -149,7 +149,7 @@ def test_dlq_requeue_defers_a_new_fenced_job_and_purge_abandons(
     db = audit_db
     dsn = db.dsn("xt_control")
     old_id, job = _dead_job(db)
-    result = asyncio.run(requeue_dead(dsn, [old_id, old_id]))
+    result = asyncio.run(requeue_dead(dsn, [old_id]))
     new_id = result["requeued"][str(old_id)]
     assert new_id is not None and new_id != old_id
     assert db.execute(
