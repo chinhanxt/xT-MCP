@@ -336,6 +336,44 @@ class CliClient(unittest.TestCase):
         self.assertEqual(mod.cli_client_rep({"XT_CLI_CLIENT_ID": "x"})["clientId"], "x")
 
 
+class CliDropsMcpScope(unittest.TestCase):
+    def test_drop_mcp_scope_removes_optional_and_default(self):
+        mod = load("provision_t", "keycloak/provision.py")
+        calls = []
+
+        class K:
+            def call(self, method, path, body=None, ok=()):
+                calls.append((method, path, ok))
+
+        mod.drop_mcp_scope(K(), "xt", "CID", "SID")
+        self.assertEqual(calls, [
+            ("DELETE", "/realms/xt/clients/CID/optional-client-scopes/SID", (404,)),
+            ("DELETE", "/realms/xt/clients/CID/default-client-scopes/SID", (404,))])
+        src = (DEPLOY / "keycloak" / "provision.py").read_text()
+        self.assertIn("drop_mcp_scope(kc, realm, cli, mcp_sid)", src)
+
+
+class DeskNginx(unittest.TestCase):
+    def test_spa_fallback_and_security_headers(self):
+        conf = (DEPLOY.parent / "desk" / "nginx.conf").read_text()
+        self.assertRegex(conf, r"try_files\s+\$uri\s+/index\.html;")
+        self.assertIn("Content-Security-Policy", conf)
+        self.assertIn("frame-ancestors 'none'", conf)
+        self.assertIn("nosniff", conf)
+        df = (DEPLOY / "docker" / "desk.Dockerfile").read_text()
+        self.assertIn("COPY nginx.conf /etc/nginx/conf.d/default.conf", df)
+
+
+class ComposeDefaults(unittest.TestCase):
+    def test_xt_api_healthcheck_and_relay_default(self):
+        text = (DEPLOY / "compose.yaml").read_text()
+        api = text.split("\n  xt-api:\n", 1)[1].split("\n  xt-", 1)[0]
+        self.assertIn("healthcheck:", api)
+        self.assertIn("/healthz", api)
+        self.assertNotIn("XT_WORKFLOW_RELAY_SECONDS:-60", text)
+        self.assertIn("XT_WORKFLOW_RELAY_SECONDS:-15", text)
+
+
 class Realm(BaseHTTPRequestHandler):
     docs: dict = {}
     hits: list = []

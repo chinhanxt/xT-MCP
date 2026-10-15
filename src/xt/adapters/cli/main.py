@@ -8,7 +8,7 @@ import argparse
 import os
 import socket
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -20,6 +20,8 @@ UNKNOWN = "unknown"
 
 MIN_PYTHON = (3, 12)
 DATABASE_ENV = "XT_DATABASE_URL"
+# Dịch vụ thật dùng DSN theo vai trò: xt-api/xt-init `XT_DB_APP_URL`, xt-worker `XT_WORKER_DATABASE_URL`.
+DATABASE_ENV_FALLBACKS = ("XT_DB_APP_URL", "XT_WORKER_DATABASE_URL", "XT_QUEUE_DATABASE_URL")
 CONNECT_TIMEOUT_S = 3.0
 
 
@@ -42,7 +44,8 @@ def check_python() -> Check:
 def check_postgres(url: str | None) -> Check:
     """Chỉ kiểm tra TCP tới host:port trong URL; chưa xác thực/đăng nhập."""
     if not url:
-        return Check("postgres", UNKNOWN, f"{DATABASE_ENV} chưa đặt")
+        names = ", ".join((DATABASE_ENV, *DATABASE_ENV_FALLBACKS))
+        return Check("postgres", UNKNOWN, f"chưa đặt biến DSN nào trong: {names}")
     parsed = urlparse(url)
     if parsed.scheme not in ("postgres", "postgresql") or not parsed.hostname:
         return Check("postgres", FAIL, f"{DATABASE_ENV} không phải URL postgres hợp lệ")
@@ -55,8 +58,15 @@ def check_postgres(url: str | None) -> Check:
     return Check("postgres", OK, f"{host}:{port} TCP reachable (chưa xác thực đăng nhập)")
 
 
+def database_url(environ: Mapping[str, str]) -> str | None:
+    for name in (DATABASE_ENV, *DATABASE_ENV_FALLBACKS):
+        if environ.get(name):
+            return environ[name]
+    return None
+
+
 def run_doctor() -> int:
-    checks = [check_python(), check_postgres(os.environ.get(DATABASE_ENV))]
+    checks = [check_python(), check_postgres(database_url(os.environ))]
     for c in checks:
         print(f"{c.name}: {c.status} - {c.detail}")
     return 1 if any(c.status == FAIL for c in checks) else 0

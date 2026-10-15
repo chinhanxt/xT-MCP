@@ -256,6 +256,12 @@ def upsert_client(kc: KC, realm: str, rep: dict[str, Any]) -> str:
     return cid
 
 
+def drop_mcp_scope(kc: KC, realm: str, cid: str, mcp_sid: str) -> None:
+    """xt-cli chỉ dành cho /data /workflow /files headless: không được giữ mcp-xt ở bất kỳ loại nào."""
+    for kind in ("optional", "default"):
+        kc.call("DELETE", f"/realms/{realm}/clients/{cid}/{kind}-client-scopes/{mcp_sid}", ok=(404,))
+
+
 def set_client_scope(kc: KC, realm: str, cid: str, sid: str, kind: str) -> None:
     other = "optional" if kind == "default" else "default"
     kc.call("DELETE", f"/realms/{realm}/clients/{cid}/{other}-client-scopes/{sid}", ok=(404,))
@@ -438,7 +444,9 @@ def provision(kc: KC, env: dict[str, str]) -> None:
     mgmt = kc.get(f"/realms/{realm}/clients?clientId=realm-management")[0]["id"]
     vc = kc.get(f"/realms/{realm}/clients/{mgmt}/roles/view-clients")
     kc.call("POST", f"/realms/{realm}/users/{sa['id']}/role-mappings/clients/{mgmt}", [vc])   # chỉ view-clients
-    upsert_client(kc, realm, cli_client_rep(env))   # không gán mcp-xt; xt-data/xt-workflow cấp bởi provision_data.py
+    cli = upsert_client(kc, realm, cli_client_rep(env))
+    drop_mcp_scope(kc, realm, cli, mcp_sid)   # client mới kế thừa default-optional của realm: gỡ mcp-xt
+    # không gán mcp-xt; xt-data/xt-workflow cấp bởi provision_data.py
     ensure_dcr_policies(kc, realm, env_list(env, "XT_DCR_TRUSTED_HOSTS", "chatgpt.com,claude.ai"))
     hosts = env_list(env, "XT_DCR_TRUSTED_HOSTS", "chatgpt.com,claude.ai")
     ensure_dcr_client_policy(kc, realm, ["^" + h.replace(".", "\\.") + "$" for h in hosts if h not in ("localhost",)])

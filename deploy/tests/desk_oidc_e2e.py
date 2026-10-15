@@ -24,7 +24,9 @@ AUTH = env.get("XT_DOMAIN_AUTH", "xt-auth.freepro.online")
 DESK = f"https://{env.get('XT_DOMAIN_DESK', 'xt.freepro.online')}"
 CID = env.get("XT_DESK_AGENT_CLIENT_ID", "xt-desk-agent")
 DEV = [u for u in env.get("XT_DESK_AGENT_DEV_REDIRECTS", "http://localhost:5173/auth/callback,http://127.0.0.1:5173/auth/callback").split(",") if u]
-EXPECTED_REDIRECTS = sorted([f"{DESK}/auth/callback", *DEV])
+# Production (mặc định): KHÔNG loopback (docs/decisions.md, Tier PII). Chỉ XT_PROFILE=dev mới thêm loopback.
+PROFILE_DEV = env.get("XT_PROFILE", "").strip().lower() == "dev"
+EXPECTED_REDIRECTS = sorted([f"{DESK}/auth/callback", *(DEV if PROFILE_DEV else [])])
 APPROVER_ROLES = {"dept_head", "director", "chief_accountant", "payment_accountant", "hr", "hr_pii", "it_admin", "admin"}
 
 
@@ -86,7 +88,7 @@ def cmd_check():
           "chỉ authorization-code (implicit/ROPC tắt)")
     check(c["attributes"].get("pkce.code.challenge.method") == "S256", "pkce.code.challenge.method=S256")
     check(sorted(c["redirectUris"]) == EXPECTED_REDIRECTS and not any("*" in u for u in c["redirectUris"]),
-          f"redirectUris đúng danh sách tài liệu, không wildcard: {sorted(c['redirectUris'])}")
+          f"redirectUris đúng profile {'dev' if PROFILE_DEV else 'production'}, không wildcard: {sorted(c['redirectUris'])}")
     s, d, _ = adm("GET", f"/clients/{cid}/default-client-scopes")
     s, o, _ = adm("GET", f"/clients/{cid}/optional-client-scopes")
     check("mcp-xt" in [x["name"] for x in o] and "mcp-xt" not in [x["name"] for x in d], "mcp-xt là OPTIONAL scope (không default)")

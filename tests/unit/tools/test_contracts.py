@@ -281,6 +281,15 @@ def test_skills_tool_count_matches_catalog() -> None:
         assert m and int(m.group(1)) == len(CATALOG), skill
 
 
+def test_core_skills_only_name_core_10_tools() -> None:
+    """Eval qwen3.5:4b core-10: skill nêu tool ngoài hồ sơ -> 34 lời gọi tool ảo (docs/evals.md §5).
+    SKILL.md dùng ở mọi hồ sơ chỉ nêu tool core-10; tool của hồ sơ đầy đủ nằm ở references/."""
+    hidden = {c.name for c in CATALOG} - set(CORE_10)
+    for name in ("xt-core", "xt-approvals", "xt-tasks"):
+        text = (ROOT / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+        assert not [t for t in hidden if re.search(rf"\b{t}\b", text)], name
+
+
 # ---- khóa JSON trùng ------------------------------------------------------------------------
 
 

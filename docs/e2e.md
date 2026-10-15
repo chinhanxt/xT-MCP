@@ -58,3 +58,7 @@ Tổng: **6/12 PASS** (E2, E3, E4, E5, E6, E11). Chưa bàn giao được.
 4. `/files/v1` + SeaweedFS trong minimal (chặn E8).
 5. Độ trễ leo thang SLA: chu kỳ relay ngắn hơn hoặc đánh thức theo `due` (chặn E7).
 6. Cập nhật `deploy/tests/desk_oidc_e2e.py` theo profile (E9).
+
+## Độ trễ relay hẹn giờ SLA (E7)
+
+Leo thang trễ nhất ≈ SLA + `XT_WORKFLOW_RELAY_SECONDS` (chu kỳ relay outbox hẹn giờ -> hàng đợi) + thời gian worker nhận job (+ restart nếu có). Mặc định hạ từ 60 s xuống **15 s** (`deploy/compose.yaml`, `deploy/.env.example`; tối thiểu 5 s) để SLA PT2M leo thang trong ≤ 2x tick SLA (≤ 240 s, mục tiêu demo ~135 s). Relay là job tự hẹn lại theo mốc, mỗi tenant một chuỗi nên chi phí thấp; deploy có `.env` cũ phải đổi `XT_WORKFLOW_RELAY_SECONDS=15` rồi chạy lại `xt tenant bind-queue` nếu chuỗi relay đã chết.

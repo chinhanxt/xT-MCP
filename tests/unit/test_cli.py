@@ -29,6 +29,20 @@ def test_doctor_without_db_reports_unknown(
     assert "postgres: unknown" in out
 
 
+def test_doctor_reads_service_env_names(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in ("XT_DATABASE_URL", "XT_WORKER_DATABASE_URL", "XT_QUEUE_DATABASE_URL"):
+        monkeypatch.delenv(name, raising=False)
+    with socket.socket() as srv:
+        srv.bind(("127.0.0.1", 0))
+        srv.listen(1)
+        port = srv.getsockname()[1]
+        monkeypatch.setenv("XT_DB_APP_URL", f"postgresql://u:p@127.0.0.1:{port}/d")
+        assert main(["doctor"]) == 0
+    assert "postgres: ok" in capsys.readouterr().out
+
+
 def test_doctor_unreachable_db_fails(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

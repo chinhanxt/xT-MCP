@@ -127,7 +127,7 @@ services:
       XT_WORKER_MAX_ATTEMPTS: ${XT_WORKER_MAX_ATTEMPTS:-3}
       XT_WORKER_RETRY_SECONDS: ${XT_WORKER_RETRY_SECONDS:-30}
       XT_WORKER_HANDLERS: ${XT_WORKER_HANDLERS:-xt.entrypoints.composition.worker:handlers}
-      XT_WORKFLOW_RELAY_SECONDS: ${XT_WORKFLOW_RELAY_SECONDS:-60}
+      XT_WORKFLOW_RELAY_SECONDS: ${XT_WORKFLOW_RELAY_SECONDS:-15}
       # `docker compose run --rm xt-init xt tenant bind-queue --tenant <alias>` (job role + relay)
       XT_DB_OWNER_URL: postgresql://${POSTGRES_USER:-xt}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-xt}
     volumes:
@@ -154,6 +154,12 @@ services:
       dockerfile: deploy/docker/xt.Dockerfile
     profiles: [minimal, full, public]
     command: ["serve", "--transport", "http", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).status == 200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
     environment:
       <<: *xt-db-env
       XT_DB_APP_URL: postgresql://xt_app:${XT_DB_APP_PASSWORD:?chạy make env}@postgres:5432/${POSTGRES_DB:-xt}
@@ -315,7 +321,7 @@ services:
       XT_WORKER_MAX_ATTEMPTS: ${XT_WORKER_MAX_ATTEMPTS:-3}
       XT_WORKER_RETRY_SECONDS: ${XT_WORKER_RETRY_SECONDS:-30}
       XT_WORKER_HANDLERS: ${XT_WORKER_HANDLERS:-xt.entrypoints.composition.worker:handlers}
-      XT_WORKFLOW_RELAY_SECONDS: ${XT_WORKFLOW_RELAY_SECONDS:-60}   # chu kỳ relay hẹn giờ SLA + outbox model
+      XT_WORKFLOW_RELAY_SECONDS: ${XT_WORKFLOW_RELAY_SECONDS:-15}   # chu kỳ relay hẹn giờ SLA + outbox model
       # model.apply (đề xuất model đã duyệt): pha 1 DDL + pha 2 bằng role migrator
       XT_DB_MIGRATOR_URL: postgresql://xt_migrator:${XT_DB_MIGRATOR_PASSWORD:?chạy make env}@postgres:5432/${POSTGRES_DB:-xt}
     volumes:
