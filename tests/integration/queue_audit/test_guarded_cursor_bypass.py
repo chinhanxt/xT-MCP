@@ -206,7 +206,7 @@ def test_savepoint_and_rollback_to_savepoint_allowed(audit_db: AuditDatabase) ->
 
 def test_workflow_elevation_still_allowed(audit_db: AuditDatabase) -> None:
     """The single documented elevation (SET LOCAL ROLE xt_workflow) must pass the guard."""
-    error, probe = _attack(audit_db, ["SET LOCAL ROLE xt_workflow"], probe=True)
+    error, _probe = _attack(audit_db, ["SET LOCAL ROLE xt_workflow"], probe=True)
     # xt_job_t1 is not a member of xt_workflow, so PG rejects it -- but the GUARD
     # must let it through (defense-in-depth allows the elevation statement shape).
     assert not isinstance(error, SessionControlError), "guard blocked the allowed elevation"
