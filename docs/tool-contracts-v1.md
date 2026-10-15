@@ -2100,7 +2100,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 5.13. `upload_file`
 
 - Mức: **L1** · effects: `mutates_records, enqueues_work, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 1046 B, data 751 B, outputSchema (envelope) 1818 B.
+- Kích thước: input 1046 B, data 765 B, outputSchema (envelope) 1832 B.
 - Ghi chú: `text` chỉ khi `source=text`, `base64` chỉ khi `source=base64` (server kiểm). `put_url` đi qua APISIX, không lộ endpoint SeaweedFS.
 
 ```json
@@ -2110,10 +2110,26 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
   "description": "Store a file and get a file ref to put into a record field (attachment, invoice, contract). source=text for content you wrote; base64 for small binaries you actually hold; upload_link when the USER must attach a file (returns a one-time link for them). Read file text later with get_record(include=['text']). VD: 'Đính kèm hóa đơn khách sạn'",
   "max_autonomy": "L1",
   "human_only": false,
-  "effects_true": ["mutates_records", "enqueues_work", "idempotent"],
-  "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
-  "iam": ["file.create"],
-  "errors": ["invalid_request", "resource_constraint", "access_denied", "idempotency_conflict"],
+  "effects_true": [
+    "mutates_records",
+    "enqueues_work",
+    "idempotent"
+  ],
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": false
+  },
+  "iam": [
+    "file.create"
+  ],
+  "errors": [
+    "invalid_request",
+    "resource_constraint",
+    "access_denied",
+    "idempotency_conflict"
+  ],
   "ui_resource": null,
   "returns_untrusted_content": true,
   "input_schema": {
@@ -2127,10 +2143,18 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
         "maxLength": 255
       },
       "source": {
-        "enum": ["text", "base64", "upload_link"],
+        "enum": [
+          "text",
+          "base64",
+          "upload_link"
+        ],
         "description": "Where the bytes come from (see tool description)."
       },
-      "text": {"type": "string", "description": "File content when source=text (UTF-8).", "maxLength": 262144},
+      "text": {
+        "type": "string",
+        "description": "File content when source=text (UTF-8).",
+        "maxLength": 262144
+      },
       "base64": {
         "type": "string",
         "description": "Base64 bytes when source=base64 (limit in inspect_workspace.limits.max_inline_upload_bytes).",
@@ -2148,7 +2172,11 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
         "description": "Key you invent once per action (8-128 chars). Retrying the same action, also after the user confirmed: SAME key. New key = different action."
       }
     },
-    "required": ["name", "source", "idempotency_key"],
+    "required": [
+      "name",
+      "source",
+      "idempotency_key"
+    ],
     "additionalProperties": false
   },
   "output_schema": {
@@ -2157,26 +2185,73 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       "file": {
         "type": "object",
         "properties": {
-          "ref": {"type": "string"},
-          "name": {"type": "string"},
-          "content_type": {"type": ["string", "null"]},
-          "size_bytes": {"type": ["integer", "null"]},
-          "sha256": {"type": ["string", "null"]},
+          "ref": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "size_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "status": {
-            "enum": ["awaiting_upload", "scanning", "clean", "not_scanned", "infected", "expired"],
+            "enum": [
+              "awaiting_upload",
+              "scanning",
+              "clean",
+              "not_scanned",
+              "infected",
+              "scan_failed",
+              "expired"
+            ],
             "description": "Only clean or not_scanned files can be attached to submitted requests."
           }
         },
-        "required": ["ref", "name", "status"]
+        "required": [
+          "ref",
+          "name",
+          "status"
+        ]
       },
       "upload_url": {
-        "type": ["string", "null"],
+        "type": [
+          "string",
+          "null"
+        ],
         "description": "Give this link to the user: xT page (browser login) to attach the file."
       },
-      "put_url": {"type": ["string", "null"], "description": "Presigned HTTP PUT for programmatic clients (curl/CLI)."},
-      "expires_at": {"type": ["string", "null"]}
+      "put_url": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Presigned HTTP PUT for programmatic clients (curl/CLI)."
+      },
+      "expires_at": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
     },
-    "required": ["file"]
+    "required": [
+      "file"
+    ]
   },
   "examples": [
     {
@@ -2431,7 +2506,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 5.16. `create_task`
 
 - Mức: **L2** · effects: `mutates_records, enqueues_work, notifies_internal, idempotent` · annotations: readOnly=False, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 2592 B, data 703 B, outputSchema (envelope) 1770 B.
+- Kích thước: input 2626 B, data 703 B, outputSchema (envelope) 1770 B.
 - Ghi chú: Giao cho cấp dưới trực tiếp = L1 (policy mặc định), ngoài tuyến = L2. `due_at` bỏ trống → SLA của task type. `recurrence` tạo task con theo lịch bằng timer engine.
 
 ```json
@@ -2498,7 +2573,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
       },
       "recurrence": {
         "type": "string",
-        "description": "RFC 5545 RRULE, e.g. every Friday 'FREQ=WEEKLY;BYDAY=FR' (MO TU WE TH FR SA SU = Monday..Sunday).",
+        "description": "RFC 5545 RRULE, e.g. every Friday 'FREQ=WEEKLY;BYDAY=FR'. Thứ Hai MO, Ba TU, Tư WE, Năm TH, Sáu FR, Bảy SA, Chủ nhật SU.",
         "maxLength": 200,
         "pattern": "^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;[A-Z]+=[A-Z0-9,+-]+)*$"
       },
@@ -3640,10 +3715,10 @@ Ngân sách REA là ≤ 13.312 B mỗi input.
 | `create_record` | 0.1 | L2 | 1020 | 963 | 1704 | 2771 | 1459 | 4189 | 293 | 4/3 | F | F | T | F |
 | `update_record` | 0.1 | L2 | 1332 | 1275 | 1527 | 2594 | 1732 | 4285 | 257 | 5/4 | F | F | T | F |
 | `transition_record` | 0.1 | L3 | 1421 | 1364 | 1898 | 2965 | 1923 | 4847 | 357 | 6/4 | F | F | T | F |
-| `upload_file` | 0.1 | L1 | 1046 | 989 | 751 | 1818 | 1520 | 3297 | 341 | 6/3 | F | F | T | F |
+| `upload_file` | 0.1 | L1 | 1046 | 989 | 765 | 1832 | 1520 | 3311 | 341 | 6/3 | F | F | T | F |
 | `submit_request` | 0.1 | L2 | 767 | 710 | 896 | 1963 | 1126 | 3048 | 219 | 4/2 | F | F | T | F |
 | `decide_request` | 0.1 | human-only | 1308 | 1251 | 991 | 2058 | 2015 | 4032 | 566 | 6/4 | F | F | T | F |
-| `create_task` | 0.1 | L2 | 2592 | 2499 | 703 | 1770 | 2996 | 4725 | 307 | 13/3 | F | F | T | F |
+| `create_task` | 0.1 | L2 | 2626 | 2533 | 703 | 1770 | 3030 | 4759 | 307 | 13/3 | F | F | T | F |
 | `propose_model_change` | 0.1 | L1 | 8899 | 8827 | 988 | 2055 | 9338 | 11352 | 299 | 6/4 | F | F | T | F |
 | `start_process` | 1.0 | L3 | 1035 | 978 | 401 | 1468 | 1400 | 2827 | 227 | 4/2 | F | F | T | F |
 | `propose_process_change` | 1.0 | L1 | 2313 | 2241 | 505 | 1572 | 2713 | 4244 | 252 | 6/4 | F | F | T | F |
@@ -3652,9 +3727,9 @@ Ngân sách REA là ≤ 13.312 B mỗi input.
 
 | Tập | Số tool | Σ input (B) | Σ compact (B) | Σ data (B) | Σ outputSchema (B) | tools/list (B) | tools/list + outputSchema (B) | Token tool thật trên qwen3.5:4b |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| v0.1 | 17 | 28649 | 27471 | 25473 | 43612 | 35833 | 78748 | 8155 |
-| v1.0 (tất cả) | 21 | 33837 | 32416 | 26903 | 49310 | 42409 | 90858 | 9635 |
-| core-10 (model nhỏ) | 10 | 15046 | 14332 | 13022 | 23692 | 19450 | 42732 | 3916 |
+| v0.1 | 17 | 28683 | 27505 | 25487 | 43626 | 35867 | 78796 | 8155 |
+| v1.0 (tất cả) | 21 | 33871 | 32450 | 26917 | 49324 | 42443 | 90906 | 9635 |
+| core-10 (model nhỏ) | 10 | 15080 | 14366 | 13022 | 23692 | 19484 | 42766 | 3916 |
 
 Input lớn nhất: 8899 B (`propose_model_change`) = 66% ngân sách REA 13.312 B. Token tool đo bằng `prompt_eval_count` của ollama (`/api/chat`, template tool của qwen3.5) trừ baseline không có tool (71 token); chỉ gồm name/description/parameters, không gồm outputSchema (ollama không gửi).
 

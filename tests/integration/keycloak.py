@@ -41,7 +41,7 @@ def totp(raw: str, at: float | None = None, step: int = 30) -> str:
 
 
 def start_container(admin_password: str) -> None:
-    subprocess.run(["docker", "rm", "-f", CONTAINER], capture_output=True, check=False)
+    subprocess.run(["docker", "rm", "-f", "-v", CONTAINER], capture_output=True, check=False)
     subprocess.run(
         [
             "docker",
@@ -74,7 +74,7 @@ def start_container(admin_password: str) -> None:
 
 
 def stop_container() -> None:
-    subprocess.run(["docker", "rm", "-f", CONTAINER], capture_output=True, check=False)
+    subprocess.run(["docker", "rm", "-f", "-v", CONTAINER], capture_output=True, check=False)
 
 
 @dataclass

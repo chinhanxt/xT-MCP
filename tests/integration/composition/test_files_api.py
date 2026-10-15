@@ -484,7 +484,9 @@ def test_soft_delete_and_audit_chain(fstack: Stack, pg: pgfixture.Pg) -> None:
     acts = {json.loads(e[2])["new"]["action"] for e in file_events if json.loads(e[2]).get("new")}
     assert {"created", "uploaded", "finalized", "downloaded", "deleted"} <= acts
     blob = " ".join(e[2] for e in events)
-    assert "079123456789" not in blob and "redacted:sha256:" in blob
+    leaked = [e for e in events if "079123456789" in e[2]]
+    assert not leaked, leaked
+    assert "redacted:hmac:" in blob  # FB-04: HMAC có khóa, không phải sha256 trần
     with pg.su() as c:
         ok = c.execute("SELECT * FROM xt_audit.verify(%s)", (s.tenants[A].id,)).fetchone()
     assert ok is not None and ok[0] > 0 and ok[1] is None, ok  # chuỗi nguyên vẹn
@@ -535,8 +537,8 @@ async def test_mcp_upload_file_and_record_file_field(fstack: Stack) -> None:
         "model_id": "tai_lieu", "values": {"tieu_de": "Sai", "tep": f"file:{uuid.uuid4()}"},
         "idempotency_key": "it-files-mcp-rec-2"})  # fmt: skip
     assert not foreign["ok"], foreign
-    assert foreign["error"]["code"] in ("rule_violation", "invalid_request"), foreign
-    assert "tệp" in json.dumps(foreign["error"], ensure_ascii=False)
+    assert foreign["error"]["code"] == "invalid_request", foreign
+    assert foreign["error"]["details"]["reason"] == "file_not_attachable"  # FB-09
 
 
 def test_upload_file_capability_listed(fstack: Stack) -> None:

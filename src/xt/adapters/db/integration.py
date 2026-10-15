@@ -13,6 +13,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -79,6 +80,7 @@ class ProcessDefinition:
     allowed_ops: dict[str, list[str]]
     active: bool
     pack: str
+    created_at: datetime | None = None  # mốc `not_before` của poller timer start
 
 
 @dataclass(frozen=True, slots=True)
@@ -287,6 +289,7 @@ class PgIntegrationStore:
                 {k: list(v) for k, v in dict(r["allowed_ops"]).items()},
                 bool(r["active"]),
                 r["pack"],
+                r.get("created_at"),
             )
             for r in rows
         ]
@@ -309,6 +312,7 @@ class PgIntegrationStore:
             {k: list(v) for k, v in dict(r["allowed_ops"]).items()},
             bool(r["active"]),
             r["pack"],
+            r.get("created_at"),
         )
 
     def bindings(self, actor: ModelActor) -> dict[str, Binding]:

@@ -113,6 +113,7 @@ def xstack(
         "XT_FILES_PUBLIC_URL": base,
         "XT_FILES_MAX_BYTES": str(MAX),
         "XT_FILES_UPLOAD_TTL_SECONDS": str(TTL),
+        "XT_FILES_MAX_PENDING_PER_USER": "40",
     }
     tenants: dict[str, Any] = {}
     for alias, name in ((A, "Files audit A"), (B, "Files audit B")):

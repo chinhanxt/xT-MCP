@@ -540,7 +540,7 @@ class World:
         bad = [k for k in (where or {}) if k not in valid]
         if bad:
             raise ToolError("invalid_request", f"Trường không có trong model {model_id}: {bad}",
-                            "Gọi describe_model để xem field hợp lệ.",
+                            "Chỉ dùng field trong details.valid_fields.",
                             {"reason": "unknown_field", "unknown": bad, "valid_fields": sorted(valid)})
 
     def visible(self, rec, actor):
@@ -551,7 +551,7 @@ class World:
 
     def _need_model(self, model_id):
         if model_id not in MODELS:
-            raise ToolError("not_found", f"Không có model '{model_id}'.", "Gọi inspect_workspace để xem model có sẵn; nếu cần thì propose_model_change.",
+            raise ToolError("not_found", f"Không có model '{model_id}'.", "Check the ref (search_records/get_inbox/find_people) and ask the user.",
                             {"reason": "unknown_model", "valid_models": sorted(MODELS)})
         return MODELS[model_id]
 
@@ -643,7 +643,7 @@ class World:
     def t_describe_process(self, a, actor):
         pid = a["process_id"]
         if pid not in PROCESSES:
-            raise ToolError("not_found", f"Không có process '{pid}'.", "Gọi inspect_workspace.", {"valid_processes": sorted(PROCESSES)})
+            raise ToolError("not_found", f"Không có process '{pid}'.", "Check the ref (search_records/get_inbox/find_people) and ask the user.", {"valid_processes": sorted(PROCESSES)})
         steps = []
         if pid == "proposal_approval":
             fv = a.get("for_values") or {}
@@ -777,7 +777,7 @@ class World:
         named = a.get("metric")
         if named:
             if named not in [x["id"] for x in m["metrics"]]:
-                raise ToolError("not_found", f"Model {mid} không có metric '{named}'.", "Gọi describe_model để xem metrics, hoặc dùng metrics/where.",
+                raise ToolError("not_found", f"Model {mid} không có metric '{named}'.", "Dùng metrics/where tường minh.",
                                 {"reason": "unknown_metric", "metrics": [x["id"] for x in m["metrics"]]})
             where["state"] = {"in": ["approved", "paid"]}
             metrics = metrics or ["sum:amount"]
@@ -909,7 +909,7 @@ class World:
         unknown = [k for k in values if k not in fields or fields[k].get("readonly")]
         if unknown:
             raise ToolError("invalid_request", f"Field không có hoặc không ghi được trong {model}: {unknown}",
-                            "Chỉ dùng field trong valid_fields (describe_model cho đủ chi tiết).",
+                            "Chỉ dùng field trong details.valid_fields.",
                             {"reason": "unknown_field", "unknown": unknown, "valid_fields": [k for k, f in fields.items() if not f.get("readonly")]})
         if creating:
             missing = [k for k, f in fields.items() if f["required"] and k not in values]

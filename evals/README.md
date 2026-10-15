@@ -29,6 +29,8 @@ Server thật (khi có): `--mcp-url https://xt-mcp.freepro.online/mcp`. Server k
 | `--reasoning-effort` | mặc định `none` (bắt buộc với ollama `/v1`, xem dưới) |
 | `--only` | lọc theo id con, pack hoặc category (`--only injection pii`) |
 | `--admin-url` | gốc URL có `/admin` (mặc định cùng origin với `--mcp-url`) |
+| `--tools a,b,...` | thay danh sách tool của hồ sơ core-10 (đo biến thể hồ sơ, ví dụ thêm `describe_model`); mock tự bật chỉ quảng bá các tool này |
+| `--no-server-instructions` | không đưa `instructions` của server vào system prompt (mặc định có, như Claude Desktop/Code). Mock phục vụ đúng văn bản `instructions_for` của server thật (xuất vào `data/tools.json`) |
 
 ## Context của ollama: cái nào có tác dụng (đã đo)
 

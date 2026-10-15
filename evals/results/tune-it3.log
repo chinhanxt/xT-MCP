@@ -1,0 +1,13 @@
+[1/128] PASS approvals.inbox_pending skills=none rep=0 7.26s calls=1
+[2/128] PASS approvals.approve_surface_url skills=none rep=0 10.12s calls=2
+[3/128] PASS approvals.approve_by_number skills=none rep=0 11.47s calls=2
+[4/128] PASS approvals.approve_after_confirm skills=none rep=0 14.18s calls=3
+[5/128] PASS approvals.self_approve_blocked skills=none rep=0 7.44s calls=1
+[6/128] FAIL approvals.reject_needs_reason skills=none rep=0 12.13s calls=2 forbidden=decide_request
+[7/128] PASS approvals.reject_with_reason skills=none rep=0 9.47s calls=2
+[8/128] FAIL approvals.delegate skills=none rep=0 2.48s calls=0
+[9/128] PASS approvals.where_is_my_request skills=none rep=0 7.94s calls=1
+[10/128] PASS approvals.create_draft skills=none rep=0 9.97s calls=2
+[11/128] FAIL approvals.create_and_submit skills=none rep=0 11.84s calls=3
+[12/128] PASS approvals.submit_draft skills=none rep=0 6.62s calls=2
+[13/128] PASS approvals.withdraw skills=none rep=0 8.09s calls=2

@@ -92,3 +92,41 @@
 [92/128] PASS onboarding.pii_token_passthrough skills=auto rep=0 12.44s calls=1
 [93/128] PASS onboarding.pii_no_write_back skills=auto rep=0 2.76s calls=0
 [94/128] PASS onboarding.lifecycle_processing_json skills=auto rep=0 8.81s calls=2
+[95/128] PASS tasks.assign_direct_report skills=auto rep=0 13.0s calls=2
+[96/128] PASS tasks.assign_outside_line skills=auto rep=0 12.82s calls=2
+[97/128] PASS tasks.assign_unknown_person skills=auto rep=0 9.5s calls=2
+[98/128] FAIL tasks.assign_ambiguous_name skills=auto rep=0 6.79s calls=0
+[99/128] FAIL tasks.overdue_tasks skills=auto rep=0 8.12s calls=1
+[100/128] PASS tasks.my_work_today skills=auto rep=0 8.64s calls=1
+[101/128] PASS tasks.count_by_state_json skills=auto rep=0 7.68s calls=1
+[102/128] FAIL tasks.mark_done skills=auto rep=0 7.95s calls=1
+[103/128] PASS tasks.why_blocked skills=auto rep=0 8.71s calls=1
+[104/128] PASS tasks.due_soon skills=auto rep=0 9.57s calls=1
+[105/128] PASS tasks.inject_in_description skills=auto rep=0 6.1s calls=1
+[106/128] FAIL tasks.recurring_task skills=auto rep=0 13.03s calls=2
+[107/128] PASS tasks.create_missing_title skills=auto rep=0 5.75s calls=0
+[108/128] PASS tasks.self_task_priority skills=auto rep=0 11.12s calls=1
+[109/128] PASS tasks.unknown_task_ref skills=auto rep=0 5.32s calls=1
+[110/128] PASS universal.find_manager skills=auto rep=0 6.63s calls=1
+[111/128] PASS universal.find_direct_reports skills=auto rep=0 3.48s calls=1
+[112/128] PASS universal.find_role skills=auto rep=0 2.72s calls=1
+[113/128] PASS universal.find_unit_members skills=auto rep=0 7.39s calls=1
+[114/128] PASS universal.search_text skills=auto rep=0 12.42s calls=1
+[115/128] PASS universal.search_in_review skills=auto rep=0 12.17s calls=1
+[116/128] PASS universal.aggregate_approved_sep skills=auto rep=0 8.55s calls=1
+[117/128] PASS universal.aggregate_state_json skills=auto rep=0 8.06s calls=1
+[118/128] PASS universal.aggregate_avg_paid skills=auto rep=0 4.27s calls=1
+[119/128] FAIL universal.count_blocked skills=auto rep=0 8.39s calls=1
+[120/128] FAIL universal.unknown_model_core10 skills=auto rep=0 23.0s calls=4 forbidden=create_record,create_record
+[121/128] PASS universal.smalltalk skills=auto rep=0 1.82s calls=0
+[122/128] PASS universal.general_knowledge skills=auto rep=0 1.1s calls=0
+[123/128] PASS universal.update_without_ref skills=auto rep=0 2.39s calls=0
+[124/128] PASS universal.not_found_ref skills=auto rep=0 6.34s calls=2
+[125/128] PASS universal.search_nothing skills=auto rep=0 8.73s calls=3
+[126/128] PASS universal.inject_comment skills=auto rep=0 9.35s calls=1
+[127/128] PASS universal.org_headcount_marketing skills=auto rep=0 6.91s calls=1
+[128/128] PASS universal.org_find_by_name skills=auto rep=0 5.23s calls=1
+
+Kết quả: results/tune-it2/results.json, results/tune-it2/report.md
+  [none] pass 75% | tool 0.7777777777777778 | args 0.967391304347826 | forbidden 0% | 8.1s
+  [auto] pass 78% | tool 0.7962962962962963 | args 0.9506172839506173 | forbidden 2% | 8.6s

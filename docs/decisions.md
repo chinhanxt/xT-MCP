@@ -216,3 +216,9 @@ Bối cảnh: W9 / E10 yêu cầu DB tự chặn `decider = requester`, dưới 
 - **D-MAP-2. `seed/<công ty>/mapping.json`** `{departments: {id: mã phòng}, roles: {vai trò tệp: [vai trò gói]}}`; khóa `role@ID` cộng thêm vai trò cho người giữ vai trò đó trong đúng phòng (vd `dept_head@D02` -> `chief_accountant`). `xt org import --mapping` nạp tệp này (chỉ với tệp HR); phòng/vai trò của tệp không có trong mapping, mapping sai kiểu, hoặc `role@ID` trỏ phòng không tồn tại -> `AdminError` liệt kê hết. `--base-roles` vẫn cộng nguyên văn sau ánh xạ.
 - **D-MAP-3. `org.json` giữ nguyên** (dữ liệu thô từ HR). `make demo-seed` (`e2e/xte2e/seed.py`) truyền `--mapping` (tệp `mapping.json` cạnh `org.json`) và tính vai trò Keycloak/TOTP từ cùng mapping, thay bảng alias cứng cũ.
 - Test: `tests/unit/composition/test_org_mapping.py`; `tests/integration/composition/test_seed_mapping.py` (nạp seed/binh-minh, onboarding: hr/it/accounting giao đúng người của seed, không có giám đốc).
+- **D-FILES-9 (sau audit, 16/10/2026).**
+  - Quota mặc định: 20 ý định mở/người, 500/tenant, 256 MiB/người, 1 GiB/tenant. Kho minimal 2 GiB (`-volume.max=32`). HTTP 429 cho quota ý định, 507 cho quota byte (code `resource_constraint`).
+  - Thêm `scan_failed` vào enum trạng thái của `upload_file`. Đây là thay đổi bổ sung; không ép `scan_failed` thành `scanning` hay `infected`, vì cả hai đều nói sai sự thật.
+  - Tên tệp trong audit: HMAC có khóa qua cơ chế GUC sẵn có, không bỏ hẳn tên. Lý do: giữ khả năng đối chiếu khi điều tra mà không lộ tên.
+  - `file.read` của người duyệt theo phòng ban (director toàn tổ chức). Quyền theo người được giao duyệt cần liên kết tệp ↔ bản ghi, để sau.
+  - Multipart có `Transfer-Encoding` bị từ chối (411); PUT vẫn đếm bằng Spool.

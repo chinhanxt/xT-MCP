@@ -102,11 +102,16 @@ class ProcessService:
         self,
         process_id: str,
         data: Mapping[str, Any],
-        requester: str,
+        requester: str | None,
         *,
         instance_id: str | None = None,
+        fire: Mapping[str, Any] | None = None,
+        version: int | None = None,
     ) -> dict[str, Any]:
-        inst = self._runtime(process_id).start(data, requester, instance_id=instance_id)
+        """Quy trình thủ công: `requester` là người khởi tạo. Định kỳ: `requester=None` + `fire`
+        (`TimerPoller`); `version` ghim đúng bản poller đã giành kỳ."""
+        rt = self._runtime(process_id, version)
+        inst = rt.start(data, requester, instance_id=instance_id, fire=fire)
         self.store.insert(inst.id, _record(inst))
         return summary(inst)
 

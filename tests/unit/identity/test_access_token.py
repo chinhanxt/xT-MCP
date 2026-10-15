@@ -339,11 +339,11 @@ def test_mcp_rejects_tokens_also_issued_for_workflow_or_data() -> None:
         "XT_MCP_SCOPES_SUPPORTED": "openid mcp-xt",
     }
     rs = load_resource_server_settings(env)
-    assert rs.foreign_audiences == {"xt-workflow", "xt-data"}
+    assert rs.foreign_audiences == {"xt-workflow", "xt-data", "xt-files"}
     key = new_rsa("wa08")
     v = AccessTokenVerifier(rs, JwksCache(FakeJwks([key]), 300, 10, FakeClock()), FakeClock())
     assert v.verify(sign(key, access_claims())).client_id == AGENT
-    for extra in ("xt-workflow", "xt-data"):
+    for extra in ("xt-workflow", "xt-data", "xt-files"):  # FB-08: cả aud của /files
         with pytest.raises(InvalidTokenError) as e:
             v.verify(sign(key, access_claims(aud=[RESOURCE, extra])))
         assert e.value.reason == "audience"

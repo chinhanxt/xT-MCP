@@ -9,6 +9,9 @@ Mỗi định nghĩa timer đang active, trong MỘT transaction:
    Lỗi -> rollback cả dòng kỳ, lần quét sau thử lại;
 4. `catchup: latest` chỉ chạy kỳ gần nhất; `catchup: none` + trễ quá `grace` -> ghi `skipped`.
 Một định nghĩa lỗi không chặn các định nghĩa khác (`result: error`).
+
+Có `processes` (`ProcessService` của lớp ghép): instance tạo qua `ProcessService.start` (lưu vào
+`InstanceStore` thật, cùng transaction của dòng kỳ); không có thì lưu qua `tx.save_instance`.
 """
 
 from __future__ import annotations
@@ -16,12 +19,15 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from xt.application.process.ports import TimerFireStore
 from xt.application.process.runtime import ProcessRuntime
 from xt.domain.process.schedule import Schedule, timer_inputs
 from xt.domain.process.spec import TimerTrigger, duration_seconds
+
+if TYPE_CHECKING:
+    from xt.application.process.service import ProcessService
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,9 +42,15 @@ def _short(e: BaseException) -> str:
 
 
 class TimerPoller:
-    def __init__(self, store: TimerFireStore, definitions: Sequence[TimerDefinition]):
+    def __init__(
+        self,
+        store: TimerFireStore,
+        definitions: Sequence[TimerDefinition],
+        processes: ProcessService | None = None,
+    ):
         self.store = store
         self.definitions = list(definitions)
+        self.processes = processes
 
     def poll(self, now: datetime) -> list[dict[str, Any]]:
         if now.tzinfo is None:
@@ -70,13 +82,21 @@ class TimerPoller:
                     return {**out, "result": "already"}
                 iid = None
                 if status == "fired":
-                    ctx = sch.fire_context(occ)
-                    inst = rt.start(timer_inputs(trig, ctx), fire={"fire_at": pk, "period_key": pk})
-                    iid = inst.id
-                    tx.save_instance(
-                        instance_id=iid, process_key=d.process_key,
-                        version=rt.compiled.version, state=inst.to_state(),
-                    )  # fmt: skip
+                    inputs = timer_inputs(trig, sch.fire_context(occ))
+                    fire = {"fire_at": pk, "period_key": pk}
+                    if self.processes is not None:
+                        started = self.processes.start(
+                            rt.compiled.process_id, inputs, None,
+                            fire=fire, version=rt.compiled.version,
+                        )  # fmt: skip
+                        iid = str(started["instance"])
+                    else:
+                        inst = rt.start(inputs, fire=fire)
+                        iid = inst.id
+                        tx.save_instance(
+                            instance_id=iid, process_key=d.process_key,
+                            version=rt.compiled.version, state=inst.to_state(),
+                        )  # fmt: skip
                     tx.link_instance(process_key=d.process_key, period_key=pk, instance_id=iid)
         except Exception as e:
             return {**out, "result": "error", "error": _short(e)}

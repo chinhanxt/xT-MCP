@@ -341,3 +341,16 @@ Tài liệu: `docs/files-api.md`. Quyết định: `docs/decisions.md` "REST /fi
 | APISIX `api-files`: `/files/v1`, `/files/v1/*`, GET/HEAD/POST/PUT/DELETE, body ≤ 26 MiB, `real-ip` + `limit-req` theo IP, timeout 300 s | Render lại `deploy/apisix/rendered/apisix.yaml` khi triển khai |
 | Quét lại tệp `scanning` (clamd từng lỗi): `CompositionFilesBackend.rescan(tenant_alias)` | Worker: thêm job định kỳ gọi `rescan` theo tenant khi bật ClamAV (chưa nối, cần sửa `composition/worker.py`) |
 | `submit_request` với tệp đính kèm chưa `clean`/`not_scanned` → `precondition_failed file_not_clean` (TCV1 §5.14) | Composition process: đọc `xt_meta.file_object.status` của field `file` lúc plan (chưa làm) |
+
+### REST `/files/v1` sau audit (`docs/audit-files.md`, FB-01…FB-10)
+
+| Thay đổi | Ai cần làm gì |
+|---|---|
+| **Job `files.maintain`** (`xt.entrypoints.files_http.FilesMaintenance`): hết hạn ý định + xóa byte quarantine, dọn object tệp xóa mềm quá hạn, quét lại `scanning` (giới hạn lần thử → `scan_failed`). Tự hẹn lại qua `JobQueue.schedule_at` mỗi 300 s/tenant | **Integrator, `composition/worker.py`:** trong `build_jobs`, luôn dựng `files` khi `XT_FILES_S3_ENDPOINT` đặt (không chỉ khi có `XT_FILES_CLAMD`), rồi `fm = FilesMaintenance(files, enq.queue, tenant_dsn)` và trong `handlers()` trả thêm `**fm.handlers()` (một dòng); `xt tenant bind-queue` gọi thêm `await fm.register(tenant_id)`. Khi đã nối, có thể bỏ `rescan_files` khỏi `relay` (maintain đã quét lại) |
+| finalize/PUT không còn quét trong transaction: `FileManager.scan_bytes` (I/O) + `apply_scan` (transaction ngắn, khóa dòng) | `rescan(alias)` giữ nguyên chữ ký cho `rescan_files` hiện có |
+| Migration `0011_files_hardening.sql`: `scan_attempts`, trạng thái `scan_failed`, sự kiện `scan_failed`/`purged`, index quota/dọn | `files_not_clean` (integration.py) đã chặn `scan_failed` (không phải `clean`/`not_scanned`) |
+| `sql/audit_meta.sql`: cột `redact` dùng HMAC do app cấp qua GUC `xt.audit_hmac = {"meta:<bảng>": {"new": {cột: "hmac:kid:hex"}}}`, không có thì sha256 như cũ | xt-init chạy lại `install_meta_audit` (đã làm mỗi lần khởi động). `PgFileRepository.insert` cần `uow.audit_key` |
+| Contract `upload_file`: enum `status` thêm `scan_failed` (bổ sung, không breaking) | Digest catalog đổi |
+| IAM (FB-08): `/mcp` (`identity/config.py`) và `/workflow/v1` coi `XT_FILES_AUDIENCE` (mặc định `xt-files`) là aud lạ | — |
+| FB-09: `create_record`/`update_record` kiểm field `file` qua `AttachmentPolicy.check_attachable` (`FileToolService`): người ghi phải `file.read` được tệp, tệp phải `clean`/`not_scanned` | `Composition.services(files=Files())` placeholder không có policy → không kiểm; dịch vụ tệp thật (gắn bởi `with_files_api`) có |
+| Compose: mạng `files` (internal) cho `seaweedfs`, `clamav`, `xt-api`, `xt-worker`; `configs.seaweed-security`; `-volume.max=32`; `xt-worker` có `XT_FILES_*` + `XT_CURSOR_KEY_FILE`; `.env`: 4 khóa `XT_SEAWEED_*_JWT_*` + quota | `make env` sinh khóa còn thiếu |

@@ -196,26 +196,98 @@ def test_used_link_cannot_be_reused() -> None:
     assert out.error is not None and out.error.details["reason"] == "already_uploaded"
 
 
-def test_scanning_clean_infected_and_retry() -> None:
-    m, store, scanner = mgr(scanning=True)
+def _finalized(m: FileManager, repo: MemRepo, data: bytes, name: str = "hd.pdf"):  # type: ignore[no-untyped-def]
+    out = m.finalize(repo, upload(m, repo, data, name), hashlib.sha256(data).hexdigest(), NOW)
+    assert out.error is None and out.row.status == "scanning"  # quét KHÔNG chạy trong finalize
+    return out.row
+
+
+def test_scanning_clean_infected_and_bounded_retry() -> None:
+    m, store, scanner = mgr(scanning=True, scan_max_attempts=3)
     repo = MemRepo()
-    clean = m.finalize(repo, upload(m, repo, PDF), hashlib.sha256(PDF).hexdigest(), NOW).row
+    clean = m.scan(repo, _finalized(m, repo, PDF))
     assert clean.status == "clean" and clean.object_key and "sha256" in clean.object_key
-    bad_row = upload(m, repo, EICAR, "eicar.txt")
-    bad = m.finalize(repo, bad_row, hashlib.sha256(EICAR).hexdigest(), NOW).row
+    bad = m.scan(repo, _finalized(m, repo, EICAR, "eicar.txt"))
     assert bad.status == "infected" and bad.object_key is None
     assert bad.scan_signature == "Eicar-Test-Signature"
     assert not any("quarantine" in k for k in store.objects)
     err = m.download_error(bad, ALICE)
     assert err is not None and err.details["reason"] == "file_infected"
     scanner.down = True
-    pending_row = upload(m, repo, b"notes\n", "n.txt")
-    pending = m.finalize(repo, pending_row, hashlib.sha256(b"notes\n").hexdigest(), NOW).row
-    assert pending.status == "scanning"
+    pending = _finalized(m, repo, b"notes\n", "n.txt")
     err = m.download_error(pending, ALICE)
     assert err is not None and err.details["reason"] == "file_scanning"
+    row = m.scan(repo, pending)
+    assert (row.status, row.scan_attempts) == ("scanning", 1)
+    row = m.scan(repo, m.scan(repo, row))
+    assert (row.status, row.scan_attempts) == ("scan_failed", 3)  # FB-01: không kẹt scanning
+    assert repo.actions(row.id)[-1] == "scan_failed" and tool_view(row)["status"] == "scan_failed"
+    err = m.download_error(row, ALICE)
+    assert err is not None and err.details["reason"] == "file_scan_failed"
     scanner.down = False
-    assert [m.scan(repo, r).status for r in repo.scanning(10)] == ["clean"]
+    retried = m.retry_scan(repo, row)
+    assert retried.status == "scanning" and m.scan(repo, retried).status == "clean"
+
+
+def test_quotas_pending_and_bytes() -> None:
+    m, _, _ = mgr(max_pending_per_user=2, user_quota_bytes=1 << 25, tenant_quota_bytes=1 << 26)
+    repo = MemRepo(now=NOW)
+    mk = lambda who: m.intent(repo, person=who, client_id=None, name="a.pdf",  # noqa: E731
+                             declared="application/pdf", now=NOW)  # fmt: skip
+    mk(ALICE)
+    mk(ALICE)
+    with pytest.raises(ToolError) as e:
+        mk(ALICE)
+    assert e.value.code is ErrorCode.RESOURCE_CONSTRAINT
+    assert e.value.details["reason"] == "pending_uploads_quota"
+    mk(BOB)  # quota theo người
+    m2, _, _ = mgr(
+        max_bytes=100, max_inline_bytes=100, user_quota_bytes=150, tenant_quota_bytes=1000
+    )
+    repo2 = MemRepo(now=NOW)
+    BIG = PDF + b"0" * (100 - len(PDF))
+    first = m2.finalize(repo2, upload(m2, repo2, BIG), hashlib.sha256(BIG).hexdigest(),
+                        NOW)  # fmt: skip
+    assert first.error is None
+    row = m2.intent(repo2, person=ALICE, client_id=None, name="b.pdf",
+                    declared="application/pdf", now=NOW)  # fmt: skip
+    out = m2.ingest(repo2, row, spool(PDF + b"1" * 30), NOW)
+    assert out.error is not None and out.error.details["reason"] == "storage_quota"
+
+
+def test_maintenance_expires_abandoned_and_purges_deleted() -> None:
+    m, store, _ = mgr(upload_ttl=timedelta(minutes=1), retention=timedelta(days=1))
+    repo = MemRepo(now=NOW)
+    abandoned = upload(m, repo, PDF)
+    assert store.head(m.quarantine_key(repo.tenant, abandoned.id)) is not None
+    kept = m.finalize(repo, upload(m, repo, PDF, "a.pdf"), hashlib.sha256(PDF).hexdigest(),
+                      NOW).row  # fmt: skip
+    twin = m.finalize(repo, upload(m, repo, PDF, "b.pdf"), hashlib.sha256(PDF).hexdigest(),
+                      NOW).row  # fmt: skip
+    repo.now = NOW + timedelta(minutes=2)
+    assert m.expire_and_purge(repo, repo.now) == 1
+    assert repo.rows[abandoned.id].status == "expired"
+    assert store.head(m.quarantine_key(repo.tenant, abandoned.id)) is None
+    m.soft_delete(repo, kept, repo.now)
+    repo.now = NOW + timedelta(days=2)
+    m.expire_and_purge(repo, repo.now)
+    assert repo.rows[kept.id].object_key is None
+    assert store.head(twin.object_key or "") is not None  # bản sao cùng nội dung còn sống
+    m.soft_delete(repo, twin, repo.now)
+    repo.now = NOW + timedelta(days=4)
+    m.expire_and_purge(repo, repo.now)
+    assert not store.objects and repo.actions(twin.id)[-1] == "purged"
+
+
+def test_text_checked_beyond_sniff_window() -> None:
+    m, _, _ = mgr()
+    repo = MemRepo()
+    row = m.intent(repo, person=ALICE, client_id=None, name="log.txt", declared="text/plain",
+                   now=NOW)  # fmt: skip
+    out = m.ingest(repo, row, spool(b"A" * 9000 + b"\x00\x7fELF"), NOW)
+    assert out.error is not None and out.error.details["detected"] == "binary"
+    out = m.ingest(repo, row, spool("ổn".encode() * 5000 + b"\xe1\xbb"), NOW)  # UTF-8 cụt cuối
+    assert out.error is not None and out.error.details["reason"] == "content_type_mismatch"
 
 
 @pytest.mark.parametrize(
@@ -269,6 +341,10 @@ def test_upload_tokens() -> None:
     for bad in (forged, body + "." + mac[:-2] + "AA", "garbage", body):
         with pytest.raises(ToolError) as e:
             t.verify(bad, 1)
+        assert e.value.details["reason"] == "upload_url_invalid"
+    for weird in (body + ".é" + mac[1:], body + "!!." + mac, "a" * 600 + "." + mac):
+        with pytest.raises(ToolError) as e:
+            t.verify(weird, 1)  # FB-05: không bao giờ TypeError
         assert e.value.details["reason"] == "upload_url_invalid"
     with pytest.raises(ValueError):
         UploadTokens(b"short")

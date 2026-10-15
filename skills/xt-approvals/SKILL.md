@@ -29,7 +29,7 @@ Quy tắc chung ở `xt-core`. Chỉ gọi tool có trong danh sách tool của 
 | Có gì cần tôi duyệt | `get_inbox` |
 | Đề xuất tới đâu / ai đang duyệt | `get_record` (không rõ ref: `search_records {where:{owner:"me"}}`) |
 | Tạo đề xuất (nháp) | `create_record` |
-| Tạo và gửi / gửi bản nháp | `create_record` -> `submit_request` |
+| Tạo và gửi / gửi bản nháp | `create_record` -> `submit_request` ngay (ref từ kết quả `create_record`) |
 | Rút đề xuất | `get_record` -> `transition_record {to_state:"withdrawn"}` |
 | Duyệt / từ chối có lý do | `get_record` -> `decide_request` -> đưa `confirm_url` |
 

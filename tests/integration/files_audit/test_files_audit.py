@@ -23,10 +23,11 @@ from typing import Any, cast
 import httpx
 import pytest
 
-from tests.integration.composition.fixtures import DEPT_HEAD, REQUESTER, Stack, sub
+from tests.integration.composition.fixtures import DEPT_HEAD, DIRECTOR, REQUESTER, Stack, sub
 from tests.integration.files_audit.conftest import COLLEAGUE, MAX, TTL, A, B
 from xt.adapters.db.files import PgFileRepository
 from xt.domain.model.context import ModelActor
+from xt.entrypoints.files_http import CompositionFilesBackend, FilesPep
 
 pytestmark = pytest.mark.integration
 
@@ -139,7 +140,6 @@ def test_upload_token_method_swap(xstack: Stack) -> None:
         assert httpx.request(m, url, content=PDF, timeout=30).status_code in (404, 405), m
 
 
-@pytest.mark.xfail(strict=True, reason="FB-05: token có ký tự không phải ASCII -> 500 (TypeError)")
 def test_upload_token_non_ascii_is_403_not_500(xstack: Stack) -> None:
     s = xstack
     with http(s, ftoken(s, A, REQUESTER)) as c:
@@ -229,7 +229,6 @@ def test_polyglots_served_inert(xstack: Stack) -> None:
             assert "default-src 'none'" in h["content-security-policy"]
 
 
-@pytest.mark.xfail(strict=True, reason="FB-07: text/* chỉ kiểm UTF-8/NUL ở 8 KiB đầu")
 def test_text_validation_covers_whole_file(xstack: Stack) -> None:
     s = xstack
     body = b"A" * 9000 + b"\x00\x7fELF\x02\x01\x01" + secrets.token_bytes(256)
@@ -296,7 +295,6 @@ def test_oversize_put_lies(xstack: Stack) -> None:
     assert out.startswith(b"HTTP/1.1 413"), out[:300]
 
 
-@pytest.mark.xfail(strict=True, reason="FB-06: multipart CL+TE: form() spool toàn bộ thân lên đĩa")
 def test_multipart_cl_te_does_not_spool_unbounded(xstack: Stack) -> None:
     """Content-Length nhỏ + Transfer-Encoding: chunked: `_length` tin CL, h11 đọc chunked, Starlette
     ghi phần `file` ra tệp tạm KHÔNG giới hạn rồi mới tới Spool. Kỳ vọng: từ chối trước khi nhận
@@ -307,7 +305,7 @@ def test_multipart_cl_te_does_not_spool_unbounded(xstack: Stack) -> None:
     boundary = "xtaudit"
     head = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.txt\"\r\n"
             "Content-Type: text/plain\r\n\r\n").encode()  # fmt: skip
-    total_target = MAX * 8  # 2 MiB > MAX + overhead
+    total_target = MAX * 128  # 32 MiB: lớn hơn hẳn bộ đệm socket loopback (~1-6 MiB)
     sent = 0
     with socket.create_connection(("127.0.0.1", port), timeout=30) as so:
         so.sendall(
@@ -331,8 +329,11 @@ def test_multipart_cl_te_does_not_spool_unbounded(xstack: Stack) -> None:
                 resp += c
         except OSError:
             pass
-    # An toàn: server từ chối (411/413/400) trước khi client gửi được > MAX + 64 KiB.
-    assert sent <= MAX + 64 * 1024, (sent, resp[:200])
+    # An toàn: server từ chối (411/413/400) NGAY sau header rồi đóng kết nối, không đọc tiếp thân:
+    # client bị reset trước khi gửi hết (phần đã "gửi" chỉ nằm trong bộ đệm socket của kernel,
+    # không bao giờ tới Starlette/đĩa tạm). Lỗi cũ: server đọc + spool đủ 32 MiB rồi mới 413.
+    assert resp.startswith((b"HTTP/1.1 411", b"HTTP/1.1 413", b"HTTP/1.1 400")), resp[:200]
+    assert sent < total_target, (sent, resp[:200])
 
 
 # ---- TOCTOU: finalize khi PUT thứ hai đang bay; PUT song song ------------------------------------
@@ -429,7 +430,6 @@ async def test_record_cannot_reference_other_tenant_file(xstack: Stack) -> None:
 
 
 @pytest.mark.anyio
-@pytest.mark.xfail(strict=True, reason="FB-09: field `file` nhận tệp của người khác cùng tenant")
 async def test_record_cannot_reference_colleagues_file(xstack: Stack) -> None:
     s = xstack
     with http(s, ftoken(s, A, COLLEAGUE)) as c:
@@ -457,7 +457,6 @@ def test_s3_requires_sigv4(xstack: Stack) -> None:
     assert r2.status_code in (400, 403) and b"s3 secret" not in r2.content
 
 
-@pytest.mark.xfail(strict=True, reason="FB-03: filer/volume SeaweedFS không xác thực trong mạng")
 def test_seaweed_filer_requires_auth(xstack: Stack) -> None:
     """Từ một tiến trình bất kỳ trong cùng mạng (ở đây: chính container), filer :8888 trả object
     của tenant mà không cần chữ ký. Kỳ vọng: 401/403."""
@@ -538,7 +537,6 @@ def test_head_content_does_not_exhaust_s3_pool(xstack: Stack) -> None:
 # ---- DoS lưu trữ: ý định vô hạn, quarantine không được dọn ------------------------------------
 
 
-@pytest.mark.xfail(strict=True, reason="FB-02: không quota; quarantine hết hạn không ai dọn")
 def test_abandoned_upload_bytes_are_reclaimed(xstack: Stack) -> None:
     s = xstack
     blob = b"A" * (MAX - 16)
@@ -546,19 +544,33 @@ def test_abandoned_upload_bytes_are_reclaimed(xstack: Stack) -> None:
         it = intent(c, "abandon.txt", "text/plain")
         assert httpx.put(it["put_url"], content=blob, timeout=60).status_code == 200
     time.sleep(TTL + 2)
-    # Không ai chạm vào hàng -> không có sweeper -> object quarantine vẫn còn.
-    store = cast(Any, s.prepared.dispatcher.services.files).stack.store
+    # Không ai chạm vào hàng: job worker `files.maintain` (FilesMaintenance) dọn. Ở đây chạy đúng
+    # thân job (worker không chạy trong stack test).
+    svc = cast(Any, s.prepared.dispatcher.services.files)
+    store = svc.stack.store
     key = f"t/{s.tenants[A].id}/quarantine/{it['file']['id']}"
+    assert store.head(key) is not None
+    backend = CompositionFilesBackend(svc.rt, svc.stack, FilesPep(svc.rt))
+    done = backend.maintain(s.tenants[A])
+    assert done["purged"] >= 1, done
     assert store.head(key) is None, "byte quarantine của lượt tải bỏ dở vẫn nằm trên S3"
-
-
-def test_no_per_user_intent_quota_documented(xstack: Stack) -> None:
-    """Ghi nhận (không phải xfail): một người tạo được 200 ý định liên tiếp, không giới hạn ở app
-    (chỉ limit-req 10 r/s ở APISIX)."""
-    s = xstack
     with http(s, ftoken(s, A, REQUESTER)) as c:
-        codes = {c.post(F, json={"name": f"n{i}.pdf"}).status_code for i in range(200)}
-    assert codes == {201}
+        st = c.get(f"{F}/{it['file']['id']}").json()["data"]["file"]["status"]
+    assert st == "expired"
+
+
+def test_per_user_pending_intent_quota(xstack: Stack) -> None:
+    """FB-02: ý định đang mở có trần theo người (XT_FILES_MAX_PENDING_PER_USER, conftest: 40);
+    vượt -> 429 resource_constraint `pending_uploads_quota`. Người khác không bị ảnh hưởng."""
+    s = xstack
+    cap = int(s.env["XT_FILES_MAX_PENDING_PER_USER"])
+    with http(s, ftoken(s, A, DIRECTOR)) as c:
+        codes = [c.post(F, json={"name": f"n{i}.pdf"}).status_code for i in range(cap + 5)]
+        last = c.post(F, json={"name": "x.pdf"})
+    assert codes.count(201) <= cap and 429 in codes, codes
+    assert last.json()["error"]["details"]["reason"] == "pending_uploads_quota"
+    with http(s, ftoken(s, A, REQUESTER)) as c:
+        assert c.post(F, json={"name": "other-user.pdf"}).status_code == 201
 
 
 # ---- audit ---------------------------------------------------------------------------------------
@@ -582,7 +594,6 @@ def test_audit_records_download_and_rejections(xstack: Stack, pg: Any) -> None:
     assert ok is not None and ok[1] is None
 
 
-@pytest.mark.xfail(strict=True, reason="FB-04: tên tệp trong audit = sha256 KHÔNG khóa (dò được)")
 def test_audit_filename_hash_is_keyed(xstack: Stack, pg: Any) -> None:
     s = xstack
     name = "CCCD_079203001234.pdf"
@@ -609,7 +620,6 @@ def test_files_rejects_token_also_for_data(xstack: Stack) -> None:
         assert c.get(F).status_code == 401
 
 
-@pytest.mark.xfail(strict=True, reason="FB-08: workflow không coi xt-files là aud lạ")
 def test_workflow_rejects_token_also_for_files(xstack: Stack) -> None:
     s = xstack
     tok = s.idp.access_token(
@@ -634,7 +644,6 @@ def test_files_rejects_token_also_for_mcp_or_workflow(xstack: Stack) -> None:
             assert c.get(F).status_code == 401, extra
 
 
-@pytest.mark.xfail(strict=True, reason="FB-08: MCP không coi xt-files là aud lạ")
 def test_mcp_rejects_token_also_for_files(xstack: Stack) -> None:
     s = xstack
     mcp = f"{s.app.base}/mcp"

@@ -9,8 +9,8 @@ relay uses the queue's caller-owned transaction for enqueue and acknowledgement.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime
 from typing import Any, Protocol
 from uuid import UUID
@@ -119,10 +119,60 @@ class PgWorkflowStore:
             row = cur.fetchone()
             return row["ref"] if row else None
 
-    def link(self, ref: str, instance_id: str) -> None:
-        self.uow.current_cursor.execute(
-            "INSERT INTO xt_meta.workflow_request(tenant_id,ref,instance_id) VALUES (%s,%s,%s)",
+    def link(self, ref: str, instance_id: str, *, if_absent: bool = False) -> bool:
+        """Nối bản ghi <-> instance. `if_absent`: bản ghi đã gắn instance khác thì giữ nguyên
+        (`start_process` trên subject đã có quy trình), trả False."""
+        cur = self.uow.current_cursor
+        cur.execute(
+            "INSERT INTO xt_meta.workflow_request(tenant_id,ref,instance_id) VALUES (%s,%s,%s)"
+            + (" ON CONFLICT (tenant_id,ref) DO NOTHING" if if_absent else ""),
             (self.uow.actor.tenant.id, ref, instance_id),
+        )
+        return bool(cur.rowcount == 1)
+
+
+class PgTimerFireStore:
+    """`TimerFireStore` của `TimerPoller` trên `xt_meta.workflow_timer_fire` (0012).
+
+    Mỗi `transaction()` là MỘT transaction tenant của `uow` (actor dịch vụ xt-worker): giành kỳ
+    (`INSERT ... ON CONFLICT DO NOTHING` trên khóa `(tenant, process_id, period_key)`), tạo instance
+    qua `ProcessService` (`PgWorkflowStore` dùng chung cursor) rồi nối instance vào kỳ. Worker khác
+    chạy cùng kỳ chờ khóa của dòng kỳ rồi thấy `rowcount=0` -> `already`. Lỗi -> rollback cả kỳ."""
+
+    def __init__(self, uow: WorkflowUnitOfWork):
+        self.uow = uow
+
+    @contextmanager
+    def transaction(self) -> Iterator[_PgTimerFireTx]:
+        with self.uow.tenant_tx(self.uow.actor) as cur:
+            yield _PgTimerFireTx(self.uow.actor.tenant.id, cur)
+
+
+class _PgTimerFireTx:
+    def __init__(self, tenant_id: UUID, cur: Any):
+        self.tenant_id, self.cur = tenant_id, cur
+
+    def claim_period(
+        self, *, process_key: str, period_key: str, status: str, version: int, fired_at: datetime
+    ) -> bool:
+        self.cur.execute(
+            "INSERT INTO xt_meta.workflow_timer_fire"
+            "(tenant_id,process_id,period_key,status,version,fired_at) VALUES (%s,%s,%s,%s,%s,%s) "
+            "ON CONFLICT (tenant_id,process_id,period_key) DO NOTHING",
+            (self.tenant_id, process_key, period_key, status, version, fired_at),
+        )
+        return bool(self.cur.rowcount == 1)
+
+    def save_instance(
+        self, *, instance_id: str, process_key: str, version: int, state: Any
+    ) -> None:  # pragma: no cover - lớp ghép luôn tạo instance qua ProcessService
+        raise RuntimeError("PgTimerFireStore cần TimerPoller(processes=ProcessService)")
+
+    def link_instance(self, *, process_key: str, period_key: str, instance_id: str) -> None:
+        self.cur.execute(
+            "UPDATE xt_meta.workflow_timer_fire SET instance_id=%s "
+            "WHERE tenant_id=%s AND process_id=%s AND period_key=%s",
+            (instance_id, self.tenant_id, process_key, period_key),
         )
 
 

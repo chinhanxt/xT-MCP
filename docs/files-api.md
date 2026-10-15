@@ -56,7 +56,8 @@ agent/curl --Bearer--> GET /files/v1/{id}/content   (luồng, ETag = sha256)
 |---|---|---|
 | `awaiting_upload` | `awaiting_upload` | Đã có ý định, chưa có byte |
 | `uploaded` | `awaiting_upload` | Byte đã ở `quarantine/`, chờ finalize |
-| `scanning` | `scanning` | Chờ ClamAV ("pending_scan"). clamd lỗi thì giữ nguyên trạng thái, `rescan()` sẽ quét lại |
+| `scanning` | `scanning` | Chờ ClamAV ("pending_scan"). Quét chạy ngoài transaction; clamd lỗi thì tăng `scan.attempts`, job `files.maintain` quét lại |
+| `scan_failed` | `scan_failed` | clamd lỗi `XT_FILES_SCAN_MAX_ATTEMPTS` lần liên tiếp: bị chặn (409 `file_scan_failed`), không đính kèm được; quản trị quét lại bằng `FileManager.retry_scan` |
 | `clean` | `clean` | ClamAV báo sạch |
 | `not_scanned` | `not_scanned` | Profile không quét ("unscanned"). Ai được tải về do `XT_FILES_UNSCANNED_DOWNLOAD` quyết định |
 | `infected` | `infected` | ClamAV phát hiện mã độc; byte đã xóa, chỉ giữ tên chữ ký |
@@ -72,8 +73,11 @@ agent/curl --Bearer--> GET /files/v1/{id}/content   (luồng, ETag = sha256)
 | 404 | `not_found` | Không có, **hoặc** thuộc tenant khác, **hoặc** cùng tenant nhưng không được đọc. Ba trường hợp trả cùng một câu, không phân biệt được |
 | 409 | `precondition_failed` (`already_uploaded`, `not_uploaded`, `file_not_scanned`, `file_scanning`, `file_infected`, `file_not_ready`, `upload_expired`) | Sai bước trong vòng đời / policy quét |
 | 411 | `length_required` | PUT hoặc multipart không có `Content-Length` |
-| 413 | `resource_constraint` (`limit_bytes`) | Vượt `XT_FILES_MAX_BYTES`. Server chặn ngay khi đếm vượt, không ghi tiếp |
+| 413 | `resource_constraint` (`limit_bytes`) | Vượt `XT_FILES_MAX_BYTES`. Server chặn ngay khi đếm vượt, không ghi tiếp. Multipart: trần tổng thân đếm trước khi Starlette spool ra đĩa; có `Transfer-Encoding` thì 411 |
+| 429 | `resource_constraint` `pending_uploads_quota` | Quá số ý định đang mở (`XT_FILES_MAX_PENDING_PER_USER` / `_PER_TENANT`) |
+| 507 | `resource_constraint` `storage_quota` | Hết quota byte của người (`XT_FILES_USER_QUOTA_BYTES`) hoặc tenant (`XT_FILES_TENANT_QUOTA_BYTES`), kiểm khi tạo ý định, khi nhận byte và khi finalize |
 | 415 | `content_type_not_allowed` / `content_type_mismatch` | Kiểu không có trong danh sách cho phép, hoặc byte đầu tệp không khớp kiểu khai báo |
+| 400 | `file_not_attachable` / `file_not_ready` | `create_record`/`update_record`: field `file` trỏ tới tệp người ghi không đọc được (hoặc không có), hoặc chưa `clean`/`not_scanned` |
 | 422 | `checksum_mismatch` | sha256 không khớp. Server bỏ byte, tệp quay về `awaiting_upload`, có thể PUT lại khi link còn hạn |
 
 ## 3. An toàn
@@ -81,9 +85,10 @@ agent/curl --Bearer--> GET /files/v1/{id}/content   (luồng, ETag = sha256)
 - **Danh tính:** audience riêng `xt-files` + scope optional `xt-files` (Keycloak, `provision_data.py`). Chỉ client trong `XT_FILES_ALLOWED_CLIENTS` (mặc định `xt-cli`) được gọi. Token còn mang aud MCP/workflow thì bị từ chối. Phiên người (client confirm) bị 401.
 - **IAM** (`packages/tep-dinh-kem`):
   - `file.create` (L1): employee và agent.
-  - `file.read`: người tải lên, và người duyệt (`dept_head`, `director`, `chief_accountant`, `accountant`, `hr`).
+  - `file.read`: người tải lên; `director` mọi tệp; `dept_head`, `chief_accountant`, `accountant`, `hr` chỉ tệp của người cùng phòng (`resource.department = subject.department`).
   - `file.delete` (xóa mềm, L1): người tải lên.
   - Agent bị kiểm hai lớp: quyền `role:agent` và quyền của người được đại diện, cùng trần tự chủ.
+- **Mạng (FB-03):** `seaweedfs` (và `clamav`) chỉ nối mạng compose `files` (`internal: true`), chung với `xt-api` và `xt-worker`; không publish cổng, không route APISIX. `security.toml` bật JWT cho volume và filer: truy cập thẳng `:8080`/`:8888` trả 401, chỉ S3 (SigV4) đọc/ghi được byte. Kiểm offline: `tests/unit/test_files_deploy.py`. Kiểm trên stack thật: `docker compose exec seaweedfs wget -S -O- http://127.0.0.1:8888/buckets/xt-files/` phải ra 401; `docker compose exec postgrest getent hosts seaweedfs` không phân giải được.
 - **Cô lập tenant ba lớp:**
   - RLS `tenant_id = xt.tenant()` trên `file_object` và `file_event`.
   - Khóa object có tiền tố `t/<tenant_id>/`.
@@ -97,10 +102,11 @@ agent/curl --Bearer--> GET /files/v1/{id}/content   (luồng, ETag = sha256)
   - xt-api tự tính sha256 khi nhận byte.
   - S3 PUT ký payload sha256 và kèm `x-amz-checksum-sha256`. SeaweedFS trả `BadDigest` nếu lệch (đã kiểm trên 4.48 thật).
   - Khi finalize, server so sha256 của client với sha256 tự tính, rồi đối chiếu `HEAD` của object (kích thước + sha256 lưu trong metadata).
-- **Khóa theo nội dung:** hai tệp cùng nội dung trong một tenant dùng chung một object. Xóa mềm không xóa byte; dọn vật lý là việc của tác vụ retention.
+- **Khóa theo nội dung:** hai tệp cùng nội dung trong một tenant dùng chung một object.
+- **Dọn rác + quota (FB-02):** job worker `files.maintain` (mỗi tenant, mặc định 5 phút) chuyển ý định quá hạn sang `expired` và xóa byte `quarantine/`; tệp xóa mềm quá `XT_FILES_RETENTION_SECONDS` (mặc định 30 ngày) được xóa object khi không còn hàng nào cùng nội dung (sự kiện `purged`); quét lại tệp `scanning`. Kho minimal: 32 volume × 64 MB ≈ 2 GiB.
 - **PII:**
   - Tên tệp là văn bản tự do (vd "CCCD_<số>.pdf"). Với client cloud (tier masked), số CCCD, điện thoại, email trong tên bị thay bằng `[PII]` ở mọi đầu ra REST/MCP.
-  - Audit chỉ lưu `redacted:sha256` của tên.
+  - Audit lưu `redacted:hmac:<kid>:<hex>` của tên: HMAC-SHA256 bằng khóa audit của tiến trình (`XT_AUDIT_KEY_FILE`), như cột sensitive của model engine; khóa không bao giờ vào DB (FB-04).
   - Lỗi đi qua `ErrorScrubber` như `/workflow/v1`.
 - **Audit:**
   - Mỗi thay đổi `file_object` (INSERT/UPDATE) và mỗi sự kiện `file_event` (created, uploaded, rejected, finalized, scanned, downloaded, deleted, expired) đều nối vào hash-chain của tenant.
@@ -119,12 +125,16 @@ agent/curl --Bearer--> GET /files/v1/{id}/content   (luồng, ETag = sha256)
 | `XT_FILES_UPLOAD_TTL_SECONDS` | 900 | Hạn `put_url` / `upload_url` |
 | `XT_FILES_UNSCANNED_DOWNLOAD` | `uploader` | `deny` \| `uploader` \| `allow` cho tệp `not_scanned` |
 | `XT_FILES_CLAMD` | trống | `clamav:3310` ở profile `full` (bật quét) |
+| `XT_FILES_SCAN_MAX_ATTEMPTS` | 5 | Lần clamd lỗi trước khi `scan_failed` |
+| `XT_FILES_MAX_PENDING_PER_USER` / `_PER_TENANT` | 20 / 500 | Ý định đang mở |
+| `XT_FILES_USER_QUOTA_BYTES` / `XT_FILES_TENANT_QUOTA_BYTES` | 256 MiB / 1 GiB | Quota byte |
+| `XT_FILES_RETENTION_SECONDS` | 2592000 | Giữ byte của tệp xóa mềm |
 | `XT_FILES_ALLOWED_TYPES` | toàn bộ danh sách | Tập con để thu hẹp |
 | `XT_FILES_AUDIENCE` / `XT_FILES_REQUIRED_SCOPES` / `XT_FILES_ALLOWED_CLIENTS` | `xt-files` / `xt-files` / `XT_MCP_ALLOWED_CLIENTS` | Như workflow |
 | `XT_MCP_CAPABILITIES` | phải gồm `upload_file` | Bật tool gated `upload_file` |
 
 Compose `minimal`:
-- Một container `seaweedfs` (`weed server -s3`, volume 64 MB, tối đa 8 volume, `mem_limit 512m`, user `seaweed` uid 1000, `read_only`, `cap_drop ALL`).
+- Một container `seaweedfs` (`weed server -s3`, volume 64 MB, tối đa 32 volume, `mem_limit 512m`, user `seaweed` uid 1000, `read_only`, `cap_drop ALL`, mạng `files` nội bộ, `configs` `s3.json` + `security.toml` sinh từ `.env`).
 - Ảnh pin digest 4.48. Healthcheck gồm master `/cluster/healthz` và cổng S3.
 - Profile `full` thêm `clamav`. Đặt `XT_FILES_CLAMD=clamav:3310` trong `deploy/.env`.
 

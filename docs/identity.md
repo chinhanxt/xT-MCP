@@ -12,8 +12,9 @@ Phạm vi: kiểm access token cho MCP resource server, Protected Resource Metad
 | `xt.adapters.identity.config` | Đọc biến môi trường, gom mọi lỗi vào `IdentityConfigError` |
 | `xt.adapters.identity.jwks` | `JwksCache` (TTL, refetch kid lạ có giới hạn tần suất), `HttpJwksFetcher`, `build_jwks_cache` |
 | `xt.adapters.identity.jwt_core` | Kiểm header, chữ ký, `iss/aud/exp/nbf/iat/typ/sub`, trần tuổi token |
-| `xt.adapters.identity.access_token` | `AccessTokenVerifier.verify(token, required_scopes) -> Principal` |
-| `xt.adapters.identity.resource_metadata` | PRM, `WWW-Authenticate`, `challenge_for()`, `extract_bearer()` |
+| `xt.adapters.identity.access_token` | `AccessTokenVerifier.verify(token, required_scopes, *, dpop=DpopContext) -> Principal` |
+| `xt.adapters.identity.dpop` | DPoP (RFC 9449): `DpopVerifier`, `DpopSettings`/`load_dpop_settings`, `DpopError`, `normalize_htu`, `jwk_thumbprint` (RFC 7638) |
+| `xt.adapters.identity.resource_metadata` | PRM, `WWW-Authenticate` (`Bearer` + `DPoP`), `challenge_for()`, `extract_credentials()`, `extract_bearer()` |
 | `xt.adapters.identity.step_up` | `StepUpVerifier`, `ConfirmationContext`, PKCE, URL authorize của trang confirm |
 | `xt.adapters.identity.receipts` | `ReceiptService.issue()` / `verify_and_consume()` |
 | `xt.adapters.identity.single_use` | `InMemorySingleUseStore` (test, một tiến trình). Bản Postgres làm sau ở `adapters/db` |
@@ -62,6 +63,12 @@ Không có host, realm hay secret mặc định. Thiếu hoặc sai thì hàm `l
 | `XT_IDP_INTROSPECTION_URL` | khi `high_risk` | | `…/protocol/openid-connect/token/introspect` |
 | `XT_IDP_INTROSPECTION_CLIENT_ID` / `_SECRET` | khi `high_risk` | | Client confidential của xt-api. Đặt các biến này khi `off` là lỗi cấu hình |
 | `XT_IDP_INTROSPECTION_CACHE_SECONDS` | không | `30` | Cache kết quả theo SHA-256 của token, tối đa 60 |
+| `XT_DPOP_REQUIRED` | không | `false` | `true`: client trong `XT_DPOP_CLIENTS` **phải** dùng token gắn DPoP (Bearer thường bị 401), vé `/pii/reveal` chỉ gắn khóa DPoP. Token có `cnf.jkt` luôn bị kiểm proof, bất kể cờ. `provision.py` dùng cùng cờ cho `dpop.bound.access.tokens` |
+| `XT_DPOP_CLIENTS` | không | `XT_DESK_AGENT_CLIENT_ID` hoặc `xt-desk-agent` | Client bị cờ trên ràng buộc (phân cách dấu phẩy) |
+| `XT_DPOP_ALGORITHMS` | không | `ES256` | `alg` nhận cho proof; tập con của `{ES256, ES384, RS256, PS256}`. `none`/`HS*` bị từ chối lúc khởi động |
+| `XT_DPOP_PROOF_MAX_AGE_SECONDS` | không | `60` | Tuổi tối đa của proof theo `iat` (1–300), cộng thêm `XT_DPOP_LEEWAY_SECONDS` |
+| `XT_DPOP_LEEWAY_SECONDS` | không | `30` | Lệch đồng hồ cho `iat` (0–120): tương lai ≤ leeway, quá khứ ≤ max_age + leeway |
+| `XT_DPOP_ORIGINS` | không | rỗng | Origin công khai bổ sung cho `htu` (vd dev `http://localhost:5173`; http cần `XT_IDP_ALLOW_HTTP`). Luôn gồm origin của `XT_MCP_RESOURCE` và `XT_DESK_URL` |
 
 ## Access token cho MCP resource server
 
@@ -70,16 +77,18 @@ Không có host, realm hay secret mặc định. Thiếu hoặc sai thì hàm `l
 1. JWS compact 3 phần (JWE 5 phần bị từ chối). Header `alg` thuộc allowlist, nên `none` và `HS256` ký bằng public key bị loại trước khi đụng khóa. `kid` bắt buộc. Header `typ` nếu có phải là `JWT` hoặc `at+jwt`. Mọi `crit` bị từ chối.
 2. Khóa lấy từ `JwksCache` theo `kid`. Chỉ nhận khóa ký `RSA ≥ 2048 bit` hoặc `EC P-256`. Khóa `use=enc`, `oct`, kid trùng thì bỏ. Kiểu khóa phải khớp `alg` (chống đổi `alg` sang ES256 với kid RSA).
 3. `iss` bằng đúng `XT_IDP_ISSUER`. Có `exp`, `iat`; `nbf` nếu có. Leeway áp cho cả ba. `exp − iat` không vượt trần.
-4. `typ` (claim Keycloak) = `Bearer`, nên refresh token (`Refresh`, và ở Keycloak còn ký HS512) và ID token (`ID`) bị từ chối. `sub` bắt buộc.
+4. `typ` (claim Keycloak) = `Bearer`, hoặc `DPoP` (token gắn khóa, bắt buộc có `cnf.jkt`), nên refresh token (`Refresh`, và ở Keycloak còn ký HS512) và ID token (`ID`) bị từ chối. `sub` bắt buộc.
 5. `aud` chứa `XT_MCP_RESOURCE`. `azp` thuộc allowlist.
 6. Scope: `XT_MCP_REQUIRED_SCOPES` ∪ `required_scopes` của thao tác. Thiếu thì ném `InsufficientScopeError` (403). Mọi lỗi ở bước 1–5 là `InvalidTokenError` (401), mang `reason` ổn định (`alg_not_allowed`, `unknown_kid`, `bad_signature`, `issuer`, `audience`, `client_not_allowed`, `expired`, `not_yet_valid`, `iat_in_future`, `lifetime_exceeded`, `token_type`, `missing_claim:<tên>`…).
+
+7. DPoP (mục dưới): token có `cnf.jkt` chỉ hợp lệ với `Authorization: DPoP` + proof đúng khóa; cờ `XT_DPOP_REQUIRED` buộc client Desk phải có token gắn khóa.
 
 `Principal`: `subject` (`sub` của token), `kind` và `on_behalf_of` **suy từ client `azp`**, không từ loại grant (arch v2.2, TCV1 C7):
 - `azp` ∈ `XT_MCP_ALLOWED_CLIENTS`: `agent`. Token auth-code thì `on_behalf_of` = `sub` của người đã đăng nhập. Token service account (claim `client_id` = `azp`, Keycloak 25+) thì `on_behalf_of` = None.
 - `azp` ∈ `XT_MCP_HUMAN_CLIENTS` (phiên web Desk): `human`, `on_behalf_of` = None. Token service account của client này bị từ chối (`service_account_not_human`).
 - Client khác: `client_not_allowed`. Client confirm không đi qua đây: ID token của nó chỉ được nhận ở `StepUpVerifier`.
 
-Các trường còn lại: `client_id` (= `azp`), `issuer`, `username`, `organizations` + `tenant` (đúng một Organization, nhiều thì `tenant_ambiguous`), `roles` (`realm_access.roles`), `scopes`, `auth_time`, `acr`, `amr`, `token_id`, `issued_at`, `expires_at`. Vai trò nghiệp vụ vẫn lấy từ bảng tổ chức của xT (arch §5.1); `roles` trong token chỉ để tham khảo.
+Các trường còn lại: `client_id` (= `azp`), `issuer`, `username`, `organizations` + `tenant` (đúng một Organization, nhiều thì `tenant_ambiguous`), `roles` (`realm_access.roles`), `scopes`, `auth_time`, `acr`, `amr`, `token_id`, `issued_at`, `expires_at`, `dpop_jkt` (thumbprint khóa DPoP đã kiểm; None với Bearer, đi vào `Actor.dpop_jkt`). Vai trò nghiệp vụ vẫn lấy từ bảng tổ chức của xT (arch §5.1); `roles` trong token chỉ để tham khảo.
 
 ### JWKS và xoay khóa
 
@@ -89,6 +98,34 @@ Các trường còn lại: `client_id` (= `azp`), `issuer`, `username`, `organiz
 - IdP không tới được: còn trong TTL thì dùng bộ khóa hiện có; hết TTL thì **fail-closed** (`IdentityProviderUnavailableError`, tầng HTTP trả 503), không dùng khóa cũ.
 - Xoay khóa theo thứ tự passive → active (arch §5.1 mục 5). Nếu kích hoạt khóa mới ngay, token ký bằng khóa mới có thể bị 401 tối đa `XT_IDP_JWKS_MIN_REFETCH_SECONDS` (VS #5).
 - Lý do tự viết thay vì `PyJWKClient(cache_keys=False, lifespan=…)` (VERD N4): cần tiêm đồng hồ để test xác định, lọc khóa `enc`/thuật toán ngoài allowlist, và giới hạn refetch rõ ràng.
+
+## DPoP (RFC 9449) cho Desk
+
+Quyết định: `docs/decisions.md` "DPoP cho Desk trước v1.0". Client public `xt-desk-agent` giữ khóa ECDSA P-256 **non-extractable** trong trình duyệt (`desk/src/dpop.ts`, IndexedDB). Keycloak 26.6 gắn token vào khóa khi token request có header `DPoP` (access token `typ=DPoP`, `cnf.jkt`; refresh token của client public cũng gắn khóa). Token bị trích khỏi trình duyệt là vô dụng nếu thiếu khóa riêng.
+
+Resource server (`/mcp`, `AuthGate` → `IdentityHttpAuth` → `AccessTokenVerifier`):
+
+| Token \ request | `Bearer` | `DPoP` + proof hợp lệ |
+|---|---|---|
+| có `cnf.jkt` | 401 `DPoP error="invalid_token"` (`dpop_bearer_scheme`, chống hạ cấp) | nhận, `Principal.dpop_jkt = jkt` |
+| không `cnf.jkt` | nhận; **trừ** client `XT_DPOP_CLIENTS` khi `XT_DPOP_REQUIRED=true` (`dpop_required`) | 401 (`dpop_unbound_token`) |
+
+Bề mặt không có ngữ cảnh DPoP (REST `/workflow/v1`, `/files/v1`, stdio) luôn từ chối token gắn khóa (`dpop_unsupported`, fail-closed).
+
+`DpopVerifier.verify()` theo RFC 9449 §4.3, lỗi nào cũng là `DpopError` (401 `invalid_dpop_proof`):
+1. Đúng **một** header `DPoP`, JWS compact ≤ 8 KiB.
+2. Header `typ=dpop+jwt`; `alg` ∈ `XT_DPOP_ALGORITHMS` (không `none`, không HMAC); không `crit`.
+3. `jwk` là khóa **công khai**: không thành viên riêng (`d`, `p`, `q`, `k`...), `kty`/`crv` khớp `alg`, tọa độ EC base64url **chuẩn tắc** đúng độ dài (cùng lớp với R2-02), RSA ≥ 2048.
+4. Chữ ký đúng với chính `jwk` đó.
+5. `jti` chuỗi 1–256 ký tự; `htm` == method (phân biệt hoa thường); `htu` sau chuẩn hóa (bỏ query/fragment, scheme/host chữ thường, bỏ cổng mặc định) thuộc `{origin + path}` với mọi origin công khai (origin của `XT_MCP_RESOURCE`, `XT_DESK_URL`, `XT_DPOP_ORIGINS`: Desk gọi `/mcp` cùng origin qua APISIX nên `htu` là URL Desk).
+6. `iat` số: `now − max_age − leeway ≤ iat ≤ now + leeway`.
+7. `ath` == base64url(SHA-256(access token)) (với `/pii/reveal`: hash của vé).
+8. Thumbprint RFC 7638 của `jwk` == `cnf.jkt` (so sánh hằng thời gian).
+9. Cuối cùng mới tiêu `jti` (khóa `dpop|jkt|jti`, hết hạn sau cửa sổ iat): proof sai không đốt jti của proof thật; phát lại bị `dpop_replay`. Cache trong bộ nhớ của tiến trình (`xt-api` chạy một tiến trình; nhiều replica cần store chung).
+
+Challenge: `WWW-Authenticate: DPoP error="…", error_description="…", algs="ES256", Bearer resource_metadata="…", scope="…"` (vẫn có PRM cho client MCP). Server không phát `DPoP-Nonce`.
+
+Keycloak (`deploy/keycloak/provision.py`, `desk_agent_client_rep`): attribute client `dpop.bound.access.tokens` (`OIDCConfigAttributes.DPOP_BOUND_ACCESS_TOKENS`, "Require DPoP bound tokens") = `XT_DPOP_REQUIRED`. Tắt: Desk gửi proof vẫn nhận token gắn khóa, Keycloak không ép. Bật: token request thiếu proof bị 400. CORS token endpoint của Keycloak đã cho phép header `DPoP`.
 
 ## Connector DCR: allowlist động
 
@@ -119,7 +156,8 @@ Thứ tự xét một `azp` (chỉ sau khi chữ ký, `iss`, `aud`, `exp` đã �
 - Không có token: `401`, `WWW-Authenticate: Bearer resource_metadata="…", scope="mcp-xt"`. Không có `error` (RFC 6750 §3). Claude bắt buộc 401 phải có `resource_metadata`.
 - Token sai: `401`, thêm `error="invalid_token"` và `error_description` công khai theo `reason`. Không lộ kid hay giá trị claim.
 - Thiếu scope: `403`, `Bearer error="insufficient_scope", scope="<mọi scope thao tác cần>", resource_metadata="…"`. Theo MCP 2026-07-28: một challenge chứa đủ scope để client lấy hợp scope rồi xin lại token.
-- `extract_bearer()` chỉ nhận header `Authorization: Bearer <token>`, không nhận token ở query.
+- `extract_bearer()` chỉ nhận header `Authorization: Bearer <token>`, không nhận token ở query. `/mcp` dùng `extract_credentials()` (nhận `Bearer` và `DPoP`).
+- Lỗi DPoP: `401`, challenge `DPoP` đứng trước challenge `Bearer` (mục "DPoP").
 
 ## Step-up cho `/desk/confirm/{id}` (spike-hitl B)
 
@@ -176,6 +214,7 @@ make test-integration   # Keycloak 26.6.3 thật trong docker, cổng 19400, t�
 ```
 
 - Unit (`tests/unit/identity/`) phủ mọi ca âm VS B: `alg=none`, HS256 ký bằng public key RSA, đổi `alg` với kid RSA, payload bị sửa, khóa lạ cùng kid, `azp` lạ hoặc thiếu, `aud` sai, thiếu hoặc thêm `/`, `iss` sai hoặc thêm `/`, hết hạn, thiếu `exp`/`iat`, `nbf`/`iat` ở tương lai, `exp` +10 năm, `typ=Refresh`/`ID`, refresh/ID token làm bearer, thiếu `sub`, khóa đã xóa sau TTL, refetch kid lạ bị giới hạn tần suất, IdP sập sau TTL. Cùng với đó là step-up (client, acr, amr, auth_time, nonce, người duyệt, SoD), biên nhận (replay, sửa payload, hết hạn, sai confirmation, sai digest, khóa khác, `alg`/`typ` sai, SoD, bằng chứng cũ), introspection (cache, L0/L1 bỏ qua, revoked, lệch sub/client, IdP lỗi) và cấu hình.
+- DPoP (`tests/unit/identity/test_dpop.py`, chạy với cờ tắt và bật): mọi ca âm RFC 9449 §4.3 (thiếu/hai header, không phải JWS, `typ` sai, `alg=none`/HS256/ngoài allowlist, `crit`, thiếu `jwk`/có khóa riêng/kty sai/tọa độ không chuẩn tắc, chữ ký khóa khác, payload sửa, `jti` thiếu/dài, `htm`/`htu` lệch, `iat` tương lai/cũ/không phải số, `ath` thiếu/sai/thừa, thumbprint ≠ `cnf.jkt`, replay, proof sai không đốt jti), vector RFC 7638, chuẩn hóa `htu`, §7.1 (hạ cấp Bearer, scheme DPoP với token không gắn, cờ bắt buộc), challenge. `tests/unit/mcp/test_mcp_dpop.py`: app MCP thật + verifier thật (JWKS tĩnh) qua HTTP. `tests/integration/pii_audit/test_pii_reveal_dpop.py`: `xt serve` + PG17 + IdP JWKS tĩnh, vé PII gắn jkt. `tests/integration/test_dpop_keycloak.py`: Keycloak 26.6.3 thật, client dựng bằng builder của `provision.py`, token/refresh gắn khóa, Keycloak từ chối proof sai/phát lại, xt kiểm proof.
 - Allowlist động (`tests/unit/identity/test_client_registry.py`, Admin API giả qua `httpx.MockTransport`) gồm: 23 vi phạm chính sách, cache dương và thu hồi trong TTL, cache âm, rate limit, lỗi tra cứu fail-closed, client_id sai dạng, refresh token admin khi gặp 401. Test tích hợp `tests/integration/test_connector_registry.py` chạy trên Keycloak thật: client DCR đúng chính sách được nhận; client DCR `client_credentials`, client có thêm redirect host (Keycloak tin nhưng xT không) và client không tồn tại bị từ chối; service account `view-clients` không ghi được; client bị disable bị từ chối sau TTL.
 - Tích hợp (`tests/integration/`) dựng realm bằng Admin REST, mật khẩu admin ngẫu nhiên mỗi lần chạy. Chứng minh trên token thật:
   - token user và service account của client allowlist được nhận, đúng `kind`;

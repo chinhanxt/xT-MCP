@@ -89,6 +89,8 @@ REASON_STATUS: Mapping[str, int] = {
     "content_type_required": 415,
     "checksum_mismatch": 422,
     "length_required": 411,
+    "pending_uploads_quota": 429,  # FB-02: quá số ý định đang mở
+    "storage_quota": 507,  # FB-02: hết quota byte (Insufficient Storage)
 }
 
 FilesAuth = WorkflowAuth  # cùng hình dạng: bearer / verify / challenge (realm riêng)
@@ -257,6 +259,7 @@ FILE_SCHEMA: dict[str, Any] = {
                 "clean",
                 "not_scanned",
                 "infected",
+                "scan_failed",
                 "expired",
             ]
         },

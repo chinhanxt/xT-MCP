@@ -10,7 +10,14 @@ from dataclasses import dataclass, field
 from typing import Any, BinaryIO
 from uuid import UUID, uuid4
 
-from xt.application.files import BlobError, BlobInfo, FileRow, ScannerUnavailable, ScanVerdict
+from xt.application.files import (
+    BlobError,
+    BlobInfo,
+    FileRow,
+    ScannerUnavailable,
+    ScanVerdict,
+    Usage,
+)
 
 
 class MemStore:
@@ -47,6 +54,7 @@ class MemRepo:
     tenant: UUID = field(default_factory=uuid4)
     rows: dict[UUID, FileRow] = field(default_factory=dict)
     events: list[tuple[UUID, str, dict[str, Any]]] = field(default_factory=list)
+    now: Any = None  # đồng hồ của test (datetime) cho quota/hết hạn
 
     def tenant_id(self) -> UUID:
         return self.tenant
@@ -67,6 +75,38 @@ class MemRepo:
 
     def scanning(self, limit: int) -> list[FileRow]:
         return [r for r in self.rows.values() if r.status == "scanning"][:limit]
+
+    def usage(self, person: UUID) -> Usage:
+        live = [r for r in self.rows.values() if r.deleted_at is None]
+        pend = [
+            r for r in live
+            if r.status in ("awaiting_upload", "uploaded")
+            and (self.now is None or r.upload_expires_at is None or r.upload_expires_at > self.now)
+        ]  # fmt: skip
+        held = [r for r in live if r.status not in ("expired", "infected") and r.size_bytes]
+        return Usage(
+            sum(1 for r in pend if r.created_by == person),
+            len(pend),
+            sum(r.size_bytes or 0 for r in held if r.created_by == person),
+            sum(r.size_bytes or 0 for r in held),
+        )
+
+    def expired_pending(self, limit: int) -> list[FileRow]:
+        return [
+            r for r in self.rows.values()
+            if r.status in ("awaiting_upload", "uploaded") and r.upload_expires_at is not None
+            and self.now is not None and r.upload_expires_at <= self.now
+        ][:limit]  # fmt: skip
+
+    def purgeable_deleted(self, older_than_s: int, limit: int) -> list[FileRow]:
+        return [
+            r for r in self.rows.values()
+            if r.deleted_at is not None and r.object_key is not None and self.now is not None
+            and (self.now - r.deleted_at).total_seconds() >= older_than_s
+        ][:limit]  # fmt: skip
+
+    def object_in_use(self, object_key: str, except_id: UUID) -> bool:
+        return any(r.object_key == object_key and r.id != except_id for r in self.rows.values())
 
     def actions(self, file_id: UUID) -> list[str]:
         return [a for f, a, _ in self.events if f == file_id]

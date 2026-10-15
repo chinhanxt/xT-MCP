@@ -1295,6 +1295,7 @@ _tool(
                             "clean",
                             "not_scanned",
                             "infected",
+                            "scan_failed",
                             "expired",
                         ],
                         "description": "Only clean or not_scanned files can be attached to submitted requests.",
@@ -1587,7 +1588,7 @@ _tool(
                 "description": "Tasks that must be done before this one can start.",
             },
             "recurrence": s(
-                "RFC 5545 RRULE, e.g. every Friday 'FREQ=WEEKLY;BYDAY=FR' (MO TU WE TH FR SA SU = Monday..Sunday).",
+                "RFC 5545 RRULE, e.g. every Friday 'FREQ=WEEKLY;BYDAY=FR'. Thứ Hai MO, Ba TU, Tư WE, Năm TH, Sáu FR, Bảy SA, Chủ nhật SU.",
                 maxLength=200,
                 pattern=r"^FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)(;[A-Z]+=[A-Z0-9,+-]+)*$",
             ),
