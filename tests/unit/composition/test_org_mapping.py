@@ -66,7 +66,6 @@ def test_seed_mappings_cover_seed_data(seed: str) -> None:
     hr = json.loads((ROOT / "seed" / seed / "org.json").read_text(encoding="utf-8"))
     mp = json.loads((ROOT / "seed" / seed / "mapping.json").read_text(encoding="utf-8"))
     out = org_from_hr(hr, mapping=mp, base_roles=["employee"])
-    assert all(
-        u["key"] == mp["departments"][d["id"]] for u, d in zip(out["units"], hr["departments"], strict=True)
-    )
+    pairs = zip(out["units"], hr["departments"], strict=True)
+    assert all(u["key"] == mp["departments"][d["id"]] for u, d in pairs)
     assert not {"it", "accountant"} & {r for p in out["people"] for r in p["roles"]}

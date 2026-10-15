@@ -26,7 +26,8 @@ def is_hr_format(data: Mapping[str, Any]) -> bool:
 def apply_mapping(data: Mapping[str, Any], mapping: Mapping[str, Any]) -> dict[str, Any]:
     """Dịch từ vựng của tệp HR sang từ vựng của gói (`mapping.json`):
     `departments` {id tệp -> mã phòng}, `roles` {vai trò tệp -> [vai trò gói]}; khóa `role@id`
-    cộng thêm vai trò cho người giữ vai trò đó trong đúng phòng đó. Vai trò/phòng không khai -> lỗi."""
+    cộng thêm vai trò cho người giữ vai trò đó trong đúng phòng đó.
+    Vai trò/phòng không khai -> lỗi."""
     dmap: Mapping[str, str] = mapping.get("departments", {})
     rmap: Mapping[str, Sequence[str]] = mapping.get("roles", {})
     problems = []
