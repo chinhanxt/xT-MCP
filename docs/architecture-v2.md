@@ -398,7 +398,7 @@ Pin image bằng digest. "Pin lúc scaffold" nghĩa là research chưa ghi phiê
 | Hàng đợi | `procrastinate` **hoặc** `pgqueuer`, hoặc bản tự viết nếu cả hai trượt (chọn sau spike v0.0) | pin | MIT / MIT (theo metadata PyPI, VERD §3.1) | dep | minimal | CRIT 30, VERD §3.5 |
 | SBOM | `cyclonedx-py` | pin | Apache-2.0 **[kiểm khi thêm]** | dev | — | VERD N8 |
 | Lịch | `python-dateutil`, `holidays` | pin | BSD/Apache; **[kiểm giấy phép]** | dep | minimal | CRIT 30 |
-| S3 | boto3 | pin | Apache-2.0 | dep | minimal | **[chưa kiểm với SeaweedFS]** |
+| S3 | client SigV4 tự viết trên httpx (`adapters/blob/s3.py`), không boto3 | — | Apache-2.0 | mã xT | minimal | Đã kiểm với SeaweedFS 4.48 thật (decisions D-FILES-6) |
 | Telegram | aiogram | pin | MIT | dep | minimal | RA |
 | IAM oracle (CI) | pycasbin | 2.8.0 | Apache-2.0 | dev | — | SIAM |
 | SSO | Keycloak | 26.8.1 | Apache-2.0 | docker | minimal | SAUTH |

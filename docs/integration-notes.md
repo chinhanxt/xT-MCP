@@ -315,3 +315,29 @@ Test: `tests/integration/model_audit/test_audit_meta_pg.py`, 6 test, PG17 thật
 | Vòng 2: `lock_audit_chain(cur, tenant_id)` (`adapters/db/audit.py`) gọi đầu `get_for_update`, `claim`, `lock_pending` | Mọi đoạn code mới khóa dòng rồi mới ghi bảng có audit phải gọi hàm này trước (thứ tự: chuỗi audit, rồi tới dòng) |
 | Vòng 2: `WorkflowBackend.instance_ref(actor, trace_id, instance_id)` (mới, bắt buộc) | Backend khác của REST phải hiện thực |
 | Vòng 2: `ResourceServerSettings.foreign_audiences` (mặc định MCP `{xt-workflow, xt-data}`; đổi được qua `XT_WORKFLOW_AUDIENCE`/`XT_DATA_AUDIENCE`) | Token nhiều aud bị 401 ở cả `/mcp` và `/workflow` |
+
+## REST `/files/v1` + tool `upload_file` thật (16/10/2026)
+
+Mã:
+- `src/xt/application/files/` (cổng `FileStore`/`MalwareScanner`/`FileRepository`, `FileManager`)
+- `src/xt/adapters/blob/{s3,clamd}.py`
+- `src/xt/adapters/db/files.py` + migration `0009_files.sql`
+- `src/xt/adapters/http/files_api.py`
+- nối ở `src/xt/entrypoints/files_http.py` (ngoài `composition/`)
+
+Tài liệu: `docs/files-api.md`. Quyết định: `docs/decisions.md` "REST /files/v1".
+
+| Thay đổi | Ai cần làm gì |
+|---|---|
+| **Chưa nối** (một dòng, integrator): trong `serve.Prepared.http_app()` đổi `return with_workflow_api(self, self.cfg.env, merged)` thành `from xt.entrypoints.files_http import with_files_api` + `return with_files_api(self, self.cfg.env, with_workflow_api(self, self.cfg.env, merged))`. Chưa đặt `XT_FILES_S3_ENDPOINT` thì hàm trả nguyên app (không mount, `upload_file` vẫn `capability_unavailable`) | Integrator. Test `tests/integration/composition/test_files_api.py` ghép đúng như vậy |
+| `with_files_api` gắn `FileToolService` vào `prepared.dispatcher.services.files` (`dataclasses.replace`). Tool MCP `upload_file` thật trên **cùng** dispatcher của `/mcp` và REST | Về lâu dài: thay `files=Files()` trong `Composition.services` bằng `FileToolService(rt, FilesStack.build(env))`, rồi bỏ bước gắn trong `attach_files`. Composition hiện không giữ `env`, nên chưa làm |
+| `XT_MCP_CAPABILITIES` phải gồm `upload_file` khi bật files (kiểm lúc khởi động) | Deploy: compose đặt mặc định `upload_file` |
+| Migration `0009_files.sql`: `xt_meta.file_object` + `xt_meta.file_event` (RLS `tenant_isolation`, không DELETE), `xt_audit.install_meta` (tên tệp redact) | Cần `install_meta_audit` (đã có trong xt-init). Số `0009` vì `0008_job_role_relay.sql` đã có. Nếu module khác cũng lấy 0009 thì đổi tên |
+| `adapters/db/compiler.py`: field `file` sinh FK ghép `(tenant_id, col) → xt_meta.file_object (tenant_id, id)` + index. `domain/model/checks.constraint_map` thêm thông báo tiếng Việt | Model engine: field `file` của model **mới hoặc đổi** mới có FK. Model đã áp trước giữ nguyên |
+| `domain/iam/catalog.py`: thêm `file.read` (L0), `file.delete` (L1). `UploadFile.access` (handlers): IAM `file.create` trên `xrn:<t>:file:file`, **không** đưa `text`/`base64` vào thuộc tính PEP (trước đây có) | PEP của composition tự nhận (catalog L0 từ `DEFAULT_ACTION_LEVELS`) |
+| Gói mới `packages/tep-dinh-kem` (policy `file.*`, model `tai_lieu` với field `tep: file`) | e2e seed tự cài vì cài mọi gói trong `packages/` |
+| Keycloak: `provision_data.py` thêm scope optional `xt-files` (audience mapper `xt-files` + organization), clients `XT_FILES_CLIENTS` (mặc định `xt-cli`) | Chạy lại `provision_data.py` trên realm đang chạy |
+| Compose: `seaweedfs` vào `minimal` (4.48 pin digest, user 1000, `read_only`, `cap_drop ALL`, `mem_limit 512m`, `configs.seaweed-s3` sinh từ `.env`). `xt-api` thêm `XT_FILES_*` + `depends_on seaweedfs healthy`. `envfile.py` tự sinh `XT_FILES_S3_ACCESS_KEY/SECRET_KEY` | `make env` trên `.env` cũ thêm hai khóa còn thiếu. Profile `full`: đặt `XT_FILES_CLAMD=clamav:3310` |
+| APISIX `api-files`: `/files/v1`, `/files/v1/*`, GET/HEAD/POST/PUT/DELETE, body ≤ 26 MiB, `real-ip` + `limit-req` theo IP, timeout 300 s | Render lại `deploy/apisix/rendered/apisix.yaml` khi triển khai |
+| Quét lại tệp `scanning` (clamd từng lỗi): `CompositionFilesBackend.rescan(tenant_alias)` | Worker: thêm job định kỳ gọi `rescan` theo tenant khi bật ClamAV (chưa nối, cần sửa `composition/worker.py`) |
+| `submit_request` với tệp đính kèm chưa `clean`/`not_scanned` → `precondition_failed file_not_clean` (TCV1 §5.14) | Composition process: đọc `xt_meta.file_object.status` của field `file` lúc plan (chưa làm) |

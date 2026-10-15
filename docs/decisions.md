@@ -153,3 +153,36 @@ Sau phản biện bằng Codex gpt-6-astra: dùng API cộng thêm `install_data
   - Cô lập vẫn do RLS + ngữ cảnh mà dispatcher đặt. Job role không EXECUTE được `xt.set_context`, còn `GuardedCursor` chặn đổi role/GUC.
   - (b) cần hàm definer thuộc một role vượt được FORCE RLS (xt_migrator có BYPASSRLS), tức tự kiểm tenant bằng tay trong mỗi hàm. Bề mặt đặc quyền lớn hơn, lại phải sửa luồng `SELECT … FOR UPDATE SKIP LOCKED` + enqueue cùng transaction.
   - Kiểm chứng: `test_worker_job_role_relays_timer_escalation_and_model_apply` chạy `xt worker` thật (relay bằng `xt_job_t<seq>` → tick leo thang SLA + `model.apply` pha 1/2 → có cột mới). `test_job_role_cannot_touch_other_tenant_outbox` là test âm.
+
+## REST /files/v1 — dữ liệu phi cấu trúc (16/10/2026, chủ dự án – Opus 5.5)
+
+- **D-FILES-1. Audience:** chọn **riêng `xt-files`** (scope optional `xt-files`, `provision_data.py` cấp cho `XT_FILES_CLIENTS`, mặc định `xt-cli`), **không dùng lại `xt-data`**.
+  - Lý do 1: `xt-data` là kênh đọc của PostgREST (gateway chỉ cho GET). Gộp vào thì token đọc dữ liệu có cả quyền ghi tệp.
+  - Lý do 2: cùng mô hình RFC 8707 với `/workflow/v1`. Token lộ ở bề mặt này không phát lại được ở bề mặt khác; token còn mang aud MCP/workflow bị từ chối.
+  - E8 lấy token `files` (`--get-token files`).
+- **D-FILES-2. "Presigned URL" do xt-api ký (HMAC-SHA256, nhãn riêng), không dùng SigV4 presign của S3.**
+  - URL có dạng `/files/v1/uploads/<token>`. Token gồm tenant, tệp, người tải lên, hạn. Hạn mặc định 15 phút. Link dùng được một lần: chỉ nhận khi tệp còn `awaiting_upload`.
+  - Lý do 1: kiến trúc v2 cấm lộ SeaweedFS ra ngoài (N10).
+  - Lý do 2: xt-api phải tự đếm byte, chặn quá hạn mức, tính sha256 và kiểm magic byte trước khi bất kỳ byte nào thành object.
+  - Lý do 3: SigV4 ký theo Host nên vỡ khi đi qua APISIX/Cloudflare.
+  - Đánh đổi: byte đi qua xt-api. Chấp nhận được với hạn mức 25 MiB và một tiến trình `minimal`.
+- **D-FILES-3. Trạng thái:** giữ enum đóng của TCV1 §5.13 cho tool (`awaiting_upload, scanning, clean, not_scanned, infected, expired`). REST thêm `uploaded`.
+  - "pending_scan" trong yêu cầu = `scanning`; "unscanned" = `not_scanned`.
+  - Lý do: contract tool đã phát hành, không đổi tên. Bảng đối chiếu ở `docs/files-api.md` §2.
+- **D-FILES-4. Tải về tệp chưa quét (profile minimal):** mặc định `XT_FILES_UNSCANNED_DOWNLOAD=uploader`. Chỉ người tải lên lấy lại được byte của chính mình; người khác nhận 409 `file_not_scanned`. Có thể đặt `deny` hoặc `allow`.
+  - Lý do: rủi ro mã độc là lây sang người khác. Trả lại cho chính người tải lên không thêm rủi ro, và giữ được demo roundtrip.
+  - Kiến trúc v2 ghi "minimal không tải về được". Quyết định này nới đúng một trường hợp đó, có cấu hình.
+- **D-FILES-5. `Idempotency-Key` của `POST /files/v1` là tùy chọn** (workflow bắt buộc).
+  - Lý do: ý định không có hệ quả nghiệp vụ, tự hết hạn. Object theo nội dung (sha256) nên tải lại không nhân đôi byte.
+  - Có khóa thì gửi lại trả đúng tệp cũ (200). Khóa đi chung namespace actor+tool với `upload_file` của MCP.
+- **D-FILES-6. Client S3:** tự viết AWS SigV4 trên `httpx` (6 thao tác), **không thêm boto3**.
+  - Lý do: tránh ~90 MB phụ thuộc. Đã kiểm với SeaweedFS 4.48 thật: chữ ký sai → 403, sha256 sai → `BadDigest`.
+- **D-FILES-7. Liên kết field `file`:** compiler model sinh FK ghép `(tenant_id, col) → xt_meta.file_object(tenant_id, id)` cho field kiểu `file`, giống field `ref`.
+  - Lý do: chặn tham chiếu chéo tenant và id bịa ngay ở DB, không phụ thuộc lớp ứng dụng.
+  - Tệp đã xóa mềm vẫn giữ hàng (ON DELETE RESTRICT), nên bản ghi cũ không gãy.
+  - Model cũ chưa có FK chỉ được thêm khi model đó đổi.
+- **D-FILES-8. IAM tệp là dữ liệu** (gói `tep-dinh-kem`, không cài cứng):
+  - `file.create`: employee/agent.
+  - `file.read`: người tải lên + vai trò duyệt hồ sơ.
+  - `file.delete`: người tải lên.
+  - Catalog host thêm `file.read` (L0) và `file.delete` (L1, xóa mềm khôi phục được). Đọc không được thì trả 404 như tệp không tồn tại (WA-07).
