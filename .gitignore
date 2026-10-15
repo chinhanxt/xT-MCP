@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments and uv cache; keep uv.lock tracked
+.venv/
+venv/
+.uv-cache/
+
+# Node; keep package-manager lockfiles tracked
+node_modules/
+.npm/
+.pnpm-store/
+.next/
+coverage/
+*.tsbuildinfo
+
+# Local secrets; keep safe templates tracked
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Editor and OS artifacts
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Raw CLI worker logs
+research/.*.log

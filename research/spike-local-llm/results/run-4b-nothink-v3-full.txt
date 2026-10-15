@@ -1,0 +1,8 @@
+### Ai báo cáo cho Minh?
+{"prompt": "Ai báo cáo cho Minh?", "calls": [{"tool": "list_direct_reports", "args": {"manager_name": "Minh"}, "isError": false}], "answer": "Theo dữ liệu, **Tuan** là người báo cáo trực tiếp cho Minh.", "steps": 2, "latency_s": 2.6}
+{"prompt": "Ai báo cáo cho Minh?", "calls": [{"tool": "list_direct_reports", "args": {"manager_name": "Minh"}, "isError": false}], "answer": "Theo sơ đồ tổ chức, **Tuan** là người báo cáo trực tiếp cho Minh.", "steps": 2, "latency_s": 2.2}
+{"prompt": "Ai báo cáo cho Minh?", "calls": [{"tool": "list_direct_reports", "args": {"manager_name": "Minh"}, "isError": false}], "answer": "Theo sơ đồ tổ chức, **Tuan** báo cáo trực tiếp cho Minh.", "steps": 2, "latency_s": 2.2}
+### Duyệt task T-1
+{"prompt": "Duyệt task T-1", "calls": [{"tool": "decide_task", "args": {"task_id": "T-1", "decision": "approve"}, "isError": false}], "answer": "Task T-1 đã được duyệt.", "steps": 2, "latency_s": 3.8}
+{"prompt": "Duyệt task T-1", "calls": [{"tool": "decide_task", "args": {"task_id": "T-1", "decision": "approve"}, "isError": false}], "answer": "Task T-1 đã được duyệt.", "steps": 2, "latency_s": 2.7}
+{"prompt": "Duyệt task T-1", "calls": [{"tool": "decide_task", "args": {"task_id": "T-1", "decision": "approve"}, "isError": false}], "answer": "Task T-1 đã được duyệt.", "steps": 2, "latency_s": 2.5}

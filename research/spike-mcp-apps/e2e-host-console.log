@@ -1,0 +1,34 @@
+DETAIL: get_employee -> Tuan | Dev Lead | tuan@xt.vn | báo cáo cho: Minh
+STATUS: act_on_task -> T-1: approved
+[log] [HOST] Connecting to server: http://localhost:18200/mcp
+[log] [HOST] Connected via Streamable HTTP transport
+[log] [HOST] Server tools: [show_org_chart, get_employee, show_approval_card, act_on_task]
+[log] [HOST] Server resources: [ui://xt/org-chart.html, ui://xt/approval-card.html]
+[log] [HOST] Calling tool show_org_chart with input {}
+[log] [HOST] Reading UI resource: ui://xt/org-chart.html
+[log] [HOST] Resource content keys: [uri, mimeType, _meta, text]
+[log] [HOST] Resource content._meta: {ui: Object}
+[log] [HOST] Resource listing._meta: {ui: Object}
+[log] [HOST] Loading sandbox proxy... 
+[log] [HOST] Sandbox proxy loaded
+[log] [HOST] Sending UI resource HTML to MCP App  
+[log] [HOST] Waiting for MCP App to initialize...
+[log] [HOST] MCP App initialized
+[log] [HOST] Sending tool call input to MCP App: {}
+[log] [HOST] Sending tool call result to MCP App: {content: Array(1), structuredContent: Object, isError: false}
+[log] [HOST] Connecting to server: http://localhost:18200/mcp
+[log] [HOST] Connected via Streamable HTTP transport
+[log] [HOST] Server tools: [show_org_chart, get_employee, show_approval_card, act_on_task]
+[log] [HOST] Server resources: [ui://xt/org-chart.html, ui://xt/approval-card.html]
+[log] [HOST] Calling tool show_approval_card with input {task_id: T-1}
+[log] [HOST] Reading UI resource: ui://xt/approval-card.html
+[log] [HOST] Resource content keys: [uri, mimeType, _meta, text]
+[log] [HOST] Resource content._meta: {ui: Object}
+[log] [HOST] Resource listing._meta: {ui: Object}
+[log] [HOST] Loading sandbox proxy... 
+[log] [HOST] Sandbox proxy loaded
+[log] [HOST] Sending UI resource HTML to MCP App  
+[log] [HOST] Waiting for MCP App to initialize...
+[log] [HOST] MCP App initialized
+[log] [HOST] Sending tool call input to MCP App: {task_id: T-1}
+[log] [HOST] Sending tool call result to MCP App: {content: Array(1), structuredContent: Object, isError: false}

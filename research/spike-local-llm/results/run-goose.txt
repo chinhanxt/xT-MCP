@@ -1,0 +1,77 @@
+### [1] Ai báo cáo cho Minh?
+  ▸ list_direct_reports 127_0_0_1_18220_mcp
+    manager_name: Minh
+{
+  "manager": "Minh",
+  "direct_reports": [
+    "Tuan"
+  ]
+}Theo thông tin hệ thống hiện tại, **Tuan** là người báo cáo trực tiếp cho Minhvà không có ai khác ở mức bộ trưởng đó của anh ta.
+real	0m13.475s
+user	0m0.619s
+sys	0m0.148s
+### [2] Ai báo cáo cho Minh?
+  ▸ find_employee 127_0_0_1_18220_mcp
+    name: Minh
+{
+  "id": 2,
+  "name": "Minh",
+  "title": "CTO",
+  "manager_id": 1,
+  "email": "minh@xt.vn",
+  "reports_to": "Lan",
+  "direct_reports_who_report_to_this_person": [
+    "Tuan"
+  ]
+}
+real	0m19.172s
+user	0m0.650s
+sys	0m0.165s
+### [3] Ai báo cáo cho Minh?
+  ▸ list_direct_reports 127_0_0_1_18220_mcp
+    manager_name: Minh
+{
+  "manager": "Minh",
+  "direct_reports": [
+    "Tuan"
+  ]
+}Theo kết quả tìm kiếm, **Tuan** là nhân viên báo cáo trực tiếp cho Minh.
+real	0m9.787s
+user	0m0.500s
+sys	0m0.128s
+### [1] Duyệt task T-1
+  ▸ decide_task 127_0_0_1_18220_mcp
+    task_id: T-1
+    decision: approve
+{
+  "task_id": "T-1",
+  "status": "approved"
+}
+real	0m9.189s
+user	0m0.631s
+sys	0m0.182s
+### [2] Duyệt task T-1
+  ▸ decide_task 127_0_0_1_18220_mcp
+    task_id: T-1
+    decision: approve
+{
+  "task_id": "T-1",
+  "status": "approved"
+}Thành công! Task **T-1** của tôi đã được duyệt (approve).
+real	0m10.627s
+user	0m0.463s
+sys	0m0.125s
+### [3] Duyệt task T-1
+  ▸ get_task 127_0_0_1_18220_mcp
+    task_id: T-1
+{
+  "task_id": "T-1",
+  "title": "Duyệt mua laptop",
+  "requester": "Tuan",
+  "description": "5 laptop dev",
+  "amount": 150000000,
+  "status": "approved"
+}
+real	0m12.512s
+user	0m0.499s
+sys	0m0.163s

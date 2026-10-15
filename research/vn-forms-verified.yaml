@@ -1,0 +1,693 @@
+forms:
+- name: Giấy đề nghị tạm ứng
+  process: Tạm ứng
+  fields:
+  - name: Mã phiếu
+    type: string
+  - name: Ngày lập
+    type: date
+  - name: Họ và tên người đề nghị
+    type: string
+  - name: Bộ phận/Phòng ban
+    type: string
+  - name: Số tiền tạm ứng
+    type: number
+  - name: Số tiền bằng chữ
+    type: string
+  - name: Lý do tạm ứng
+    type: text
+  - name: Thời hạn thanh toán/hoàn ứng
+    type: date
+  - name: Hình thức nhận tiền
+    type: string
+  - name: Số tài khoản ngân hàng thụ hưởng
+    type: string
+  approvers:
+  - Người đề nghị
+  - Phụ trách bộ phận
+  - Kế toán thanh toán
+  - Kế toán trưởng
+  - Giám đốc/Tổng Giám đốc
+  legal_basis: Mẫu số 03-TT (Giấy đề nghị tạm ứng) tại Phụ lục I Thông tư 99/2025/TT-BTC (hiệu lực 01/01/2026, thay thế Thông tư 200/2014/TT-BTC; chỉ để tham khảo theo Điều 9, doanh nghiệp được tự thiết
+    kế nhưng phải đáp ứng Điều 16 Luật Kế toán 2015). Doanh nghiệp nhỏ và vừa vẫn được tiếp tục áp dụng Thông tư 133/2016/TT-BTC (chưa bị thay thế; dự thảo thay thế mới công bố, chưa rõ đã ban hành) hoặc
+    tự nguyện chuyển sang TT 99 (khoản 3 Điều 31)
+  verified: true
+  source_url:
+  - https://luatvietnam.vn/linh-vuc-khac/danh-muc-33-bieu-mau-chung-tu-ke-toan-theo-thong-tu-99-883-105817-article.html
+  - https://thuvienphapluat.vn/ma-so-thue/phap-luat-thue/thong-tu-992025-co-thay-the-thong-tu-1332016-che-do-ke-toan-doanh-nghiep-nho-va-vua-213873.html
+  verification_note: 'Sai/thừa so với mẫu chuẩn: ''Hình thức nhận tiền'', ''Số tài khoản ngân hàng thụ hưởng'', ''Mã phiếu'', ''Số tiền bằng chữ'' tách riêng là mở rộng nội bộ, không có trong mẫu 03-TT
+    (mẫu chuẩn: Kính gửi, Tên tôi là, Bộ phận, Đề nghị tạm ứng số tiền (bằng số, bằng chữ), Lý do tạm ứng, Thời hạn thanh toán). Chữ ký chuẩn gồm Giám đốc, Kế toán trưởng, Phụ trách bộ phận, Người đề nghị;
+    ''Kế toán thanh toán'' không có trong mẫu chuẩn (chữ ký chuẩn mô tả theo kiến thức, chưa tải được PDF mẫu).'
+- name: Phiếu chi
+  process: Tạm ứng, Thanh toán
+  fields:
+  - name: Số phiếu chi
+    type: string
+  - name: Ngày lập phiếu
+    type: date
+  - name: Họ và tên người nhận tiền
+    type: string
+  - name: Địa chỉ/Bộ phận
+    type: string
+  - name: Lý do chi
+    type: text
+  - name: Số tiền chi
+    type: number
+  - name: Số tiền bằng chữ
+    type: string
+  - name: Chứng từ gốc kèm theo
+    type: text
+  - name: Tài khoản Nợ
+    type: string
+  - name: Tài khoản Có
+    type: string
+  approvers:
+  - Giám đốc/Người đại diện pháp luật
+  - Kế toán trưởng
+  - Người lập phiếu
+  - Người nhận tiền
+  - Thủ quỹ
+  legal_basis: Mẫu số 02-TT (Phiếu chi) tại Phụ lục I Thông tư 99/2025/TT-BTC (hiệu lực 01/01/2026, thay thế Thông tư 200/2014/TT-BTC; chỉ để tham khảo theo Điều 9, doanh nghiệp được tự thiết kế nhưng phải
+    đáp ứng Điều 16 Luật Kế toán 2015). Doanh nghiệp nhỏ và vừa vẫn được tiếp tục áp dụng Thông tư 133/2016/TT-BTC (chưa bị thay thế; dự thảo thay thế mới công bố, chưa rõ đã ban hành) hoặc tự nguyện chuyển
+    sang TT 99 (khoản 3 Điều 31)
+  verified: true
+  source_url:
+  - https://luatvietnam.vn/linh-vuc-khac/danh-muc-33-bieu-mau-chung-tu-ke-toan-theo-thong-tu-99-883-105817-article.html
+  verification_note: 'Mẫu 02-TT đúng số hiệu. Chữ ký chuẩn: Giám đốc, Kế toán trưởng, Thủ quỹ, Người lập phiếu, Người nhận tiền (khớp). Tài khoản Nợ/Có và Quyển số có trong mẫu.'
+- name: Giấy đề nghị thanh toán
+  process: Thanh toán
+  fields:
+  - name: Mã phiếu
+    type: string
+  - name: Ngày đề nghị
+    type: date
+  - name: Họ và tên người đề nghị
+    type: string
+  - name: Bộ phận/Phòng ban
+    type: string
+  - name: Nội dung thanh toán
+    type: text
+  - name: Số tiền đề nghị
+    type: number
+  - name: Số tiền bằng chữ
+    type: string
+  - name: Hình thức thanh toán
+    type: string
+  - name: Thông tin tài khoản nhận tiền
+    type: string
+  - name: Số lượng chứng từ gốc kèm theo
+    type: number
+  approvers:
+  - Người đề nghị
+  - Phụ trách bộ phận
+  - Kế toán thanh toán
+  - Kế toán trưởng
+  - Giám đốc/Tổng Giám đốc
+  legal_basis: Mẫu số 05-TT (Giấy đề nghị thanh toán) tại Phụ lục I Thông tư 99/2025/TT-BTC (hiệu lực 01/01/2026, thay thế Thông tư 200/2014/TT-BTC; chỉ để tham khảo theo Điều 9, doanh nghiệp được tự thiết
+    kế nhưng phải đáp ứng Điều 16 Luật Kế toán 2015). Doanh nghiệp nhỏ và vừa vẫn được tiếp tục áp dụng Thông tư 133/2016/TT-BTC (chưa bị thay thế; dự thảo thay thế mới công bố, chưa rõ đã ban hành) hoặc
+    tự nguyện chuyển sang TT 99 (khoản 3 Điều 31)
+  verified: true
+  source_url:
+  - https://luatvietnam.vn/linh-vuc-khac/danh-muc-33-bieu-mau-chung-tu-ke-toan-theo-thong-tu-99-883-105817-article.html
+  verification_note: Số hiệu 05-TT đúng. Mẫu chuẩn gồm Kính gửi, Tên tôi là, Bộ phận, Nội dung thanh toán, Số tiền, Chứng từ gốc kèm theo; 'Thông tin tài khoản nhận tiền', 'Hình thức thanh toán' là mở rộng
+    nội bộ.
+- name: Giấy thanh toán tiền tạm ứng
+  process: Hoàn ứng
+  fields:
+  - name: Mã phiếu
+    type: string
+  - name: Ngày thanh toán
+    type: date
+  - name: Họ và tên người thanh toán
+    type: string
+  - name: Bộ phận/Phòng ban
+    type: string
+  - name: Số tiền tạm ứng đã nhận
+    type: number
+  - name: Số tiền thực tế đã chi
+    type: number
+  - name: Số tiền chi thừa đề nghị thanh toán thêm
+    type: number
+  - name: Số tiền chưa chi hết nộp lại quỹ
+    type: number
+  - name: Bảng kê danh mục chứng từ đính kèm
+    type: text
+  approvers:
+  - Người thanh toán
+  - Phụ trách bộ phận
+  - Kế toán thanh toán
+  - Kế toán trưởng
+  - Giám đốc/Tổng Giám đốc
+  legal_basis: Mẫu số 04-TT (Giấy thanh toán tiền tạm ứng) tại Phụ lục I Thông tư 99/2025/TT-BTC (hiệu lực 01/01/2026, thay thế Thông tư 200/2014/TT-BTC; chỉ để tham khảo theo Điều 9, doanh nghiệp được
+    tự thiết kế nhưng phải đáp ứng Điều 16 Luật Kế toán 2015). Doanh nghiệp nhỏ và vừa vẫn được tiếp tục áp dụng Thông tư 133/2016/TT-BTC (chưa bị thay thế; dự thảo thay thế mới công bố, chưa rõ đã ban
+    hành) hoặc tự nguyện chuyển sang TT 99 (khoản 3 Điều 31)
+  verified: true
+  source_url:
+  - https://luatvietnam.vn/linh-vuc-khac/danh-muc-33-bieu-mau-chung-tu-ke-toan-theo-thong-tu-99-883-105817-article.html
+  verification_note: 'Số hiệu 04-TT đúng. Mẫu chuẩn: I. Số tạm ứng (số chưa chi hết đợt trước, số kỳ này), II. Số đã chi (kèm chứng từ), III. Chênh lệch (tạm ứng chi không hết nộp lại / chi quá thanh toán
+    thêm). Field list khớp tinh thần.'
+- name: Phiếu thu
+  process: Hoàn ứng, Thanh toán
+  fields:
+  - name: Số phiếu thu
+    type: string
+  - name: Ngày lập phiếu
+    type: date
+  - name: Họ và tên người nộp tiền
+    type: string
+  - name: Địa chỉ/Bộ phận
+    type: string
+  - name: Lý do nộp tiền
+    type: text
+  - name: Số tiền thu
+    type: number
+  - name: Số tiền bằng chữ
+    type: string
+  - name: Chứng từ gốc kèm theo
+    type: text
+  - name: Tài khoản Nợ
+    type: string
+  - name: Tài khoản Có
+    type: string
+  approvers:
+  - Giám đốc/Người đại diện pháp luật
+  - Kế toán trưởng
+  - Người lập phiếu
+  - Người nộp tiền
+  - Thủ quỹ
+  legal_basis: Mẫu số 01-TT (Phiếu thu) tại Phụ lục I Thông tư 99/2025/TT-BTC (hiệu lực 01/01/2026, thay thế Thông tư 200/2014/TT-BTC; chỉ để tham khảo theo Điều 9, doanh nghiệp được tự thiết kế nhưng phải
+    đáp ứng Điều 16 Luật Kế toán 2015). Doanh nghiệp nhỏ và vừa vẫn được tiếp tục áp dụng Thông tư 133/2016/TT-BTC (chưa bị thay thế; dự thảo thay thế mới công bố, chưa rõ đã ban hành) hoặc tự nguyện chuyển
+    sang TT 99 (khoản 3 Điều 31)
+  verified: true
+  source_url:
+  - https://luatvietnam.vn/linh-vuc-khac/danh-muc-33-bieu-mau-chung-tu-ke-toan-theo-thong-tu-99-883-105817-article.html
+  verification_note: 'Mẫu 01-TT đúng; chữ ký chuẩn: Giám đốc, Kế toán trưởng, Người lập phiếu, Người nộp tiền, Thủ quỹ (khớp).'
+- name: Đơn xin nghỉ phép
+  process: Nghỉ phép
+  fields:
+  - name: Mã nhân viên
+    type: string
+  - name: Họ và tên nhân viên
+    type: string
+  - name: Bộ phận/Phòng ban
+    type: string
+  - name: Chức vụ
+    type: string
+  - name: Loại nghỉ phép
+    type: string
+  - name: Nghỉ từ ngày
+    type: date
+  - name: Nghỉ đến hết ngày
+    type: date
+  - name: Tổng số ngày nghỉ
+    type: number
+  - name: Lý do nghỉ
+    type: text
+  - name: Người nhận bàn giao công việc tạm thời
+    type: string
+  - name: Số điện thoại liên hệ khẩn cấp
+    type: string
+  approvers:
+  - Nhân viên làm đơn
+  - Quản lý trực tiếp/Trưởng bộ phận
+  - Phụ trách nhân sự (C&B)
+  - Ban Giám đốc (trường hợp nghỉ dài ngày theo quy chế)
+  legal_basis: 'Bộ luật Lao động 2019 (số 45/2019/QH14): Điều 113 (nghỉ hằng năm, 12 ngày/năm), Điều 114 (ngày nghỉ hằng năm tăng thêm theo thâm niên), Điều 115 (nghỉ việc riêng, nghỉ không hưởng lương);
+    quy chế nội bộ. Điều 112 là nghỉ lễ, tết, không liên quan trực tiếp đến đơn xin nghỉ phép nên bỏ. Không có mẫu đơn luật định'
+  verified: true
+  source_url:
+  - https://hethongphapluat.com/bo-luat-lao-dong-2019/khoan-1-dieu-113
+  verification_note: Điều 112 sai chủ đề (nghỉ lễ, tết) - đã loại. Đơn nghỉ phép không có mẫu bắt buộc.
+- name: Giấy đi đường
+  process: Nghỉ phép, Tạm ứng, Thanh toán
+  fields:
+  - name: Mã số giấy đi đường
+    type: string
+  - name: Họ và tên cán bộ cử đi công tác
+    type: string
+  - name: Bộ phận/Phòng ban
+    type: string
+  - name: Nơi đi
+    type: string
+  - name: Nơi đến
+    type: string
+  - name: Mục đích công tác
+    type: text
+  - name: Phương tiện sử dụng
+    type: string
+  - name: Thời gian bắt đầu công tác
+    type: date
+  - name: Thời gian kết thúc công tác
+    type: date
+  - name: Xác nhận của cơ quan/nơi đến công tác
+    type: text
+  - name: Tiền tạm ứng đã nhận
+    type: number
+  approvers:
+  - Trưởng bộ phận cử đi
+  - Cơ quan/Đơn vị nơi đến xác nhận
+  - Kế toán thanh toán
+  - Kế toán trưởng
+  - Giám đốc
+  legal_basis: 'Mẫu số 04-LĐTL (Giấy đi đường) có trong Thông tư 200/2014/TT-BTC và Thông tư 133/2016/TT-BTC (cùng số 04-LĐTL, không phải 06-LĐTL). Thông tư 99/2025/TT-BTC (Phụ lục I, 33 mẫu) KHÔNG còn
+    mẫu Giấy đi đường: doanh nghiệp dùng mẫu 04-LĐTL cũ làm tham khảo hoặc tự thiết kế. Mẫu C16-HD thuộc Thông tư 107/2017/TT-BTC dành cho đơn vị hành chính sự nghiệp, không áp dụng cho doanh nghiệp'
+  verified: false
+  source_url:
+  - https://luatvietnam.vn/linh-vuc-khac/danh-muc-33-bieu-mau-chung-tu-ke-toan-theo-thong-tu-99-883-105817-article.html
+  - https://thuvienphapluat.vn/lao-dong-tien-luong/mau-giay-di-duong-moi-nhat-2025-la-mau-nao-47952.html
+  verification_note: 'Sai: ''Mẫu 06-LĐTL theo TT133'' - thực tế 04-LĐTL. ''Mã số'', ''Tiền tạm ứng đã nhận'' là mở rộng nội bộ. Mẫu chuẩn: số, người được cấp, chức vụ, nơi đến công tác, công lệnh, thời
+    gian, phương tiện, xác nhận nơi đến. Số hiệu mẫu 06-LĐTL của TT133 chưa kiểm tra thấy ở nguồn nào.'
+- name: Phiếu yêu cầu mua sắm vật tư, thiết bị
+  process: Mua sắm
+  fields:
+  - name: Mã yêu cầu (PR Code)
+    type: string
+  - name: Ngày yêu cầu
+    type: date
+  - name: Người đề xuất
+    type: string
+  - name: Bộ phận yêu cầu
+    type: string
+  - name: Danh mục hàng hóa/thiết bị yêu cầu
+    type: list
+  - name: Đơn giá dự toán
+    type: number
+  - name: Tổng chi phí dự kiến
+    type: number
+  - name: Mục đích/Lý do mua sắm
+    type: text
+  - name: Thời hạn mong muốn nhận hàng
+    type: date
+  - name: Mức độ ưu tiên
+    type: string
+  approvers:
+  - Người đề xuất
+  - Trưởng bộ phận yêu cầu
+  - Bộ phận Mua sắm/Hành chính
+  - Kế toán trưởng
+  - Giám đốc/Tổng Giám đốc
+  legal_basis: Quy chế nội bộ doanh nghiệp (không có mẫu hay quy định pháp luật bắt buộc)
+  verified: true
+  source_url: chưa rõ
+  verification_note: Không có cơ sở pháp lý cụ thể; đây là biểu mẫu nội bộ.
+- name: Bảng so sánh báo giá nhà cung cấp
+  process: Mua sắm
+  fields:
+  - name: Mã phiếu thẩm định giá
+    type: string
+  - name: Ngày lập bảng
+    type: date
+  - name: Nội dung gói mua sắm
+    type: text
+  - name: Căn cứ Phiếu yêu cầu mua sắm số
+    type: string
+  - name: Danh sách các nhà cung cấp chào giá
+    type: list
+  - name: So sánh tiêu chí kỹ thuật và thông số
+    type: text
+  - name: So sánh giá cả và chiết khấu
+    type: text
+  - name: So sánh thời hạn giao hàng và thanh toán
+    type: text
+  - name: Nhà cung cấp được đề xuất lựa chọn
+    type: string
+  - name: Lý do lựa chọn
+    type: text
+  approvers:
+  - Chuyên viên mua sắm
+  - Trưởng bộ phận Mua sắm
+  - Trưởng bộ phận thụ hưởng
+  - Kế toán trưởng
+  - Giám đốc
+  legal_basis: Quy chế mua sắm nội bộ (không có mẫu pháp luật bắt buộc; Luật Đấu thầu chỉ áp dụng cho mua sắm vốn nhà nước, không áp dụng cho SME tư nhân)
+  verified: true
+  source_url: chưa rõ
+  verification_note: Biểu mẫu nội bộ.
+- name: Biên bản giao nhận và nghiệm thu hàng hóa
+  process: Mua sắm, Thanh toán
+  fields:
+  - name: Số biên bản
+    type: string
+  - name: Ngày giờ thực hiện
+    type: datetime
+  - name: Địa điểm giao nhận
+    type: string
+  - name: Đại diện bên giao (Nhà cung cấp)
+    type: string
+  - name: Đại diện bên nhận
+    type: string
+  - name: Căn cứ Đơn đặt hàng/Hợp đồng số
+    type: string
+  - name: Bảng chi tiết hàng hóa (Tên, quy cách, số lượng, tình trạng bao bì/kỹ thuật)
+    type: list
+  - name: Kết quả kiểm tra/chạy thử
+    type: string
+  - name: Kết luận nghiệm thu
+    type: string
+  approvers:
+  - Đại diện bên giao hàng
+  - Nhân viên tiếp nhận hàng hóa
+  - Trưởng bộ phận sử dụng
+  - Thủ kho tiếp nhận
+  legal_basis: 'Bộ luật Dân sự 2015 (nghĩa vụ giao vật, kiểm tra khi nhận) và Luật Thương mại 2005 theo hợp đồng mua bán; mẫu tham khảo kế toán: 03-VT Biên bản kiểm nghiệm vật tư, công cụ, sản phẩm, hàng
+    hoá (Phụ lục I TT 99/2025/TT-BTC). Số điều BLDS/LTM cụ thể: chưa rõ (chưa tra)'
+  verified: false
+  source_url:
+  - https://luatvietnam.vn/linh-vuc-khac/danh-muc-33-bieu-mau-chung-tu-ke-toan-theo-thong-tu-99-883-105817-article.html
+  verification_note: Chưa xác minh điều khoản BLDS cụ thể. Mẫu 03-VT là mẫu kế toán tương ứng nhất.
+- name: Phiếu nhập kho
+  process: Mua sắm
+  fields:
+  - name: Số phiếu nhập kho
+    type: string
+  - name: Ngày lập phiếu
+    type: date
+  - name: Họ tên người giao hàng
+    type: string
+  - name: Theo hóa đơn/chứng từ số
+    type: string
+  - name: Nhập tại kho
+    type: string
+  - name: Địa điểm kho
+    type: string
+  - name: Danh mục vật tư, hàng hóa (Tên, mã số, ĐVT, số lượng chứng từ, số lượng thực nhập, đơn giá, thành tiền)
+    type: list
+  - name: Tổng số tiền
+    type: number
+  - name: Tổng số tiền bằng chữ
+    type: string
+  approvers:
+  - Người lập phiếu
+  - Người giao hàng
+  - Thủ kho
+  - Kế toán kho
+  - Kế toán trưởng
+  legal_basis: Mẫu số 01-VT (Phiếu nhập kho) tại Phụ lục I Thông tư 99/2025/TT-BTC (hiệu lực 01/01/2026, thay thế Thông tư 200/2014/TT-BTC; chỉ để tham khảo theo Điều 9, doanh nghiệp được tự thiết kế nhưng
+    phải đáp ứng Điều 16 Luật Kế toán 2015). Doanh nghiệp nhỏ và vừa vẫn được tiếp tục áp dụng Thông tư 133/2016/TT-BTC (chưa bị thay thế; dự thảo thay thế mới công bố, chưa rõ đã ban hành) hoặc tự nguyện
+    chuyển sang TT 99 (khoản 3 Điều 31)
+  verified: true
+  source_url:
+  - https://luatvietnam.vn/linh-vuc-khac/danh-muc-33-bieu-mau-chung-tu-ke-toan-theo-thong-tu-99-883-105817-article.html
+  verification_note: '01-VT đúng. Chữ ký chuẩn: Người lập phiếu, Người giao hàng, Thủ kho, Kế toán trưởng (hoặc bộ phận có nhu cầu nhập); ''Kế toán kho'' không có trong mẫu chuẩn.'
+- name: Phiếu yêu cầu tuyển dụng nhân sự
+  process: Tuyển dụng/onboarding
+  fields:
+  - name: Mã yêu cầu
+    type: string
+  - name: Bộ phận yêu cầu
+    type: string
+  - name: Vị trí/Chức danh cần tuyển
+    type: string
+  - name: Số lượng cần tuyển
+    type: number
+  - name: Lý do tuyển dụng
+    type: string
+  - name: Mô tả công việc tóm tắt
+    type: text
+  - name: Tiêu chuẩn ứng viên (Trình độ, kinh nghiệm, kỹ năng)
+    type: text
+  - name: Mức lương dự kiến
+    type: number
+  - name: Thời gian mong muốn nhân sự nhận việc
+    type: date
+  - name: Hình thức hợp đồng dự kiến
+    type: string
+  approvers:
+  - Trưởng bộ phận yêu cầu
+  - Trưởng phòng Nhân sự
+  - Kế toán trưởng / Giám đốc tài chính (thẩm định ngân sách)
+  - Giám đốc/Tổng Giám đốc
+  legal_basis: 'Quy chế nội bộ doanh nghiệp. Điều khoản luật liên quan khi ký hợp đồng: BLLĐ 2019 (chưa rõ điều cụ thể, chưa tra)'
+  verified: true
+  source_url: chưa rõ
+  verification_note: Biểu mẫu nội bộ, không có mẫu luật định.
+- name: Phiếu đánh giá ứng viên phỏng vấn
+  process: Tuyển dụng/onboarding
+  fields:
+  - name: Mã ứng viên
+    type: string
+  - name: Họ và tên ứng viên
+    type: string
+  - name: Vị trí ứng tuyển
+    type: string
+  - name: Ngày phỏng vấn
+    type: date
+  - name: Họ tên người phỏng vấn
+    type: string
+  - name: Điểm đánh giá kiến thức chuyên môn
+    type: number
+  - name: Điểm đánh giá kỹ năng mềm và giao tiếp
+    type: number
+  - name: Đánh giá mức độ phù hợp văn hóa doanh nghiệp
+    type: text
+  - name: Mức lương ứng viên kỳ vọng
+    type: number
+  - name: Đề xuất kết quả tuyển chọn
+    type: string
+  - name: Mức lương thử việc đề xuất
+    type: number
+  approvers:
+  - Người trực tiếp phỏng vấn
+  - Trưởng bộ phận chuyên môn
+  - Trưởng phòng Nhân sự
+  legal_basis: 'Quy chế tuyển dụng nội bộ. Liên quan thử việc: BLLĐ 2019 Điều 24-26 (hợp đồng thử việc, thời gian thử việc, tiền lương thử việc tối thiểu 85% lương chính thức) - chưa tra lại văn bản trong
+    phiên này'
+  verified: false
+  source_url: chưa rõ
+  verification_note: Điều 24-26 BLLĐ nêu theo kiến thức, chưa xác minh bằng nguồn trong phiên.
+- name: Phiếu tiếp nhận và bàn giao tài sản nhân viên mới
+  process: Tuyển dụng/onboarding
+  fields:
+  - name: Mã nhân viên
+    type: string
+  - name: Họ và tên nhân viên mới
+    type: string
+  - name: Chức vụ
+    type: string
+  - name: Phòng ban làm việc
+    type: string
+  - name: Ngày bắt đầu làm việc
+    type: date
+  - name: Danh sách trang thiết bị làm việc bàn giao
+    type: list
+  - name: Danh sách tài khoản hệ thống đã cấp
+    type: list
+  - name: Tình trạng nhận bàn giao tài liệu nội quy công ty
+    type: boolean
+  - name: Xác nhận hoàn thành thủ tục hồ sơ nhân sự
+    type: boolean
+  approvers:
+  - Nhân viên mới nhận việc
+  - Nhân viên phụ trách Onboarding (HR)
+  - Đại diện bộ phận IT
+  - Đại diện bộ phận Hành chính
+  - Quản lý trực tiếp
+  legal_basis: 'Quy chế nội bộ; mẫu kế toán tham khảo: 01-TSCĐ Biên bản giao nhận TSCĐ (Phụ lục I TT 99/2025/TT-BTC) nếu bàn giao TSCĐ. ''Bộ luật Lao động 2019'' chung chung, không có điều cụ thể bắt buộc'
+  verified: true
+  source_url:
+  - https://luatvietnam.vn/linh-vuc-khac/danh-muc-33-bieu-mau-chung-tu-ke-toan-theo-thong-tu-99-883-105817-article.html
+  verification_note: Đã bỏ trích dẫn BLLĐ chung chung.
+- name: Đơn xin thôi việc
+  process: Nghỉ việc
+  fields:
+  - name: Mã nhân viên
+    type: string
+  - name: Họ và tên người lao động
+    type: string
+  - name: Chức danh/Vị trí công tác
+    type: string
+  - name: Bộ phận/Phòng ban
+    type: string
+  - name: Ngày gửi đơn
+    type: date
+  - name: Ngày mong muốn chấm dứt hợp đồng
+    type: date
+  - name: Thời gian báo trước đúng luật
+    type: number
+  - name: Lý do xin nghỉ việc
+    type: text
+  - name: Kế hoạch bàn giao công việc dự kiến
+    type: text
+  approvers:
+  - Người lao động làm đơn
+  - Trưởng bộ phận trực tiếp
+  - Trưởng phòng Nhân sự
+  - Tổng Giám đốc/Người đại diện pháp luật
+  legal_basis: 'Bộ luật Lao động 2019 Điều 35 (quyền đơn phương chấm dứt hợp đồng lao động của người lao động; thời hạn báo trước theo khoản 1: 45 ngày HĐ không xác định thời hạn, 30 ngày HĐ 12-36 tháng,
+    3 ngày HĐ dưới 12 tháng - số ngày theo kiến thức, nguồn tìm được xác nhận tên điều)'
+  verified: true
+  source_url:
+  - https://hethongphapluat.com/bo-luat-lao-dong-2019/khoan-1-dieu-35
+  verification_note: Điều 35 đúng chủ đề.
+- name: Biên bản bàn giao công việc và tài sản khi thôi việc
+  process: Nghỉ việc
+  fields:
+  - name: Mã nhân viên nghỉ việc
+    type: string
+  - name: Họ và tên nhân viên
+    type: string
+  - name: Bộ phận/Phòng ban
+    type: string
+  - name: Ngày làm việc cuối cùng
+    type: date
+  - name: Chi tiết bàn giao hồ sơ, công việc tồn đọng
+    type: text
+  - name: Người tiếp nhận công việc
+    type: string
+  - name: Xác nhận thu hồi thiết bị, công cụ IT
+    type: boolean
+  - name: Xác nhận thu hồi thẻ nhân viên, chìa khóa, tài sản hành chính
+    type: boolean
+  - name: Xác nhận đối chiếu công nợ, tạm ứng tồn đọng
+    type: boolean
+  - name: Số ngày phép tồn đề nghị chi trả
+    type: number
+  approvers:
+  - Nhân viên bàn giao
+  - Người tiếp nhận bàn giao
+  - Trưởng bộ phận trực tiếp
+  - Đại diện bộ phận IT
+  - Kế toán thanh toán/Kế toán công nợ
+  - Trưởng phòng Nhân sự
+  legal_basis: 'Bộ luật Lao động 2019 Điều 48 (trách nhiệm khi chấm dứt hợp đồng lao động: thanh toán các khoản trong 14 ngày, trả sổ BHXH...) và Điều 113 khoản 3 (thanh toán tiền lương ngày nghỉ hằng năm
+    chưa nghỉ)'
+  verified: true
+  source_url:
+  - https://hethongphapluat.com/bo-luat-lao-dong-2019/khoan-3-dieu-48
+  verification_note: Điều 48 đúng chủ đề; bổ sung Điều 113 khoản 3 cho 'Số ngày phép tồn đề nghị chi trả'. Chi tiết 14 ngày/khoản 3 Điều 113 theo kiến thức.
+- name: Phiếu theo dõi và xử lý công văn đến
+  process: Công văn đi/đến
+  fields:
+  - name: Số đến
+    type: number
+  - name: Ngày nhận văn bản
+    type: date
+  - name: Cơ quan/Đơn vị ban hành
+    type: string
+  - name: Số và ký hiệu văn bản đến
+    type: string
+  - name: Ngày tháng ban hành của văn bản
+    type: date
+  - name: Trích yếu nội dung văn bản
+    type: text
+  - name: Độ mật/Độ khẩn
+    type: string
+  - name: Ý kiến phân công/chỉ đạo của Lãnh đạo
+    type: text
+  - name: Đơn vị/Cá nhân chủ trì xử lý
+    type: string
+  - name: Thời hạn phải hoàn thành xử lý
+    type: date
+  - name: Trạng thái thực hiện
+    type: string
+  approvers:
+  - Văn thư/Lễ tân tiếp nhận
+  - Ban Giám đốc (phê duyệt chỉ đạo)
+  - Trưởng bộ phận chủ trì xử lý
+  legal_basis: Nghị định 30/2020/NĐ-CP về công tác văn thư (hiệu lực 05/03/2020) áp dụng trực tiếp cho cơ quan, tổ chức nhà nước và doanh nghiệp nhà nước; doanh nghiệp tư nhân chỉ vận dụng/tham khảo (không
+    bắt buộc). Có Sổ đăng ký văn bản đến theo Phụ lục. Chưa rõ có văn bản sửa đổi, thay thế sau 2025
+  verified: true
+  source_url:
+  - https://thuvienphapluat.vn/van-ban/bo-may-hanh-chinh/Nghi-dinh-30-2020-ND-CP-cong-tac-van-thu-436532.aspx
+  verification_note: 'Làm rõ phạm vi: Nghị định 30 không bắt buộc với doanh nghiệp tư nhân.'
+- name: Phiếu trình ký phát hành văn bản đi
+  process: Công văn đi/đến
+  fields:
+  - name: Mã phiếu trình
+    type: string
+  - name: Ngày trình ký
+    type: date
+  - name: Đơn vị/Người soạn thảo
+    type: string
+  - name: Loại văn bản
+    type: string
+  - name: Trích yếu nội dung văn bản
+    type: text
+  - name: Nơi nhận văn bản
+    type: string
+  - name: Số bản phát hành
+    type: number
+  - name: Tài liệu kèm theo văn bản
+    type: text
+  - name: Số và ký hiệu phát hành chính thức
+    type: string
+  - name: Ngày phát hành chính thức
+    type: date
+  approvers:
+  - Người soạn thảo văn bản
+  - Trưởng bộ phận soạn thảo
+  - Cán bộ thẩm định thể thức/Pháp chế
+  - Người có thẩm quyền ký ban hành (Giám đốc/Phó Giám đốc)
+  legal_basis: Nghị định 30/2020/NĐ-CP (thể thức văn bản; áp dụng trực tiếp cho cơ quan nhà nước, doanh nghiệp nhà nước; doanh nghiệp khác chỉ tham khảo). Chưa rõ có văn bản sửa đổi, thay thế sau 2025
+  verified: true
+  source_url:
+  - https://thuvienphapluat.vn/van-ban/bo-may-hanh-chinh/Nghi-dinh-30-2020-ND-CP-cong-tac-van-thu-436532.aspx
+  verification_note: Như trên. Phiếu trình ký là biểu mẫu nội bộ.
+- name: Phiếu yêu cầu hỗ trợ kỹ thuật IT
+  process: Yêu cầu hỗ trợ IT
+  fields:
+  - name: Mã phiếu hỗ trợ (Ticket ID)
+    type: string
+  - name: Thời gian tạo yêu cầu
+    type: datetime
+  - name: Người gửi yêu cầu
+    type: string
+  - name: Bộ phận/Phòng ban
+    type: string
+  - name: Phân loại sự cố/yêu cầu
+    type: string
+  - name: Mô tả chi tiết sự cố hoặc nội dung hỗ trợ
+    type: text
+  - name: Tài liệu/Hình ảnh đính kèm mô tả lỗi
+    type: string
+  - name: Mức độ ưu tiên
+    type: string
+  - name: Kỹ thuật viên IT tiếp nhận xử lý
+    type: string
+  - name: Kết quả và phương án xử lý
+    type: text
+  - name: Thời gian hoàn thành xử lý
+    type: datetime
+  - name: Đánh giá mức độ hài lòng của người dùng
+    type: number
+  approvers:
+  - Người tạo yêu cầu
+  - Kỹ thuật viên IT phụ trách
+  - Trưởng bộ phận IT (nếu yêu cầu thay thế linh kiện hoặc có chi phí)
+  legal_basis: Quy định nội bộ (không có cơ sở pháp lý bắt buộc)
+  verified: true
+  source_url: chưa rõ
+  verification_note: Biểu mẫu nội bộ.
+- name: Phiếu đề xuất cấp tài khoản và phân quyền hệ thống CNTT
+  process: Yêu cầu hỗ trợ IT, Tuyển dụng/onboarding
+  fields:
+  - name: Mã yêu cầu
+    type: string
+  - name: Ngày yêu cầu
+    type: date
+  - name: Họ và tên người sử dụng
+    type: string
+  - name: Mã nhân viên
+    type: string
+  - name: Bộ phận/Chức vụ
+    type: string
+  - name: Lý do cấp quyền
+    type: string
+  - name: Danh sách hệ thống/phần mềm yêu cầu truy cập
+    type: list
+  - name: Vai trò/Nhóm quyền đề xuất (Role/Permission)
+    type: string
+  - name: Phạm vi truy cập dữ liệu
+    type: string
+  - name: Thời hạn hiệu lực của tài khoản
+    type: string
+  approvers:
+  - Người đề xuất
+  - Trưởng bộ phận của nhân sự đề xuất
+  - Bộ phận Chủ quản dữ liệu (Data Owner)
+  - Quản trị viên hệ thống (IT System Admin)
+  - Giám đốc CNTT / Trưởng bộ phận IT
+  legal_basis: 'Chính sách an toàn thông tin nội bộ. Nếu xử lý dữ liệu cá nhân: Luật Bảo vệ dữ liệu cá nhân 2025 / Nghị định 13/2023/NĐ-CP - chưa rõ hiệu lực và điều khoản áp dụng, chưa tra'
+  verified: false
+  source_url: chưa rõ
+  verification_note: Nội bộ; tham chiếu dữ liệu cá nhân chưa xác minh.

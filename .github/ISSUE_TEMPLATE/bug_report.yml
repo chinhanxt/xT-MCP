@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Báo lỗi
+description: Báo lỗi có thể tái hiện trong xT hoặc tài liệu.
+title: "[Lỗi] "
+body:
+  - type: markdown
+    attributes:
+      value: "Không gửi bí mật hoặc dữ liệu cá nhân. Với lỗ hổng bảo mật, đọc SECURITY.md."
+  - type: textarea
+    id: summary
+    attributes:
+      label: Mô tả lỗi
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Môi trường
+      description: "Commit/phiên bản, hệ điều hành, thành phần liên quan; ghi không áp dụng nếu là lỗi tài liệu."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Các bước tái hiện
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Kết quả mong đợi
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Kết quả thực tế
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Log hoặc bằng chứng bổ sung
+      description: Loại bỏ token, mật khẩu và dữ liệu nhạy cảm trước khi gửi.

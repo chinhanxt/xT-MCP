@@ -1,0 +1,88 @@
+INFO:     Started server process [149414]
+INFO:     Waiting for application startup.
+[2;36m[10/15/26 09:54:59][0m[2;36m [0m[34mINFO    [0m StreamableHTTP       ]8;id=2307190;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http_manager.py\[2mstreamable_http_manager.py[0m]8;;\[2m:[0m]8;id=2307191;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http_manager.py#162\[2m162[0m]8;;\
+[2;36m                    [0m         session manager      [2m                              [0m
+[2;36m                    [0m         started              [2m                              [0m
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:18000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:54748 - "POST /mcp HTTP/1.1" 401 Unauthorized
+[auth] reject: DecodeError: Not enough segments
+INFO:     127.0.0.1:54756 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:54772 - "GET /.well-known/oauth-protected-resource/mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54778 - "GET /.well-known/oauth-protected-resource HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54790 - "GET /.well-known/oauth-authorization-server HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:48062 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:48062 - "GET /.well-known/oauth-protected-resource/mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48078 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:48078 - "GET /.well-known/oauth-protected-resource/mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45956 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:45956 - "GET /.well-known/oauth-protected-resource/mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42306 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:42306 - "GET /.well-known/oauth-protected-resource/mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42316 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:42316 - "GET /.well-known/oauth-protected-resource/mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42322 - "POST /mcp HTTP/1.1" 200 OK
+[2;36m[10/15/26 09:55:44][0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307198;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307199;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:42322 - "POST /mcp HTTP/1.1" 202 Accepted
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307204;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307205;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:42336 - "POST /mcp HTTP/1.1" 200 OK
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307210;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307211;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:42336 - "POST /mcp HTTP/1.1" 200 OK
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307216;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307217;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:48238 - "POST /mcp HTTP/1.1" 200 OK
+[2;36m[10/15/26 09:55:55][0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307222;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307223;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+[auth] reject: InvalidAudienceError: Audience doesn't match
+INFO:     127.0.0.1:48246 - "POST /mcp HTTP/1.1" 401 Unauthorized
+[auth] reject: PyJWKClientError: Unable to find a signing key that matches: "mlrgVNFhbVpVYoQJsnV0zqysRfj1Thwxsrlbo_2QDQM"
+INFO:     127.0.0.1:48256 - "POST /mcp HTTP/1.1" 401 Unauthorized
+[auth] reject: ExpiredSignatureError: Signature has expired
+INFO:     127.0.0.1:42704 - "POST /mcp HTTP/1.1" 401 Unauthorized
+[auth] reject: DecodeError: Invalid header string: 'utf-8' codec can't decode byte 0xb7 in position 1: invalid start byte
+INFO:     127.0.0.1:42714 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:42728 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:42730 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:42730 - "GET /.well-known/oauth-protected-resource/mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42744 - "POST /mcp HTTP/1.1" 200 OK
+[2;36m[10/15/26 09:56:07][0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307228;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307229;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:42744 - "POST /mcp HTTP/1.1" 202 Accepted
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307234;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307235;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:42756 - "POST /mcp HTTP/1.1" 200 OK
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307240;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307241;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:42756 - "POST /mcp HTTP/1.1" 200 OK
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307246;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307247;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:43844 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:43844 - "GET /.well-known/oauth-protected-resource/mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43854 - "POST /mcp HTTP/1.1" 200 OK
+[2;36m[10/15/26 09:56:08][0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307252;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307253;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:43854 - "POST /mcp HTTP/1.1" 202 Accepted
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307258;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307259;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:43860 - "POST /mcp HTTP/1.1" 200 OK
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307264;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307265;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:43860 - "POST /mcp HTTP/1.1" 200 OK
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307270;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307271;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:35286 - "POST /mcp HTTP/1.1" 200 OK
+[2;36m[10/15/26 09:56:36][0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307276;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307277;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:35292 - "POST /mcp HTTP/1.1" 202 Accepted
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307282;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307283;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:35286 - "GET /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35292 - "POST /mcp HTTP/1.1" 200 OK
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307288;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307289;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307294;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307295;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:37918 - "POST /mcp HTTP/1.1" 200 OK
+[2;36m[10/15/26 09:56:38][0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307300;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307301;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:37922 - "POST /mcp HTTP/1.1" 202 Accepted
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307306;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307307;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:37918 - "GET /mcp HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37922 - "POST /mcp HTTP/1.1" 200 OK
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307312;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307313;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:37930 - "POST /mcp HTTP/1.1" 200 OK
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307318;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307319;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+[2;36m                   [0m[2;36m [0m[34mINFO    [0m Terminating session: [3;35mNone[0m    ]8;id=2307324;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py\[2mstreamable_http.py[0m]8;;\[2m:[0m]8;id=2307325;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http.py#855\[2m855[0m]8;;\
+INFO:     127.0.0.1:37946 - "POST /mcp HTTP/1.1" 401 Unauthorized
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+[2;36m[10/15/26 09:57:09][0m[2;36m [0m[34mINFO    [0m StreamableHTTP       ]8;id=2307331;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http_manager.py\[2mstreamable_http_manager.py[0m]8;;\[2m:[0m]8;id=2307332;file:///tmp/xt-spike-auth/.venv/lib/python3.13/site-packages/mcp/server/streamable_http_manager.py#166\[2m166[0m]8;;\
+[2;36m                    [0m         session manager      [2m                              [0m
+[2;36m                    [0m         shutting down        [2m                              [0m
+INFO:     Application shutdown complete.
+INFO:     Finished server process [149414]

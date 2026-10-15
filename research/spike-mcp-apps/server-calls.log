@@ -1,0 +1,4 @@
+{"ts": 1792033425.7581716, "tool": "show_org_chart", "args": {"client_supports_apps": false}}
+{"ts": 1792033426.2954338, "tool": "get_employee", "args": {"id": 4}}
+{"ts": 1792033429.5932972, "tool": "show_approval_card", "args": {"task_id": "T-1"}}
+{"ts": 1792033430.5051007, "tool": "act_on_task", "args": {"task_id": "T-1", "decision": "approve"}}

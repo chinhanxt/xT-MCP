@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Đề xuất tính năng
+description: Đề xuất cải tiến cho xT.
+title: "[Đề xuất] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Vấn đề cần giải quyết
+      description: Ai gặp vấn đề và trong tình huống nào?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Giải pháp đề xuất
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Phương án khác đã cân nhắc
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Tiêu chí hoàn thành
+      description: Mô tả kết quả có thể kiểm chứng.
+    validations:
+      required: true

@@ -1,0 +1,7 @@
+### Ai báo cáo cho Minh?
+{"prompt": "Ai báo cáo cho Minh?", "calls": [{"tool": "find_employee", "args": {"name": "Minh"}, "isError": false}], "answer": "Minh báo cáo cho Lan.", "steps": 2, "latency_s": 3.1}
+{"prompt": "Ai báo cáo cho Minh?", "calls": [{"tool": "find_employee", "args": {"name": "Minh"}, "isError": false}], "answer": "Minh báo cáo cho Lan.", "steps": 2, "latency_s": 1.9}
+{"prompt": "Ai báo cáo cho Minh?", "calls": [{"tool": "find_employee", "args": {"name": "Minh"}, "isError": false}], "answer": "Minh báo cáo cho Lan.", "steps": 2, "latency_s": 1.9}
+### Duyệt task T-1
+{"prompt": "Duyệt task T-1", "calls": [{"tool": "decide_task", "args": {"task_id": "T-1", "decision": "approve"}, "isError": false}], "answer": "Task T-1 đã được duyệt.", "steps": 2, "latency_s": 3.4}
+{"prompt": "Duyệt task T-1", "calls": [{"tool": "decide_task", "args": {"task_id": "T-1", "decision": "approve"}, "isError": false}], "answer": "Task T-1 đã được duyệt.", "steps": 2, "latency_s": 2.5}

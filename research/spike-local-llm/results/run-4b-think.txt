@@ -1,0 +1,8 @@
+### Ai báo cáo cho Minh?
+{"prompt": "Ai báo cáo cho Minh?", "calls": [{"tool": "find_employee", "args": {"name": "Minh"}, "isError": false}], "answer": "Theo thông tin nhân viên, **Minh** báo cáo trực tiếp cho **Lan**. \n\nNgược lại, theo danh sách người được chỉ đạo trực tiếp của Minh là: **Tuan**.", "steps": 2, "latency_s": 14.2}
+{"prompt": "Ai báo cáo cho Minh?", "calls": [{"tool": "find_employee", "args": {"name": "Minh"}, "isError": false}], "answer": "Theo thông tin nhân viên, **Minh** có người trực tiếp báo cáo là:\n\n- **Lan** quản lý cho Minh (Minh báo cáo cho Lan)\n\nTuy nhiên, nếu bạn hỏi ai báo cáo CHO Minh thì theo dữ liệu hiện tại chỉ thấy:\n- **Tuan** - người trực thuộc của Minh", "steps": 2, "latency_s": 14.4}
+{"prompt": "Ai báo cáo cho Minh?", "calls": [{"tool": "find_employee", "args": {"name": "Minh"}, "isError": false}], "answer": "Theo thông tin nhân sự, **Tuan** báo cáo trực tiếp cho Minh (CTO).", "steps": 2, "latency_s": 8.9}
+### Duyệt task T-1
+{"prompt": "Duyệt task T-1", "calls": [{"tool": "get_task", "args": {"task_id": "T-1"}, "isError": false}, {"tool": "decide_task", "args": {"task_id": "T-1", "decision": "approve"}, "isError": false}], "answer": "Task T-1 đã được duyệt thành công! (Duyệt mua laptop - 5 laptop dev, số tiền: 150 triệu VND)", "steps": 3, "latency_s": 14.3}
+{"prompt": "Duyệt task T-1", "calls": [{"tool": "decide_task", "args": {"task_id": "T-1", "decision": "approve"}, "isError": false}], "answer": "Task T-1 đã được duyệt thành công! ✅", "steps": 2, "latency_s": 5.4}
+{"prompt": "Duyệt task T-1", "calls": [{"tool": "decide_task", "args": {"task_id": "T-1", "decision": "approve"}, "isError": false}], "answer": "Task T-1 đã được duyệt thành công! ✅", "steps": 2, "latency_s": 5.5}

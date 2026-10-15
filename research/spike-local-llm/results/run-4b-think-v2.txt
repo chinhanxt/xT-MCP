@@ -1,0 +1,3 @@
+{"prompt": "Ai báo cáo cho Minh?", "calls": [{"tool": "find_employee", "args": {"name": "Minh"}, "isError": false}], "answer": "Minh báo cáo trực tiếp cho **Lan**.", "steps": 2, "latency_s": 7.6}
+{"prompt": "Ai báo cáo cho Minh?", "calls": [{"tool": "find_employee", "args": {"name": "Minh"}, "isError": false}], "answer": "Theo thông tin nhân viên: **Minh** báo cáo cho **Lan**. \n\nCác người trực tiếp báo cáo với Minh là: **Tuan**.", "steps": 2, "latency_s": 7.9}
+{"prompt": "Ai báo cáo cho Minh?", "calls": [{"tool": "find_employee", "args": {"name": "Minh"}, "isError": false}], "answer": "Minh báo cáo trực tiếp cho **Lan**.", "steps": 2, "latency_s": 10.1}

@@ -1,0 +1,6 @@
+{"ts": 1792034239.606901, "tool": "list_direct_reports", "args": {"manager_name": "Minh"}}
+{"ts": 1792034257.2114496, "tool": "find_employee", "args": {"name": "Minh"}}
+{"ts": 1792034269.3212926, "tool": "list_direct_reports", "args": {"manager_name": "Minh"}}
+{"ts": 1792034280.6513069, "tool": "decide_task", "args": {"task_id": "T-1", "decision": "approve"}}
+{"ts": 1792034289.9529102, "tool": "decide_task", "args": {"task_id": "T-1", "decision": "approve"}}
+{"ts": 1792034302.3345532, "tool": "get_task", "args": {"task_id": "T-1"}}

@@ -1,0 +1,17 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Approval</title>
+<style>body{font:14px system-ui;margin:8px}.card{border:1px solid #bbb;border-radius:8px;padding:12px;max-width:380px}
+button{padding:6px 14px;margin-right:8px;border:0;border-radius:4px;color:#fff;cursor:pointer}#ok{background:#2f9e44}#no{background:#e03131}</style></head>
+<body><div class="card"><b id="title">...</b><p id="desc"></p><div id="btns"><button id="ok">Approve</button><button id="no">Reject</button></div><p id="status"></p></div>
+<script>/*BRIDGE*/</script>
+<script>
+const B = window.xtBridge; let task = null;
+B.on("ui/notifications/tool-result", (p) => { task = p.structuredContent; document.getElementById("title").textContent = task.title;
+  document.getElementById("desc").textContent = `${task.requester} đề xuất: ${task.description} (${task.amount} VND)`; B.sendSize(); });
+async function act(decision) { document.getElementById("status").textContent = "Đang gửi...";
+  try { const r = await B.callTool("act_on_task", { task_id: task.task_id, decision });
+    const d = r.structuredContent; document.getElementById("status").textContent = `act_on_task -> ${d.task_id}: ${d.status}`;
+    document.getElementById("btns").style.display = "none";
+  } catch (e) { document.getElementById("status").textContent = "Lỗi: " + e.message; } }
+document.getElementById("ok").onclick = () => act("approve"); document.getElementById("no").onclick = () => act("reject");
+B.connect("xt-approval");
+</script></body></html>

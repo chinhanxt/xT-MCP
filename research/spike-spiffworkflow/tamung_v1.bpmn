@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:spiffworkflow="http://spiffworkflow.org/bpmn/schema/1.0/core"
+  id="defs_tamung" targetNamespace="http://xt.local/bpmn">
+  <bpmn:collaboration id="collab"><bpmn:participant id="part" processRef="tamung"/></bpmn:collaboration>
+  <bpmn:process id="tamung" name="Đề nghị tạm ứng/thanh toán" isExecutable="true">
+    <bpmn:laneSet id="ls">
+      <bpmn:lane id="lane_tp" name="truong_phong"><bpmn:flowNodeRef>ut_tp</bpmn:flowNodeRef></bpmn:lane>
+      <bpmn:lane id="lane_gd" name="giam_doc"><bpmn:flowNodeRef>ut_gd</bpmn:flowNodeRef><bpmn:flowNodeRef>ut_gd_esc</bpmn:flowNodeRef></bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="start"><bpmn:outgoing>f1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:userTask id="ut_tp" name="Trưởng phòng duyệt"/>
+    <bpmn:exclusiveGateway id="gw" name="Số tiền &gt; 10tr?" default="f_small"/>
+    <bpmn:userTask id="ut_gd" name="Giám đốc duyệt"/>
+    <bpmn:exclusiveGateway id="merge"/>
+    <bpmn:serviceTask id="ghiso" name="Ghi sổ">
+      <bpmn:extensionElements>
+        <spiffworkflow:serviceTaskOperator id="ghi_so" resultVariable="ghiso_result">
+          <spiffworkflow:parameters>
+            <spiffworkflow:parameter id="amount" type="int" value="amount"/>
+            <spiffworkflow:parameter id="requester" type="str" value="requester"/>
+          </spiffworkflow:parameters>
+        </spiffworkflow:serviceTaskOperator>
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end"/>
+    <bpmn:boundaryEvent id="sla_tp" name="SLA trưởng phòng" attachedToRef="ut_tp" cancelActivity="true">
+      <bpmn:timerEventDefinition><bpmn:timeDuration xsi:type="bpmn:tFormalExpression">"PT2S"</bpmn:timeDuration></bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="esc_notify" name="Thông báo leo thang">
+      <bpmn:extensionElements>
+        <spiffworkflow:serviceTaskOperator id="notify" resultVariable="esc_result">
+          <spiffworkflow:parameters>
+            <spiffworkflow:parameter id="msg" type="str" value="'SLA vượt hạn - leo thang'"/>
+          </spiffworkflow:parameters>
+        </spiffworkflow:serviceTaskOperator>
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="ut_gd_esc" name="Giám đốc duyệt (leo thang)"/>
+    <bpmn:sequenceFlow id="f1" sourceRef="start" targetRef="ut_tp"/>
+    <bpmn:sequenceFlow id="f2" sourceRef="ut_tp" targetRef="gw"/>
+    <bpmn:sequenceFlow id="f_big" name="&gt;10tr" sourceRef="gw" targetRef="ut_gd">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">amount &gt; 10000000</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="f_small" sourceRef="gw" targetRef="merge"/>
+    <bpmn:sequenceFlow id="f4" sourceRef="ut_gd" targetRef="merge"/>
+    <bpmn:sequenceFlow id="f5" sourceRef="merge" targetRef="ghiso"/>
+    <bpmn:sequenceFlow id="f6" sourceRef="ghiso" targetRef="end"/>
+    <bpmn:sequenceFlow id="f_esc1" sourceRef="sla_tp" targetRef="esc_notify"/>
+    <bpmn:sequenceFlow id="f_esc2" sourceRef="esc_notify" targetRef="ut_gd_esc"/>
+    <bpmn:sequenceFlow id="f_esc3" sourceRef="ut_gd_esc" targetRef="merge"/>
+  </bpmn:process>
+</bpmn:definitions>

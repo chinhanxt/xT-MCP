@@ -1,0 +1,30 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Org chart</title>
+<style>body{font:14px system-ui;margin:8px}.node{cursor:pointer}.node rect{fill:#eef3ff;stroke:#3b5bdb;rx:6}.node:hover rect{fill:#d0ddff}
+#detail{margin-top:8px;padding:8px;border:1px solid #ccc;border-radius:6px;min-height:40px}</style></head>
+<body><h3 id="t">Sơ đồ tổ chức</h3><svg id="svg" width="600" height="260"></svg><div id="detail">Bấm vào một nút.</div>
+<script>/*BRIDGE*/</script>
+<script>
+const B = window.xtBridge, NS = "http://www.w3.org/2000/svg";
+function render(data) {
+  const svg = document.getElementById("svg"); svg.innerHTML = "";
+  const byParent = {}; data.employees.forEach(e => (byParent[e.manager_id ?? "root"] ||= []).push(e));
+  const pos = {}; let leaf = 0;
+  (function lay(id, depth) { const kids = byParent[id] || [];
+    kids.forEach(k => { const ch = byParent[k.id] || [];
+      lay(k.id, depth + 1);
+      pos[k.id] = { y: 20 + depth * 90, x: ch.length ? (pos[ch[0].id].x + pos[ch[ch.length-1].id].x) / 2 : 20 + (leaf++) * 140 }; }); })("root", 0);
+  data.employees.forEach(e => { if (e.manager_id && pos[e.manager_id]) { const a = pos[e.manager_id], b = pos[e.id];
+    const l = document.createElementNS(NS, "line"); [["x1",a.x+60],["y1",a.y+40],["x2",b.x+60],["y2",b.y]].forEach(([k,v])=>l.setAttribute(k,v)); l.setAttribute("stroke","#888"); svg.appendChild(l); } });
+  data.employees.forEach(e => { const p = pos[e.id]; const g = document.createElementNS(NS, "g"); g.setAttribute("class","node"); g.setAttribute("data-id", e.id);
+    g.innerHTML = `<rect x="${p.x}" y="${p.y}" width="120" height="40"/><text x="${p.x+60}" y="${p.y+17}" text-anchor="middle" font-weight="600">${e.name}</text><text x="${p.x+60}" y="${p.y+32}" text-anchor="middle" font-size="11">${e.title}</text>`;
+    g.onclick = async () => { document.getElementById("detail").textContent = "Đang tải...";
+      try { const r = await B.callTool("get_employee", { id: e.id });
+        const d = r.structuredContent || JSON.parse(r.content[0].text);
+        document.getElementById("detail").textContent = `get_employee -> ${d.name} | ${d.title} | ${d.email} | báo cáo cho: ${d.manager ?? "-"}`;
+      } catch (err) { document.getElementById("detail").textContent = "Lỗi: " + err.message; } };
+    svg.appendChild(g); });
+  B.sendSize();
+}
+B.on("ui/notifications/tool-result", (p) => { if (p.structuredContent) render(p.structuredContent); });
+B.connect("xt-orgchart").then(() => { document.title = "ready"; });
+</script></body></html>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:spiffworkflow="http://spiffworkflow.org/bpmn/schema/1.0/core" id="defs_tamung" targetNamespace="http://xt.local/bpmn">
+<bpmn:process id="tamung" name="Đề nghị tạm ứng/thanh toán" isExecutable="true">
+<bpmn:laneSet id="lanes">
+<bpmn:lane id="lane_truong_phong" name="truong_phong"><bpmn:flowNodeRef>ut_tp</bpmn:flowNodeRef></bpmn:lane>
+<bpmn:lane id="lane_giam_doc" name="giam_doc"><bpmn:flowNodeRef>ut_tp_esc</bpmn:flowNodeRef><bpmn:flowNodeRef>ut_gd</bpmn:flowNodeRef></bpmn:lane>
+</bpmn:laneSet>
+<bpmn:startEvent id="start"/>
+<bpmn:endEvent id="end" name="Hoàn tất"/>
+<bpmn:endEvent id="end_rejected" name="Bị từ chối"/>
+<bpmn:userTask id="ut_tp" name="Trưởng phòng duyệt"/>
+<bpmn:exclusiveGateway id="dec_tp" name="Quyết định Trưởng phòng duyệt" default="fl_8"/>
+<bpmn:boundaryEvent id="sla_tp" name="SLA Trưởng phòng duyệt" attachedToRef="ut_tp" cancelActivity="true"><bpmn:timerEventDefinition><bpmn:timeDuration xsi:type="bpmn:tFormalExpression">"PT2S"</bpmn:timeDuration></bpmn:timerEventDefinition></bpmn:boundaryEvent>
+<bpmn:serviceTask id="esc_notify_tp" name="Thông báo leo thang"><bpmn:extensionElements><spiffworkflow:serviceTaskOperator id="notify"><spiffworkflow:parameters><spiffworkflow:parameter id="msg" type="str" value="'SLA vượt hạn: Trưởng phòng duyệt'"/></spiffworkflow:parameters></spiffworkflow:serviceTaskOperator></bpmn:extensionElements></bpmn:serviceTask>
+<bpmn:userTask id="ut_tp_esc" name="Trưởng phòng duyệt (leo thang)"/>
+<bpmn:exclusiveGateway id="gw_gd" name="Điều kiện Giám đốc duyệt" default="fl_11"/>
+<bpmn:userTask id="ut_gd" name="Giám đốc duyệt"/>
+<bpmn:exclusiveGateway id="dec_gd" name="Quyết định Giám đốc duyệt" default="fl_10"/>
+<bpmn:serviceTask id="sv_ghiso" name="Ghi sổ"><bpmn:extensionElements><spiffworkflow:serviceTaskOperator id="ghi_so" resultVariable="ghiso_result"><spiffworkflow:parameters><spiffworkflow:parameter id="amount" type="str" value="amount"/><spiffworkflow:parameter id="requester" type="str" value="requester"/></spiffworkflow:parameters></spiffworkflow:serviceTaskOperator></bpmn:extensionElements></bpmn:serviceTask>
+<bpmn:exclusiveGateway id="mg_dec_tp" name="merge"/>
+<bpmn:exclusiveGateway id="mg_end_rejected" name="merge"/>
+<bpmn:exclusiveGateway id="mg_sv_ghiso" name="merge"/>
+<bpmn:sequenceFlow id="fl_0" sourceRef="ut_tp" targetRef="mg_dec_tp"></bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="fl_1" sourceRef="sla_tp" targetRef="esc_notify_tp"></bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="fl_2" sourceRef="esc_notify_tp" targetRef="ut_tp_esc"></bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="fl_3" sourceRef="ut_tp_esc" targetRef="mg_dec_tp"></bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="fl_4" sourceRef="dec_tp" targetRef="mg_end_rejected"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">tp_decision == 'reject'</bpmn:conditionExpression></bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="fl_5" sourceRef="start" targetRef="ut_tp"></bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="fl_6" sourceRef="ut_gd" targetRef="dec_gd"></bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="fl_7" sourceRef="dec_gd" targetRef="mg_end_rejected"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">gd_decision == 'reject'</bpmn:conditionExpression></bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="fl_8" sourceRef="dec_tp" targetRef="gw_gd"></bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="fl_9" sourceRef="gw_gd" targetRef="ut_gd"><bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">amount &gt; 10000000</bpmn:conditionExpression></bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="fl_10" sourceRef="dec_gd" targetRef="mg_sv_ghiso"></bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="fl_11" sourceRef="gw_gd" targetRef="mg_sv_ghiso"></bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="fl_12" sourceRef="sv_ghiso" targetRef="end"></bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="fl_13" sourceRef="mg_dec_tp" targetRef="dec_tp"></bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="fl_14" sourceRef="mg_end_rejected" targetRef="end_rejected"></bpmn:sequenceFlow>
+<bpmn:sequenceFlow id="fl_15" sourceRef="mg_sv_ghiso" targetRef="sv_ghiso"></bpmn:sequenceFlow>
+</bpmn:process></bpmn:definitions>
