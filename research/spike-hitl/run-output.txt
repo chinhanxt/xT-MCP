@@ -1,0 +1,227 @@
+alice credentials: ['password', 'otp']
+flow xt-stepup [[0, "Cookie", "ALTERNATIVE"], [0, "xt-auth", "ALTERNATIVE"], [1, "xt-loa1", "CONDITIONAL"], [2, "Condition - Level of Authentication", "REQUIRED"], [2, "Username Password Form", "REQUIRED"], [1, "xt-loa2", "CONDITIONAL"], [2, "Condition - Level of Authentication", "REQUIRED"], [2, "OTP Form", "REQUIRED"]]
+client xt-backend-ciba OK
+client xt-agent OK
+client xt-desk OK
+client xt-confirm OK
+setup done
+== A0. binding_message tiếng Việt theo đề bài
+400 {"error":"invalid_binding_message","error_description":"the binding_message value has to be max 50 characters in length and must contain only basic plain-text characters without spaces"}
+
+== A1. backend xin xác thực alice, binding_message=R-42#50cfaf56
+200 {"auth_req_id":"…(cắt)
+auth_req_id là JWE, header: {"alg":"dir","enc":"A128CBC-HS256"} | số phần: 5
+poll trước khi duyệt: 400 {"error":"authorization_pending","error_description":"The authorization request is still pending as the end-user hasn't yet been authenticated."}
+--- tin nhắn Telegram (outbox)
+{
+ "chat_id": 7001,
+ "text": "Duyệt tạm ứng 12.000.000đ #R-42 (bob, công tác Đà Nẵng)\nMã đối chiếu: R-42#50cfaf56",
+ "reply_markup": {
+  "inline_keyboard": [
+   [
+    {
+     "text": "Duyệt",
+     "callback_data": "HZPBdtFh3Wk:A:add9c80155ec8ed850022a44"
+    },
+    {
+     "text": "Từ chối",
+     "callback_data": "HZPBdtFh3Wk:R:76ace73fcbd386f7d2e0ae4d"
+    }
+   ]
+  ]
+ }
+}
+
+== A2. tấn công trong lúc chờ
+agent tự gọi backchannel auth: 401 {"error":"invalid_grant","error_description":"Client not allowed OIDC CIBA Grant"}
+agent poll bằng auth_req_id bị lộ: 400 {"error":"invalid_grant","error_description":"Client not allowed OIDC CIBA Grant"}
+agent password-grant cho alice (không OTP): False invalid_grant Invalid user credentials
+(mô phỏng) token MCP của agent mang sub=alice: True
+client CIBA cấp token qua grant password: 400 {"error":"unauthorized_client","error_description":"Client not allowed for direct access grants"}
+client CIBA cấp token qua grant client_credentials: 401 {"error":"unauthorized_client","error_description":"Client not enabled to retrieve service account"}
+agent gọi KC callback bằng token của nó: 403 {"error":"invalid_token","error_description":"Invalid token"}
+agent gọi KC callback bằng auth_req_id: 403 {"error":"invalid_token","error_description":"Invalid token"}
+webhook giả, sai secret_token: 403 {"error": "bad secret_token"}
+webhook đúng secret, sai chat_id: 403 {"error": "chat_id không khớp người được hỏi"}
+poll sau các tấn công: 400 {"error":"slow_down","error_description":"too early to access"}
+
+== A3. alice bấm Duyệt trên điện thoại
+webhook: 200 {"kc_callback": 200, "status": "SUCCEED"}
+bấm lại (replay callback_data): 409 {"error": "unknown or used"}
+poll: 200
+--- access_token claims (đã kiểm chữ ký)
+{
+ "iss": "http://localhost:19300/realms/xt-hitl",
+ "sub": "2001640d-2c64-4dcc-9c36-fb9572ac41af",
+ "preferred_username": "alice",
+ "azp": "xt-backend-ciba",
+ "typ": "Bearer",
+ "auth_time": 1792036095,
+ "iat": 1792036095,
+ "acr": "urn:xt:acr:pwd",
+ "amr": [],
+ "sid": "K1laNZcfx2zHai-vvLOMzGhk",
+ "scope": "openid email profile",
+ "jti": "onrtci:70cdd39d-b5ab-f80f-1165-7a48b8d2e2d1"
+}
+--- id_token claims
+{
+ "sub": "2001640d-2c64-4dcc-9c36-fb9572ac41af",
+ "preferred_username": "alice",
+ "auth_time": 1792036095,
+ "acr": "urn:xt:acr:pwd",
+ "amr": [],
+ "azp": "xt-backend-ciba"
+}
+auth_time - lúc hỏi = 3s
+poll lần 2 (auth_req_id dùng lại): 400 {"error":"invalid_grant","error_description":"Invalid auth_req_id"}
+
+== A4. token của agent nộp làm bằng chứng
+[REJ] agent alice password-grant: azp=xt-agent != xt-backend-ciba  (azp=xt-agent sub=alice acr=urn:xt:acr:pwd amr=[])
+[REJ] agent service-account: azp=xt-agent != xt-backend-ciba  (azp=xt-agent sub=service-account-xt-agent acr=urn:xt:acr:pwd amr=[])
+
+== A5. đường từ chối
+webhook Từ chối: 200 {"kc_callback": 200, "status": "UNAUTHORIZED"}
+poll: 400 {"error":"access_denied","error_description":"not authorized"}
+--- receipt (JWS EdDSA) header.payload
+{
+ "iss": "xt",
+ "typ": "xt-approval",
+ "jti": "50b71da0-4358-41c2-86e4-2350bbb27b32",
+ "iat": 1792036098,
+ "exp": 1792036398,
+ "request_id": "R-42",
+ "request_digest": "50cfaf564f057d5df12b655e42b729a932be033bb05d33d1e42ebebba465b590",
+ "decision": "approve",
+ "approver": "2001640d-2c64-4dcc-9c36-fb9572ac41af",
+ "approver_username": "alice",
+ "evidence": {
+  "azp": "xt-backend-ciba",
+  "auth_time": 1792036095,
+  "acr": "urn:xt:acr:pwd",
+  "amr": [],
+  "idp_jti": "onrtci:70cdd39d-b5ab-f80f-1165-7a48b8d2e2d1"
+ }
+}
+[OK ] 1. dùng đúng R-42: approver=alice request=R-42
+[REJ] 2. replay lần 2 trên R-42: PermissionError: receipt đã dùng (replay)
+[REJ] 3. dùng receipt R-42 cho R-43: PermissionError: receipt cho R-42, không phải R-43
+[REJ] 4. R-42 bị sửa amount 12tr->120tr: PermissionError: request_digest không khớp: nội dung yêu cầu đã đổi sau khi duyệt
+[REJ] 5. R-42 bị đổi tài khoản nhận: PermissionError: request_digest không khớp: nội dung yêu cầu đã đổi sau khi duyệt
+[REJ] 6. agent sửa payload receipt (giữ chữ ký cũ): InvalidSignatureError: Signature verification failed
+[REJ] 7. receipt hết hạn: ExpiredSignatureError: Signature has expired
+[REJ] 8. phát receipt từ bằng chứng auth_time 600s trước: PermissionError: auth_time cũ 600s > 120s
+[REJ] 9. phát receipt khi người duyệt = người đề nghị: PermissionError: SoD: người duyệt = người đề nghị
+== B0. alice đăng nhập Desk (phiên SSO trong trình duyệt)
+sau mật khẩu: TRANG OTP
+   mã OTP hiện tại đã dùng trong cửa sổ này -> Keycloak từ chối tái dùng; chờ mã kế tiếp
+sau OTP: REDIRECT có code
+--- Desk id_token
+{
+ "preferred_username": "alice",
+ "azp": "xt-desk",
+ "auth_time": 1792036111,
+ "iat": 1792036111,
+ "acr": "urn:xt:acr:pwd",
+ "amr": [
+  "pwd",
+  "otp"
+ ],
+ "nonce": "n0",
+ "sid": "rUcLCUE9MwGJyfmc2enritv9"
+}
+
+confirm authorize URL: http://localhost:19300/realms/xt-hitl/protocol/openid-connect/auth?response_type=code&client_id=xt-confirm&redirect_uri=http%3A%2F%2Flocalhost%3A19302%2Fconfirm%2Fcb&scope=openid&state=FARhRbwZajrJpuVP&nonce=1c4a12db303632d07c659ce932b22d3b&code_challenge=SjIRjPNM2sYjAmS7Dajtwr5AbN2RA8OocNTMJE2kRDM&code_challenge_method=S256&prompt=login&max_age=0&acr_values=urn%3Axt%3Aacr%3Aotp
+
+== B1. agent lái trình duyệt (có cookie phiên + autofill mật khẩu), không có OTP
+mở URL: TRANG MẬT KHẨU
+submit mật khẩu (autofill): TRANG OTP
+đoán OTP 000000: TRANG OTP
+đoán OTP 123456: TRANG OTP
+
+== B2. agent xoá prompt/max_age/acr_values khỏi URL, dựa vào cookie SSO
+mở URL đã bỏ tham số: TRANG MẬT KHẨU
+
+== B3. agent lấy token bằng phiên Desk (prompt=none, client xt-desk) rồi nộp
+prompt=none trên xt-desk: REDIRECT có code
+[REJ] verify_confirm(desk token): aud sai: Audience doesn't match
+   (nếu bỏ qua kiểm aud) claims: {"preferred_username": "alice", "azp": "xt-desk", "auth_time": 1792036111, "iat": 1792036114, "acr": "0", "amr": ["pwd", "otp"], "nonce": "1c4a12db303632d07c659ce932b22d3b", "sid": "rUcLCUE9MwGJyfmc2enritv9"}
+
+== B4. người thật: mật khẩu + OTP trên điện thoại
+mở URL: TRANG MẬT KHẨU
+mật khẩu: TRANG OTP
+   mã OTP hiện tại đã dùng trong cửa sổ này -> Keycloak từ chối tái dùng; chờ mã kế tiếp
+OTP: REDIRECT có code
+agent (thấy URL redirect) đổi code KHÔNG có verifier: 400 {"error":"invalid_grant","error_description":"PKCE code verifier not specified"}
+agent đổi code với verifier đoán: 400 {"error":"invalid_grant","error_description":"Code not valid"}
+-> code đã bị đốt; người thật duyệt lại (xT tạo PKCE mới, cùng C-42)
+mở URL: TRANG MẬT KHẨU
+mật khẩu: TRANG OTP
+   mã OTP hiện tại đã dùng trong cửa sổ này -> Keycloak từ chối tái dùng; chờ mã kế tiếp
+OTP: REDIRECT có code
+--- [OK ] xt-confirm id_token (đã kiểm)
+{
+ "preferred_username": "alice",
+ "azp": "xt-confirm",
+ "auth_time": 1792036171,
+ "iat": 1792036171,
+ "acr": "urn:xt:acr:otp",
+ "amr": [
+  "pwd",
+  "otp"
+ ],
+ "nonce": "1c4a12db303632d07c659ce932b22d3b",
+ "sid": "rUcLCUE9MwGJyfmc2enritv9"
+}
+auth_time - created_at = 57s; now - auth_time = 0s
+--- access_token acr/amr
+{
+ "azp": "xt-confirm",
+ "acr": "urn:xt:acr:otp",
+ "amr": [
+  "pwd",
+  "otp"
+ ],
+ "auth_time": 1792036171
+}
+
+== B5. ngay sau đó, phiên SSO đã có LoA2: agent thử duyệt C-43 không cần OTP
+URL bỏ prompt/max_age/acr_values: TRANG OTP
+prompt=none: error=login_required&state=s5&iss=http%3A%2F%2Flocalhost%3A19300%2Frealms%2Fxt-hitl
+hạ acr_values=pwd: TRANG OTP
+[REJ] tái dùng id_token C-42 cho C-43: nonce không gắn với confirmation này
+--- receipt (JWS EdDSA) header.payload
+{
+ "iss": "xt",
+ "typ": "xt-approval",
+ "jti": "8f0cd61d-3090-4cc6-bb50-4ec096a8be3b",
+ "iat": 1792036171,
+ "exp": 1792036471,
+ "request_id": "R-42",
+ "request_digest": "50cfaf564f057d5df12b655e42b729a932be033bb05d33d1e42ebebba465b590",
+ "decision": "approve",
+ "approver": "2001640d-2c64-4dcc-9c36-fb9572ac41af",
+ "approver_username": "alice",
+ "evidence": {
+  "azp": "xt-confirm",
+  "auth_time": 1792036171,
+  "acr": "urn:xt:acr:otp",
+  "amr": [
+   "pwd",
+   "otp"
+  ],
+  "idp_jti": "b1b4d987-134a-cf2b-f51b-faf43cc50997"
+ }
+}
+[OK ] 1. dùng đúng R-42: approver=alice request=R-42
+[REJ] 2. replay lần 2 trên R-42: PermissionError: receipt đã dùng (replay)
+[REJ] 3. dùng receipt R-42 cho R-43: PermissionError: receipt cho R-42, không phải R-43
+[REJ] 4. R-42 bị sửa amount 12tr->120tr: PermissionError: request_digest không khớp: nội dung yêu cầu đã đổi sau khi duyệt
+[REJ] 5. R-42 bị đổi tài khoản nhận: PermissionError: request_digest không khớp: nội dung yêu cầu đã đổi sau khi duyệt
+[REJ] 6. agent sửa payload receipt (giữ chữ ký cũ): InvalidSignatureError: Signature verification failed
+[REJ] 7. receipt hết hạn: ExpiredSignatureError: Signature has expired
+[REJ] 8. phát receipt từ bằng chứng auth_time 600s trước: PermissionError: auth_time cũ 600s > 120s
+[REJ] 9. phát receipt khi người duyệt = người đề nghị: PermissionError: SoD: người duyệt = người đề nghị
+backchannel auth: 200
+webhook: {"kc_callback": 200, "status": "SUCCEED"}
+token: {'azp': 'xt-backend-ciba', 'acr': 'urn:xt:acr:pwd', 'amr': [], 'auth_time': 1792036174}

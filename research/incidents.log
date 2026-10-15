@@ -1,2 +1,3 @@
 - 2026-10-15T09:56:06+07:00 agyxt #2 (auth/UI/audit repos): proxy 127.0.0.1:8899 connection refused → chuyển cho Sonnet
 - 2026-10-15T10:17:22+07:00 codex gpt-6.1-sol (IAM spike): usage limit tới 11:45; 75 test pass nhưng chưa ghi spike-iam.md → chuyển Opus hoàn tất
+- 2026-10-15T10:49:44+07:00 Opus agent kiểm thử đối kháng (spike PII lane): output bị bộ lọc an toàn cắt, không có kết quả → giao lại Opus với brief hẹp (test hồi quy masking), thành công

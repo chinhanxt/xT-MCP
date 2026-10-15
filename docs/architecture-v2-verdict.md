@@ -2,7 +2,8 @@
 # Phán quyết kiến trúc v2 (JUDGE/VERIFIER)
 
 - Ngày: 15/10/2026. Vai trò: JUDGE độc lập. Không viết lại kiến trúc.
-- Đầu vào: `docs/architecture-v2.md` (V2), `docs/architecture-debate.md` (DEB), `docs/tool-contracts-debate.md` (TCD), `research/*.md`, `CLAUDE.md`, repo hiện tại.
+- Đầu vào: `docs/architecture-v2.md` (V2), `docs/architecture-debate.md` (DEB), `docs/tool-contracts-v1.md` (TCV1, bản chốt), `docs/tool-contracts-debate.md` (TCD, bản chốt), `research/packs-draft/REPORT.md` (PACK), `research/*.md`, `CLAUDE.md`, repo hiện tại.
+- **Cập nhật 15/10 (vòng 2):** TCV1 và TCD đã chốt: 17 tool ở v0.1, 21 ở v1.0, xác nhận của người không cần tham số. PACK đã chạy 3 gói trên engine thật. Theo chỉ đạo của coordinator, **TCV1 là nguồn sự thật cho bề mặt tool**. V2 phải sửa theo §8. Khoảng trống engine xem §9.
 - Cách trích: `tệp:dòng`. V2 = `docs/architecture-v2.md`.
 - Kiểm thật trong phiên này:
   - `make check` xanh: 6 test, `reuse` 180/180, `check_spdx` 25 file.
@@ -18,12 +19,13 @@
 
 - Phần lõi của V2 có spike chạy thật đứng sau, gồm: model engine, SpiffWorkflow an toàn, IAM mini, sửa OAuth, Desk, LLM local, và các thông tin connector.
 - Không thấy mâu thuẫn nghiêm trọng nào giữa V2 và bằng chứng kỹ thuật.
-- Có **5 điều kiện chặn (B1–B5)**. Phải đóng các điều kiện này ở cổng v0.0 (18/10) thì mới bắt đầu phần v0.1 tương ứng:
-  - B1: V2 lệch với hợp đồng tool.
+- Có **6 điều kiện chặn (B1–B6)**. Phải đóng các điều kiện này ở cổng v0.0 (18/10) thì mới bắt đầu phần v0.1 tương ứng:
+  - B1: V2 chưa sửa theo TCV1 (danh sách §8), và còn một mâu thuẫn chưa giải: kênh `cli_command` ở stdio.
   - B2: hostname.
   - B3: chưa có bằng chứng step-up cho `/confirm`.
   - B4: D6 trích bằng chứng quá mức.
   - B5: chưa xác minh giấy phép của dep sắp thêm.
+  - B6: 4 khoảng trống engine do PACK phát hiện chạm thẳng vào W1 v0.1: G-P3, G-M1, G-M2, G-P8 (§9).
 - Các phần còn lại được bắt đầu build ngay từ hôm nay: port model engine, IAM, Spiff và verifier vào `src/xt`, spike hàng đợi, dựng tunnel.
 
 ---
@@ -50,7 +52,8 @@
 | D8 `/confirm` xác thực tươi `max_age=0` + TOTP + `acr` (V2:50, V2:491-495) | **Chưa có báo cáo.** `research/spike-hitl/` mới có code (`kc_setup.py`, `stepup_flow.py`, `ciba_flow.py` chưa commit), không có `spike-hitl.md` | **Thiếu bằng chứng**, trong khi đây là phần chịu lực của nghiệm thu v0.1 (1) và (3). Xem **B3** |
 | Làn PII (V2:519-528) | Không có `spike-pii-lane.md` | Mới là thiết kế. Làm ở v0.3 nên không chặn |
 | Footprint `minimal` < 4 GB (V2:674) | Không có `footprint.md`; `spike-local-llm.md:39` ghi ổ `/` chỉ còn 6,7 GB | Chưa đo. V2 hẹn đo ở v0.2. Máy dev hiện chỉ còn khoảng 6 GB RAM và 7,5 GB đĩa nên cần **đo từ v0.1** (T1-19) |
-| Hợp đồng tool (V2:43, V2:108-115) | `docs/tool-contracts-v1.md` **chưa tồn tại**. TCD được viết dựa trên v1 | **Mâu thuẫn trực tiếp**, xem **B1** |
+| Hợp đồng tool (V2:43, V2:108-115) | TCV1:14 (17/21 tool), TCV1:20 (C7: `confirm_url`, trang tự thực thi pending operation), TCV1:3731 (tự ghi chỗ lệch với V2:111) | **Đã chốt.** Catalog 17 tool thỏa trần ≤22 và đủ 6 năng lực của V2 §1.3 (TCV1:3727-3730). V2 còn nhiều chỗ chưa khớp (§8). Riêng TCV1:183,3491-3492 (`cli_command` ở stdio) **ngược với** D8 "không có CLI" (V2:50, DEB:57) |
+| Gói nghiệp vụ là dữ liệu (V2:119-126, V2:587) | PACK:13-19: 3 gói, 19 model, 6 process, toàn JSON; apply 100% AN TOÀN; 41/41 ca IAM; SLA leo thang; seed | **Có bằng chứng mạnh** cho "nghiệp vụ là dữ liệu". Nhưng còn 27 khoảng trống engine, 7 mục mức A (PACK:261-305). PACK vẫn chạy bảng dùng chung, không phải namespace theo tenant (PACK:53), nên B4 vẫn còn nguyên |
 
 ---
 
@@ -135,23 +138,21 @@
 
 ## 4. Điều kiện chặn
 
-**B1. Hợp đồng tool phải tồn tại và khớp V2.** `docs/tool-contracts-v1.md` chưa có. TCD:355 còn `PROBE_RESULTS_PLACEHOLDER`. TCD được viết dựa trên v1 nên mâu thuẫn với V2 ở 5 điểm:
-- (a) **Mô hình xác nhận.**
-  - TCD:20, 41-45 bỏ `confirmation_ref` khỏi input. Server giữ một pending operation và chính trang `/confirm` thực thi nó; agent gọi lại cùng `idempotency_key` để nhận receipt.
-  - V2:111 lại ghi "một tên tham số gate duy nhất `confirmation_ref`".
-- (b) **Transport v0.1.**
-  - TCD:53-54: v0.1 dùng stdio + `xt confirm` trên TTY, `/confirm` để v0.2.
-  - V2:50, 732: v0.1 dùng HTTP + OAuth + `/confirm`, không có CLI.
-- (c) **Skill/prompt v0.1.**
-  - V2:659: 2 skill + 3 prompt.
-  - TCD:337-343: 4 skill + 4 prompt, với lập luận rằng nghiệm thu (4) và (5) cần `xt-tasks`, `xt-data-modeling`, `change_model_safely`. Nghiệm thu v0.1 của V2 (V2:732) có cả (4) và (5).
-- (d) **Hồ sơ model nhỏ:** V2:115 chọn 8 tool, TCD:345 chọn 10.
-- (e) **Độ tươi xác thực:** V2:494 đặt 120 s, TCD:52 đặt 5 phút.
-
-Việc phải làm:
-- Viết TCV1 theo V2.
-- Ghi bảng hòa giải 5 điểm trên vào `docs/architecture-debate.md`.
-- Chủ dự án chốt câu V2:752 (CLAUDE.md đang ghi "~15 tool").
+**B1. Sửa V2 theo TCV1 và giải mâu thuẫn còn lại.**
+- TCV1 đã có. TCD:385 đã thay placeholder bằng số đo thật: đúng tool 22/22, args hợp schema 22/22, đúng ngữ nghĩa 18/22 (TCV1:3696).
+- Đối chiếu 5 điểm lệch của vòng 1 với bản chốt:
+  - (a) Mô hình xác nhận: TCV1 không dùng tham số nào. V2 phải sửa (§8, E1–E3).
+  - (b) Transport v0.1: TCV1:182 đã theo V2 (HTTP + `/confirm` ở v0.1). Coi như đã giải.
+  - (c) Skill/prompt v0.1: TCV1:3704-3711 chốt 4 + 4. V2 phải sửa (E7).
+  - (d) Hồ sơ model nhỏ: TCV1:3665 chốt core-10. V2 phải sửa (E6).
+  - (e) Độ tươi xác thực: TCV1:170,181 chốt `max_age=0` + TOTP. Điều này khớp V2:493-494, vì cửa sổ 120 s chỉ là ngưỡng chấp nhận sau khi đã buộc đăng nhập lại. Coi như đã giải.
+- **Còn mở một điểm:** TCV1:183, 3491-3492 giữ `cli_command="xt confirm …"` chạy trên TTY ở chế độ stdio. V2 (D8, V2:50) và DEB:57 đã bỏ hẳn CLI làm kênh người, vì terminal là thứ agent điều khiển được.
+  - Phán quyết: giữ V2. Trong TCV1, `cli_command` luôn `null`, hoặc xóa khỏi schema lỗi. Ở stdio, `confirm_url` vẫn trỏ về Desk.
+  - Đây là thay đổi additive/minor của contract, không đổi số tool.
+- Việc phải làm trước 18/10:
+  - Áp E1–E12 ở §8 vào V2.
+  - Sửa `cli_command` trong TCV1.
+  - Chủ dự án chốt V2:752 (CLAUDE.md ghi "~15 tool", TCV1 chọn 17).
 
 **B2. Hostname cố định.**
 - Smoke test v0.0 dùng được quick tunnel.
@@ -170,6 +171,19 @@ Chưa có báo cáo này thì không code `/confirm`.
 - (b) Phải chốt cách PostgREST ánh xạ bảng theo tenant **trước v0.2**. Có hai hướng: schema `api_t<seq>` với `Accept-Profile` (cần reload `db-schemas` khi thêm tenant), hoặc bỏ PostgREST và tự sinh `/data/v1` trong xt-api. V2:353 hiện chưa khả thi với D6. Ý (b) không chặn v0.1.
 
 **B5. Ghi giấy phép trước khi thêm dep.** Mọi dep thêm vào `pyproject.toml` ở v0.0/v0.1 phải có dòng trong `THIRD_PARTY_NOTICES.md` (tên, phiên bản, SPDX, URL, cách dùng) cùng commit. Áp dụng cho procrastinate/pgqueuer, holidays, dateutil, Starlette, lxml, PyJWT, httpx, uvicorn. CI fail nếu dep runtime không có trong bảng.
+
+**B6. Đóng các khoảng trống engine mức A mà W1 v0.1 phụ thuộc** (PACK §6). Theo coordinator, workflow-v2 spike đang xử lý song song. Phải có báo cáo chạy thật cho 4 mục sau trước khi code W1:
+- **G-P3** (PACK:271): gateway chỉ kiểm `== 'reject'`, nên `tra_lai_bo_sung` đi tiếp như duyệt và vẫn ghi sổ. Trong khi đó `decide_request` của TCV1 nhận "trả lại" ngay từ v0.1 (TCV1:320).
+  - Phải có nhánh tường minh cho `approve`, `reject`, `return`, và nhánh mặc định là lỗi.
+  - Nếu chưa làm vòng trả lại thì `return` phải trả `capability_unavailable`, không được duyệt ngầm.
+- **G-M1** (PACK:286): quyền `update` áp cho cả dòng. TCV1:1779 mới chặn field `state`; các field do workflow quản (người duyệt, bước hiện tại) vẫn bị `update_record` ghi được.
+  - Cần cờ `managed_by: workflow` trong FieldSpec, và `update_record` từ chối các field có cờ này.
+- **G-M2** (PACK:287): `FieldSpec` chưa có `pii`/`sensitive`, trong khi `describe_model` của TCV1 (TCV1:259,290) và quy tắc audit chỉ ghi hash cho field sensitive (V2:514) đều cần.
+  - Thêm vào spec ngay v0.1, dù làn PII để v0.3.
+- **G-P8** (PACK:276): process-spec không có schema; gõ nhầm `slaa` là mất timer mà compile vẫn OK.
+  - Cần `ProcessSpec` pydantic `extra=forbid` trước khi gói W1 được cài qua luồng đề xuất.
+
+Ba mục A còn lại (G-P1 song song, G-P2 timer khởi tạo, G-P4 lane động) và G-I1 (SoD theo quan hệ) trùng với phạm vi v0.2 của V2 (V2:609, 613). Không chặn v0.1.
 
 ---
 
@@ -208,6 +222,9 @@ Chưa có báo cáo này thì không code `/confirm`.
     - Claude Free phụ thuộc thao tác tay của chủ dự án.
     - Goose + 4B chạy chuỗi nhiều bước với catalog đầy đủ (chưa kiểm vượt 9 tool, `spike-local-llm.md:90`).
   - 8 tiêu chí ở V2:732 cụ thể, nhưng thiếu: auth negative, SoD, idempotency, PoF, footprint. §7.2 bổ sung đủ.
+  - Có thêm từ PACK:
+    - Đồng bộ workflow → record (G-P11, PACK:279,309) chưa kiểm ở gói đề xuất. Đây là phần runtime v0.1 phải tự viết, thay cho harness `Instance.act()` (PACK:120).
+    - Leo thang SLA đang **thay** người chứ không nhắc, và bắt GĐ duyệt 2 lần (G-P5, PACK:149,273). Nghiệm thu (4) phải nêu rõ hành vi mong đợi (T1-12).
 
 ---
 

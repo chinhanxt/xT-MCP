@@ -6,7 +6,7 @@ Ngữ cảnh: `red-team.md` Q4, `docs/architecture-v1.md` §5.7, `spike-mcp-apps
 ## 0. Kết luận nhanh
 
 1. Về pháp lý, gửi kết quả tool chứa DLCN của nhân viên tới ChatGPT/Claude là **chuyển DLCN xuyên biên giới** (Luật 91/2025 Đ.20 k.1 đ.c; NĐ 356/2025 Đ.17 k.1 đ.c). Token hóa có đảo ngược được là bút danh hóa, **dữ liệu vẫn là DLCN** (Luật 91 Đ.12 k.1; NĐ 356 Đ.9 k.3 đ.c). Vì vậy làn PII **giảm phạm vi và rủi ro, nhưng không xóa nghĩa vụ** lập hồ sơ đánh giá tác động chuyển DLCN ra nước ngoài (ĐGTĐ). Nghĩa vụ này không có miễn trừ cho doanh nghiệp nhỏ. Muốn thoát nghĩa vụ phải khử nhận dạng thật (chỉ trả số liệu tổng hợp), và chưa có quy chuẩn kỹ thuật cho việc này.
-2. Prototype chạy được: **33/33 test pass** (21 test chính + 12 test biên do agent kiểm thử viết); e2e Playwright trên host tham chiếu `basic-host` cũng pass. Client tier cloud chỉ nhận token. Lỗi validate và lỗi unique của engine vốn echo giá trị thật, nhưng đã bị thay bằng token trước khi ra dây. Agent truyền token vào `create_record`/`update_record` thì DB nhận giá trị thật. Audit ghi quyết định egress, không chứa giá trị thật.
+2. Prototype chạy được: **50/50 test pass** (21 test chính + 29 ca biên do agent kiểm thử viết; vòng đầu các ca biên tìm ra 4 chỗ rò thật và 2 rủi ro, đã sửa hết, xem 4.4). E2E Playwright trên host tham chiếu `basic-host` cũng pass. Client tier cloud chỉ nhận token. Lỗi validate và lỗi unique của engine vốn echo giá trị thật, nhưng đã bị thay bằng token trước khi ra dây. Agent truyền token vào `create_record`/`update_record` thì DB nhận giá trị thật. Audit ghi quyết định egress, không chứa giá trị thật.
 3. MCP Apps: spec **không** đảm bảo kết quả của tool `visibility:["app"]` nằm ngoài context của model. Ngoài ra, tool call do app khởi tạo vẫn đi qua backend của host (Claude proxy qua IP Anthropic). Do đó **không được đặt giá trị thật vào bất kỳ phản hồi MCP nào** cho tier cloud, kể cả tool app-only. Kênh cho người: iframe xin "vé" (không phải PII) rồi `fetch` **thẳng** tới xT qua `connectDomains`, kèm chữ ký bằng khóa non-extractable của iframe. Đã chạy thật trên basic-host: 0 giá trị thật trong postMessage và trong traffic host↔MCP; giá trị thật chỉ có trong response `/pii/reveal`.
 
 ## 1. Căn cứ pháp lý
@@ -90,16 +90,17 @@ Spec không có trường nào cho server biết `tools/call` đến từ UI hay
 - **Phạm vi phiên = `tenant|azp|sub|sid`.** `sid` của Keycloak ổn định qua refresh token. Token của phiên khác, hoặc của client khác dù cùng `sid`, đều bị từ chối `PII_TOKEN_UNKNOWN`. Token tất định trong phiên. Vault lưu snapshot giá trị: spike dùng sqlite; production dùng Postgres + RLS, cột value mã hóa bằng khóa tenant, TTL theo phiên, xóa khi logout hoặc offboarding (Đ.25).
 - **Detokenize ở chiều vào** theo schema của tool (`ToolShape`: `data_args`, `filter_args`, `sort_args`). Token đứng nguyên một giá trị thì giữ kiểu gốc (lương ra int); token nằm giữa chuỗi thì thay bằng giá trị thật.
 - **Chống rửa (downgrade):** không cho ghi token mức X vào field mức < X. Ví dụ `⟨NV-0042.luong⟩` không được vào `ghi_chu` (none) hay `so_dien_thoai` (basic). Nếu để lọt, đọc lại `ghi_chu` sẽ ra raw cho cloud. Arg ngoài schema được coi là mức `none`.
-- **Chống oracle:** với mode ≠ full, field `sensitive` chỉ được lọc bằng `eq` với token. Bị chặn: `luong > X`, `luong = 25000000`, `contains` trên `suc_khoe`, và sắp xếp theo field sensitive. Nếu cho phép, agent dò ra lương bằng tìm kiếm nhị phân.
+- **Chống oracle:** với mode ≠ full, field `sensitive` chỉ được lọc bằng `eq` với token. Bị chặn: `luong > X`, `luong = 25000000`, `contains` trên `suc_khoe`, và sắp xếp theo field sensitive. Nếu cho phép, agent dò ra lương bằng tìm kiếm nhị phân. Field `basic` chỉ cho các op trong `TenantPolicy.basic_filter_ops`, mặc định `{eq}`. Agent kiểm thử đã chứng minh `so_cccd contains <tiền tố+d>` dựng lại đủ 12 số CCCD chỉ bằng cách đếm số kết quả.
+- **Gốc token không được là PII:** nếu mã nghiệp vụ trông như SĐT/CCCD/email, có ≥ 8 chữ số, hoặc sai cú pháp token, thì gốc token đổi thành `R-<sha256(model|key)[:10]>`. Nếu không, `⟨0912345678.ho_ten⟩` tự làm lộ giá trị (lỗi agent kiểm thử tìm ra).
 - Validate kiểu của SDK MCP chạy **trước** làn PII, nên tool khai `data: dict` để validate thật xảy ra **sau** detokenize, ở trong engine. Khi đó lỗi echo raw và làn phải chặn được. Lỗi ở tầng SDK chỉ echo đúng input agent gửi (token hoặc giá trị chính agent gõ), không có raw mới.
 
 ### 3.5. Lọc chiều ra: chiếu + 2 lưới
 1. **Chiếu theo field**: mọi kết quả dạng `{model, record|records}` được chiếu theo (mode, pii).
-2. **Lưới 1, giá trị đã biết**: tập giá trị thật trong lời gọi (từ detokenize, từ mọi hàng engine đọc kể cả hàng không trả về, và mọi giá trị đã cấp token trong phiên). Mỗi giá trị sinh các biến thể: NFC, không dấu phân cách, `25,000,000`, `25.000.000`, `25 000 000`. Quét bằng regex có biên từ, không phân biệt hoa/thường, trên **mọi chuỗi** của envelope, gồm thông điệp lỗi, key dict và số nguyên trùng giá trị.
+2. **Lưới 1, giá trị đã biết**: tập giá trị thật trong lời gọi (từ detokenize, từ mọi hàng engine đọc kể cả hàng không trả về, và mọi giá trị đã cấp token trong phiên). Mỗi giá trị sinh các biến thể: NFC, không dấu phân cách, `25,000,000`, `25.000.000`, `25 000 000`, `25tr`, `25 triệu`, `18,5 triệu`. Quét không phân biệt hoa/thường. Biến thể chữ dùng biên từ; biến thể số **không** dùng biên `\w`, chỉ chặn chữ số liền trước, để bắt cả `25.000.000đ`, `25000000VND` và hai số dính nhau. Phạm vi quét: **mọi chuỗi** của envelope, gồm thông điệp lỗi, key dict và số nguyên trùng giá trị.
 3. **Lưới 2, bộ nhận dạng VN**: CCCD 12 số (mã tỉnh 001-096), di động VN (+84/0, cho phép dấu cách/chấm/gạch), email. Kết quả bắt được thành `⟨PII-n.kind⟩` và vẫn tham chiếu được.
 4. Lỗi bất ngờ (`Exception`) cũng đi qua làn, không trả stacktrace thô.
 
-Kiểm chứng bằng đột biến: tắt `_deep_scrub` thì 8/21 test fail (rò CCCD/SĐT/email trong ghi chú, lỗi validate echo địa chỉ, lỗi unique echo CCCD, exception echo SĐT). Bỏ riêng lưới "hàng engine đã đọc" thì không test nào fail, vì lưới này là lớp phòng thủ thừa; vault phiên và detokenize đã phủ.
+Kiểm chứng bằng đột biến: tắt `_deep_scrub` thì **22/50 test fail** (rò CCCD/SĐT/email trong ghi chú, lỗi validate echo địa chỉ, lỗi unique echo CCCD, exception echo SĐT, lương trong ghi chú…). Bỏ riêng lưới "hàng engine đã đọc" thì không test nào fail, vì lưới này là lớp phòng thủ thừa; vault phiên và detokenize đã phủ.
 
 ### 3.6. Audit egress
 Bảng `egress_audit` (hash-chain `prev_hash → entry_hash`) có các cột: `tenant, azp, sub, tier, mode, tool, outcome, egress_json` (đếm `model.field:hành_động`), `detok_json` (token đã mở), `scrubbed` (số lần lưới 1 thay), `hits_json` (bộ nhận dạng theo kind). **Không chứa giá trị thật**: test quét toàn bộ bảng bằng `assert_no_raw`. Từ bảng này sinh được: số lần/loại DLCN đã ra từng nhà cung cấp, cho Mẫu 09 và cho cập nhật 6 tháng (Đ.22). Lần người xem giá trị thật ghi `tier=human, tool=pii_reveal, *:reveal_human`. Production gộp vào `audit_log` chung (cột `egress` đã có trong architecture §5.6).
@@ -135,13 +136,14 @@ Mã: `research/spike-pii-lane/` (mỗi file có header SPDX Apache-2.0). Phụ t
 | `xtpii/reveal.py` | Vé + chữ ký ECDSA P1363 + đổi vé |
 | `xtpii/server.py` | `MCPServer` + `Apps`: `get_record` (có UI), `search_records`, `create_record`, `update_record`, `pii_reveal_ticket` (app-only), route `POST /pii/reveal` |
 | `xtpii/ui/pii-card.html` | Thẻ MCP App (bridge tự viết, không thư viện) |
-| `tests/` | `test_pii_lane.py` (18), `test_reveal.py` (3), `test_edge_cases.py` (12, do agent kiểm thử viết) |
+| `tests/` | `test_pii_lane.py` (18), `test_reveal.py` (3), `test_edge_cases.py` (16 hàm / 29 ca, do agent kiểm thử viết) |
+| `outputs/pytest.txt` | Output `pytest -v -s` thật |
 | `e2e/` | `run_server.py`, `e2e.py` (Playwright headless, spy postMessage + mạng), ảnh, log |
 
 Chạy:
 ```bash
 cd research/spike-pii-lane
-python3 -m pytest -q tests -p no:warnings
+python3 -m pytest -q tests -o addopts="" -p no:warnings -p no:cacheprovider   # -o addopts: bỏ --cov của pyproject gốc
 # e2e (cần clone ext-apps, build basic-host, sửa cổng sandbox 8081 -> 18212 trong src/implementation.ts)
 python3 e2e/run_server.py &
 (cd /path/ext-apps/examples/basic-host && HOST_PORT=18211 SANDBOX_PORT=18212 SERVERS='["http://localhost:18210/mcp"]' npx tsx serve.ts &)
@@ -151,7 +153,7 @@ python3 e2e/e2e.py e2e/out
 ### 4.1. Kết quả thật
 
 ```
-33 passed in 1.3s
+50 passed in 2.70s
 ```
 (xem `outputs/pytest.txt`)
 
@@ -203,6 +205,19 @@ Giá trị thật trong response /pii/reveal: ['001090012345', '0011004455667', 
 3. basic-host chuyển `_meta` của kết quả tool call do app khởi tạo vào iframe, nên vé trong `_meta` dùng được. Host thương mại: [chưa kiểm chứng].
 4. Agent kiểm thử đối kháng: lần chạy đầu bị bộ lọc an toàn của model cắt giữa chừng, không ra kết quả. Đã giao lại với brief hẹp hơn ("test hồi quy cho middleware che dữ liệu").
 
+### 4.4. Phản biện của agent kiểm thử (Opus) và cách sửa
+Vòng 1 (`test_edge_cases.py`): 4 fail, 2 xfail, 44 pass. Các lỗi đều là rò thật trên dây:
+
+| Ca | Wire rò | Sửa |
+|---|---|---|
+| `⟨NV-0042.so_dien_thoai⟩⟨NV-0042.so_cccd⟩` + thiếu `ma_hd` | `input_value={'cccd_nguoi_ky': '0912345678001090012345'}` (biên `\w` không khớp 2 số dính nhau) | `lane._pattern`: biến thể số không dùng biên `\w` |
+| `ma_nv` = `0912345678` | `⟨0912345678.ho_ten⟩` (gốc token là PII; `_outside_tokens` bỏ qua token) | `Vault.root`: gốc băm khi mã trông như PII |
+| `ghi_chu` = `Lương 25.000.000đ` / `25000000VND` | nguyên văn | như dòng 1 |
+| xfail: `so_cccd contains` dò từng chữ số | dựng lại đủ 12 số | `basic_filter_ops={eq}` |
+| xfail: `25tr`, `18,5 triệu` trong ghi chú | nguyên văn | `_variants` thêm dạng triệu |
+
+Sau khi sửa: 50/50 pass, các ca xfail chuyển thành test thường. Các ca đã pass ngay từ đầu: lỗi echo dạng NFD/khác hoa-thường, token sai định dạng, token chưa cấp, sort `luong`/`--luong`/field lạ, key là token, patch `ma_nv` thành token, create field lạ (token hoặc raw), dict lồng sâu ngoài schema, limit âm.
+
 ## 5. Rủi ro còn lại và việc tiếp theo
 
 | # | Rủi ro | Xử lý |
@@ -214,5 +229,5 @@ Giá trị thật trong response /pii/reveal: ['001090012345', '0011004455667', 
 | 5 | Agent cloud có công cụ chạy code và có mạng tự đổi vé | `reveal_channel=xt_page` cho `sensitive` (Keycloak + MFA trên origin xT) |
 | 6 | Tier `local` dựa vào khẳng định của admin | Ràng buộc mạng (APISIX allowlist IP/mTLS cho client local) + quy chế. Ghi rõ trong README |
 | 7 | Vault chứa giá trị thật | Mã hóa theo tenant (OpenBao), TTL theo `sid`, xóa khi logout/offboarding, có RLS |
-| 8 | Filter `contains`/`gt` trên field basic có thể dò từng phần | Đã ghi nhận trong test biên (xem `tests/test_edge_cases.py`); tenant có thể nâng field lên `sensitive` |
+| 8 | `basic_filter_ops={eq}` làm cloud không tìm được theo tên gần đúng ("Nguyễn…") | Đánh đổi có chủ ý. Tenant có thể mở `contains` cho field `name`, chấp nhận rủi ro dò; hoặc tìm trên Desk/LLM local |
 | 9 | Chưa test trên Claude.ai/ChatGPT thật | Tunnel HTTPS + tài khoản. Kiểm: `_meta` có tới iframe không, `connectDomains` có được tôn trọng không, `structuredContent` có vào model không |

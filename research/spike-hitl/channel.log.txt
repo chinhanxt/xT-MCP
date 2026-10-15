@@ -1,0 +1,30 @@
+[channel] from Keycloak: {"scope": "openid profile roles email", "binding_message": "R-42#50cfaf56", "login_hint": "alice", "is_consent_required": false}
+[channel] "POST /ciba/auth-channel HTTP/1.1" 201 -
+[channel] "POST /telegram/webhook HTTP/1.1" 403 -
+[channel] "POST /telegram/webhook HTTP/1.1" 403 -
+[channel] KC callback SUCCEED -> 200 {"type":"application","subtype":"json","parameters":{},"wildcardSubtype":false,"wildcardType":false}
+[channel] "POST /telegram/webhook HTTP/1.1" 200 -
+[channel] "POST /telegram/webhook HTTP/1.1" 409 -
+[channel] from Keycloak: {"scope": "openid profile roles email", "binding_message": "R-42#50cfaf56", "login_hint": "alice", "is_consent_required": false}
+[channel] "POST /ciba/auth-channel HTTP/1.1" 201 -
+[channel] KC callback UNAUTHORIZED -> 200 {"type":"application","subtype":"json","parameters":{},"wildcardSubtype":false,"wildcardType":false}
+[channel] "POST /telegram/webhook HTTP/1.1" 200 -
+[channel] from Keycloak: {"scope": "openid profile roles email", "binding_message": "R-42#probe", "login_hint": "alice", "is_consent_required": false, "acr_values": "urn:xt:acr:otp"}
+[channel] "POST /ciba/auth-channel HTTP/1.1" 201 -
+[channel] KC callback SUCCEED -> 200 {"type":"application","subtype":"json","parameters":{},"wildcardSubtype":false,"wildcardType":false}
+[channel] "POST /telegram/webhook HTTP/1.1" 200 -
+[channel] from Keycloak: {"scope": "openid profile roles email", "binding_message": "R-42#50cfaf56", "login_hint": "alice", "is_consent_required": false}
+[channel] "POST /ciba/auth-channel HTTP/1.1" 201 -
+[channel] "POST /telegram/webhook HTTP/1.1" 403 -
+[channel] "POST /telegram/webhook HTTP/1.1" 403 -
+[channel] KC callback SUCCEED -> 200 {"type":"application","subtype":"json","parameters":{},"wildcardSubtype":false,"wildcardType":false}
+[channel] "POST /telegram/webhook HTTP/1.1" 200 -
+[channel] "POST /telegram/webhook HTTP/1.1" 409 -
+[channel] from Keycloak: {"scope": "openid profile roles email", "binding_message": "R-42#50cfaf56", "login_hint": "alice", "is_consent_required": false}
+[channel] "POST /ciba/auth-channel HTTP/1.1" 201 -
+[channel] KC callback UNAUTHORIZED -> 200 {"type":"application","subtype":"json","parameters":{},"wildcardSubtype":false,"wildcardType":false}
+[channel] "POST /telegram/webhook HTTP/1.1" 200 -
+[channel] from Keycloak: {"scope": "openid profile roles email", "binding_message": "R-42#probe", "login_hint": "alice", "is_consent_required": false, "acr_values": "urn:xt:acr:otp"}
+[channel] "POST /ciba/auth-channel HTTP/1.1" 201 -
+[channel] KC callback SUCCEED -> 200 {"type":"application","subtype":"json","parameters":{},"wildcardSubtype":false,"wildcardType":false}
+[channel] "POST /telegram/webhook HTTP/1.1" 200 -

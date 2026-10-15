@@ -7,6 +7,34 @@
 - Mỗi quyết định ghi theo khuôn: **Quyết định → Lý do → Bằng chứng → Phương án bị loại**.
 - Chưa chạy thật thì ghi **[chưa kiểm chứng]**.
 
+## v2.1 changelog (15/10/2026, sau `docs/architecture-v2-verdict.md`, phán quyết GO-WITH-CONDITIONS)
+
+`docs/tool-contracts-v1.md` (TCV1: 17 tool ở v0.1, 21 tool ở v1.0) là **nguồn có thẩm quyền về bề mặt tool**. Bản v2.1 đã hòa giải 5 điểm lệch thuộc B1. Chi tiết ghi tại `architecture-debate.md` §"Vòng 3".
+
+1. **Cơ chế xác nhận.** Bỏ tham số `confirmation_ref`. Tool có gate không nhận tham số gate nào: server lưu PendingOperation (TTL 10 phút). Trang `/desk/confirm/{id}` đăng nhập lại và tự thực thi operation đó. Agent gọi lại tool với cùng `idempotency_key` để nhận receipt (TCV1 §3.5, C7). Sửa D1, D8, §1.3, §5.5.
+2. **Transport v0.1.** Giữ Streamable HTTP + OAuth + `/desk/confirm` (TCV1 §3.5 dòng "Mốc" khớp). Stdio chỉ để dev, xác thực bằng token agent. Xác nhận trong chế độ stdio **cũng đi qua `confirm_url` của Desk cục bộ**. Không có `xt confirm` trên TTY: đây là yêu cầu sửa TCV1 (§3.5, dòng "Chế độ stdio"), chỉ đổi giá trị trả về, không breaking.
+3. **Skill/prompt v0.1:** chuyển sang 4 skill + 4 prompt theo TCV1 §11, vì nghiệm thu (4) và (5) cần chúng.
+4. **Hồ sơ model nhỏ:** chuyển sang **core-10** của TCV1 §10. Phần tool đo được **3.916 token**, catalog đầy đủ là 8.155 token. Client local đặt `num_ctx ≥ 16384`.
+5. **Độ tươi xác thực:** cửa sổ **5 phút** kể từ `auth_time` (re-auth `max_age=0` + TOTP lúc mở trang). PendingOperation hết hạn sau 10 phút.
+
+Sửa các mục không chặn trong phạm vi kiến trúc:
+- Bug tracker: Issues của forge + template sẵn có trong `.github/ISSUE_TEMPLATE`.
+- `LICENSING.md` có ở v0.1.
+- Sandbox của Desk lấy qua npm, **không chép** `sandbox.ts` (N1).
+- `/mcp` đi qua APISIX passthrough **ngay từ v0.1** (N6).
+- Đo footprint chuyển vào v0.1 (N13).
+- Fallback `azp` đổi từ denylist sang **allowlist** (N2).
+- Thu hồi token bằng introspection (N3).
+- Dùng `PyJWKClient` cấu hình trước, tự viết sau (N4).
+- Giới hạn `check_expr` + giữ subclass vá `call_service` (N5).
+- Gom ba ngôn ngữ biểu thức vào một module `domain/expr` (N7).
+- SBOM bằng `cyclonedx-py` + SHA256SUMS; bỏ câu "đã có" (N8).
+- Chặn `/auth/admin` và UI SeaweedFS (N10).
+- Kế hoạch cộng đồng (N12).
+- Seed v0.1 resolve người duyệt bằng `role(x)` (N14).
+- Đưa pgqueuer vào spike hàng đợi.
+- B4: namespace bảng theo tenant ghi **[chưa kiểm chứng]**, kèm test bắt buộc và quyết định PostgREST trước v0.2.
+
 ### Viết tắt nguồn (tất cả nằm trong `research/`, trừ khi ghi khác)
 
 | Mã | Tệp | Mã | Tệp |
@@ -22,7 +50,8 @@
 | VS | `verification-spikes.md` | SME | `spike-model-engine.md` |
 | SIAM | `spike-iam.md` | SLLM | `spike-local-llm.md` |
 | SDESK | `spike-desk.md` | ST | `docs/demo-storyboard-v0.md` |
-| CRIT | `docs/architecture-v1-critique.md` | TCV1 | `docs/tool-contracts-v1.md` **[đang viết song song, chưa có]** |
+| CRIT | `docs/architecture-v1-critique.md` | TCV1 | `docs/tool-contracts-v1.md` (**có thẩm quyền về bề mặt tool**) |
+| VERD | `docs/architecture-v2-verdict.md` | | |
 
 ### Ràng buộc từ chủ dự án (chốt 15/10/2026)
 
@@ -40,15 +69,15 @@
 
 | # | Quyết định | Bị loại | Nguồn |
 |---|---|---|---|
-| D1 | **Catalog tool cố định**, sinh từ ToolContract. Số lượng và tên do TCV1 chốt. Kiến trúc chỉ bắt buộc 6 năng lực và 3 bất biến (§1.3) | Tool sinh theo model; `execute(mode)`; Code Mode | TC §1, TCC §C/E, CRIT 2 |
+| D1 | **Catalog tool cố định theo TCV1: 17 tool ở v0.1, 21 tool ở v1.0**, sinh từ ToolContract. Thỏa 6 năng lực bắt buộc và 3 bất biến (§1.3) | Tool sinh theo model; `execute(mode)`; Code Mode | TCV1 §0, §4, TCC §C/E |
 | D2 | **Không Code Mode** trước v1.0. Không chạy code do agent gửi | Sandbox V8/WASM; `exec` Python | RT §0.2, SK §7, SSPIFF §4 |
 | D3 | **SDK chính thức `mcp` 2.3.0** (MIT), bọc sau adapter mỏng | FastMCP 4.1 | SAUTH §3, VS B |
 | D4 | **SpiffWorkflow 3.2.0** ở `adapters/workflow`. Bước người chạy **in-process trong `xt-api`**. Timer, service task, outbox chạy trong **`xt-worker`**. Cùng một image | Container "dịch vụ workflow" riêng; Flowable (phương án B qua port `ProcessEngine`) | SSPIFF, CRIT 4 |
 | D5 | **Postgres 17**, RLS FORCE, tách role: bootstrap superuser, migrator BYPASSRLS, `xt_app` NOBYPASSRLS | Schema/DB-per-tenant | SME §3.2, SK §4 |
-| D6 | **Bảng vật lý theo model**, namespace theo tenant `xt_data.t<seq>__<model>`. Planner diff theo id ổn định. Apply 2 pha | Bảng chung JSONB (v1); Frappe DocType | SME (chạy thật), BB L53, CRIT 1 |
+| D6 | **Bảng vật lý theo model** (đã chạy với bảng dùng chung `xt_data.<model>`, SME §0). Planner diff theo id ổn định. Apply 2 pha. **Namespace theo tenant `xt_data.t<seq>__<model>` [chưa kiểm chứng]**: SME §8.1 chỉ đề xuất, chưa chạy. Phải có integration test ở v0.0 (VERD B4a) | Bảng chung JSONB (v1); Frappe DocType | SME, BB L53, CRIT 1, VERD B4 |
 | D7 | **Tầng 2 = xT Desk** (React/Vite + `@mcp-ui/client` + chat qwen3.5:4b local) là **kênh demo chính**. Cộng thêm MCP Apps và Telegram | Chỉ chat trong host đóng; frontend nghiệp vụ truyền thống; Chainlit (dự phòng) | SDESK, SLLM, RT Q1 |
-| D8 | **Xác nhận của người chỉ đi qua 2 kênh.** (1) `/confirm` của Desk, xác thực tươi (`max_age=0` + TOTP; L3/vượt ngưỡng thêm `prompt=login` + `acr`). (2) Nút Telegram có nonce do xT ký. Không có CLI. Có SoD ở DB | CLI TTY; Device grant; link bearer; tin nút MCP App ở host ngoài | CRIT 16–19, TCC F1 |
-| D9 | **Một realm `xt`**. Tenant = Organization, 1 user = 1 org. Scope `mcp-xt` optional (fallback: default + denylist `azp`). PostgREST dùng `aud` riêng. **xT giữ tổ chức/vai trò, Keycloak chỉ xác thực + MFA** | Realm-per-tenant; nhóm nghiệp vụ trong Keycloak | CR §1, VS #1, CRIT 5/14/22 |
+| D8 | **Xác nhận của người: tool không nhận tham số gate.** Server lưu PendingOperation và trả `confirmation_required` + `confirm_url`. Người xác nhận qua một trong hai kênh: (1) `/desk/confirm/{id}` với xác thực tươi (`max_age=0` + TOTP, cửa sổ 5 phút; L3/vượt ngưỡng thêm `prompt=login` + `acr`), trang này tự thực thi operation; (2) nút Telegram có nonce do xT ký. Agent gọi lại cùng key để nhận receipt. Không có CLI. Có SoD ở DB | `confirmation_ref`/`approval_ref` trong input; CLI TTY; Device grant; link bearer; tin nút MCP App ở host ngoài | TCV1 §3.5/C7, CRIT 16–19, TCC F1/F16 |
+| D9 | **Một realm `xt`**. Tenant = Organization, 1 user = 1 org. Scope `mcp-xt` optional; fallback là default + **allowlist `azp`** (chỉ nhận client do DCR tạo, đánh dấu qua client policy). PostgREST dùng `aud` riêng. **xT giữ tổ chức/vai trò, Keycloak chỉ xác thực + MFA** | Realm-per-tenant; denylist `azp` (fail-open); nhóm nghiệp vụ trong Keycloak | CR §1, VS #1, VERD N2, CRIT 5/14/22 |
 | D10 | **Compose 3 profile.** `minimal` (gồm Desk, không LLM, mục tiêu < 4 GB). `full` (LLM, NATS, ClamAV, OpenBao). `public` (Cloudflare Tunnel hoặc TLS tự quản) | Redpanda, Kafka; NATS bắt buộc | RT Q8, CRIT 11/13 |
 | D11 | **IAM: evaluator mini + ngôn ngữ policy đóng** (spike-iam), condition `eq/ne/le/ge/in` trên thuộc tính whitelist. pycasbin làm **oracle trong CI** | pycasbin runtime (chậm ~60×, không giải thích được); vakt (jsonpickle thực thi code) | SIAM §6–7 |
 | D12 | **APISIX lộ 4 dịch vụ thành 4 namespace riêng** (`/auth`, `/data/v1` + `/files/v1`, `/workflow/v1`, `/rest/v1` + `/mcp`). `/mcp` đi thẳng (TLS + rate-limit IP); `xt-api` tự trả 401 + PRM | JWT ở gateway cho `/mcp` | CR L18, CRIT 6/27 |
@@ -87,19 +116,20 @@ xT là **lõi vận hành số headless, đa năng, tự host được** cho doa
 
 ### 1.3. "Bộ tool cố định, nghiệp vụ là dữ liệu"
 
-- **Quyết định (D1):** `tools/list` là một catalog cố định, sinh từ ToolContract.
-  - **Số lượng và tên tool do TCV1 chốt.** Lúc viết, các đề xuất đang có: CRIT 2 đề 16; TCC §E đề 17 cho v0.1 và 22 cho v1.0.
-  - Kiến trúc chấp nhận mọi catalog thỏa 3 điều kiện dưới đây, và ≤ 22 tool ở v1.0.
+- **Quyết định (D1):** `tools/list` là một catalog cố định, sinh từ ToolContract, **theo đúng TCV1**. CLAUDE.md đã cập nhật số này.
+  - **v0.1 có 17 tool:** `inspect_workspace, describe_model, describe_process, find_people, search_records, aggregate_records, get_record, get_inbox, get_history, create_record, update_record, transition_record, upload_file, submit_request, decide_request, create_task, propose_model_change`.
+  - **v1.0 thêm 4 tool:** `start_process, propose_process_change, delete_record, notify`.
+  - Tool có tên và schema từ v0.1 nhưng năng lực chưa tới thì trả `capability_unavailable` kèm remediation. Không giả thành công (TCV1 §12.7).
 - **Sáu năng lực bắt buộc** (từ các blocker F1–F5 của TCC):
 
 | # | Năng lực | Lý do |
 |---|---|---|
-| 1 | Luồng confirmation: lỗi trả `confirm_url` (chỉ là locator) + `confirmation_ref` ở trạng thái pending + continuation để gọi lại | TCC F1 |
+| 1 | Luồng confirmation: lỗi `confirmation_required` trả `confirm_url` (chỉ là locator) + `details.confirmation_id` (pending) + continuation. Không có tham số gate trong input | TCC F1, TCV1 C7 |
 | 2 | Chuyển trạng thái Record theo state machine của model | TCC F2 |
 | 3 | Upload file (văn bản nhỏ inline, hoặc URL tải lên một lần) và đọc text đã trích | TCC F3 |
 | 4 | Tổng hợp số liệu phía server, có lineage | TCC F4 |
-| 5 | Tìm xuyên model (gồm danh bạ actor) và truy vấn đặt tên (`views`) | TCC F11, CRIT 26 |
-| 6 | Submit/withdraw đơn của chính người được đại diện ở **L1** | TCC F5 |
+| 5 | Tìm xuyên model (gồm danh bạ actor) và truy vấn đặt tên (`views`) | TCC F11, CRIT 26. TCV1: `search_records(query)` + `find_people`; metric có tên; `views` thêm ở v0.3 dưới dạng tham số tùy chọn |
+| 6 | Submit/withdraw đơn của chính người được đại diện ở **L1** | TCC F5. TCV1: `submit_request` + `transition_record(withdrawn)` |
 
 - **Ba bất biến:**
   1. Catalog không đổi theo dữ liệu hay đăng nhập. Chỉ đổi theo version contract.
@@ -108,11 +138,16 @@ xT là **lõi vận hành số headless, đa năng, tự host được** cho doa
 - **Nguyên tắc contract mà kiến trúc dựa vào** (chi tiết thuộc TCV1):
   - Input đóng, output mở (TCC F14).
   - Phân trang bằng cursor (F15).
-  - Một tên tham số gate duy nhất `confirmation_ref` (F16).
+  - **Không có tham số gate.** PendingOperation do server giữ; `/desk/confirm/{id}` thực thi; agent gọi lại cùng `idempotency_key` (F16, TCV1 C7).
   - `destructiveHint` chỉ khi có thể mất dữ liệu hoặc chạy code ngoài (F6).
   - Dữ liệu doanh nghiệp đặt dưới `data` có `untrusted:true` trong `structuredContent` (F10).
   - Mọi lỗi/số liệu có `explain_ref` (F24).
-- **Hồ sơ tool cho model nhỏ:** Desk chỉ đưa cho qwen3.5:4b một tập con cỡ 8 tool (TCC §E "core-8"), lọc phía client. Server vẫn quảng bá catalog đầy đủ theo REA (SLLM L89, TCC F27).
+- **Hồ sơ tool cho model nhỏ: core-10 của TCV1 §10**, lọc phía client.
+  - Gồm: `find_people, search_records, aggregate_records, get_record, get_inbox, create_record, create_task, submit_request, transition_record, decide_request`.
+  - Phần tool đo được 3.916 token. Catalog v0.1 đầy đủ là 8.155 token.
+  - Client local đặt `num_ctx ≥ 16384`; VRAM vẫn vừa 6 GB (TCV1 §10).
+  - Server vẫn quảng bá catalog đầy đủ theo REA.
+  - Smoke test: đúng tool 22/22, đúng ngữ nghĩa 18/22. Đây chưa phải eval.
 
 ### 1.4. Workflow theo phiên bản
 
@@ -183,7 +218,7 @@ PP §3: 8 workflow quy về 3 động cơ là Request/Decision, Task/SLA và Rec
 | Thành phần | Có | Không có |
 |---|---|---|
 | **xt-desk frontend** (React/Vite) | Chat (vòng lặp agent, khoảng 60 dòng, SLLM L40), `AppRenderer` cho `ui://`, trang "Agent của tôi" (cấp/thu hồi agent, trần L0–L3), danh sách hội thoại | **Không có màn hình nghiệp vụ viết tay.** Mọi hình ảnh nghiệp vụ là MCP App chạy được cả ở host khác |
-| **xt-desk backend** (Python, Starlette, cùng repo) | OIDC code flow với Keycloak (token người nằm ở server, không ở trình duyệt); proxy tới LLM (`reasoning_effort:"none"`); proxy `/mcp` gắn **token agent `xt-desk-agent` + delegation của người dùng**; serve sandbox ở origin khác kèm CSP từ `_meta.ui.csp`; trang **`/confirm/{id}`** server-render | Không logic nghiệp vụ. Chỉ gọi API công khai qua APISIX |
+| **xt-desk backend** (Python, Starlette, cùng repo) | OIDC code flow với Keycloak (token người nằm ở server, không ở trình duyệt); proxy tới LLM (`reasoning_effort:"none"`); proxy `/mcp` gắn **token agent `xt-desk-agent` + delegation của người dùng**; serve sandbox ở origin khác kèm CSP từ `_meta.ui.csp`. Sandbox proxy **lấy qua npm** (`@mcp-ui/client` hoặc `@modelcontextprotocol/ext-apps`), **không chép** `sandbox.ts`/`sandbox.html` vào repo (VERD N1). Nếu gói không xuất sẵn sandbox thì tự viết theo spec SEP-1865 **[chưa kiểm chứng gói có export hay không; kiểm ở v0.2]**. Trang **`/desk/confirm/{id}`** server-render, thực thi PendingOperation | Không logic nghiệp vụ. Chỉ gọi API công khai qua APISIX |
 | **MCP Apps** (`apps/`) | v0.2: thẻ duyệt, orgchart (lấy từ spike). v0.3: form sinh từ model, Kanban + SLA, diff kế hoạch thay đổi. v1.0: bản tin có lineage | Không app chỉ hiển thị tĩnh |
 | **xt-bot** (aiogram, long polling) | Thông báo + nút Duyệt/Từ chối có nonce ký; liên kết tài khoản bằng mã một lần do Desk sinh | Không nhận lệnh tự do |
 
@@ -313,7 +348,8 @@ Pin image bằng digest. "Pin lúc scaffold" nghĩa là research chưa ghi phiê
 | YAML | PyYAML (loader chỉ nhận `true/false` cho bool) | 6.0.3 | MIT | dep | minimal | SME §0.4 |
 | JWT | PyJWT (cache JWKS tự viết, có TTL) | 2.15.1 | MIT | dep | minimal | VS #3 |
 | Workflow | SpiffWorkflow + lxml | 3.2.0 / 6.1.3 | LGPL-3.0 / BSD-3 | dep | minimal | SSPIFF |
-| Hàng đợi | `procrastinate` **hoặc** bản tự viết (chọn sau spike v0.0) | pin | MIT **[chưa kiểm chứng]** | dep | minimal | CRIT 30 |
+| Hàng đợi | `procrastinate` **hoặc** `pgqueuer`, hoặc bản tự viết nếu cả hai trượt (chọn sau spike v0.0) | pin | MIT / MIT (theo metadata PyPI, VERD §3.1) | dep | minimal | CRIT 30, VERD §3.5 |
+| SBOM | `cyclonedx-py` | pin | Apache-2.0 **[kiểm khi thêm]** | dev | — | VERD N8 |
 | Lịch | `python-dateutil`, `holidays` | pin | BSD/Apache; **[kiểm giấy phép]** | dep | minimal | CRIT 30 |
 | S3 | boto3 | pin | Apache-2.0 | dep | minimal | **[chưa kiểm với SeaweedFS]** |
 | Telegram | aiogram | pin | MIT | dep | minimal | RA |
@@ -333,6 +369,14 @@ Pin image bằng digest. "Pin lúc scaffold" nghĩa là research chưa ghi phiê
 
 **LGPL-3.0** (SpiffWorkflow, psycopg) chỉ được import, không sửa, không vendor. Ma trận tương thích ghi trong `LICENSING.md`.
 
+**Quy tắc B5 (VERD):** dep nào thêm vào `pyproject.toml` hoặc `package.json` thì **trong cùng commit** phải có một dòng trong `THIRD_PARTY_NOTICES.md` gồm tên, phiên bản, SPDX, URL và cách dùng. CI fail nếu có dep runtime không nằm trong bảng.
+
+**`LICENSING.md`** có ở **v0.1**, gồm 4 phần:
+1. Mục đích chọn Apache-2.0 (đáp ứng CL I.2 "mục đích giấy phép").
+2. Ma trận tương thích: LGPL-3.0 import (SpiffWorkflow, psycopg); GPL-2.0 tách tiến trình (ClamAV); MPL-2.0 (OpenBao); MIT/BSD/ISC.
+3. Quy tắc không vendor, không sửa gói đính kèm (CL I.5).
+4. Giấy phép trọng số model LLM dùng trong demo.
+
 **Cloudflare Tunnel** không nằm trên đường build/cài đặt. PoF I.4 cấm công cụ đóng trong build, mà dịch vụ Cloudflare là đóng. Profile `public` có hai lựa chọn tương đương: tunnel, hoặc reverse proxy TLS tự quản (certbot).
 
 ### 3.3. Quyết định chi tiết
@@ -350,7 +394,11 @@ Pin image bằng digest. "Pin lúc scaffold" nghĩa là research chưa ghi phiê
 - `jwt-aud = xt-data`. Chỉ client `xt-desk` và client credentials của nhà tích hợp có mapper sang aud này. Token MCP không bao giờ có.
 - JWKS nạp tĩnh. Quy trình xoay khóa gồm bước reload PostgREST.
 - Pre-request function đặt GUC `xt.tenant_id/actor_id/roles/department_ids` (đúng bộ GUC của SME §3.2), lấy từ claim và bảng tổ chức.
-- View `api.<model>` đặt `security_invoker=true`, owner là `xt_api_owner` (NOBYPASSRLS). Lưu ý `xt_migrator` có BYPASSRLS nên không được làm chủ view.
+- **Ánh xạ bảng theo tenant (VERD B4b): phải chốt trước v0.2.**
+  - Phương án ưu tiên: mỗi tenant một schema view `api_t<seq>`. PostgREST khai các schema này trong `pgrst.db_schemas` (cấu hình in-db) và reload bằng `NOTIFY pgrst, 'reload config'` khi tạo tenant. Client chọn schema bằng header `Accept-Profile`. Pre-request **từ chối** khi profile không khớp `tenant_id` trong token.
+  - Phương án dự phòng, nếu phương án ưu tiên fail ở spike v0.2: bỏ PostgREST, xt-api tự sinh `/data/v1` chỉ đọc từ catalog model, cùng RLS.
+  - Cả hai phương án **[chưa kiểm chứng]**.
+- View `api_t<seq>.<model>` đặt `security_invoker=true`, owner là `xt_api_owner` (NOBYPASSRLS). Lưu ý `xt_migrator` có BYPASSRLS nên không được làm chủ view.
 - Field `pii=sensitive` không có trong view.
 - `NOTIFY pgrst, 'reload schema'` sau mỗi lần apply.
 - Test RLS **qua HTTP**.
@@ -432,9 +480,9 @@ Thiếu effects thì server không khởi động (REA §3.1). Nội dung chi ti
 | Stdio (dev) | Token client credentials của một agent | `azp` | **Không có danh tính người cục bộ** (CRIT 17) |
 
 **Sửa VS B (v0.1, bắt buộc):**
-1. `mcp-xt` là scope optional, có trong PRM `scopes_supported` và trong `scope=` của 401. Test với Claude Free, ChatGPT dev mode, Goose. Nếu một host không tự xin: chuyển `mcp-xt` thành default scope + **denylist `azp` cố định** gồm `xt-desk`, `xt-bot`, `xt-data-*` (khai trong `realm-xt.json`).
-2. `accessTokenLifespan` = 5 phút. Tool ghi kiểm trạng thái user qua cache sự kiện admin.
-3. Cache JWKS có TTL. Xóa key khi kid biến mất. Có test xoay khóa.
+1. `mcp-xt` là scope optional, có trong PRM `scopes_supported` và trong `scope=` của 401. Test với Claude Free, ChatGPT dev mode, Goose. Nếu một host không tự xin: chuyển `mcp-xt` thành default scope + **allowlist `azp`**. Chỉ nhận client do DCR tạo (client policy gắn thuộc tính đánh dấu) cùng các client agent khai trong `realm-xt.json`. Mọi client khác bị từ chối, nên thêm client nội bộ mới vẫn fail-closed (VERD N2).
+2. `accessTokenLifespan` = 5 phút. Tool ghi kiểm trạng thái user qua **introspection Keycloak**, kết quả cache ≤ 60 s. Độ trễ thu hồi tối đa: 60 s với tool ghi, 5 phút với tool đọc (VERD N3, T1-03).
+3. JWKS: trước hết dùng `PyJWKClient(cache_keys=False, lifespan=…)`. Chỉ tự viết phần "xóa key khi kid biến mất" nếu cấu hình không đủ (VERD N4). Có test xoay khóa.
 4. Bắt buộc `sub` (với token người), `iat`, `typ=Bearer`; đặt trần `exp − iat`.
 5. Xoay khóa theo thứ tự passive → active.
 
@@ -479,22 +527,44 @@ Thiếu effects thì server không khởi động (REA §3.1). Nội dung chi ti
 |---|---|---|
 | L0 | Đọc | IAM |
 | L1 | Draft, comment, upload, submit/withdraw **đơn của chính người được đại diện**, tự chuyển trạng thái việc của mình, gửi kế hoạch thay đổi model | IAM + idempotency + audit |
-| L2 | Giao việc cho người khác, start process ảnh hưởng người khác, sửa field quan trọng | `confirmation_ref` của **chính người được đại diện** |
-| L3 | Xóa, activate định nghĩa, chi tiền, ký, gửi ra ngoài, thu hồi quyền | Confirmation với `prompt=login` + `acr`. **2 người** chỉ cho model change destructive và xóa PII |
-| Hard gate vĩnh viễn | `decide_request` (chỉ người duyệt), ký, lệnh chi, activate | Không hạ được bằng bất kỳ policy nào |
+| L2 | Giao việc ngoài tuyến báo cáo, sửa field `impact: high`, transition khai L2 | Nếu `effective_level` ≤ trần của agent (người chủ cấp, mặc định L1) thì làm được. Nếu không thì cần **một xác nhận của chính người được đại diện** qua `confirm_url` |
+| L3 | Transition khai L3, xóa, start process L3, thu hồi quyền | Luôn cần xác nhận, với `prompt=login` + `acr`. **2 người** chỉ cho model change destructive và xóa PII (`awaiting_second_approver`) |
+| `human_only` | `decide_request`; ký, lệnh chi, activate định nghĩa | Luôn cần **chính người được giao bước** xác nhận, bất kể trần của agent (TCV1 §3.5) |
+
+Thứ tự kiểm tra theo TCV1 §3.5:
+1. Xác thực.
+2. Tenant.
+3. IAM + SoD. Vi phạm trả `access_denied` **trước** mọi xác nhận.
+4. Receipt.
+5. Validate schema.
+6. CAS.
+7. Rule.
+8. Autonomy. Thiếu thì tạo PendingOperation.
+9. Một transaction cho mutation + audit + outbox + receipt.
 
 Annotations chỉ là gợi ý cho host, không bao giờ là biên bảo mật.
 
 ### 5.5. Confirmation, SoD, Telegram (D8)
 
-1. Tool có gate thiếu bằng chứng sẽ trả lỗi kèm `details.confirmation_ref` (pending) và `details.confirm_url`. `confirm_url` **chỉ là locator**: không chứa token, mở ra không tự duyệt.
-2. Trang `/confirm/{id}` (xt-desk, server-render):
+1. **Không có tham số gate trong input** (TCV1 C7):
+   - Tool có gate thiếu điều kiện tự chủ thì server lưu `PendingOperation{tool, canonical_args, idempotency_key, plan_digest, confirmer, ttl=10 phút}`.
+   - Lỗi trả `confirmation_required` gồm `confirm_url`, `details.confirmation_id`, `confirmer`, `plan_summary`, `plan_digest`, `expires_at`, `continuation`.
+   - `confirm_url` **chỉ là locator**: không chứa token, mở ra không tự duyệt.
+   - Agent gọi lại **y hệt** (cùng key):
+     - Đã xác nhận thì nhận receipt replay (`meta.receipt.replayed=true`).
+     - Bị từ chối hoặc hết hạn thì nhận `confirmation_declined`.
+     - Còn chờ thì nhận lại `confirmation_required`.
+2. Trang `/desk/confirm/{id}` (xt-desk, server-render, có ở v0.1):
    - Hiển thị **plan do server tính**: action, tài nguyên, digest, effects, revision. Mọi text do agent soạn gắn nhãn "do agent soạn".
-   - Bắt OIDC `max_age=0` + TOTP. L3 hoặc vượt ngưỡng thêm `prompt=login` + `acr_values`. WebAuthn tùy chọn.
-   - Lưu `auth_time`, `acr`, `azp=xt-desk`. Từ chối nếu `now − auth_time > 120 s`.
-   - Giới hạn số confirmation pending cho mỗi agent.
-3. **Telegram** (L2 và dưới ngưỡng): `callback_data` = nonce do xT ký HMAC, gắn `(confirmation_id, chat_id, actor)`, dùng một lần. Bot chạy long polling. Vượt ngưỡng thì nút chuyển thành link `/confirm`.
-4. Confirmation gắn chặt: tenant, người, agent, action, tài nguyên, digest, revision, hạn, nonce. Tiêu thụ cùng transaction với Decision.
+   - Mở trang thì bắt OIDC `max_age=0` + TOTP. L3 hoặc vượt ngưỡng thêm `prompt=login` + `acr_values`. WebAuthn tùy chọn.
+   - Lưu `auth_time`, `acr`, `azp=xt-desk`. **Cửa sổ 5 phút:** từ chối nếu `now − auth_time > 300 s` lúc bấm (thống nhất với TCV1; 120 s ở v2.0 quá chặt khi người cần đọc plan).
+   - Có CSRF và nonce.
+   - xt-api chỉ coi token `azp=xt-desk` có `sub = confirmer` là phiên người. Sau đó revalidate CAS/rule và **tự thực thi** PendingOperation trong một transaction (Confirmation + receipt + audit).
+   - Giới hạn số PendingOperation đang chờ cho mỗi agent.
+   - Chế độ stdio cũng trả `confirm_url` trỏ tới Desk cục bộ. **Không có `xt confirm` trên TTY** (debate CRIT 17). Yêu cầu TCV1 trả `cli_command=null`.
+   - Bằng chứng step-up trên Keycloak 26.8.1 là điều kiện **VERD B3** (`research/spike-hitl.md`): chưa có báo cáo đó thì không code `/desk/confirm`.
+3. **Telegram** (v0.2; L2 và dưới ngưỡng): `callback_data` = nonce do xT ký HMAC, gắn `(confirmation_id, chat_id, actor)`, dùng một lần. Callback thực thi PendingOperation giống trang confirm. Bot chạy long polling. Vượt ngưỡng thì nút chuyển thành `confirm_url`.
+4. Confirmation gắn chặt: tenant, người, agent, action, tài nguyên, digest, revision, hạn, nonce. Tiêu thụ cùng transaction với mutation.
 5. **SoD:**
    - Trigger trên `decisions`: `decider_human ≠ requester_human` (ngoại lệ chỉ khi policy cho `self_approval_allowed`, có audit).
    - Người nhận delegation phải là người, không phải người đề nghị.
