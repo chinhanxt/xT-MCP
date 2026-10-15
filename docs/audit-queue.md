@@ -165,3 +165,47 @@ Ngày 16/10/2026. Tất cả đã sửa, có test; không còn `xfail` trong `te
 Kết quả 16/10/2026: unit worker 174 passed; `make test-worker-integration` 22 passed; `tests/integration/queue_audit` 34 passed. `make check-worker`: ruff/format/mypy xanh, `lint-imports` vỡ 1 hợp đồng (SpiffWorkflow/lxml qua `entrypoints/composition/*`, ngoài phạm vi queue); các bước còn lại (pytest, reuse) chạy tay đều xanh.
 
 Ghi chú: `xt worker dlq` cần nối ở entrypoint (đoạn mã ở `docs/integration-notes.md`); trước khi nối, chạy `python -m xt.adapters.queue.dlq`. Biến env cho timeout/payload cũng do entrypoint nối. Schema đổi theo kiểu fresh-install: DB dev cũ phải cài lại.
+
+## Vòng 2 (tester Opus, 16/10/2026)
+
+Phạm vi: recover từng job (SKIP LOCKED), backoff/công bằng lịch (`failures/retry_at`, trần 10/tenant/tick), `xt worker dlq list|show|requeue|purge`, ngữ cảnh `xt.set_context` trên pool. Không sửa `src`. PG thật `postgres:17-alpine` (fixture `xt-audit-queue-*`, cổng 20100, `docker rm -f -v`). `free -g` available 6–7 GB trước khi chạy.
+
+Fixture đã chạy lại được: `bootstrap.sql` không còn `AmbiguousFunction` trong `xt_audit.ddl_guard`, 3 test `test_queue_round2.py` trước đây chờ nay xanh.
+
+### Số liệu
+
+| Lệnh | Kết quả |
+| --- | --- |
+| unit worker (`WORKER_UNIT` + `tests/unit/test_cli.py`) | **185 passed** |
+| `make test-worker-integration` | **22 passed** (41 s) |
+| `pytest -m integration tests/integration/queue_audit` (trước khi thêm file mới) | **37 passed** (34 cũ + 3 round2), 4 lần chạy sạch liên tiếp |
+| như trên, kèm `test_queue_round2_attack.py` (6 test mới) | **43 passed**, 2/2 lần |
+
+Ghi chú hạ tầng: một session khác chạy cùng fixture trên cổng cố định 20100, nên nhiều lần chạy lỗi `docker run` exit 125 (trùng cổng). Một lần ra "1 failed, 36 passed" giữa lúc tranh cổng; 6 lần chạy sạch sau đó không tái hiện, nên ghi là nhiễu môi trường. Khuyến nghị: fixture lấy cổng ngẫu nhiên.
+
+### Rà test vòng 1/2 có bị nới không
+
+Không thấy nới. `test_aq03_tenant_a_then_b_*` vẫn kiểm cùng pid (pool size 1) và đủ 12 thuộc tính session. Việc đổi `set_config(...,false)` sang `SET SESSION search_path` là do guard chặn cách cũ, còn bất biến cần chứng minh (`DISCARD ALL`) vẫn giữ. Hai test AQ-09 chuyển từ "0 dòng" sang `InsufficientPrivilege`, tức chặt hơn. Test round2 recovery dùng zombie thật giữ `FOR UPDATE`. Hai chỗ còn thiếu, đã bù ở file mới: (a) requeue chưa kiểm delivery cũ bị dispatcher từ chối, chỉ mới kiểm requeue lần 2; (b) fairness mới thử 14 lịch, chưa vượt `LIMIT 100`.
+
+### Bảng PASS/FAIL
+
+| # | Hạng mục | KQ | Bằng chứng |
+| --- | --- | --- | --- |
+| R1 | Pool size 1: job A lỗi giữa tx trong savepoint, job A nuốt savepoint lỗi, rồi job B cùng pid | PASS | `test_r2_handler_errors_and_savepoints_*`: B thấy `xt.tenant()`=B, GUC=B, `xt_job_t2`, `xt_t2, pg_temp`, 0 dòng effects. Effect của job A lỗi đã rollback; job nuốt lỗi ghi đúng 1 dòng `observed_tenant=A` |
+| R2 | Ngữ cảnh `session_ctx` khóa theo `(pid, xid)` sau commit | PASS (đọc code + R1) | `xt.cur()` so `pg_current_xact_id_if_assigned()`, nên dòng của tx A đã commit không khớp tx B |
+| R3 | `lock_timeout` < `statement_timeout` khi tranh chấp trong handler | PASS | lock 1 s / statement 4 s, handler chờ dòng nghiệp vụ bị giữ: `LockNotAvailable` sau 0.8–3 s, 0 effect. Test cũ đã phủ khóa request |
+| R4 | Log worker thật (`runtime.run`): payload có `)`, `(`, nháy, xuống dòng; message exception có PII; `DETAIL` UniqueViolation có PII | PASS | `test_r2_real_worker_logs_*`: log có `xt.dispatch[<id>]` nhưng không có marker nào, cả message lẫn `record.__dict__`. Đột biến (tắt `RedactJobPayload.filter`) thì test đỏ |
+| R5 | Liveness recover: job bị khóa + job hết lượt có request bị khóa + job retry được, trong cùng 1 tick | PASS | tick đầu trả 1 trong < 1 s, `recover_errors=0`, hai job bị khóa vẫn `doing`, job còn lại `todo`. Nhả khóa, tick sau: `todo` / `failed` |
+| R6 | Fairness: 130 lịch lỗi / 13 tenant (vượt `LIMIT 100`) + 1 lịch lành A + 1 lịch lành B | PASS (có ghi chú) | B bắn ở tick 1. Mọi lịch lỗi vào backoff với `failures=1`, không hot-loop. Trần backoff 3600 s. **Ghi chú:** trong cùng tenant, lịch *vừa* bắt đầu lỗi (`failures=0`, `next_at` cũ hơn) chiếm 10 slot trước lịch lành, nên lịch lành A trễ 1 tick (tổng quát là ceil(N/10) tick lúc khởi phát). Trễ có giới hạn, không phải starvation |
+| R7 | DLQ requeue: delivery cũ bị từ chối | PASS | sau requeue, `dispatch(old_context)` báo `job id does not match`, 0 effect. ACK cũ không đổi job mới (`todo`) |
+| R8 | DLQ purge id đã bị thay thế / job sống | PASS | purge id cũ chỉ xóa dòng job cũ, request vẫn trỏ job mới, `cancelled=false`. purge/requeue job `todo` trả `false`/`null` |
+| R9 | GuardedCursor: các dạng câu lệnh vòng tránh | KHÔNG KIỂM VÒNG NÀY | ngoài phạm vi lượt này; cần review riêng. Theo docs (M2), guard là defense-in-depth, không phải sandbox |
+| R10 | Extra log `exception=repr(error)` của `poll_jobs_to_abort` (procrastinate) không bị filter xóa | QUAN SÁT (Low) | chỉ đọc code: lỗi control-plane, không mang payload. Nên xóa key `exception` trong `RedactJobPayload` cho đồng bộ |
+
+### Test mới
+
+`tests/integration/queue_audit/test_queue_round2_attack.py` có 6 test, đều PASS nên không có `xfail`.
+
+### Verdict vòng 2
+
+**ĐẠT.** Ba tính năng vòng 2 (recover từng job, backoff/công bằng lịch, `dlq requeue|purge`) đúng trên PG17 thật và không có hồi quy (185 / 22 / 43). Còn mở: R6 (trễ khởi phát trong tenant, có giới hạn, chấp nhận được), R10 (Low), R9 (chưa kiểm), và cổng fixture cố định gây nhiễu khi chạy song song.

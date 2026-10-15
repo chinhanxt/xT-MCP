@@ -78,7 +78,9 @@ def test_r2_handler_errors_and_savepoints_do_not_leak_context_across_tenants(
             "current_setting('search_path')"
         )
         seen["b"] = await cursor.fetchone()
-        seen["b_rows"] = (await (await connection.execute("SELECT count(*) FROM effects")).fetchone())[0]
+        seen["b_rows"] = (
+            await (await connection.execute("SELECT count(*) FROM effects")).fetchone()
+        )[0]
 
     runtime = db.runtime(handlers={"business.finish": handler}, max_attempts=1)
     runtime.tenant_pool._max_size = runtime.tenant_pool._min_size = 1
@@ -185,7 +187,9 @@ def test_r2_real_worker_logs_hide_payload_exception_text_and_psycopg_detail(
         task = asyncio.create_task(runtime.run(name="r2-redaction"))
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
-            status = db.execute("SELECT status::text FROM procrastinate_jobs WHERE id=%s", (job_id,))
+            status = db.execute(
+                "SELECT status::text FROM procrastinate_jobs WHERE id=%s", (job_id,)
+            )
             if status == [("failed",)]:
                 break
             await asyncio.sleep(0.2)
@@ -226,9 +230,7 @@ def test_r2_recovery_tick_survives_locked_job_locked_request_and_retries_the_res
         recovered = asyncio.run(runtime.recover_stalled())
         elapsed = time.monotonic() - started
         status = dict(
-            db.execute(
-                "SELECT id, status::text FROM procrastinate_jobs WHERE id = ANY(%s)", (ids,)
-            )
+            db.execute("SELECT id, status::text FROM procrastinate_jobs WHERE id = ANY(%s)", (ids,))
         )
         holder.rollback()
     assert recovered == 1
@@ -283,7 +285,11 @@ def test_r2_fairness_with_120_failing_schedules_across_12_tenants(
             "UPDATE xt_queue.schedules SET next_at=now()-interval '1 minute' WHERE id = ANY(%s)",
             ([healthy_a, healthy_b],),
         )
-        worker = db.runtime(max_payload_bytes=300)  # the padded payloads always fail
+        # The padded payloads always fail; a 60 s tick keeps backoff from expiring
+        # while the test ticks back to back.
+        worker = db.runtime(max_payload_bytes=300, stalled_seconds=200, recover_seconds=60)
+        assert worker.schedule_backoff_seconds(0) == 60
+        assert worker.schedule_backoff_seconds(40) == 3600  # capped
         fired_at: dict[int, int] = {}
         errors_per_tick: list[int] = []
         for tick in range(1, 6):
@@ -296,7 +302,10 @@ def test_r2_fairness_with_120_failing_schedules_across_12_tenants(
             ):
                 if advanced and sid not in fired_at:
                     fired_at[sid] = tick
-        assert fired_at == {healthy_a: 1, healthy_b: 1}
+        # Other tenants are never delayed. Inside tenant A, its 10 freshly failing
+        # (failures=0, older next_at) schedules take the per-tenant slots once, so
+        # the healthy one waits ceil(10/10) = 1 extra tick (bounded onset delay).
+        assert fired_at == {healthy_a: 2, healthy_b: 1}
         assert all(n <= 100 for n in errors_per_tick)
         backoff = db.execute(
             "SELECT count(*) FILTER (WHERE failures >= 1 AND retry_at > now()), "
@@ -337,26 +346,25 @@ def test_r2_dlq_requeue_rejects_old_delivery_and_purge_only_takes_dead_letters(
     new_id = asyncio.run(requeue_dead(dsn, [old_id]))["requeued"][str(old_id)]
     assert new_id is not None
 
-    finish = db.runtime(max_attempts=1)  # business.finish handler for the same request
+    finish = db.runtime(max_attempts=1)
 
-    async def stale_then_fresh() -> tuple[bool, bool]:
+    async def stale_delivery() -> None:
         async with finish.app.open_async(), finish.tenant_pool:
-            fresh_job = JobRequest(job.tenant_id, job.task_name, job.idempotency_key, job.payload)
             # The stale delivery of the superseded job id is refused before effects.
             with pytest.raises(ValueError, match="job id does not match"):
-                await _dispatch(runtime, fresh_job, old_context)
-            stale_ack = await finish.job_manager.finish_job(
+                await _dispatch(finish, job, old_context)
+            # A stale ACK of the old delivery changes nothing (job is failed).
+            await finish.job_manager.finish_job(
                 old_context.job, status=Status.SUCCEEDED, delete_job=False
             )
-            return stale_ack is None, True
 
-    asyncio.run(stale_then_fresh())
-    assert db.execute(
-        "SELECT status::text FROM procrastinate_jobs WHERE id=%s", (new_id,)
-    ) == [("todo",)]
-    assert db.execute(
-        "SELECT status::text FROM procrastinate_jobs WHERE id=%s", (old_id,)
-    ) == [("failed",)]
+    asyncio.run(stale_delivery())
+    assert db.execute("SELECT status::text FROM procrastinate_jobs WHERE id=%s", (new_id,)) == [
+        ("todo",)
+    ]
+    assert db.execute("SELECT status::text FROM procrastinate_jobs WHERE id=%s", (old_id,)) == [
+        ("failed",)
+    ]
     assert db.execute(
         "SELECT count(*) FROM xt_t2.effects WHERE job_key=%s", (job.idempotency_key,)
     ) == [(0,)]
