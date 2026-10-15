@@ -10,6 +10,8 @@ import type { McpTool, ToolResult } from "./types";
 export const APP_DENYLIST: ReadonlySet<string> = new Set([
   "decide_request", "transition_record", "create_record", "update_record", "submit_request", "create_task",
   "upload_file", "propose_model_change", "propose_process_change", "start_process", "delete_record", "notify",
+  // Kênh người xem PII: chỉ trang Desk tự gọi (PiiReveal), App trong iframe không bao giờ xin được vé (PIIR-07).
+  "pii_reveal_ticket",
 ]);
 
 export interface RateLimiterOptions {

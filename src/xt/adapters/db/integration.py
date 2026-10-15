@@ -423,19 +423,38 @@ class PgIntegrationStore:
         *,
         field: str | None = None,
         level: str | None = None,
+        source: str | None = None,
+        seen_by: tuple[UUID, str] | None = None,
     ) -> None:
-        """Ghi token vào vault; mức chỉ nâng (basic -> sensitive), không bao giờ hạ."""
+        """Ghi token vào vault. Mức chỉ nâng (basic -> sensitive) và khi nâng thì field theo nguồn
+        nhạy hơn (PIIR-05). `source` (ref bản ghi) để /pii/reveal xem lại quyền đọc bản ghi;
+        `seen_by` (người, client) ràng token với phiên đã nhận nó (PIIR-02)."""
         with self.uow.tenant_tx(actor) as cur:
             cur.execute(
                 "INSERT INTO xt_meta.pii_token (tenant_id, token, value, field, level)"
                 " VALUES (xt.tenant(), %s, %s, %s, %s)"
                 " ON CONFLICT (tenant_id, token) DO UPDATE SET"
-                " field = coalesce(xt_meta.pii_token.field, EXCLUDED.field),"
+                " field = CASE WHEN EXCLUDED.level = 'sensitive'"
+                "   AND xt_meta.pii_token.level IS DISTINCT FROM 'sensitive' THEN EXCLUDED.field"
+                "  ELSE coalesce(xt_meta.pii_token.field, EXCLUDED.field) END,"
                 " level = CASE WHEN EXCLUDED.level = 'sensitive' THEN 'sensitive'"
                 "  ELSE coalesce(xt_meta.pii_token.level, EXCLUDED.level) END"
                 " WHERE EXCLUDED.level IS NOT NULL OR EXCLUDED.field IS NOT NULL",
                 (token, value, field, level),
             )
+            if source is not None and field is not None and level is not None:
+                cur.execute(
+                    "INSERT INTO xt_meta.pii_token_source (tenant_id, token, ref, field, level)"
+                    " VALUES (xt.tenant(), %s, %s, %s, %s) ON CONFLICT DO NOTHING",
+                    (token, source[:200], field, level),
+                )
+            if seen_by is not None:
+                cur.execute(
+                    "INSERT INTO xt_meta.pii_token_seen (tenant_id, token, person, client_id)"
+                    " VALUES (xt.tenant(), %s, %s, %s) ON CONFLICT (tenant_id, token, person,"
+                    " client_id) DO UPDATE SET last_seen = clock_timestamp()",
+                    (token, seen_by[0], seen_by[1]),
+                )
 
     def pii_lookup(self, actor: ModelActor, tokens: Sequence[str]) -> dict[str, dict[str, Any]]:
         with self.uow.tenant_tx(actor) as cur:
@@ -444,6 +463,45 @@ class PgIntegrationStore:
                 (list(tokens),),
             ).fetchall()
         return {r["token"]: dict(r) for r in rows}
+
+    def pii_seen(
+        self, actor: ModelActor, tokens: Sequence[str], person: UUID, client_id: str
+    ) -> set[str]:
+        """Token mà (người, client) này đã thực sự nhận trong kết quả tool."""
+        with self.uow.tenant_tx(actor) as cur:
+            rows = cur.execute(
+                "SELECT token FROM xt_meta.pii_token_seen WHERE token = ANY(%s) AND person = %s"
+                " AND client_id = %s",
+                (list(tokens), person, client_id),
+            ).fetchall()
+        return {str(r["token"]) for r in rows}
+
+    def pii_sources(self, actor: ModelActor, token: str) -> list[dict[str, Any]]:
+        with self.uow.tenant_tx(actor) as cur:
+            rows = cur.execute(
+                "SELECT ref, field, level FROM xt_meta.pii_token_source WHERE token = %s"
+                " ORDER BY level DESC, at DESC LIMIT 50",
+                (token,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def pii_tickets_since(self, actor: ModelActor, person: UUID, seconds: int) -> int:
+        with self.uow.tenant_tx(actor) as cur:
+            row = cur.execute(
+                "SELECT count(*) AS n FROM xt_meta.pii_reveal_ticket WHERE person = %s"
+                " AND created_at > clock_timestamp() - make_interval(secs => %s)",
+                (person, seconds),
+            ).fetchone()
+        return int(row["n"]) if row else 0
+
+    def pii_tickets_purge(self, actor: ModelActor, older_than_s: int) -> int:
+        with self.uow.tenant_tx(actor) as cur:
+            res = cur.execute(
+                "DELETE FROM xt_meta.pii_reveal_ticket WHERE expires_at"
+                " < clock_timestamp() - make_interval(secs => %s)",
+                (older_than_s,),
+            )
+        return int(res.rowcount or 0)
 
     def pii_ticket_put(
         self,
@@ -455,14 +513,26 @@ class PgIntegrationStore:
         tokens: Sequence[str],
         pubkey: Mapping[str, Any],
         ttl_s: int,
-    ) -> None:
+        key_thumbprint: bytes,
+    ) -> bool:
+        """False = khóa của khung đã dùng cho vé khác (mỗi lần xem một khóa mới, PIIR-07)."""
         with self.uow.tenant_tx(actor) as cur:
-            cur.execute(
+            row = cur.execute(
                 "INSERT INTO xt_meta.pii_reveal_ticket (tenant_id, ticket_hash, person, client_id,"
-                " tokens, pubkey, expires_at) VALUES (xt.tenant(), %s, %s, %s, %s, %s,"
-                " clock_timestamp() + make_interval(secs => %s))",
-                (ticket_hash, person, client_id, list(tokens), Jsonb(dict(pubkey)), ttl_s),
-            )
+                " tokens, pubkey, expires_at, key_thumbprint) VALUES (xt.tenant(), %s, %s, %s, %s,"
+                " %s, clock_timestamp() + make_interval(secs => %s), %s)"
+                " ON CONFLICT DO NOTHING RETURNING ticket_hash",
+                (
+                    ticket_hash,
+                    person,
+                    client_id,
+                    list(tokens),
+                    Jsonb(dict(pubkey)),
+                    ttl_s,
+                    key_thumbprint,
+                ),
+            ).fetchone()
+        return row is not None
 
     def pii_ticket_lock(self, actor: ModelActor, ticket_hash: bytes) -> dict[str, Any] | None:
         """Khóa vé còn hạn, chưa dùng (cùng transaction với lúc đánh dấu đã dùng)."""
@@ -500,12 +570,28 @@ class PgIntegrationStore:
         mode: str,
         fields: Sequence[str],
         person: UUID | None = None,
+        outcome: str | None = None,
+        tokens: Sequence[str] | None = None,
+        records: Sequence[str] | None = None,
+        denied: Sequence[str] | None = None,
     ) -> None:
         with self.uow.tenant_tx(actor) as cur:
             cur.execute(
                 "INSERT INTO xt_meta.pii_egress (tenant_id, trace_id, tool, client_class, mode,"
-                " fields, person) VALUES (xt.tenant(), %s, %s, %s, %s, %s, %s)",
-                (trace_id, tool, client_class, mode, sorted(set(fields)), person),
+                " fields, person, outcome, tokens, records, denied)"
+                " VALUES (xt.tenant(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    trace_id,
+                    tool,
+                    client_class,
+                    mode,
+                    sorted(set(fields)),
+                    person,
+                    outcome,
+                    list(tokens) if tokens is not None else None,
+                    sorted(set(records)) if records is not None else None,
+                    list(denied) if denied is not None else None,
+                ),
             )
 
 

@@ -95,6 +95,7 @@ def wstack(
         "XT_MCP_ALLOWED_CLIENTS": AGENT_CLIENT,
         "XT_PII_REVEAL_ORIGINS": base,  # bắt buộc từ khi có /pii/reveal (integration-notes)
         "XT_PII_REVEAL_CLIENTS": AGENT_CLIENT,
+        "XT_PII_REVEAL_TICKETS_PER_MINUTE": "60",
         "XT_MCP_HUMAN_CLIENTS": DESK_CLIENT,
         "XT_MCP_REQUIRED_SCOPES": "mcp-xt",
         "XT_MCP_SCOPES_SUPPORTED": "openid mcp-xt",

@@ -15,6 +15,7 @@ danh sách lỗi (không mặc định giả, không fallback in-memory):
 | `XT_DESK_URL` | URL công khai của `/desk/confirm/{id}`; origin = origin xT của MCP App |
 | `XT_PII_REVEAL_ORIGINS` | Origin Desk được gọi `POST /pii/reveal` (CORS) |
 | `XT_PII_REVEAL_CLIENTS` | Client được xin vé xem PII (`pii_reveal_ticket`) |
+| `XT_PII_REVEAL_TICKETS_PER_MINUTE` | Quota vé xem PII mỗi người mỗi phút |
 | `XT_CONFIRM_AUTHORIZATION_URL`, `XT_CONFIRM_TOKEN_URL` | Endpoint OIDC của client confirm |
 | `XT_CONFIRM_*`, `XT_RECEIPT_*`, `XT_IDP_*` | Step-up + biên nhận (docs/identity.md) |
 
@@ -175,6 +176,20 @@ class CompositionConfig:
                 desk_origin = normalize_origin(desk)
             except ValueError as e:
                 problems.append(f"XT_DESK_URL: {e}")
+        stray = set(reveal_origins) - {desk_origin}
+        if desk_origin and stray:
+            # PIIR-07: chỉ trang Desk (origin của XT_DESK_URL) là kênh người; origin sandbox của
+            # MCP App hay host khác không bao giờ được đổi vé.
+            problems.append(
+                f"XT_PII_REVEAL_ORIGINS chỉ được là origin của XT_DESK_URL ({desk_origin}):"
+                f" {sorted(stray)}"
+            )
+        rate_raw = env.get("XT_PII_REVEAL_TICKETS_PER_MINUTE", "").strip()
+        if not rate_raw.isdigit() or not 1 <= int(rate_raw) <= 600:
+            problems.append(
+                "XT_PII_REVEAL_TICKETS_PER_MINUTE phải là số nguyên 1..600 (quota vé xem PII"
+                " mỗi người mỗi phút)"
+            )
         if problems:
             raise CompositionConfigError(problems)
         assert step_up is not None and receipts is not None
@@ -187,7 +202,7 @@ class CompositionConfig:
             ConfirmSettings(desk, authz, token, step_up, step_up.idp.http_timeout_s),
             receipts,
             humans,
-            RevealSettings(desk_origin, frozenset(reveal_origins), reveal_clients),
+            RevealSettings(desk_origin, frozenset(reveal_origins), reveal_clients, int(rate_raw)),
         )
 
 

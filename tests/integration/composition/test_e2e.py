@@ -131,6 +131,7 @@ def stack(
         "XT_MCP_ALLOWED_CLIENTS": f"{AGENT_CLIENT},{LOCAL_AGENT},{DESK_AGENT}",
         "XT_PII_REVEAL_ORIGINS": base,
         "XT_PII_REVEAL_CLIENTS": DESK_AGENT,
+        "XT_PII_REVEAL_TICKETS_PER_MINUTE": "60",
         "XT_MCP_HUMAN_CLIENTS": DESK_CLIENT,
         "XT_MCP_LOCAL_CLIENTS": LOCAL_AGENT,
         "XT_MCP_CONFIDENTIAL_CLIENTS": LOCAL_AGENT,
@@ -866,6 +867,56 @@ async def test_w2_model_change_approved_then_applied_by_worker(
     assert len(st["data"]["record"]["values"]["decided_by"]) == 2
 
 
+@pytest.mark.anyio
+async def test_w2_desk_agent_on_behalf_proposes_but_never_approves(stack: Stack) -> None:
+    """Desk agent (kind=agent, thay mặt người dùng của tenant): người có vai trò đề xuất (dept_head)
+    gửi được đề xuất L1 không cần cổng người; người không có vai trò (nhân viên) bị từ chối;
+    agent không bao giờ tự duyệt, kể cả thay mặt giám đốc (policy Deny + HUMAN_ONLY)."""
+    s = stack
+    me = await s.call("acme", DEPT_HEAD, "inspect_workspace", {}, client=DESK_AGENT)
+    assert me["ok"], me
+    body = {
+        "model_id": "advance_request",
+        "operations": [
+            {"op": "add_field", "field": {"id": "ghi_chu_desk", "label": "Ghi chú", "type": "string"}}
+        ],
+        "rationale": "Desk agent đề xuất",
+    }
+    ok = await s.call(
+        "acme",
+        DEPT_HEAD,
+        "propose_model_change",
+        {**body, "dry_run": False, "idempotency_key": "it-key-w2-desk"},
+        client=DESK_AGENT,
+    )
+    assert ok["ok"], ok
+    ref = ok["data"]["proposal"]
+    denied = await s.call(
+        "acme",
+        REQUESTER,
+        "propose_model_change",
+        {**body, "dry_run": False, "idempotency_key": "it-key-w2-desk-no"},
+        client=DESK_AGENT,
+    )
+    assert not denied["ok"] and denied["error"]["code"] == "access_denied", denied
+    for who in (DIRECTOR, DEPT_HEAD):
+        dec = await s.call(
+            "acme",
+            who,
+            "decide_request",
+            {
+                "ref": ref,
+                "decision": "approve",
+                "expected_revision": 1,
+                "idempotency_key": f"it-key-w2-desk-dec-{who}",
+            },
+            client=DESK_AGENT,
+        )
+        assert dec["error"]["code"] in ("access_denied", "confirmation_required"), dec
+        st = await s.call("acme", DIRECTOR, "get_record", {"ref": ref})
+        assert st["data"]["record"]["state"] == "pending_approval", st
+
+
 # ---------------------------------------------- kênh người xem PII: Desk <-> /pii/reveal ----
 class DeskFrame:
     """Phía Desk theo hợp đồng `desk/src/pii.ts`: khóa P-256 riêng mỗi lần xem, vé chỉ ở _meta,
@@ -928,6 +979,11 @@ async def test_pii_reveal_human_channel(stack: Stack, pg: pgfixture.Pg) -> None:
     assert c["ok"], c
     tok = c["data"]["record"]["values"]["bank_account"]
     assert re.fullmatch(r"\[PII:[a-z2-7]{16}\]", tok), tok  # Desk chat (public) = masked
+    # Token gắn phiên đã nhận nó (PIIR-02): giám đốc tự mở bản ghi trên Desk chat trước.
+    seen = await s.call(
+        "acme", DIRECTOR, "get_record", {"ref": c["data"]["record"]["ref"]}, client=DESK_AGENT
+    )
+    assert seen["ok"] and seen["data"]["record"]["values"]["bank_account"] == tok
 
     # App-only tool: có trong tools/list với visibility app; MCP App đã đăng ký.
     async with s.app.session(s.token("acme", REQUESTER, DESK_AGENT)) as sess:
@@ -1019,3 +1075,34 @@ async def test_org_person_details_masks_contact_for_desk_chat(stack: Stack) -> N
     assert env["ok"], env
     assert re.fullmatch(r"\[PII:[a-z2-7]{16}\]", env["data"]["email"]), env
     assert env["meta"]["pii"]["mode"] == "masked"
+
+
+# --------------------------------------------- migration từ số 0 (CSDL compose mới) ----
+def test_fresh_db_has_full_pii_schema(stack: Stack, pg: pgfixture.Pg) -> None:
+    """Container PG mới -> bootstrap -> `xt db migrate` (fixture `stack`): đủ schema làn PII
+    (PIIR-08: 0007_pii_reveal sau 0006_audit_meta, không trùng số)."""
+    from xt.adapters.db.migrations import available
+
+    names = [n for n, _ in available()]
+    assert len({n[:4] for n in names}) == len(names), names  # không trùng số thứ tự
+    with pg.su() as su:
+        applied = {r[0] for r in su.execute("SELECT name FROM xt_meta.schema_migration")}
+        cols = {
+            r[0]
+            for r in su.execute(
+                "SELECT column_name FROM information_schema.columns"
+                " WHERE table_schema='xt_meta' AND table_name='pii_egress'"
+            )
+        }
+        tables = {
+            r[0]
+            for r in su.execute(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema='xt_meta'"
+                " AND table_name LIKE 'pii_%'"
+            )
+        }
+    assert set(names) <= applied, sorted(set(names) - applied)
+    assert {"client_class", "mode", "fields", "person", "outcome", "tokens", "records",
+            "denied"} <= cols, cols  # fmt: skip
+    assert {"pii_token", "pii_token_source", "pii_token_seen", "pii_reveal_ticket",
+            "pii_egress"} <= tables, tables  # fmt: skip

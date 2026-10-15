@@ -6,16 +6,19 @@ Hợp đồng với Desk: docs/integration-notes.md "Desk ↔ /pii/reveal" (thi�
 research/spike-pii-lane.md §3.7; quyết định "Tier PII của Desk chat").
 
 1. `pii_reveal_ticket(tokens, pubkey_jwk)` (Bearer của người dùng như mọi tool; chỉ client trong
-   `XT_PII_REVEAL_CLIENTS`): mọi token phải có trong vault của tenant; cấp vé 256 bit ngẫu nhiên,
-   dùng một lần, sống `ttl`, gắn người được đại diện + tập token + khóa công khai P-256 của khung.
-   Vé CHỈ ở `result._meta["xt/reveal"] = {ticket, url}`; envelope chỉ có số token + hạn.
+   `XT_PII_REVEAL_CLIENTS`; quota `XT_PII_REVEAL_TICKETS_PER_MINUTE` vé/người/phút): chỉ token mà
+   chính (người, client) này đã nhận trong kết quả tool (`pii_token_seen`); token khác vẫn vào vé
+   nhưng luôn `denied`. Vé 256 bit, dùng một lần, sống `ttl`, gắn người + tập token + khóa P-256
+   MỚI của khung (khóa dùng lại bị từ chối). Vé CHỈ ở `result._meta["xt/reveal"] = {ticket, url}`.
 2. `POST /pii/reveal` `{ticket, ts, sig}` (không cookie, không Authorization): Origin phải thuộc
    `XT_PII_REVEAL_ORIGINS` (CORS chỉ cho origin đó); lệch `ts` ≤ 30 s; chữ ký ECDSA P-256 SHA-256
    (P1363) trên `"{ticket}.{ts}"` bằng khóa đã gắn; vé đánh dấu đã dùng nguyên tử (một lần thử,
-   kể cả khi chữ ký sai). Quyền xem: `basic` = người đang làm trong tenant; `sensitive` (hoặc
-   không rõ mức) = policy IAM cho phép `pii.reveal` trên `xrn:<tenant>:<model>:<field>`.
-   Response `Cache-Control: no-store`; mỗi lần xem ghi `xt_meta.pii_egress` (tier `human`,
-   `person`, các field đã mở). Giá trị thật không bao giờ đi vào kết quả tool MCP.
+   kể cả khi chữ ký sai). Quyền xem, xét lại lúc đổi vé: người xem phải đọc được NGAY BÂY GIỜ ít
+   nhất một bản ghi nguồn của token (IAM `record.read`/`person.read` + RLS), và với `sensitive`
+   (hoặc không rõ mức) còn cần `pii.reveal` trên `xrn:<tenant>:<model>:<field>`.
+   Response `Cache-Control: no-store`. Mọi lần xin vé và đổi vé (kể cả thất bại sau khi suy được
+   tenant) ghi `xt_meta.pii_egress`: người xem, kết quả, token, bản ghi, token bị từ chối, tier;
+   không bao giờ giá trị. Giá trị thật không bao giờ đi vào kết quả tool MCP.
 """
 
 from __future__ import annotations
@@ -59,6 +62,7 @@ class RevealSettings:
     origin: str  # origin công khai của xT (= origin XT_DESK_URL = DESK_XT_ORIGIN)
     allowed_origins: frozenset[str]
     clients: frozenset[str]
+    tickets_per_minute: int  # XT_PII_REVEAL_TICKETS_PER_MINUTE: quota vé mỗi người (PIIR-04)
     ttl_s: int = 60
     max_skew_s: int = 30
 
@@ -137,21 +141,46 @@ class PiiReveal:
             jwk = dict(args["pubkey_jwk"])
             if not _valid_jwk(jwk):
                 raise invalid_request("Khóa công khai không hợp lệ (EC P-256).", "BAD_PUBKEY")
-            known = self.rt.store.pii_lookup(caller.actor, tokens)
-            unknown = [t for t in tokens if t not in known]
-            if unknown:
+            store, person = self.rt.store, caller.person.id
+            if (
+                store.pii_tickets_since(caller.actor, person, 60)
+                >= self.settings.tickets_per_minute
+            ):
+                self._audit_mint(ctx, caller, "rate_limited", [], tokens)
+                raise ToolError(
+                    ErrorCode.RATE_LIMITED,
+                    "Bạn đã xin quá nhiều lượt xem dữ liệu cá nhân trong một phút.",
+                    details={"reason": "pii_reveal_rate", "retry_after_seconds": 60},
+                )
+            # PIIR-02: chỉ token mà CHÍNH phiên (người + client) này đã nhận trong kết quả tool;
+            # token lạ/không thấy vẫn ghi vào vé để trả `denied` (không làm hỏng cả lô, PIIR-06).
+            known = store.pii_lookup(caller.actor, tokens)
+            seen = store.pii_seen(caller.actor, tokens, person, caller.client_id)
+            usable = [t for t in tokens if t in known and t in seen]
+            if not usable:
+                self._audit_mint(ctx, caller, "unknown_tokens", [], tokens)
                 raise invalid_request(
-                    "Có token PII không thuộc tổ chức này.", "PII_TOKEN_UNKNOWN", count=len(unknown)
+                    "Không có token PII nào bạn đã nhận trong phiên này.",
+                    "PII_TOKEN_UNKNOWN",
+                    count=len(tokens),
                 )
             ticket = secrets.token_urlsafe(32)
-            self.rt.store.pii_ticket_put(
+            point = {"kty": "EC", "crv": "P-256", "x": jwk["x"], "y": jwk["y"]}
+            ok = store.pii_ticket_put(
                 caller.actor,
                 ticket_hash=hashlib.sha256(ticket.encode()).digest(),
-                person=caller.person.id,
+                person=person,
                 client_id=caller.client_id,
                 tokens=tokens,
-                pubkey={"kty": "EC", "crv": "P-256", "x": jwk["x"], "y": jwk["y"]},
+                pubkey=point,
                 ttl_s=self.settings.ttl_s,
+                key_thumbprint=hashlib.sha256(f"{jwk['x']}.{jwk['y']}".encode()).digest(),
+            )
+            if not ok:  # PIIR-07: mỗi lần xem phải là khóa mới của khung Desk
+                self._audit_mint(ctx, caller, "key_reused", [], tokens)
+                raise invalid_request("Khóa của khung đã được dùng; tạo khóa mới.", "KEY_REUSED")
+            self._audit_mint(
+                ctx, caller, "ticket_issued", usable, [t for t in tokens if t not in usable]
             )
             envelope = {
                 "ok": True,
@@ -177,6 +206,27 @@ class PiiReveal:
             return self._error(
                 d, ctx, ToolError(ErrorCode.INTERNAL_ERROR, "Unexpected server failure.")
             )
+
+    def _audit_mint(
+        self,
+        ctx: CallContext,
+        caller: Caller,
+        outcome: str,
+        tokens: Sequence[str],
+        denied: Sequence[str],
+    ) -> None:
+        self.rt.store.pii_egress(
+            caller.actor,
+            trace_id=ctx.trace_id,
+            tool=PII_REVEAL_TICKET.name,
+            client_class=ctx.client_class.value,
+            mode="masked",  # chỉ token, không giá trị
+            fields=["ticket"],
+            person=caller.person.id,
+            outcome=outcome,
+            tokens=list(tokens),
+            denied=list(denied),
+        )
 
     # ---- 2. POST /pii/reveal ------------------------------------------------------------------
     def routes(self) -> list[Route]:
@@ -208,12 +258,21 @@ class PiiReveal:
                 },
             )
         if allowed is None:
+            log.warning("pii reveal refused: bad origin")  # không vé, không origin thô
             return self._deny("BAD_ORIGIN", None)
         if not request.headers.get("content-type", "").startswith("application/json"):
             return self._deny("BAD_REQUEST", allowed, 400)
-        body = await request.body()
-        if len(body) > MAX_BODY:
+        declared = request.headers.get("content-length", "")
+        if not declared.isdigit() or int(declared) > MAX_BODY:  # PIIR-08: trước khi đọc body
             return self._deny("BAD_REQUEST", allowed, 400)
+        chunks: list[bytes] = []
+        size = 0
+        async for chunk in request.stream():
+            size += len(chunk)
+            if size > MAX_BODY:
+                return self._deny("BAD_REQUEST", allowed, 400)
+            chunks.append(chunk)
+        body = b"".join(chunks)
         try:
             data = json.loads(body)
             ticket, ts, sig = data["ticket"], data["ts"], data["sig"]
@@ -233,56 +292,97 @@ class PiiReveal:
         return JSONResponse(payload, status_code=status, headers=headers)
 
     def _reveal(self, ticket: str, ts: int, sig: str) -> tuple[int, dict[str, Any]]:
-        if abs(self.clock() - ts) > self.settings.max_skew_s:
-            return 403, {"error": "STALE_REQUEST"}
         h = hashlib.sha256(ticket.encode()).digest()
         tenant = pii_ticket_tenant(self.rt.app_db, h)
         if tenant is None:
+            # Không suy được tenant (vé lạ/đã dùng/hết hạn): chỉ log cấu trúc, không ghi vé.
+            log.warning("pii reveal refused: ticket invalid")
             return 403, {"error": "TICKET_INVALID"}
         actor = ModelActor(tenant, NIL, (), client_azp="xt-pii-reveal")
+        trace = f"reveal:{h.hex()[:16]}"
+
+        def audit(
+            outcome: str,
+            person: Any = None,
+            *,
+            fields: Sequence[str] = (),
+            tokens: Sequence[str] = (),
+            records: Sequence[str] = (),
+            denied: Sequence[str] = (),
+        ) -> None:
+            self.rt.store.pii_egress(
+                actor,
+                trace_id=trace,
+                tool="pii_reveal",
+                client_class="human",
+                mode="full" if tokens else "omitted",
+                fields=list(fields) or ["none"],
+                person=person,
+                outcome=outcome,
+                tokens=list(tokens),
+                records=list(records),
+                denied=list(denied),
+            )
 
         def work() -> tuple[int, dict[str, Any]]:
             row = self.rt.store.pii_ticket_lock(actor, h)
             if row is None:
                 return 403, {"error": "TICKET_INVALID"}
+            if abs(self.clock() - ts) > self.settings.max_skew_s:
+                # STALE không tiêu vé (khung Desk có thể ký lại trong TTL) nhưng có dấu vết.
+                audit("stale", row["person"], denied=list(row["tokens"]))
+                return 403, {"error": "STALE_REQUEST"}
             # Một lần thử: vé tiêu ngay cả khi chữ ký sai (chống dò).
             self.rt.store.pii_ticket_use(actor, h)
             if not _verify(row["pubkey"], f"{ticket}.{ts}".encode(), sig):
+                audit("bad_signature", row["person"], denied=list(row["tokens"]))
                 return 403, {"error": "BAD_SIGNATURE"}
             person = self.rt.store.person(actor, row["person"])
             profile = self.rt.store.profile(actor)
             if person is None or not person.active or profile is None:
+                audit("viewer_inactive", row["person"], denied=list(row["tokens"]))
                 return 403, {"error": "TICKET_INVALID"}
-            caller = Caller(
+            client_id = str(row["client_id"])
+            viewer = Caller(
                 profile.alias,
                 profile,
                 person,
-                str(row["client_id"]),
+                client_id,
                 False,
                 0,
                 (),
-                ModelActor(tenant, person.id, tuple(person.roles)),
+                ModelActor(
+                    tenant,
+                    person.id,
+                    tuple(person.roles),
+                    department_ids=(person.unit,) if person.unit else (),
+                    client_azp=client_id,
+                ),
             )
-            vault = self.rt.store.pii_lookup(actor, list(row["tokens"]))
+            tokens = list(row["tokens"])
+            vault = self.rt.store.pii_lookup(actor, tokens)
+            seen = self.rt.store.pii_seen(actor, tokens, person.id, client_id)
             now = int(self.clock())
             values: dict[str, str] = {}
             denied: list[str] = []
             fields: set[str] = set()
-            for tok in row["tokens"]:
+            records: set[str] = set()
+            for tok in tokens:
                 hit = vault.get(tok)
-                if hit is None or not self._may_reveal(caller, hit, now):
+                src = self._readable_source(viewer, tok, now) if hit and tok in seen else None
+                if hit is None or src is None or not self._may_reveal(viewer, hit, src, now):
                     denied.append(tok)
                     continue
                 values[tok] = str(hit["value"])
-                fields.add(f"{hit['field'] or 'unknown'}:reveal_human")
-            self.rt.store.pii_egress(
-                actor,
-                trace_id=f"reveal:{h.hex()[:16]}",
-                tool="pii_reveal",
-                client_class="human",
-                mode="full",
-                fields=sorted(fields) or ["none"],
-                person=person.id,
+                fields.add(f"{src['field']}:reveal_human")
+                records.add(str(src["ref"]))
+            audit(
+                "ok" if values else "denied",
+                person.id,
+                fields=sorted(fields),
+                tokens=list(values),
+                records=sorted(records),
+                denied=denied,
             )
             return 200, {"values": values, "denied": denied}
 
@@ -293,10 +393,23 @@ class PiiReveal:
             log.error("pii reveal failed (%s)", type(e).__name__)
             return 500, {"error": "INTERNAL"}
 
-    def _may_reveal(self, caller: Caller, hit: Mapping[str, Any], now: int) -> bool:
-        if hit.get("level") == "basic":
+    def _readable_source(self, viewer: Caller, token: str, now: int) -> dict[str, Any] | None:
+        """PIIR-02: token không phải chìa khóa. Nguồn (bản ghi + field) mà người xem đọc được NGAY
+        BÂY GIỜ (IAM + RLS); nhạy nhất trước. Không nguồn nào đọc được -> từ chối."""
+        for src in self.rt.store.pii_sources(viewer.actor, token):
+            if self.guard.can_read(viewer, str(src["ref"]), now):
+                return src
+        return None
+
+    def _may_reveal(
+        self, viewer: Caller, hit: Mapping[str, Any], src: Mapping[str, Any], now: int
+    ) -> bool:
+        level = "sensitive" if "sensitive" in (hit.get("level"), src.get("level")) else "basic"
+        if hit.get("level") is None:
+            level = "sensitive"
+        if level == "basic":
             return True
-        field = str(hit.get("field") or "")
+        field = str(src.get("field") or hit.get("field") or "")
         model, _, name = field.partition(".") if "." in field else ("pii", "", "unknown")
-        xrn = f"xrn:{caller.alias}:{model}:{name or 'unknown'}"  # tài nguyên mức field
-        return self.guard.allows(caller, caller.person, "pii.reveal", xrn, now)
+        xrn = f"xrn:{viewer.alias}:{model}:{name or 'unknown'}"  # tài nguyên mức field
+        return self.guard.allows(viewer, viewer.person, "pii.reveal", xrn, now)

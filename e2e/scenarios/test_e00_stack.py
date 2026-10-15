@@ -63,7 +63,7 @@ def test_seed(ev: Evidence, world) -> None:  # type: ignore[no-untyped-def]
     c = Checks(ev)
     st = world.state
     tenants = st["tenants"]
-    c.check(set(tenants) >= {"binhminh", "anphat"}, f"2 tenant (binhminh, anphat): {sorted(tenants)}")
+    c.check(set(tenants) >= {"binhminh", "hoamai"}, f"2 tenant (binhminh, hoamai): {sorted(tenants)}")
     rows = compose.psql(
         "SELECT p.alias, t.seq, coalesce(string_agg(i.pack || '@' || i.version, ',' ORDER BY i.pack), '')"
         " FROM xt_meta.tenant_profile p JOIN xt_meta.tenant t ON t.id = p.tenant_id"
@@ -76,8 +76,8 @@ def test_seed(ev: Evidence, world) -> None:  # type: ignore[no-untyped-def]
     c.check(not missing_a, "tenant A cài đủ 3 gói qua `xt pack install`" + (
         f"; thiếu {sorted(missing_a)}: " + json.dumps({k: v[:3] for k, v in fails.items() if k.startswith('binhminh/')}, ensure_ascii=False)
         if missing_a else ""))
-    c.check(packs.get("binhminh") != packs.get("anphat") and bool(packs.get("anphat")),
-            f"tenant B có bộ model khác A: A={sorted(packs.get('binhminh', []))} B={sorted(packs.get('anphat', []))}")
+    c.check(packs.get("binhminh") != packs.get("hoamai") and bool(packs.get("hoamai")),
+            f"tenant B có bộ model khác A: A={sorted(packs.get('binhminh', []))} B={sorted(packs.get('hoamai', []))}")
     people = compose.psql("SELECT p.alias, count(*), count(subject) FROM xt_meta.person x JOIN xt_meta.tenant_profile p"
                           " ON p.tenant_id = x.tenant_id GROUP BY 1 ORDER BY 1")
     ev.step("xt_meta.person (alias, người, có đăng nhập)", people.splitlines())

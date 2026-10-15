@@ -87,6 +87,7 @@ def stack_env(pg: pgfixture.Pg, idp: LocalIdp, mcp_port: int, d: Any) -> dict[st
         "XT_WORKFLOW_PUBLIC_URL": base,
         "XT_PII_REVEAL_ORIGINS": base,
         "XT_PII_REVEAL_CLIENTS": "xt-desk-agent",
+        "XT_PII_REVEAL_TICKETS_PER_MINUTE": "60",
     }
 
 
@@ -148,7 +149,7 @@ def build_stack(
         prepared.close()
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")  # một stack cho cả thư mục (tenant wxa/wxb chỉ tạo một lần)
 def wstack(
     pg: pgfixture.Pg,  # noqa: F811
     idp: LocalIdp,  # noqa: F811

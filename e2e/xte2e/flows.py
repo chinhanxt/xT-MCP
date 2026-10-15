@@ -12,7 +12,9 @@ from typing import Any
 # Bình Minh: người đề nghị (Kinh doanh), trưởng phòng Kinh doanh, giám đốc, kế toán.
 REQUESTER, REQUESTER2, REQUESTER3 = "NV-0013", "NV-0014", "NV-0020"
 DEPT_HEAD, DEPT_HEAD_ACCT, DIRECTOR, ACCOUNTANT = "NV-0010", "NV-0004", "NV-0001", "NV-0005"
-A, B = "binhminh", "anphat"
+A, B = "binhminh", "hoamai"
+# Hoa Mai: chủ cửa hàng (giám đốc), trưởng nhóm Bán hàng, nhân viên Bán hàng.
+B_DIRECTOR, B_HEAD, B_EMPLOYEE = "NV-0001", "NV-0004", "NV-0007"
 
 
 def advance(amount: int, **over: Any) -> dict[str, Any]:

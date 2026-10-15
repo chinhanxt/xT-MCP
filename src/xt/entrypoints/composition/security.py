@@ -98,6 +98,12 @@ class ToolAccessGuard:
             if owner_id is not None:
                 res = {"owner": str(owner_id), "creator": str(owner_id)}
             return f"xrn:{ctx.tenant}:{model}:{rid}", res
+        res = self._record_attrs(caller, model, rid)
+        return f"xrn:{ctx.tenant}:{model}:{rid}", res
+
+    def _record_attrs(self, caller: Caller, model: str, rid: UUID) -> dict[str, Any]:
+        """Thuộc tính tài nguyên (owner, creator, department, amount) đọc bằng ngữ cảnh workflow."""
+        res: dict[str, Any] = {}
         try:
             out = self.rt.records.get(caller.workflow(), model, rid)
         except Exception:  # không thấy / không có model: policy quyết trên thuộc tính rỗng
@@ -115,8 +121,30 @@ class ToolAccessGuard:
             amount = row.get("amount")
             if isinstance(amount, int | float | str) and str(amount).replace(".", "", 1).isdigit():
                 res["amount"] = float(amount)
-        res = {k: v for k, v in res.items() if v != ""}
-        return f"xrn:{ctx.tenant}:{model}:{rid}", res
+        return {k: v for k, v in res.items() if v != ""}
+
+    def can_read(self, caller: Caller, ref: str, now: int) -> bool:
+        """Người `caller.person` có đọc được bản ghi `ref` NGAY BÂY GIỜ không: IAM (`record.read`
+        / `person.read` theo policy đã duyệt) VÀ RLS (đọc bằng ngữ cảnh của chính người đó)."""
+        model, _, raw = ref.partition(":")
+        try:
+            rid = UUID(raw)
+        except ValueError:
+            return False
+        xrn = f"xrn:{caller.alias}:{model}:{rid}"
+        if model == "person":
+            target = self.rt.store.person(caller.actor, rid)
+            return target is not None and self.allows(
+                caller, caller.person, "person.read", xrn, now
+            )
+        attrs = self._record_attrs(caller, model, rid)
+        if not self.allows(caller, caller.person, "record.read", xrn, now, attrs):
+            return False
+        try:
+            self.rt.records.get(caller.actor, model, rid)
+        except Exception:  # RLS / quyền model không cho thấy bản ghi
+            return False
+        return True
 
     def check(self, ctx: CallContext, check: AccessCheck) -> AccessDecision:
         caller = self.rt.caller(ctx)

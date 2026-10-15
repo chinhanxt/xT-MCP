@@ -138,3 +138,81 @@ class HostProxy:
 
     def __exit__(self, *exc: Any) -> None:
         self.srv.shutdown()
+
+
+class TlsGateway:
+    """Đầu cuối TLS loopback cho công cụ dùng URL https thật (curl theo `jwks_uri` của discovery):
+    `curl -k --connect-to ::127.0.0.1:<cổng>` -> TLS cục bộ (chứng chỉ tự ký, chỉ trong lần chạy) ->
+    APISIX theo `Host`, giống vai trò Cloudflare Tunnel ở production. Host lạ -> 421."""
+
+    def __init__(self) -> None:
+        import datetime
+        import http.server
+        import ssl
+        import tempfile
+        import threading
+
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        from cryptography.x509.oid import NameOID
+
+        hosts = list(settings().hosts.values())
+        key = ec.generate_private_key(ec.SECP256R1())
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "xt-e2e-local")])
+        now = datetime.datetime.now(datetime.UTC)
+        cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name).public_key(key.public_key())
+                .serial_number(x509.random_serial_number()).not_valid_before(now - datetime.timedelta(minutes=5))
+                .not_valid_after(now + datetime.timedelta(hours=2))
+                .add_extension(x509.SubjectAlternativeName([x509.DNSName(h) for h in hosts]), critical=False)
+                .sign(key, hashes.SHA256()))
+        self.dir = tempfile.mkdtemp(prefix="xt-e2e-tls-")
+        cf, kf = f"{self.dir}/c.pem", f"{self.dir}/k.pem"
+        with open(cf, "wb") as f:
+            f.write(cert.public_bytes(serialization.Encoding.PEM))
+        with open(kf, "wb") as f:
+            f.write(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                      serialization.NoEncryption()))
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def _go(self) -> None:
+                host = (self.headers.get("host") or "").split(":")[0]
+                if host not in hosts:
+                    self.send_response(421)
+                    self.end_headers()
+                    return
+                n = int(self.headers.get("content-length") or 0)
+                body = self.rfile.read(n) if n else None
+                hdr = {k: v for k, v in self.headers.items() if k.lower() not in ("host", "content-length", "connection")}
+                with client() as c:
+                    r = c.request(self.command, f"https://{host}{self.path}", headers=hdr, content=body)
+                self.send_response(r.status_code)
+                for k, v in r.headers.multi_items():
+                    if k.lower() not in ("content-length", "transfer-encoding", "connection", "content-encoding"):
+                        self.send_header(k, v)
+                self.send_header("content-length", str(len(r.content)))
+                self.end_headers()
+                if self.command != "HEAD":
+                    self.wfile.write(r.content)
+
+            do_GET = do_POST = do_HEAD = do_PUT = do_DELETE = do_OPTIONS = _go
+
+            def log_message(self, *a: Any) -> None:
+                pass
+
+        self.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(cf, kf)
+        self.srv.socket = ctx.wrap_socket(self.srv.socket, server_side=True)
+        self.port = self.srv.server_address[1]
+        self.th = threading.Thread(target=self.srv.serve_forever, daemon=True)
+
+    def __enter__(self) -> TlsGateway:
+        self.th.start()
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        import shutil
+
+        self.srv.shutdown()
+        shutil.rmtree(self.dir, ignore_errors=True)

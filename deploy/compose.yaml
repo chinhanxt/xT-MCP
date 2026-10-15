@@ -198,6 +198,7 @@ services:
       # Kênh người xem PII (/pii/reveal): CORS chỉ cho origin Desk; chỉ client Desk xin được vé
       XT_PII_REVEAL_ORIGINS: https://${XT_DOMAIN_DESK}
       XT_PII_REVEAL_CLIENTS: ${XT_DESK_AGENT_CLIENT_ID:-xt-desk-agent}
+      XT_PII_REVEAL_TICKETS_PER_MINUTE: ${XT_PII_REVEAL_TICKETS_PER_MINUTE:-10}
       XT_MCP_CONFIDENTIAL_CLIENTS: ${XT_MCP_CONFIDENTIAL_CLIENTS:-}
       # Desk gọi /mcp cùng origin qua host Desk (route desk-mcp): thêm host + origin Desk
       XT_MCP_ALLOWED_HOSTS: ${XT_DOMAIN_MCP},${XT_DOMAIN_DESK}

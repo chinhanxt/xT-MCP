@@ -94,7 +94,8 @@ def test_masked_then_reveal(ev: Evidence, world) -> None:  # type: ignore[no-unt
     c.check("no-store" in (r1.headers.get("cache-control") or ""), "Cache-Control: no-store")
     c.check(r2.status_code == 403, f"dùng lại vé -> 403 ({r2.status_code})")
     c.check(bad_origin.status_code in (400, 403), f"Origin lạ bị từ chối ({bad_origin.status_code})")
-    egress = compose.psql("SELECT count(*) FROM xt_meta.pii_egress WHERE tier = 'human'")
+    egress = compose.psql("SELECT count(*) FROM xt_meta.pii_egress WHERE mode::text ILIKE '%human%'"
+                          " OR client_class::text ILIKE '%human%'")
     c.check(int(egress or 0) >= 1, f"pii_egress ghi lượt xem tier human ({egress})")
 
     got = world.call(u, "get_record", {"ref": ref})

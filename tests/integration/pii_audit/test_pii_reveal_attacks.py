@@ -126,6 +126,11 @@ async def bank_token(s: Stack) -> str:
         assert c["ok"], c
         _cache["bank"] = c["data"]["record"]["values"]["bank_account"]
         _cache["ref"] = c["data"]["record"]["ref"]
+        # Token gắn phiên đã nhận nó (PIIR-02): giám đốc phải tự đọc bản ghi trên Desk chat.
+        seen = await s.call(
+            "acme", DIRECTOR, "get_record", {"ref": _cache["ref"]}, client=DESK_AGENT
+        )
+        assert seen["ok"] and seen["data"]["record"]["values"]["bank_account"] == _cache["bank"]
     return _cache["bank"]
 
 
@@ -138,6 +143,15 @@ async def email_token(s: Stack) -> str:
         assert env["ok"], env
         _cache["email"] = env["data"]["email"]
     return _cache["email"]
+
+
+async def see_email(s: Stack, key: str) -> str:
+    """`key` xem chi tiết người đề nghị trên Desk chat: nhận (và được ghi đã thấy) token email."""
+    pref = f"person:{person_id(s.tenants['acme'].id, REQUESTER)}"
+    async with s.app.session(s.token("acme", key, DESK_AGENT)) as sess:
+        env = envelope(await sess.call_tool("org_person_details", {"ref": pref}))
+    assert env["ok"], env
+    return str(env["data"]["email"])
 
 
 def egress(pg: pgfixture.Pg) -> list[tuple[Any, ...]]:
@@ -197,11 +211,17 @@ async def test_mint_denied_for_every_non_desk_client(s: Stack) -> None:
 async def test_error_envelopes_carry_no_ticket_or_token_list(s: Stack) -> None:
     tok = await bank_token(s)
     unknown = "[PII:aaaaaaaaaaaaaaaa]"
-    r = await mint(s, DIRECTOR, [tok, unknown], DeskFrame())
+    r = await mint(s, DIRECTOR, [unknown], DeskFrame())
     assert r.is_error and r.structured_content is None
     assert "xt/reveal" not in (r.meta or {})
     text = r.content[0].text
     assert "PII_TOKEN_UNKNOWN" in text and unknown not in text and tok not in text
+    # Lô lẫn token lạ (PIIR-06): vẫn cấp vé, token lạ luôn `denied`, token thật vẫn mở.
+    f = DeskFrame()
+    r = await mint(s, DIRECTOR, [tok, unknown], f)
+    assert not r.is_error, r.content[0].text
+    res = post(s, signed(f, r.meta["xt/reveal"]["ticket"]))
+    assert res.json() == {"values": {tok: ACCOUNT}, "denied": [unknown]}
     # sai schema / khóa sai
     bad = DeskFrame()
     bad.jwk = {**bad.jwk, "y": bad.jwk["x"]}  # điểm không nằm trên đường cong
@@ -343,12 +363,28 @@ async def test_sensitive_needs_pii_reveal_basic_for_any_member(s: Stack) -> None
 
 @pytest.mark.anyio
 async def test_unknown_level_token_treated_as_sensitive(s: Stack, pg: pgfixture.Pg) -> None:
+    await bank_token(s)
     tid = s.tenants["acme"].id
     tok = "[PII:unknownlevel2345]"
     with pg.su() as su:
         su.execute(
             "INSERT INTO xt_meta.pii_token (tenant_id, token, value) VALUES (%s, %s, 'x-secret')",
             (tid, tok),
+        )
+    # chưa ai nhận token này -> không xin được vé (PIIR-02)
+    r = await mint(s, DIRECTOR, [tok], DeskFrame())
+    assert r.is_error and "PII_TOKEN_UNKNOWN" in r.content[0].text
+    with pg.su() as su:
+        for key in (REQUESTER, DIRECTOR):
+            su.execute(
+                "INSERT INTO xt_meta.pii_token_seen (tenant_id, token, person, client_id)"
+                " VALUES (%s, %s, %s, %s)",
+                (tid, tok, person_id(tid, key), DESK_AGENT),
+            )
+        su.execute(
+            "INSERT INTO xt_meta.pii_token_source (tenant_id, token, ref, field, level)"
+            " VALUES (%s, %s, %s, 'advance_request.destination', 'basic')",
+            (tid, tok, _cache["ref"]),
         )
     ticket, f = await ticket_for(s, REQUESTER, [tok])
     assert post(s, signed(f, ticket)).json() == {"values": {}, "denied": [tok]}
@@ -358,7 +394,7 @@ async def test_unknown_level_token_treated_as_sensitive(s: Stack, pg: pgfixture.
 
 @pytest.mark.anyio
 async def test_deactivated_viewer_cannot_redeem(s: Stack, pg: pgfixture.Pg) -> None:
-    tok = await bank_token(s)
+    tok = await see_email(s, OUTSIDER)
     ticket, f = await ticket_for(s, OUTSIDER, [tok])
     pid = person_id(s.tenants["acme"].id, OUTSIDER)
     with pg.su() as su:
@@ -372,11 +408,6 @@ async def test_deactivated_viewer_cannot_redeem(s: Stack, pg: pgfixture.Pg) -> N
 
 
 @pytest.mark.anyio
-@pytest.mark.xfail(
-    strict=True,
-    reason="PIIR-02: vé cấp cho mọi token có trong vault của tenant, không kiểm token thuộc phiên "
-    "người gọi / bản ghi người đó đọc được (integration-notes: tenant|azp|sub|sid)",
-)
 async def test_token_of_unreadable_record_not_revealable(s: Stack) -> None:
     tok = await bank_token(s)
     # HR không đọc được đề nghị tạm ứng của nhân viên phòng khác...
@@ -412,10 +443,6 @@ async def test_successful_reveal_logged_without_value(s: Stack, pg: pgfixture.Pg
 
 
 @pytest.mark.anyio
-@pytest.mark.xfail(
-    strict=True,
-    reason="PIIR-03: egress của reveal không ghi bản ghi/token nào bị xem (chỉ tập field)",
-)
 async def test_reveal_audit_identifies_record(s: Stack, pg: pgfixture.Pg) -> None:
     tok = await bank_token(s)
     ticket, f = await ticket_for(s, DIRECTOR, [tok])
@@ -430,9 +457,6 @@ async def test_reveal_audit_identifies_record(s: Stack, pg: pgfixture.Pg) -> Non
 
 
 @pytest.mark.anyio
-@pytest.mark.xfail(
-    strict=True, reason="PIIR-03: lần đổi vé thất bại (BAD_SIGNATURE/STALE/denied) không được ghi"
-)
 async def test_failed_reveal_attempts_are_audited(s: Stack, pg: pgfixture.Pg) -> None:
     tok = await bank_token(s)
     before = len(egress(pg))
@@ -443,11 +467,6 @@ async def test_failed_reveal_attempts_are_audited(s: Stack, pg: pgfixture.Pg) ->
 
 # ------------------------------------------------- 6. vault: field/mức của token ----
 @pytest.mark.anyio
-@pytest.mark.xfail(
-    strict=True,
-    reason="PIIR-05: cùng giá trị ở field basic (ghi trước) rồi sensitive: vault giữ field cũ, "
-    "kiểm pii.reveal + audit theo field basic thay vì field sensitive",
-)
 async def test_vault_field_follows_sensitive_source(s: Stack, pg: pgfixture.Pg) -> None:
     from xt.adapters.db.connection import Database
     from xt.domain.model.context import ModelActor
@@ -476,15 +495,12 @@ async def test_vault_field_follows_sensitive_source(s: Stack, pg: pgfixture.Pg) 
 
 # --------------------------------------------------------- 7. giới hạn tần suất ----
 @pytest.mark.anyio
-@pytest.mark.xfail(
-    strict=True, reason="PIIR-04: không có rate limit nào cho pii_reveal_ticket / POST /pii/reveal"
-)
 async def test_mint_and_reveal_are_rate_limited(s: Stack) -> None:
-    tok = await bank_token(s)
+    tok = await see_email(s, OUTSIDER)  # người riêng: quota theo người, không ảnh hưởng test khác
     throttled = 0
-    for _ in range(40):
+    for _ in range(70):  # XT_PII_REVEAL_TICKETS_PER_MINUTE=60 trong stack test
         f = DeskFrame()
-        r = await mint(s, DIRECTOR, [tok], f)
+        r = await mint(s, OUTSIDER, [tok], f)
         if r.is_error:
             throttled += 1
             continue
@@ -509,13 +525,16 @@ async def test_request_body_strictness(s: Stack) -> None:
 
 @pytest.mark.anyio
 async def test_spike_token_format_rejected_by_server(s: Stack) -> None:
-    """Desk nhận cả `⟨MÃ.trường⟩` (spike) nhưng server chỉ nhận `[PII:…]`: một token kiểu spike
-    trong kết quả làm hỏng CẢ lần xin vé (Desk gom mọi token vào một lời gọi) — PIIR-06."""
+    """PIIR-06 đã chốt: định dạng duy nhất là `[PII:…]` (Desk bỏ `⟨MÃ.trường⟩`); `⟨…⟩` sai schema.
+    Token `[PII:…]` lạ trong lô không còn làm hỏng cả lần xin vé: nó chỉ vào `denied`."""
     tok = await bank_token(s)
     r = await mint(s, DIRECTOR, [tok, "⟨NV0013.bank_account⟩"], DeskFrame())
     assert r.is_error
-    r = await mint(s, DIRECTOR, [f"[PII:{'b' * 16}]"] * 1 + [tok], DeskFrame())
-    assert r.is_error and "PII_TOKEN_UNKNOWN" in r.content[0].text
+    f = DeskFrame()
+    r = await mint(s, DIRECTOR, [f"[PII:{'b' * 16}]", tok], f)
+    assert not r.is_error, r.content[0].text
+    res = post(s, signed(f, r.meta["xt/reveal"]["ticket"]))
+    assert res.json() == {"values": {tok: ACCOUNT}, "denied": [f"[PII:{'b' * 16}]"]}
 
 
 # --------------------------------------------- 9. agent cầm token Desk ngoài trình duyệt ----
@@ -528,3 +547,40 @@ async def test_desk_agent_token_outside_browser_reveals(s: Stack) -> None:
     r = await mint(s, DIRECTOR, [tok], f)
     res = post(s, signed(f, r.meta["xt/reveal"]["ticket"]), origin=s.app.base)
     assert res.status_code == 200 and res.json()["values"] == {tok: ACCOUNT}
+
+
+@pytest.mark.anyio
+async def test_reveal_rechecks_record_access_now(s: Stack, pg: pgfixture.Pg) -> None:
+    """PIIR-02: người ĐÃ thấy token nhưng nay mất quyền đọc bản ghi nguồn -> `denied` (IAM + RLS
+    chạy lại lúc đổi vé, token không phải chìa khóa)."""
+    tok = await bank_token(s)
+    tid = s.tenants["acme"].id
+    pid = person_id(tid, DIRECTOR)
+    ticket, f = await ticket_for(s, DIRECTOR, [tok])
+    with pg.su() as su:
+        roles = su.execute("SELECT roles FROM xt_meta.person WHERE id=%s", (pid,)).fetchone()[0]
+        su.execute("UPDATE xt_meta.person SET roles = '{}' WHERE id = %s", (pid,))
+    try:
+        r = post(s, signed(f, ticket))
+        assert r.status_code == 200 and r.json() == {"values": {}, "denied": [tok]}, r.text
+    finally:
+        with pg.su() as su:
+            su.execute("UPDATE xt_meta.person SET roles = %s WHERE id = %s", (roles, pid))
+    rows = egress(pg)
+    assert rows[-1][1] == ["none"]  # không field nào được mở
+
+
+@pytest.mark.anyio
+async def test_mint_is_audited_and_key_reuse_refused(s: Stack, pg: pgfixture.Pg) -> None:
+    tok = await bank_token(s)
+    f = DeskFrame()
+    assert not (await mint(s, DIRECTOR, [tok], f)).is_error
+    again = await mint(s, DIRECTOR, [tok], f)  # cùng khóa khung cho vé thứ hai
+    assert again.is_error and "KEY_REUSED" in again.content[0].text
+    with pg.su() as su:
+        rows = su.execute(
+            "SELECT outcome, tokens FROM xt_meta.pii_egress WHERE tool='pii_reveal_ticket'"
+            " ORDER BY at DESC LIMIT 2"
+        ).fetchall()
+    assert [r[0] for r in rows] == ["key_reused", "ticket_issued"], rows
+    assert rows[1][1] == [tok] and ACCOUNT not in json.dumps([list(r[1]) for r in rows])

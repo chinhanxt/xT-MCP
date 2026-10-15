@@ -4,8 +4,9 @@
 // Giá trị thật chỉ nằm trong RevealStore (bộ nhớ của component), KHÔNG vào history của LLM, không log, xóa khi điều hướng.
 import type { McpTool, ToolResult } from "./types";
 
-/** Token của làn PII: `[PII:<16 base32>]` (server xT, tool-contracts-v1 §3.8) và `⟨MÃ.trường⟩` (spike). */
-export const PII_TOKEN_RE = /\[PII:[a-z2-7]{16}\]|⟨[A-Za-z0-9][A-Za-z0-9_-]{0,63}\.[a-z][a-z0-9_]{0,63}⟩/g;
+/** Định dạng token DUY NHẤT của server xT: `[PII:<16 base32>]` (tool-contracts-v1 §3.8). Định dạng
+ * `⟨MÃ.trường⟩` của spike đã bỏ (audit PIIR-06): server không bao giờ phát ra nó. */
+export const PII_TOKEN_RE = /\[PII:[a-z2-7]{16}\]/g;
 export const REVEAL_TICKET_TOOL = "pii_reveal_ticket";
 export const MAX_REVEAL_TOKENS = 50;
 export const REVEAL_TTL_MS = 60_000;

@@ -21,7 +21,7 @@ from xte2e.config import E2E
 
 JWT = re.compile(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")
 SECRET_KEYS = {"password", "totp", "access_token", "refresh_token", "id_token", "client_secret", "code_verifier",
-               "authorization", "ticket", "sig", "registration_access_token", "code"}
+               "authorization", "ticket", "sig", "registration_access_token"}
 
 SCENARIOS: dict[str, str] = {
     "E0": "Dựng stack + seed",

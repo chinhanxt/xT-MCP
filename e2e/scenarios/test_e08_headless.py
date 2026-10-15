@@ -152,6 +152,8 @@ def _get_token(kind: str, user: dict, proxy: net.HostProxy, out: Path, ev: Evide
         ev.step(f"--get-token {kind}", lines)
         return p.wait(10) or 1
     b = oidc.Browser()
+    # "Trình duyệt của người dùng" mở URL qua đúng hostname công khai (proxy chỉ là đường của script).
+    url = url.replace(proxy.base, f"https://{proxy.host}", 1)
     redirect = re.search(r"redirect_uri=([^&]+)", url)
     from urllib.parse import unquote
 
@@ -188,16 +190,16 @@ def test_headless_demo_script(ev: Evidence, world) -> None:  # type: ignore[no-u
         start = d / "start.json"
         start.write_text(dumps({"definition_id": "proposal_approval", "note": "headless-demo",
                                 "values": advance(6_000_000)}), encoding="utf-8")
-        gw = f"{world.s.gateway[0]}:{world.s.gateway[1]}"
         env = {**os.environ,
-               "XT_AUTH_BASE": f"http://{world.s.hosts['auth']}", "XT_API_BASE": f"http://{world.s.hosts['api']}",
-               "XT_CURL_OPTS": f"--connect-to ::{gw} -H CF-Connecting-IP:{net._IP}",
                "XT_ACCESS_TOKEN_FILE": str(d / "data_token"), "XT_WORKFLOW_TOKEN_FILE": str(d / "wf_token"),
                "XT_WORKFLOW_APPROVER_TOKEN_FILE": str(d / "apr_token"),
                "XT_DATA_MODEL": "advance_request", "XT_DATA_PROFILE": world.tenants[A]["profile"],
                "XT_DATA_FOREIGN_PROFILE": world.tenants[B]["profile"], "XT_WORKFLOW_START_FILE": str(start)}
-        r = subprocess.run(["bash", str(ROOT / "docs" / "headless-demo.sh")], capture_output=True, text=True,
-                           env=env, timeout=180)
+        # URL https mặc định của script (như production); TLS cục bộ thay Cloudflare, -k vì cert tự ký.
+        with net.TlsGateway() as tls:
+            env["XT_CURL_OPTS"] = f"-k --connect-to ::127.0.0.1:{tls.port} -H CF-Connecting-IP:{net._IP}"
+            r = subprocess.run(["bash", str(ROOT / "docs" / "headless-demo.sh")], capture_output=True, text=True,
+                               env=env, timeout=180)
         out = r.stdout.splitlines()
         ev.step("headless-demo.sh", {"rc": r.returncode, "stdout": out[-40:], "stderr": r.stderr[-400:]})
         c.check(r.returncode == 0, f"headless-demo.sh exit 0 (rc={r.returncode}; "

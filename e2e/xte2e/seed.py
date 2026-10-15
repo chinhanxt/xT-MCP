@@ -5,8 +5,8 @@
 1. Realm `xt` (deploy/keycloak/provision.py) + client headless `xt-headless` + scope `xt-data`
    (provision_data.py) + lớp PostgREST (configure_data.py) + JWKS (fetch_jwks.py) -> bật `postgrest`.
 2. Hai tenant thật (`xt tenant create`) = hai Organization Keycloak: A "Bình Minh"
-   (seed/binh-minh/org.json), B "An Phát" (e2e/data/an-phat-org.json, nhỏ).
-3. User Keycloak cho một tập đại diện (giám đốc, kế toán, 2 trưởng phòng, 3 nhân viên ở A; 3 người ở B;
+   (seed/binh-minh/org.json), B "Hoa Mai" (seed/hoa-mai/org.json, nhỏ).
+3. User Keycloak cho một tập đại diện (giám đốc, kế toán, 2 trưởng phòng, 3 nhân viên ở A; 3 người ở B (Hoa Mai);
    1 user thuộc cả hai Organization). Người duyệt có TOTP với seed đã biết; bí mật chỉ ở
    `${XT_SECRETS_DIR:-~/.config/xt}/e2e/demo-seed.json` (0600, ngoài repo).
 4. `xt org import` (tệp HR + links sub/agent grant), `xt pack install` hai bước có mã xác nhận,
@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from xte2e import compose
-from xte2e.config import DEPLOY, E2E, HEADLESS_CLIENT, ROOT, STACK_OVERRIDES, ensure_secret, load_users, save_users, settings
+from xte2e.config import DEPLOY, HEADLESS_CLIENT, ROOT, STACK_OVERRIDES, ensure_secret, load_users, save_users, settings
 from xte2e.kcadmin import Admin
 
 AGENT_CLIENT = "xt-desk-agent"
@@ -40,15 +40,19 @@ TENANTS: list[dict[str, Any]] = [
     {
         "alias": "binhminh", "name": "Công ty TNHH Bình Minh", "domain": "binhminh.example",
         "org": ROOT / "seed" / "binh-minh" / "org.json",
-        "packs": ["de-xuat-phe-duyet", "giao-viec-sla", "nhan-su-vong-doi"],
+        # 3 gói nghiệp vụ lõi trước, sau đó mọi gói khác có trong packages/ (vd. quản trị mô hình, kênh PII).
+        "packs": ["de-xuat-phe-duyet", "giao-viec-sla", "nhan-su-vong-doi", *sorted(
+            p.parent.name for p in (ROOT / "packages").glob("*/pack.json")
+            if p.parent.name not in ("de-xuat-phe-duyet", "giao-viec-sla", "nhan-su-vong-doi"))],
         # giám đốc, kế toán, 2 trưởng phòng (Kinh doanh, Kế toán), 3 nhân viên Kinh doanh
         "people": ["NV-0001", "NV-0005", "NV-0010", "NV-0004", "NV-0013", "NV-0014", "NV-0020"],
     },
     {
-        "alias": "anphat", "name": "Công ty CP An Phát", "domain": "anphat.example",
-        "org": E2E / "data" / "an-phat-org.json",
+        "alias": "hoamai", "name": "Cửa hàng Hoa Mai", "domain": "hoamai.example",
+        "org": ROOT / "seed" / "hoa-mai" / "org.json",
         "packs": ["de-xuat-phe-duyet", "giao-viec-sla"],
-        "people": ["AP-001", "AP-002", "AP-003"],
+        # chủ cửa hàng (giám đốc), trưởng nhóm Bán hàng, 1 nhân viên Bán hàng
+        "people": ["NV-0001", "NV-0004", "NV-0007"],
         # Diễn tập SLA (E7): cùng gói, chỉ đổi DỮ LIỆU gói (mọi `sla.after` -> PT2M), không đổi code.
         "sla": "PT2M",
     },

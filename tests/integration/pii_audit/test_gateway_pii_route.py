@@ -11,8 +11,6 @@ import fnmatch
 import re
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[3]
 TMPL = ROOT / "deploy" / "apisix" / "apisix.yaml.tmpl"
 DESK = "@@XT_DOMAIN_DESK@@"
@@ -48,10 +46,10 @@ def test_parser_sees_known_desk_routes() -> None:
     assert _route_for(DESK, "/desk/confirm/x")["id"] == "desk-confirm"  # type: ignore[index]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="PIIR-01: thiếu route /pii/* -> xt-api trên host Desk (kênh xem hỏng ở prod)",
-)
 def test_desk_host_routes_pii_reveal_to_xt_api() -> None:
+    """PIIR-01 đã sửa: route `desk-pii` (host Desk, `/pii/*`) -> xt-api, trần body 4 KiB,
+    limit-req theo IP."""
     r = _route_for(DESK, "/pii/reveal")
-    assert r is not None and r["nodes"] == ["xt-api:8000"], r
+    assert r is not None and r["id"] == "desk-pii" and r["nodes"] == ["xt-api:8000"], r
+    block = TMPL.read_text(encoding="utf-8").split("- id: desk-pii", 1)[1].split("\n  - id:", 1)[0]
+    assert "max_body_size: 4096" in block and "limit-req:" in block

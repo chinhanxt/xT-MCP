@@ -5,10 +5,11 @@ import { webcrypto } from "node:crypto";
 import { runAgent } from "../src/agent";
 import { createRevealStore, extractTokens, isRevealTool, revealTokens, RevealError, REVEAL_TOOLTIP } from "../src/pii";
 import { selectTools } from "../src/profiles";
+import { APP_DENYLIST } from "../src/bridge";
 import type { ChatMessage, LlmClient, LlmReply, McpTool, ToolResult } from "../src/types";
 
 const XT = "https://xt.example";
-const TOKEN = "⟨NV-0042.luong⟩";
+const TOKEN = "[PII:nv42luongaaaaaaa]";
 const SECRET = "25000000";
 
 const b64uDec = (s: string) => Uint8Array.from(Buffer.from(s, "base64url"));
@@ -43,13 +44,19 @@ function mockXt() {
 
 describe("extractTokens", () => {
   it("lấy token duy nhất từ structuredContent, bỏ qua giá trị thường", () => {
-    const r: ToolResult = { structuredContent: { a: TOKEN, b: TOKEN, c: "⟨NV-1.ho_ten⟩", d: "lương 5" } };
-    expect(extractTokens(r)).toEqual([TOKEN, "⟨NV-1.ho_ten⟩"]);
+    const r: ToolResult = { structuredContent: { a: TOKEN, b: TOKEN, c: "[PII:nvmothotenaaaaaa]", d: "lương 5" } };
+    expect(extractTokens(r)).toEqual([TOKEN, "[PII:nvmothotenaaaaaa]"]);
     expect(extractTokens(undefined)).toEqual([]);
   });
   it("nhận token của server xT [PII:<16 base32>] (tool-contracts-v1 §3.8)", () => {
     const r: ToolResult = { structuredContent: { values: { bank_account: "[PII:k5jkkvvmaxb2spjp]", x: "[PII:short]" } } };
     expect(extractTokens(r)).toEqual(["[PII:k5jkkvvmaxb2spjp]"]);
+  });
+  it("bỏ định dạng spike ⟨MÃ.trường⟩ (PIIR-06): server chỉ phát [PII:…]", () => {
+    expect(extractTokens({ structuredContent: { a: "⟨NV-0042.luong⟩" } })).toEqual([]);
+  });
+  it("MCP App trong iframe không gọi được pii_reveal_ticket (PIIR-07)", () => {
+    expect(APP_DENYLIST.has("pii_reveal_ticket")).toBe(true);
   });
   it("tooltip tiếng Việt giải thích không gửi cho AI", () => {
     expect(REVEAL_TOOLTIP).toContain("không bao giờ được gửi cho mô hình AI");

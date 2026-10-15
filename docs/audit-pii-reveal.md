@@ -163,3 +163,18 @@ Mọi xfail đã chạy `--runxfail` để chắc chắn fail đúng lý do (kh�
   sửa trước khi nộp vì trái hợp đồng đã ghi (token gắn phiên, audit đủ để trả lời "ai xem gì").
 - **Verdict: FAIL có điều kiện** — sửa PIIR-01, PIIR-02, PIIR-03 rồi bỏ `xfail` tương ứng trong `tests/integration/pii_audit/`
   (test sẽ XPASS → đỏ khi đã sửa); PIIR-04…08 sửa theo đề xuất, không chặn demo.
+
+## 5. Phản hồi tác giả (integrator, 16/10/2026)
+
+| # | Sửa | Test |
+|---|---|---|
+| PIIR-01 | Route `desk-pii` trong `deploy/apisix/apisix.yaml.tmpl` (đúng đề xuất), đã render; gateway đang chạy trả 204 cho preflight `/pii/reveal` trên host Desk | `test_desk_host_routes_pii_reveal_to_xt_api` (bỏ xfail) |
+| PIIR-02 | Vault ghi nguồn (`pii_token_source`: ref bản ghi + field + mức) và "đã thấy" (`pii_token_seen`: người + client) mỗi lần phát token. Mint chỉ nhận token chính phiên đó đã nhận; đổi vé chạy lại `can_read` (IAM `record.read`/`person.read` + RLS của người xem) trên nguồn, rồi `pii.reveal` cho `sensitive` | `test_token_of_unreadable_record_not_revealable` (bỏ xfail), mới `test_reveal_rechecks_record_access_now` |
+| PIIR-03 | `pii_egress` thêm `outcome`, `tokens`, `records`, `denied`; ghi ở mint (`ticket_issued`, `unknown_tokens`, `rate_limited`, `key_reused`) và mọi nhánh đổi vé sau khi suy được tenant (`ok`, `denied`, `bad_signature`, `stale`, `viewer_inactive`); vé không suy được tenant/`BAD_ORIGIN` chỉ log cấu trúc không chứa vé | `test_reveal_audit_identifies_record`, `test_failed_reveal_attempts_are_audited` (bỏ xfail), mới `test_mint_is_audited_and_key_reuse_refused` |
+| PIIR-04 | Quota `XT_PII_REVEAL_TICKETS_PER_MINUTE` vé/người/phút ở mint (`rate_limited`) + `limit-req` theo IP ở gateway | `test_mint_and_reveal_are_rate_limited` (bỏ xfail; dùng người riêng) |
+| PIIR-05 | `pii_put`: nâng mức thì đổi `field` theo nguồn nhạy | `test_vault_field_follows_sensitive_source` (bỏ xfail) |
+| PIIR-06 | Chọn MỘT định dạng: `[PII:<16 base32>]`. Desk bỏ `⟨…⟩` (mock + test sửa theo); token lạ trong lô vào `denied` thay vì làm hỏng cả lần xin vé | `test_spike_token_format_rejected_by_server`, `test_error_envelopes_…` (cập nhật), `desk/test/pii.test.ts` |
+| PIIR-07 | `pii_reveal_ticket` vào `APP_DENYLIST` của bridge; `XT_PII_REVEAL_ORIGINS` phải là origin của `XT_DESK_URL` (xt serve từ chối origin khác, kể cả sandbox); khóa khung dùng lại bị từ chối (`KEY_REUSED`). Ràng `sid`/DPoP: rủi ro còn lại, ghi ở integration-notes | `desk/test/pii.test.ts`, `test_mint_is_audited_and_key_reuse_refused` |
+| PIIR-08 | Kiểm `Content-Length` + đọc stream có trần trước khi parse; worker xóa vé hết hạn > 1 giờ; migration đổi số `0007_pii_reveal.sql` (idempotent cho DB đã áp `0006_pii_reveal.sql`); integration-notes §2/§4 sửa theo code | `test_request_body_strictness` |
+
+Đổi hành vi test PASS cũ cho khớp PIIR-02: người xin vé phải tự nhận token trước (giám đốc mở bản ghi trên Desk chat; người ngoài cuộc dùng email qua `org_person_details`); token chèn tay không có nguồn/"đã thấy" không còn xin được vé.

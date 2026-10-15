@@ -49,7 +49,13 @@ class PostgresPiiLane:
         self.rt, self.key = rt, key
 
     def token(
-        self, caller: Caller, value: Any, *, field: str | None = None, level: str | None = None
+        self,
+        caller: Caller,
+        value: Any,
+        *,
+        field: str | None = None,
+        level: str | None = None,
+        source: str | None = None,
     ) -> str:
         """Token ổn định; vault nhớ nguồn (`model.field`) + mức để `/pii/reveal` kiểm quyền.
         Không rõ mức (giá trị bắt được trong lỗi) thì kênh xem coi là `sensitive`."""
@@ -60,7 +66,17 @@ class PostgresPiiLane:
         if field is None and level is None:
             self.rt.store.pii_put(caller.actor, out, str(value))
         else:
-            self.rt.store.pii_put(caller.actor, out, str(value), field=field, level=level)
+            # Nguồn (bản ghi) + "đã thấy" (người + client): /pii/reveal chỉ mở token mà chính phiên
+            # này đã nhận VÀ người xem còn đọc được bản ghi nguồn lúc đổi vé (PIIR-02).
+            self.rt.store.pii_put(
+                caller.actor,
+                out,
+                str(value),
+                field=field,
+                level=level,
+                source=source,
+                seen_by=(caller.person.id, caller.client_id),
+            )
         return out
 
     # ---- vào --------------------------------------------------------------------------------
@@ -173,7 +189,9 @@ class PostgresPiiLane:
                     continue
                 touched.add(f"person.{key}")
                 if mode == "masked":
-                    out[key] = self.token(caller, out[key], field=f"person.{key}", level="basic")
+                    out[key] = self.token(
+                        caller, out[key], field=f"person.{key}", level="basic", source=ref
+                    )
                 elif mode == "omitted":
                     out.pop(key)
         model_id, values = out.get("model_id"), out.get("values")
@@ -184,13 +202,17 @@ class PostgresPiiLane:
         except KeyError:
             return out
         projected = dict(values)
+        rec_ref = out.get("ref")
+        src = rec_ref if isinstance(rec_ref, str) and rec_ref.startswith(f"{model_id}:") else None
         for f in m.fields:
             if f.pii == "none" or f.name not in projected or projected[f.name] is None:
                 continue
             name = f"{model_id}.{f.name}"
             touched.add(name)
             if mode == "masked":
-                projected[f.name] = self.token(caller, projected[f.name], field=name, level=f.pii)
+                projected[f.name] = self.token(
+                    caller, projected[f.name], field=name, level=f.pii, source=src
+                )
             elif mode == "omitted":
                 projected.pop(f.name)
         out["values"] = projected
@@ -199,7 +221,11 @@ class PostgresPiiLane:
             if tf.pii != "none":
                 out["title"] = (
                     self.token(
-                        caller, out.get("title"), field=f"{model_id}.{tf.name}", level=tf.pii
+                        caller,
+                        out.get("title"),
+                        field=f"{model_id}.{tf.name}",
+                        level=tf.pii,
+                        source=src,
                     )
                     if mode == "masked"
                     else m.label

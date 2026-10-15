@@ -5,17 +5,67 @@
     {
       "id": "mdl.propose",
       "effect": "Allow",
-      "subjects": ["role:agent", "role:dept_head", "role:director", "role:it"],
-      "actions": ["model.propose", "model.read", "workspace.read"],
-      "resources": ["xrn:binhminh:*"],
+      "subjects": [
+        "role:agent",
+        "role:dept_head",
+        "role:director",
+        "role:it"
+      ],
+      "actions": [
+        "model.propose",
+        "model.read",
+        "workspace.read"
+      ],
+      "resources": [
+        "xrn:binhminh:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "mdl.read",
+      "effect": "Allow",
+      "subjects": [
+        "role:agent",
+        "role:dept_head",
+        "role:director",
+        "role:it"
+      ],
+      "actions": [
+        "record.read",
+        "history.read"
+      ],
+      "resources": [
+        "xrn:binhminh:model_proposal:*"
+      ],
       "conditions": []
     },
     {
       "id": "mdl.approve",
       "effect": "Allow",
-      "subjects": ["role:agent", "role:director", "role:it"],
-      "actions": ["request.decide", "record.read", "history.read"],
-      "resources": ["xrn:binhminh:model_proposal:*"],
+      "subjects": [
+        "role:director",
+        "role:it"
+      ],
+      "actions": [
+        "request.decide"
+      ],
+      "resources": [
+        "xrn:binhminh:model_proposal:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "mdl.agent-open-confirmation",
+      "effect": "Allow",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "request.decide"
+      ],
+      "resources": [
+        "xrn:binhminh:model_proposal:*"
+      ],
       "conditions": []
     }
   ]

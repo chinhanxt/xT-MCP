@@ -11,12 +11,11 @@ import pytest
 
 from xte2e import net, oidc
 from xte2e.config import HEADLESS_CLIENT, HEADLESS_REDIRECT
-from xte2e.flows import A, B, REQUESTER, advance, dumps, err, key
+from xte2e.flows import A, B, B_EMPLOYEE, REQUESTER, advance, dumps, err, key
 from xte2e.report import Checks, Evidence
 
 SCENARIO = "E4"
 pytestmark = pytest.mark.e2e
-B_EMPLOYEE = "AP-003"
 
 
 def test_mcp_two_tenants(ev: Evidence, world) -> None:  # type: ignore[no-untyped-def]

@@ -11,7 +11,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 const port = Number(process.env.E2E_PII_PORT);
 const allowOrigin = process.env.E2E_PII_ALLOW_ORIGIN;
 if (!port || !allowOrigin) throw new Error("E2E_PII_PORT / E2E_PII_ALLOW_ORIGIN chưa đặt");
-const TOKEN = "⟨NV-0042.luong⟩";
+const TOKEN = "[PII:nv42luongaaaaaaa]";
 const SECRET = "25000000";
 const tickets = new Map();
 const state = { minted: 0, redeemed: 0, rejected: 0, reveals: [] };

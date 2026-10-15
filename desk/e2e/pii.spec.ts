@@ -41,7 +41,7 @@ test("Hiện PII: vé dùng một lần, giá trị chỉ ở UI, không vào LL
   expect(reqs.length).toBeGreaterThan(0);
   expect(JSON.stringify(reqs)).not.toContain(SECRET);
   expect(JSON.stringify(reqs)).not.toContain("pii_reveal_ticket");
-  expect(JSON.stringify(reqs)).toContain("⟨NV-0042.luong⟩");
+  expect(JSON.stringify(reqs)).toContain("[PII:nv42luongaaaaaaa]");
   expect(logs.join("\n")).not.toContain(SECRET);
 
   // tải lại: mất phiên chat và giá trị; DOM không còn

@@ -21,6 +21,16 @@ FIELD = "ma_du_an"
 RATIONALE = "Kế toán cần gắn mỗi tạm ứng với mã dự án để đối chiếu chi phí theo dự án."
 
 
+def _ref(data: dict[str, Any]) -> str | None:
+    for k in ("request", "proposal"):
+        v = data.get(k)
+        if isinstance(v, str):
+            return v
+        if isinstance(v, dict) and v.get("ref"):
+            return str(v["ref"])
+    return data.get("ref")
+
+
 def _column_exists(schema: str) -> bool:
     return compose.psql(f"SELECT count(*) FROM information_schema.columns WHERE table_schema = '{schema}'"
                         f" AND table_name = 'advance_request' AND column_name = '{FIELD}'") == "1"
@@ -57,7 +67,7 @@ def test_add_field_apply(ev: Evidence, world) -> None:  # type: ignore[no-untype
     proposer = world.by_key(A, DEPT_HEAD)
     ops = [{"op": "add_field", "field": {"id": FIELD, "label": "Mã dự án", "type": "string", "required": False}}]
     dry = world.call(proposer, "propose_model_change", {"model_id": "advance_request", "operations": ops, "dry_run": True,
-                                                       "rationale": RATIONALE})
+                                                       "rationale": RATIONALE, "idempotency_key": key("mc-dry")})
     ev.step("propose_model_change dry_run", dry)
     c.check(dry.get("ok") is True, f"dry-run ok ({err(dry).get('code')})")
     c.check("AN TOÀN" in dumps(dry) or "safe" in dumps(dry).lower(), "plan phân loại an toàn")
@@ -66,7 +76,7 @@ def test_add_field_apply(ev: Evidence, world) -> None:  # type: ignore[no-untype
     ev.step("propose_model_change dry_run=false", filed)
     assert filed.get("ok"), f"gửi đề xuất: {dumps(filed)[:500]}"
     data = filed.get("data") or {}
-    ref = data.get("request", {}).get("ref") or data.get("proposal", {}).get("ref") or data.get("ref")
+    ref = _ref(data)
     c.check(bool(ref) and str(ref).startswith("model_proposal:"), f"đề xuất là Request duyệt ({ref})")
     c.check(not _column_exists(schema), "chưa có cột trước khi người duyệt")
     if not ref:
@@ -106,16 +116,16 @@ def test_remove_field_needs_two_approvers(ev: Evidence, world) -> None:  # type:
     if not _column_exists(schema):
         ev.gap("W2 áp đề xuất model (decide -> approve_and_apply -> pha 2)", f"cột {FIELD} chưa được áp ở test trước")
     proposer = world.by_key(A, DEPT_HEAD)
-    ops = [{"op": "remove_field", "field": {"id": FIELD}}]
+    ops = [{"op": "remove_field", "field_id": FIELD}]
     dry = world.call(proposer, "propose_model_change", {"model_id": "advance_request", "operations": ops, "dry_run": True,
-                                                       "rationale": RATIONALE})
+                                                       "rationale": RATIONALE, "idempotency_key": key("mc-dry")})
     ev.step("dry-run xóa field có dữ liệu", dry)
     c.check("PHÁ HỦY" in dumps(dry) or "destructive" in dumps(dry).lower(), "plan phân loại PHÁ HỦY")
     filed = world.call(proposer, "propose_model_change", {"model_id": "advance_request", "operations": ops,
                                                           "rationale": RATIONALE, "dry_run": False, "idempotency_key": key("mc-rm")})
     ev.step("gửi đề xuất xóa", filed)
     data = filed.get("data") or {}
-    ref = data.get("request", {}).get("ref") or data.get("proposal", {}).get("ref") or data.get("ref")
+    ref = _ref(data)
     first = _find_approver(world, ref, {DEPT_HEAD}) if ref else None
     if first:
         one = _decide(world, ev, first, ref)

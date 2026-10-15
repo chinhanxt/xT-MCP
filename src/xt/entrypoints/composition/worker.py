@@ -148,6 +148,12 @@ class WorkflowJobs:
             self.rt.uow.run(finish)
         return {"proposal": str(proposal_id), "state": state, "version": version, "error": error}
 
+    def purge_reveal_tickets(self, tenant: TenantRef) -> int:
+        """Dọn vé xem PII đã hết hạn quá 1 giờ (audit đã ở `pii_egress`, PIIR-08)."""
+        actor = ModelActor(tenant, NIL, (), client_azp="xt-worker")
+        with self.rt.uow.scope(actor):
+            return self.rt.uow.run(lambda: self.rt.store.pii_tickets_purge(actor, 3600))
+
     async def apply(self, connection: Any, job: JobRequest) -> None:
         await anyio.to_thread.run_sync(
             self.apply_sync, job.tenant_id, UUID(str(job.payload["proposal_id"]))
@@ -159,8 +165,9 @@ class WorkflowJobs:
         thời gian nên không nhân đôi)."""
         await relay_timers(connection, self.queue, job.tenant_id, task_name=TICK)
         await relay_model_changes(connection, self.queue, job.tenant_id, task_name=APPLY)
-        seq = self._tenant(job.tenant_id).seq
-        await anyio.to_thread.run_sync(self.rt.models.migrator.run_jobs, seq)
+        tenant = self._tenant(job.tenant_id)
+        await anyio.to_thread.run_sync(self.rt.models.migrator.run_jobs, tenant.seq)
+        await anyio.to_thread.run_sync(self.purge_reveal_tickets, tenant)
         await self._schedule_relay(connection, job.tenant_id, after=self.relay_interval_s)
 
     async def _schedule_relay(self, connection: Any, tenant_id: UUID, *, after: int) -> int:
