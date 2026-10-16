@@ -367,20 +367,22 @@ def test_migrator_cannot_install_pepper(env: Env) -> None:
                 " WITH CHECK (xt.spy())"
             )
         # … nên gài mã qua CHECK constraint (migrator vẫn được thêm ràng buộc)
-        m.execute(f"ALTER TABLE xt_t{env.a.seq}.emp ADD CONSTRAINT spy CHECK (xt.spy()) NOT VALID")
+        # vòng 4: CHECK gọi hàm ngoài pg_catalog trên bảng model cũng bị chặn (R4-02)
+        with pytest.raises(psycopg.errors.InsufficientPrivilege), m.transaction():
+            m.execute(
+                f"ALTER TABLE xt_t{env.a.seq}.emp ADD CONSTRAINT spy CHECK (xt.spy()) NOT VALID"
+            )
     try:
         env.records.create(hr(env.a), "emp", {"code": "SPY1", "salary": 31000000})
         with env.pg.migrator() as m:
             rows = m.execute("SELECT k, h FROM xt_meta.spy").fetchall()
-        assert rows, "policy gián điệp phải đã chạy"
         for k, h in rows:
             assert not k  # không có khóa trong phiên
             assert h and "hmac:1:" in h and env.pg.pepper.hex() not in h and "31000000" not in h
     finally:
-        with env.pg.migrator() as m:
-            m.execute(f"ALTER TABLE xt_t{env.a.seq}.emp DROP CONSTRAINT spy")
-            m.execute("DROP FUNCTION xt.spy()")
-            m.execute("DROP TABLE xt_meta.spy")
+        with env.pg.su() as su:
+            su.execute("DROP FUNCTION xt.spy()")
+            su.execute("DROP TABLE xt_meta.spy")
     # thiếu HMAC hoặc HMAC của kid lạ → trigger từ chối (fail-closed)
     with env.pg.app() as c, c.transaction(force_rollback=True):
         ctx(c, env.a)

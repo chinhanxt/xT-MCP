@@ -44,6 +44,7 @@ xT là MCP server đa năng cho mọi doanh nghiệp. Lõi headless (Tầng 1) g
   - Trước khi chạy, kiểm `free -g`. Cột available phải ≥ 4 GB; nếu thiếu thì chờ rồi kiểm lại.
   - Agent chỉ đọc/viết code (không chạy docker/LLM) thì vẫn chạy song song nhiều.
   - Container dùng tên duy nhất, xong việc phải dọn ngay.
+  - Một lượt `make test-integration` TOÀN BỘ tính là 1 stack nặng: mỗi lúc chỉ 1 agent chạy toàn bộ; agent khác chỉ chạy bộ test của mình. Fixture không được dùng tên container/cổng cố định.
   - Fixture/test tạo container phải xóa bằng `docker rm -f -v`; không để lại volume ẩn danh (đã từng đầy ổ vì 165 volume sót).
 - **Bắt buộc có 1 agent Opus chuyên kiểm tra + test.** Các agent phải debate/phản biện nhau trước khi chốt.
 - **Không xây từ đầu:** thu thập repo nguồn mở (giấy phép OSI) rồi phát triển trên đó.

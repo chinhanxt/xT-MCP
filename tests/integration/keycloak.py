@@ -155,7 +155,10 @@ class _AdminAuth(httpx.Auth):
 
 class Admin:
     def __init__(self, password: str) -> None:
-        self.c = httpx.Client(base_url=BASE, timeout=30, auth=_AdminAuth(password))
+        auth = _AdminAuth(password)
+        self.c = httpx.Client(base_url=BASE, timeout=30, auth=auth)
+        # Một số test đọc token master trực tiếp; auth_flow vẫn ghi đè bằng token mới nhất.
+        self.c.headers["Authorization"] = f"Bearer {auth.token}"
 
     def ok(self, r: httpx.Response) -> httpx.Response:
         if r.status_code not in (200, 201, 204):
