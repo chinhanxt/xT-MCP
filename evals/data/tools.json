@@ -1,6 +1,6 @@
 {
  "_source": "src/xt/contracts/tools (ToolContract catalog), regenerate with tools/export_tools.py",
- "_catalog_digest": "sha256:7304842ad43d7fc08ea3bd8b93891dc95019bea6099d42aae77536e1affa0b76",
+ "_catalog_digest": "sha256:4484d1d2a3e32311b62b2b124f47ef3eebd63146b7f7d8490ab1bb2865f29e41",
  "core10": [
   "find_people",
   "search_records",
@@ -1761,6 +1761,50 @@
     },
     "required": [
      "process_id",
+     "idempotency_key"
+    ],
+    "additionalProperties": false
+   }
+  },
+  {
+   "name": "notify",
+   "since": "1.0",
+   "max_autonomy": "L2",
+   "description": "Send an internal reminder/notice to colleagues (xT inbox + their configured channel such as Telegram). Never reaches people outside the organization. VD: 'Nhắc anh B nộp hoàn ứng'",
+   "input_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+     "recipients": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+       "type": "string",
+       "pattern": "^(me|(xrn:[a-z0-9][a-z0-9_-]{0,63}:)?person:[a-z0-9][a-z0-9_-]{0,63})$"
+      },
+      "description": "Person refs."
+     },
+     "message": {
+      "type": "string",
+      "description": "Short message (Vietnamese ok).",
+      "minLength": 1,
+      "maxLength": 1000
+     },
+     "subject_ref": {
+      "type": "string",
+      "pattern": "^(xrn:[a-z0-9][a-z0-9_-]{0,63}:)?[a-z][a-z0-9_]{0,62}:[a-z0-9][a-z0-9_-]{0,63}$",
+      "description": "Item the message is about; recipients get a link."
+     },
+     "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+      "description": "Key you invent once per action (8-128 chars). Retrying the same action, also after the user confirmed: SAME key. New key = different action."
+     }
+    },
+    "required": [
+     "recipients",
+     "message",
      "idempotency_key"
     ],
     "additionalProperties": false

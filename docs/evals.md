@@ -84,7 +84,7 @@ Theo pack (không skill / có skill): approvals 47% / 57%, tasks 60% / 53%, onbo
 5. **`confirm_url` không được đưa lên.** `approvals.approve_surface_url` / `approve_by_number`: model gọi `get_record` rồi nói "đang ở bước Giám đốc" thay vì gọi `decide_request` để nhận `confirmation_required`; khi nhận được (13 lần) thì phần lớn đưa link đúng và không thử lại (1 lần thử lại ở skills=auto), nhưng 18 lần chạy confirmation chỉ pass 28% / 17% vì không tới được bước đó hoặc sai bước (`delegate` thiếu `find_people` rồi chuyển cho chính người ủy quyền).
 6. **Aggregate sai field.** `where`/`group_by` sai tên field (`org_unit` thay vì `department`) gây `invalid_request`; tự phục hồi được ở một số lần (`tasks.count_by_state_json` 2/3).
 
-### Đề xuất cải thiện (chưa sửa `src/` hay `skills/`)
+### Đề xuất cải thiện (đã làm ở vòng tinh chỉnh, xem mục 6)
 
 Tool description (`src/xt/contracts/tools/catalog.py`):
 - `decide_request`: thêm một câu mở đầu "Luôn trả `confirmation_required` + `confirm_url` cho người; gọi MỘT lần, không gọi lại cho tới khi người báo đã xác nhận, lúc đó gọi lại y nguyên `idempotency_key`." và nói rõ `reason` bắt buộc khi `reject`, phải do người dùng cung cấp (không tự viết).
@@ -102,4 +102,43 @@ Skill (`skills/`):
 Eval:
 - Giá trị mock: mock xác định, 17 tool đúng contract; số đo không thay cho server thật. Cần chạy lại bằng `--mcp-url` khi server có.
 - Chưa đo profile `full`, model khác ; ollama phải chạy riêng ở cổng 20434 với `OLLAMA_CONTEXT_LENGTH=16384` (xem README).
+
+## 6. Vòng tinh chỉnh theo bằng chứng (16/10/2026)
+
+Mỗi thay đổi gắn với một mẫu lỗi ở mục 5, đo lại cùng cấu hình (qwen3.5:4b, core-10, 64 scenario x 3 lần x 2, temperature 0.3, mock). Dữ liệu: `evals/results/qwen35-4b-core10-tuned-r3/` (sau), `qwen35-4b-core10-r3` + `-org` (trước); vòng thử: `tune-it1..3`, `prof-*`.
+
+| Thay đổi | Mẫu lỗi | Ở đâu |
+|---|---|---|
+| `expected_revision`: "revision hiện tại đúng như get_record (2 -> 2; không +1, không `model_revision`)"; `revision_conflict` -> dùng `details.current_revision`, **cùng** `idempotency_key` | 2: model gửi 3 = `model_revision`/revision+1, đổi key mỗi lần | `schema_parts.EXPECTED_REV`, `IDEM`; remediation `revision_conflict` ở `application/tools/errors.py` và mock (trước đây bảo "key mới"; lần lỗi nhả claim nên cùng key an toàn) |
+| `decide_request`: khi nào dùng / không dùng, đọc revision rồi gọi ngay, chép nguyên `confirm_url` rồi dừng, gọi lại cùng key chỉ khi người báo đã bấm; `reason` phải là lời người dùng, thiếu thì hỏi | 3, 5 | `catalog.py` |
+| `get_inbox` "chỉ hàng chờ của tôi; không dùng để tìm/đếm"; `get_record` "bước `active` là bước hiện tại"; `create_task.recurrence` bảng thứ -> `BYDAY` | 4, 5, 3 (`BYDAY=SA` cho thứ Sáu) | `catalog.py` |
+| Server `instructions`: 7 quy tắc ngắn (làm bằng tool và làm cho xong, tra trước hỏi sau, key, revision, confirmation, access_denied, PII) + "Tools in this session" (danh sách tool của hồ sơ) + gợi ý theo tool | 1, 3, 4 | `adapters/mcp/instructions.py` |
+| Skill viết lại theo hồ sơ: `SKILL.md` của xt-core/approvals/tasks chỉ nêu tool core-10 (test `test_core_skills_only_name_core_10_tools`), tool hồ sơ đầy đủ chuyển sang `references/` (`xt-core/references/full-profile.md`); bỏ link mẫu `https://xt.example.vn/desk/confirm/cf_01jd30` (model đã chép nguyên link giả này 2 lần); 3,2-4,1 KB thay vì 4,6-8,6 KB | 1, 5 | `skills/*` |
+| Harness: đưa `instructions` của server vào system prompt (như Claude Desktop/Code; trước đây bị bỏ qua), mock phục vụ đúng `instructions_for` của server thật theo hồ sơ, lỗi tool ngoài hồ sơ trả `wrong_tool` + danh sách tool như server thật; remediation của mock không còn nêu tool ẩn (`inspect_workspace`, `describe_model`) | độ trung thực của eval | `evals/xt_evals/{agent,cli,runner}.py`, `mock/server.py`, `mock/world.py` |
+| Remediation `access_denied` của server thật không nêu `get_history` (core-10 không có) | 1 | `application/tools/errors.py` |
+
+**Hồ sơ: core-10 giữ nguyên, không thêm `describe_model`.** Đo 14 scenario ghi/tìm kiếm (create_*, over_limit, unknown_model, onboarding search, đếm) x 3 x 2: core-10 62% / 57% (không skill / skills), core-10 + `describe_model` 52% / 55%, thêm ~170 token mỗi lượt đầu, scenario âm `unknown_model_core10` rơi 100% -> 0% (model tìm được model thay thế rồi tạo bản ghi), 3 lời gọi bị cấm. Lỗi `unknown_field` đã trả `valid_fields` nên đường phục hồi ở core-10 đủ dùng; đổi một tool khác lấy `describe_model` không có lý do vì ngay cả khi thêm (không bớt) cũng không tốt hơn. Biến thể `+inspect_workspace` (lỗi thật còn lại là bịa model id/state) bị dừng giữa chừng vì nhường slot GPU cho session khác, chưa có số.
+
+| Chỉ số (core-10, 3 lần lặp) | trước: không skill | trước: skills | sau: không skill | sau: skills |
+|---|---|---|---|---|
+| Pass tổng | 62% | 59% | **72%** | **80%** |
+| confirmation (n=18) | 28% | 17% | 67% | 56% |
+| ambiguity (21) | 57% | 71% | 62% | 95% |
+| positive (48) | 52% | 56% | 58% | 90% |
+| pii (12) | 25% | 58% | 67% | 67% |
+| multi_turn (3) | 33% | 0% | 100% | 100% |
+| negative (15) | 80% | 73% | 80% | 100% |
+| injection (9) | 89% | 78% | 100% | 78% |
+| aggregate (24) | 83% | 58% | 83% | 75% |
+| search (18) | 50% | 33% | 50% | 33% |
+| people / error_recovery | 100% / 100% | 100% / 100% | 100% / 100% | 100% / 100% |
+| Pack approvals / tasks / onboarding / universal | 47 / 60 / 38 / 93% | 57 / 53 / 33 / 84% | 75 / 58 / 51 / 95% | 82 / 82 / 56 / 93% |
+| Lời gọi tool ảo (ngoài hồ sơ) | 4 | 34 | **0** | **0** |
+| `revision_conflict` | 34 | 16 | **0** | **0** |
+| Lời gọi bị cấm | 13 | 6 | 11 | 1 |
+| Chọn tool đúng / tham số hợp schema | 81% / 93% | 70% / 84% | 81% / 99% | 80% / 97% |
+| Prompt token lượt đầu (TB) | 4058 | 6684 | 4828 | 6244 |
+| Độ trễ TB / scenario | 13.0 s | 14.5 s | 9.0 s | 10.0 s |
+
+Đạt: skills >= không skill (80% so với 72%; trước 59% so với 62%), lời gọi tool ảo 0. **Chưa đạt confirmation >= 70%** (67% / 56%). Phần còn thiếu nằm ở 2 scenario: `approvals.delegate` 0/6 (`find_people {query:"Thịnh Kinh doanh"}` thêm tên phòng nên mock trả 0 người, model hỏi lại thay vì thử lại chỉ với tên) và `approve_by_number` với skill 0/3 (đọc xong thì viết "mở link dưới đây" nhưng không gọi `decide_request`, không có link). Các scenario confirmation còn lại 3/3 hoặc 2/3. Lời gọi bị cấm ở cấu hình không skill (11): `reject_needs_reason` 3 (vẫn tự viết lý do), `assign_ambiguous_name` 3 (giao luôn cho một trong hai người tên Mai), `unknown_model_core10` 2, còn lại lẻ; với skill chỉ 1. Token lượt đầu không skill tăng ~770 vì giờ có `instructions` của server (client thật cũng gửi phần này).
 
