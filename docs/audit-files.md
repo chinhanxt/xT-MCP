@@ -209,3 +209,29 @@ uv run pytest -m integration tests/integration/files_audit_r2 --no-cov -rxX
 - **R2-F1 và R2-W1** phải sửa cùng nhau. Khi chưa có worker, byte xóa mềm không bao giờ được dọn và cũng không bị tính quota, nên lặp lại đúng FB-02.
 - **R2-F5** là quyết định của chủ dự án nhưng chưa được hiện thực.
 - Mọi lỗi đều có test `xfail(strict=True, raises=AssertionError)` mang mã R2-Fx. Setup hỏng sẽ ném `RuntimeError`, không bị xfail che.
+
+## Vòng 3 (16/10/2026, tester Opus 5.5)
+
+Kiểm sâu bản sửa vòng 2 (commit 336ffb5). MỘT Postgres 17 phiên + MỘT SeaweedFS 4.48 riêng của module (tmpfs, `docker rm -f -v`), uvicorn loopback; peer cùng mạng là container tạm (`--rm`, xóa bằng `docker rm -f -v`). Không sửa `src/`.
+
+**1) Tác giả KHÔNG làm yếu test vòng 2.** `git diff a791a50 336ffb5 -- tests/integration/files_audit_r2` chỉ gỡ 8 marker `@pytest.mark.xfail(...)` (lỗi đã sửa -> XPASS -> bỏ marker); thân assertion của mọi test R2-Fx/W1 giữ nguyên.
+
+**2) Chạy lặp 3 lần (flakiness)** `files_audit_r2 + files_audit + composition/test_files_api` (chạy trên worktree 336ffb5; có stub rỗng cho `xt.adapters.db.notify` chưa commit — xem Ghi chú): **56 passed** cả 3 lần (~79–88 s), ổn định. `files_audit_r2` riêng: 8 passed + 8 xfailed đúng như vòng 2 báo.
+
+**3) Probe bổ sung (tests/integration/files_audit_r3/, chạy 3 lần đều: 3 passed + 1 xfailed).**
+
+| Mã | Hạng mục | KQ | Bằng chứng (`tests/integration/files_audit_r3/test_files_r3.py`) |
+|---|---|---|---|
+| R3-A | Đua purge/finalize ở mức cao | PASS | `test_purge_finalize_high_concurrency_keeps_bytes`: 1 tệp xóa mềm (object C chờ dọn) + 20 tệp cùng nội dung C finalize song song trong khi vòng `files.maintain` purge chạy liên tục. Mọi finalize 200, mọi tải về 200 + đúng byte, không 500 (`BlobError`), object C vẫn còn (20 tệp sống trỏ vào). Khóa `(tenant,sha256)` của R2-F3 chịu được tải, không chỉ 2 luồng |
+| R3-B | Guard SeaweedFS `white_list="127.0.0.1,@"` | PASS | `test_guard_blocks_peer_http_admin_and_grpc`: peer cùng mạng gọi master :9333 `/dir/assign`, `/col/delete`, `/vol/grow`, `/vol/vacuum`, `/dir/status` -> **401** tất cả; volume `/admin/assign_volume` -> 401; filer :8888/ -> 401. Chỉ health chỉ-đọc `/cluster/status` + volume `/status` còn 200. `weed shell volume.list` từ peer KHÔNG liệt kê được volume: `@` chỉ cho gRPC nội tiến trình (S3/filer -> master/volume qua loopback), KHÔNG mở master gRPC ra peer. Byte dữ liệu cũng không rò: volume quảng bá `127.0.0.1` nên peer không fetch/ghi chunk được |
+| R3-C1 | Quota tenant khi 2 người cùng tenant nạp song song sát trần | **FAIL (mới)** | `test_tenant_quota_parallel_two_users_no_overcommit` (xfail strict): REQUESTER + COLLEAGUE mỗi người 4 tệp 64 KiB (tổng 512 KiB > TENANT_Q 384 KiB) nạp song song, lặp 3 vòng. Nhiều lời gọi trả **HTTP 500** `DeadlockDetected`: hai khóa cấp-tenant lấy NGƯỢC thứ tự giữa các transaction — khóa chuỗi audit (`audit.py:lock_audit_chain`, qua `confirmations.claim`) và khóa tư vấn quota (`files.py:usage` -> `pg_advisory_xact_lock('xt:files:quota:'||tenant)`). Hợp đồng mong muốn: chỉ 200/507, không 5xx. Deadlock làm client nhận 500 thay vì 507/retry. Tái hiện tất định cả 3 lần chạy |
+| R3-W | `files.maintain` chạy QUA `xt worker` (không gọi hàm trực tiếp) | PASS | `test_files_maintain_runs_via_xt_worker`: tệp xóa mềm (hạn lưu 0) + `xt tenant bind-queue` (đăng ký chuỗi `files.maintain` mốc now qua `WorkflowJobs.register_relay -> FilesMaintenance.register`) + tiến trình `xt worker` THẬT (`XT_WORKER_HANDLERS=xt.entrypoints.composition.worker:handlers`). Worker chạy job `files.maintain` và object trên S3 biến mất trong ≤ 90 s. Kèm `files_audit_r2::test_worker_registers_files_maintain` (R2-W1, nay PASS): `handlers()` có `files.maintain` khi đặt `XT_FILES_S3_ENDPOINT` kể cả không ClamAV |
+
+### Sửa đề xuất (R3-C1)
+Lấy hai khóa cấp-tenant theo THỨ TỰ CỐ ĐỊNH trong mọi transaction ghi tệp (ví dụ luôn `lock_audit_chain` trước rồi mới `usage`/khóa quota, hoặc gộp quota vào cùng điểm khóa với audit), hoặc bắt `DeadlockDetected` ở biên dispatcher và retry idempotent. Hiện `check_quota` lấy khóa quota trong `intent`/`ingest` còn khóa audit lấy khi commit xác nhận -> thứ tự phụ thuộc đường đi, sinh chu trình.
+
+### Kết luận vòng 3
+**GẦN ĐẠT — còn 1 lỗi mới chặn.** Năm sửa cốt lõi vòng 2 đều đứng vững dưới kiểm sâu: R2-F3 (khóa nội dung chịu đua 20 luồng, không mất byte), R2-F4 (guard chặn peer, `@` không mở gRPC/không rò byte), R2-F1+R2-W1 (`files.maintain` chạy thật qua `xt worker`, dọn object). Tác giả không làm yếu test; bộ test ổn định qua 3 lần chạy. **Chặn trước demo:** R3-C1 — tải tệp đồng thời của 2 người cùng tenant có thể deadlock -> HTTP 500 (mất trải nghiệm + có thể kẹt dưới tải thật). Có test `xfail(strict=True, raises=AssertionError)` mã R3-C1; sửa xong sẽ XPASS -> strict đỏ -> gỡ marker.
+
+### Ghi chú
+- Tại 336ffb5, cây làm việc có thay đổi dở của session khác (module `notify`): `src/xt/entrypoints/composition/notify.py` import `xt.adapters.db.notify` CHƯA tồn tại -> mọi test tích hợp `ImportError` khi collect. Để verify, tester chạy trên git worktree tại 336ffb5 với một stub rỗng `xt/adapters/db/notify.py` (chỉ để import được; không ảnh hưởng logic files). Không sửa `src/` của repo chính. Trước khi bàn giao phải hoàn tất hoặc gỡ phần `notify` dở.
