@@ -96,13 +96,13 @@ def test_sla_escalation_survives_worker_restart(ev: Evidence, world) -> None:  #
         f"{lat + ' s' if lat else f'chưa có sau {took} s'}; SLA PT2M + chu kỳ relay XT_WORKFLOW_RELAY_SECONDS)",
     )
     notes = compose.psql(
-        f"SELECT count(*) FROM xt_meta.notification WHERE dedupe_key LIKE 'esc:{iid}:%'"
+        f"SELECT count(*) FROM xt_meta.notification WHERE ref = '{ref}' AND kind = 'escalation'"
     )
     c.check(int(notes or 0) >= 1, f"có bản ghi thông báo leo thang ({notes})")
     if esc:
         who = compose.psql(
             "SELECT p.key FROM xt_meta.notification n JOIN xt_meta.person p ON p.tenant_id = n.tenant_id"
-            f" AND p.id = n.recipient WHERE n.dedupe_key LIKE 'esc:{iid}:%' LIMIT 1"
+            f" AND p.id = n.recipient WHERE n.ref = '{ref}' AND n.kind = 'escalation' ORDER BY n.created_at DESC LIMIT 1"
         )
         ev.step("người nhận leo thang (khóa nhân sự)", who)
         try:

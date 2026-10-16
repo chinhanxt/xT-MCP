@@ -29,35 +29,32 @@ make e2e-llm      # E1: Desk + Ollama qwen3.5:4b (slot heavy riêng; cần stack
 | `desk/desk_real.mjs` | Playwright Chromium headless: Desk từ **container xt-desk** sau APISIX (không serve build qua route), Keycloak thật, LLM Ollama host |
 | `scenarios/test_e00..e11_*.py` | 12 kịch bản, marker `e2e` (E1 thêm `llm`) |
 
-## Kết quả (16/10/2026, stack `xt-e2e` volume mới, code tại thời điểm chạy)
+## Kết quả lượt 2 (16/10/2026 ~09:40, `make e2e` volume mới, build lại ảnh, HEAD f95d0b1)
 
-Lần chạy đầy đủ: `e2e/reports/20261016-023525/` (sau demo-seed trên volume mới). E5/E6/E7 chạy lại trên cùng stack sau khi sửa harness (`20261016-0246*`, `20261016-0251*`). E1: `make e2e-llm`, 3 lần.
+Lượt `XT_DPOP_REQUIRED=false`: 19/23 test xanh; E7 chạy lại sau khi sửa truy vấn thông báo của harness (thông báo nay có `kind`): PASS. Lượt `XT_DPOP_REQUIRED=true` và `make e2e-llm` **chưa chạy**: lỗi gốc ở dòng E9 bên dưới khiến Keycloak từ chối mọi lần đổi code kèm proof DPoP của `xt-desk-agent` (đã tái hiện bằng harness), nên kết quả biết trước là đỏ. Giữ slot heavy cho agent khác.
 
-| # | Kịch bản | Kết quả | Chặn bởi (tên mảnh còn thiếu / lỗi thật) |
+| # | Kịch bản | DPoP tắt | Nguyên nhân gốc nếu đỏ |
 |---|---|---|---|
-| E0 | Dựng stack + seed | **FAIL** | (1) `xt-api` không có healthcheck; (2) `xt doctor` báo `postgres: unknown - XT_DATABASE_URL chưa đặt` (compose không cấp); (3) `giao-viec-sla` không cài được: op `close_task`, `weekly_rollup` chưa có hiện thực; `nhan-su-vong-doi` không cài được: op `create_lifecycle_tasks`, `activate_employee`, `check_unreturned_assets`, `close_lifecycle_case` chưa có, process onboarding/offboarding báo `notify` chưa đăng ký. Còn lại đạt: mọi dịch vụ chạy, 2 tenant/Organization, 60 nhân sự A (7 có đăng nhập), 7 người duyệt có TOTP, bind-queue + relay cả 2 tenant, `de-xuat-phe-duyet`, `quan-tri-mo-hinh`, `kenh-pii` cài qua `xt pack install --confirm` |
-| E1 | W1 qua Desk + qwen3.5:4b | **FAIL** (0/3) | Desk thật không đăng nhập được: container `xt-desk` (nginx) trả **404 cho `/auth/callback`** (thiếu SPA fallback `try_files ... /index.html`), nên chưa tới bước LLM |
-| E2 | W1 qua MCP client có script | **PASS** | PRM + 401 `resource_metadata`; DCR ẩn danh qua gateway; auth-code + PKCE + consent; create/submit 8 triệu, tuyến `dept_head -> director`; `confirmation_required`; thiếu TOTP -> Keycloak dừng ở OTP, không có Decision; TOTP đúng -> "Đã thực hiện"; gọi lại cùng key `replayed=true`; GĐ duyệt -> `approved`; audit `chain_verified` |
-| E3 | Poka-yoke | **PASS** | Đúng 1 mã `rule_violation`, thông điệp "'Ngày về' phải sau hoặc bằng 'Ngày đi'", có remediation; sửa -> nháp ok |
-| E4 | RLS 2 tenant | **PASS** | MCP: B không thấy/đọc được bản ghi A (lỗi giống id không tồn tại). `/data`: A->A 200, A->B và B->A 403 `profile_mismatch`, không token 401, token MCP 401. User 2 tổ chức: Keycloak bắt chọn 1 tổ chức (D-E2E-3), xT `access_denied` |
-| E5 | PII | **PASS** | Client public chỉ thấy `[PII:…]`; `pii_reveal_ticket` chỉ App (`visibility=["app"]`), vé ở `_meta`; `POST /pii/reveal` (Origin Desk, chữ ký P-256) trả giá trị thật cho giám đốc, dùng lại vé 403, Origin lạ 403, `no-store`, có `pii_egress`; ghi ngược token bị từ chối |
-| E6 | Đổi model | **PASS** | `propose_model_change` [AN TOÀN] -> `model_proposal`; người đề xuất không tự áp; GĐ duyệt qua `/desk/confirm` + TOTP -> worker áp pha 1+2 -> cột trong `information_schema` -> tạo bản ghi có `ma_du_an`; xóa field có dữ liệu, 1 người duyệt -> cột còn nguyên, chờ người thứ hai |
-| E7 | SLA leo thang + restart worker | **FAIL** | Timer sống sót qua `docker compose restart xt-worker`, có `assignment.escalated` + thông báo, GĐ duyệt 1 lần là xong; nhưng leo thang ở **212 s** sau khi gửi (> 135 s): SLA PT2M + chu kỳ relay `XT_WORKFLOW_RELAY_SECONDS=60` + restart |
-| E8 | Headless 4 dịch vụ | **FAIL** | Chỉ còn **W8 `/files`**: `/files/v1` trả 404 (chưa có dịch vụ). Đạt: SSO discovery/JWKS; 401 không token ở `/data`, `/workflow`; `/data` + Accept-Profile 200; `xt-cli` redirect loopback cổng bất kỳ; `/workflow/v1` definitions + BPMN có BPMNDI, `POST /instances` 201/200 (idempotent), inbox, decision 428 + `confirm_url` -> xác nhận -> 200; `docs/headless-demo.sh --get-token data|workflow` (PKCE loopback, lái headless) và `headless-demo.sh` chạy thật qua gateway |
-| E9 | OIDC trên Desk (container thật) | **FAIL** | (1) `xt-desk` 404 `/auth/callback` (như E1) nên Desk không gọi được `/mcp`; (2) `deploy/tests/desk_oidc_e2e.py check` còn kỳ vọng 3 redirect (có loopback) trong khi realm production theo quyết định "Tier PII" chỉ có `https://xt.freepro.online/auth/callback`: script cần cập nhật theo `XT_PROFILE` |
-| E10 | Security smoke + auth âm + SoD | **FAIL** | (1) `security_smoke.sh` PASS=46 FAIL=1: client `xt-cli` đang có `mcp-xt` trong optional scopes (kế thừa default-optional của realm; provision phải gỡ); (2) **W9** chưa có trigger DB chặn `decider = requester`. Đạt: alg=none, HS256 bằng khóa công khai, chữ ký hỏng, refresh/ID token làm bearer, token realm master, token aud `xt-data` đều 401; tự duyệt -> `access_denied` không link; agent gọi `decide_request` 100 lần -> 0 Decision |
-| E11 | Audit tamper | **PASS** | `xt audit checkpoint` (Ed25519) + `verify` toàn vẹn; superuser sửa 1 dòng `xt_audit.event` của A -> verify mã 1, báo đúng tenant + seq; B toàn vẹn (dòng được hoàn nguyên sau kiểm) |
+| E0 | Dựng stack + seed | **FAIL** | `deploy/compose.yaml`: `configs.content` (seaweed-s3, seaweed-security) trên service `read_only` không chạy với Docker Compose 2.40.3 của máy này ("`file` is the sole supported option"). Harness dùng đường vòng `configs.file` (cùng nội dung, ngoài repo) để chạy tiếp, nhưng E0 vẫn báo đỏ. Mọi mục khác của E0 xanh (healthcheck xt-api, `xt doctor`, đủ gói, TOTP, bind-queue) |
+| E1 | Desk + qwen3.5:4b | **chưa chạy** | Cùng lỗi gốc với E9 (Desk luôn gửi proof DPoP khi đổi code) |
+| E2 | W1 qua MCP client có script | PASS | |
+| E3 | Poka-yoke | PASS | |
+| E4 | RLS 2 tenant | PASS | |
+| E5 | PII | PASS | |
+| E6 | Đổi model | PASS | |
+| E7 | SLA + restart worker | PASS | Leo thang ở 124 s (< 135 s), có thông báo `kind=escalation`, người nhận duyệt một lần là xong |
+| E8 | Headless 4 dịch vụ + Files | PASS | Gồm `/files/v1` multipart, PUT `put_url` (Content-Digest), đọc chéo tenant -> 404, token MCP -> 401 |
+| E9 | OIDC trên Desk (container thật) | **FAIL** | Keycloak trả `400 DPoP HTTP URL mismatch` ở token endpoint: APISIX chuyển `X-Forwarded-Port: 9080`, nên Keycloak dựng htu `https://xt-auth.freepro.online:9080/...`. Kiểm trực tiếp Keycloak: cùng proof đó với `X-Forwarded-Port: 443` thì qua bước kiểm DPoP. Sửa: các route `auth*` trong `deploy/apisix/apisix.yaml.tmpl` thêm `X-Forwarded-Port: "443"` vào `proxy-rewrite.headers.set` (production qua cloudflared cũng tới APISIX :9080 nên cũng hỏng) |
+| E10 | Security + auth âm + SoD | PASS | Có trigger `decision_sod_guard`; INSERT trực tiếp người duyệt = người đề nghị bị DB chặn |
+| E11 | Audit tamper | PASS | |
 
-Tổng: **6/12 PASS** (E2, E3, E4, E5, E6, E11). Chưa bàn giao được.
+Tổng (DPoP tắt): **9/12 PASS**, E0 và E9 đỏ, E1 chưa chạy. Lượt DPoP bật cần sửa `X-Forwarded-Port` trước.
 
-## Việc chặn còn lại (theo thứ tự ưu tiên)
+## Việc chặn còn lại
 
-1. `xt-desk`: SPA fallback cho `/auth/callback` (chặn E1, E9).
-2. Op còn thiếu của `giao-viec-sla` và `nhan-su-vong-doi` (chặn E0), healthcheck `xt-api`, `xt doctor` kiểm DB trên compose.
-3. Gỡ `mcp-xt` khỏi `xt-cli`; trigger SoD ở DB (chặn E10).
-4. `/files/v1` + SeaweedFS trong minimal (chặn E8).
-5. Độ trễ leo thang SLA: chu kỳ relay ngắn hơn hoặc đánh thức theo `due` (chặn E7).
-6. Cập nhật `deploy/tests/desk_oidc_e2e.py` theo profile (E9).
+1. APISIX: `X-Forwarded-Port: "443"` cho các route Keycloak (chặn E1, E9 và cả lượt DPoP bật).
+2. `compose.yaml`: cấp cấu hình SeaweedFS bằng `configs.file` (sinh bởi `make env`) thay cho `configs.content`, hoặc bỏ `read_only` cho seaweedfs (chặn E0 trên Docker Compose 2.40).
+3. Sau 1-2: chạy lại `make e2e` hai lượt (`XT_DPOP_REQUIRED=true|false`) và `make e2e-llm`.
 
 ## Độ trễ relay hẹn giờ SLA (E7)
 

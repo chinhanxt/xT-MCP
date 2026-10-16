@@ -29,7 +29,7 @@ def test_desk_client_config(ev: Evidence) -> None:
     )
     lines = [ln.strip() for ln in r.stdout.splitlines() if "PASS" in ln or "FAIL" in ln]
     ev.step("desk_oidc_e2e.py check", lines)
-    fails = [ln for ln in lines if ln.startswith("FAIL")]
+    fails = [ln for ln in lines if ln.startswith("FAIL") and not ln.startswith("FAIL=")]
     assert r.returncode == 0 and not fails, (
         f"cấu hình client xt-desk-agent: {fails or r.stderr[-300:]}"
     )

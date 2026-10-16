@@ -51,7 +51,7 @@ async function viaGateway(route, target, hostHeader) {
   const hdr = {};
   for (const [k, v] of Object.entries(r.raw)) if (!["content-encoding", "content-length", "transfer-encoding", "set-cookie", "connection"].includes(k)) hdr[k] = Array.isArray(v) ? v.join(", ") : v;
   if (r.raw["set-cookie"]) hdr["set-cookie"] = r.raw["set-cookie"].join("\n");
-  if (r.status >= 400) out.http.push(`${r.status} ${req.method()} ${req.url().slice(0, 120)}`);
+  if (r.status >= 400) out.http.push(`${r.status} ${req.method()} ${req.url().slice(0, 120)}` + (req.url().includes("/openid-connect/token") ? ` ${r.buf.toString().slice(0, 200)}` : ""));
   // Chromium không route lại đích redirect do route.fulfill tạo ra: điều hướng 3xx -> trang location.replace (giữ Set-Cookie).
   if (r.status >= 300 && r.status < 400 && hdr.location && req.isNavigationRequest()) {
     const to = new URL(r.raw.location, req.url()).href; delete hdr.location;

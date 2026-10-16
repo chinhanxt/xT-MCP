@@ -81,6 +81,7 @@ def up() -> None:
             + f" ({(r.stderr or '').strip().splitlines()[-1][:200]}); harness dùng `configs.file` thay thế"
         )
         write_config_override()
+        compose.dc(["rm", "-sf", "seaweedfs"], check=False)  # container cũ giữ mount config hỏng
         r = compose.dc(["up", "-d", *compose.CORE], timeout=900, capture=False, check=False)
     issues_file().write_text(json.dumps(issues, ensure_ascii=False), encoding="utf-8")
     if r.returncode != 0:
