@@ -169,6 +169,13 @@ def check_regex(pattern: str) -> str:
             raise ValueError(
                 "regex không dùng '.'; viết lớp ký tự tường minh, ví dụ [^\\n] hoặc [a-z0-9]"
             )
+        elif c in _QUANT:
+            # lượng từ không đứng sau một nguyên tử (đầu pattern, sau '(' '|' '^' '$' hoặc sau một
+            # lượng từ khác như {2}{2}, a+{1,3}): PG từ chối "quantifier operand invalid" (R3-07)
+            raise ValueError(f"regex có lượng từ '{c}' không có toán hạng hợp lệ (vị trí {i})")
+        elif c in "^$|":
+            i += 1
+            continue  # neo/tách nhánh: không nhận lượng từ ngay sau
         else:
             i += 1
         # lượng từ ngay sau nguyên tử vừa đọc

@@ -35,11 +35,11 @@ def test_rls_two_tenants_fail_closed(pg: Any, tenants: Tenants) -> None:
     with pg.migrator() as m:
         for t in (a, b):
             m.execute(
+                # mọi bảng thường trong xt_t<seq> tự có trigger audit (R3-01) => cần id uuid
                 f"CREATE TABLE IF NOT EXISTS xt_t{t.seq}.it_note"
-                " (id serial, tenant_id uuid, t text)"
+                " (id uuid NOT NULL DEFAULT gen_random_uuid(), tenant_id uuid, t text)"
             )
             m.execute(f"GRANT SELECT, INSERT ON xt_t{t.seq}.it_note TO xt_app")
-            m.execute(f"GRANT USAGE ON SEQUENCE xt_t{t.seq}.it_note_id_seq TO xt_app")
             m.execute(f"ALTER TABLE xt_t{t.seq}.it_note ENABLE ROW LEVEL SECURITY")
             m.execute(f"ALTER TABLE xt_t{t.seq}.it_note FORCE ROW LEVEL SECURITY")
             m.execute(f"DROP POLICY IF EXISTS p ON xt_t{t.seq}.it_note")

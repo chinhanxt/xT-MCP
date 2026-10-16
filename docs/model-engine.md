@@ -55,6 +55,13 @@ Chỉ `xt.adapters.db` (và `xt.adapters.queue` cho hàng đợi) được impor
   - Bảng, hàm và trigger audit thuộc `xt_audit_owner` (NOLOGIN). Trigger được cài qua `xt_audit.install(schema, bảng, cột_sensitive[])` (SECURITY DEFINER, `CREATE OR REPLACE TRIGGER`). Migrator chỉ được gọi `install`, không có EXECUTE trên `xt_audit.log`/`append` nên không gắn được trigger audit vào bảng tự tạo để giả event.
   - `xt_audit.log()` kiểm tên trigger và schema `xt_t<seq>`, đồng thời `tenant_id` của dòng phải đúng tenant của schema.
   - Event trigger của superuser (`xt_audit_ddl_guard`, `xt_audit_drop_guard`) giữ cho bảng `xt_t<seq>.*` chỉ có `xt_touch` (`xt.row_touch`) và `xt_audit`/`xt_audit_truncate` (`xt_audit.*`), luôn bật. Các thao tác sau đều bị chặn: `DISABLE TRIGGER`, `DROP TRIGGER xt_audit` ngoài `xt_audit_owner`, trigger lạ và `CREATE RULE`. `TRUNCATE` được ghi thành event riêng.
+- **Vòng 3 (R3-01…07):**
+  - Mọi bảng thường trong `xt_t<seq>` luôn có trigger audit (event trigger tự gắn). Bị chặn: SET SCHEMA, ALTER SCHEMA, INHERITS/partition, RULE.
+  - Actor của event lấy từ `xt_audit.session_ctx`; chỉ `xt.set_context` (chủ `xt_audit_owner`) ghi được.
+  - Registry cột sensitive chỉ được mở rộng; hạ nhãn thật sự cần superuser gọi `xt_audit.declassify`.
+  - Mỗi `record_id` chỉ thuộc một bảng.
+  - Checkpoint tính lại chuỗi ở client và kèm digest hàm audit.
+  - Bảng quyền, danh tính và catalog có audit (migration 0016).
 - **Audit bảng metadata `xt_meta.*` (I-AUD-META):** `xt_audit.install_meta(bảng, cột_khóa, redact[])` gắn trigger `xt_audit_meta` thuộc `xt_audit_owner`. Event nối vào chuỗi của tenant, `model = 'xt_meta.<bảng>'`; `TRUNCATE` nối vào chuỗi nền tảng (tenant `00000000-…`). Checkpoint ngoài DB phủ luôn metadata. Migration `0006_audit_meta.sql` gắn audit cho các bảng chính sách, định nghĩa quy trình, gói, PII egress và receipt. CSDL cũ chạy `install_meta_audit(superuser)` trước. Chi tiết: `docs/integration-notes.md`.
 - **Khóa HMAC không bao giờ vào Postgres:**
   - xt-api/xt-worker giữ `AuditKey(kid, key)` từ secret và tính HMAC trong tiến trình (`xt.domain.model.audit`).

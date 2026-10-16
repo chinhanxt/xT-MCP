@@ -11,9 +11,10 @@ Ed25519 định kỳ, lưu vào thư mục/kho đối tượng cấu hình riên
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -90,6 +91,33 @@ __all__ = [
 
 CHECKPOINT_FORMAT = "xt-audit-checkpoint/1"
 
+# Bảng xt_meta KHÔNG vào hash-chain, kèm lý do. Mọi bảng xt_meta khác PHẢI có trigger
+# xt_audit_meta (test kiểm theo catalog thật, không theo danh sách cứng của bảng có audit).
+META_AUDIT_EXEMPT: dict[str, str] = {
+    "platform": "cấu hình cài đặt (phiên bản), ghi bằng superuser",
+    "schema_migration": "sổ migration",
+    "session_ctx": "ngữ cảnh RBAC tạm theo transaction",
+    "pgrst_client": "allowlist azp của PostgREST, ghi bằng superuser",
+    "apply_job": "hàng đợi pha 2; nguồn sự thật là catalog_version (có audit)",
+    "model_proposal": "đề xuất bất biến; duyệt/áp nằm ở model_change_request (có audit)",
+    "pii_token": "vault token; mỗi lần lộ ra ghi pii_egress (có audit)",
+    "pii_token_source": "ánh xạ token; lộ ra = pii_egress",
+    "pii_token_seen": "ánh xạ token; lộ ra = pii_egress",
+    "pii_reveal_ticket": "vé dùng một lần; lần xem ghi pii_egress",
+    "workflow_timer_outbox": "sổ idempotency hẹn giờ",
+    "workflow_timer_fire": "sổ idempotency hẹn giờ",
+    "notification_request": "sổ gửi/idempotency",
+    "notification_delivery": "sổ gửi/idempotency",
+    "notification_source": "sổ gửi/idempotency",
+    "telegram_link_code": "mã liên kết dùng một lần",
+    "telegram_update": "chống lặp update Telegram",
+    "confirmation_binding": "nonce xác nhận, hết hạn",
+    "confirmation_session": "nonce xác nhận, hết hạn",
+    "single_use_key": "nonce dùng một lần",
+    "workflow_instance": "trạng thái engine; chuyển trạng thái ghi process_event (có audit)",
+    "workflow_request": "trạng thái engine; chuyển trạng thái ghi process_event (có audit)",
+}
+
 
 class CheckpointError(Exception):
     """Checkpoint không hợp lệ: sai định dạng, sai chữ ký, sai khóa."""
@@ -99,7 +127,8 @@ class CheckpointError(Exception):
 class AnchorResult:
     tenant_id: str
     seq: int
-    status: str  # ok | missing (đuôi chuỗi bị xóa) | mismatch (chuỗi bị tính lại) | broken
+    # ok | missing (đuôi chuỗi bị xóa) | mismatch (chuỗi bị tính lại) | broken | functions_changed
+    status: str
     events: int
     first_bad_seq: int | None
 
@@ -112,13 +141,34 @@ def _canon_json(payload: Mapping[str, Any]) -> bytes:
     return json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()
 
 
+AUDIT_FUNCTIONS_SQL = (
+    "SELECT p.oid::regprocedure::text, p.prosrc, pg_get_userbyid(p.proowner)::text,"
+    " p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '')"
+    " FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace"
+    " WHERE (n.nspname = 'xt_audit' OR (n.nspname = 'xt' AND p.proname = 'set_context'))"
+    " AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass"
+    " AND d.objid = p.oid AND d.deptype = 'e')"
+)
+
+
+def audit_functions_digest(conn: psycopg.Connection[Any]) -> str:
+    """sha256 của thân + chủ + SECURITY DEFINER của mọi hàm audit (đọc thẳng pg_proc, không gọi
+    hàm của audit). Checkpoint ghi lại; kiểm lại thấy khác → hàm audit đã bị thay (R3-05)."""
+    rows = sorted(tuple(str(x) for x in r) for r in conn.execute(AUDIT_FUNCTIONS_SQL).fetchall())
+    h = hashlib.sha256()
+    for r in rows:
+        h.update("\x1f".join(r).encode() + b"\x1e")
+    return h.hexdigest()
+
+
 def take_checkpoint(conn: psycopg.Connection[Any], *, label: str = "") -> dict[str, Any]:
-    """Đầu chuỗi audit của mọi tenant (kết nối role xt_app)."""
+    """Đầu chuỗi audit của mọi tenant + digest các hàm audit (kết nối role xt_app)."""
     rows = conn.execute("SELECT tenant_id, seq, hash FROM xt_audit.heads()").fetchall()
     return {
         "format": CHECKPOINT_FORMAT,
         "created_at": datetime.now(UTC).isoformat(),
         "label": label,
+        "audit_functions": audit_functions_digest(conn),
         "heads": [{"tenant_id": str(t), "seq": int(s), "hash": bytes(h).hex()} for t, s, h in rows],
     }
 
@@ -172,26 +222,75 @@ def load_checkpoint(path: Path, public_key: Ed25519PublicKey) -> dict[str, Any]:
     return doc
 
 
+ZERO_HASH = bytes(32)
+
+
+def _canon(tenant: str, row: Any) -> bytes:
+    """Bản Python của `xt_audit.canon` (phải khớp từng byte)."""
+    _seq, actor, eff, azp, trace, at, model, rid, op, diff, _prev, _hash = row
+    stamp = at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")
+    parts = [
+        tenant,
+        str(actor) if actor else "-",
+        str(eff) if eff else "-",
+        azp if azp is not None else "-",
+        trace if trace is not None else "-",
+        stamp,
+        model,
+        str(rid),
+        op,
+        diff,
+    ]
+    return "|".join(parts).encode("utf-8")
+
+
+def recompute_chain(rows: Sequence[Any], tenant: str) -> tuple[dict[int, bytes], int | None]:
+    """Tính lại chuỗi SHA-256 ở client từ dòng thô. Trả (seq → hash đã tính, seq hỏng đầu tiên)."""
+    prev = ZERO_HASH
+    out: dict[int, bytes] = {}
+    for row in rows:
+        seq, stored_prev, stored = int(row[0]), bytes(row[10]), bytes(row[11])
+        h = hashlib.sha256(prev + _canon(tenant, row)).digest()
+        if stored_prev != prev or stored != h:
+            return out, seq
+        out[seq] = h
+        prev = h
+    return out, None
+
+
 def verify_against_checkpoint(
     conn: psycopg.Connection[Any], doc: Mapping[str, Any]
 ) -> list[AnchorResult]:
-    """Mọi đầu chuỗi trong checkpoint phải còn nguyên trong DB và chuỗi từ đó vẫn toàn vẹn."""
+    """Kiểm ở CLIENT (không tin hàm kiểm trong DB, R3-05): đọc dòng thô của chuỗi, tự tính lại
+    SHA-256 theo `canon`, rồi đối chiếu đầu chuỗi đã ký. Digest hàm audit khác checkpoint →
+    `functions_changed` cho mọi tenant."""
+    changed = bool(doc.get("audit_functions")) and doc["audit_functions"] != audit_functions_digest(
+        conn
+    )
     out: list[AnchorResult] = []
     for h in doc["heads"]:
-        row = conn.execute(
-            "SELECT status, events, first_bad_seq FROM xt_audit.verify_anchor(%s, %s, %s)",
-            (UUID(h["tenant_id"]), int(h["seq"]), bytes.fromhex(h["hash"])),
-        ).fetchone()
-        assert row is not None
-        out.append(
-            AnchorResult(
-                h["tenant_id"],
-                int(h["seq"]),
-                str(row[0]),
-                int(row[1]),
-                int(row[2]) if row[2] is not None else None,
-            )
-        )
+        tenant, seq, want = h["tenant_id"], int(h["seq"]), bytes.fromhex(h["hash"])
+        rows = conn.execute(
+            "SELECT seq, actor_id, effective_actor, client_azp, trace_id, at, model, record_id, op,"
+            " diff, prev_hash, hash FROM xt_audit.chain(%s)",
+            (UUID(tenant),),
+        ).fetchall()
+        hashes, bad = recompute_chain(rows, tenant)
+        if changed:
+            status = "functions_changed"
+        elif seq == 0:
+            status = "broken" if bad is not None else "ok"
+        elif bad is not None and bad <= seq:
+            status = "broken"
+        elif seq not in hashes:
+            status = "missing" if all(int(r[0]) != seq for r in rows) else "broken"
+        elif hashes[seq] != want:
+            status = "mismatch"
+        elif bad is not None:
+            status = "broken"
+        else:
+            status = "ok"
+        out.append(AnchorResult(tenant, seq, status, len(rows), bad))
     return out
 
 

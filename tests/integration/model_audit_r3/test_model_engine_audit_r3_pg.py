@@ -446,7 +446,6 @@ BYPASS: dict[str, Callable[[psycopg.Connection[Any], str, TenantRef], Any]] = {
 }
 
 
-@pytest.mark.xfail(strict=True, reason="R3-01: migrator ghi dòng model không để lại event audit")
 @pytest.mark.parametrize("how", list(BYPASS))
 @pytest.mark.parametrize("tgt", ["xt:new", "xt_up:new"])
 def test_r3_01_migrator_write_always_audited(envs: dict[str, Env], tgt: str, how: str) -> None:
@@ -473,7 +472,6 @@ def test_r3_01_migrator_write_always_audited(envs: dict[str, Env], tgt: str, how
                 m.execute(f"ALTER TABLE {s}.emp_r3_orig RENAME TO emp")
 
 
-@pytest.mark.xfail(strict=True, reason="R3-02: migrator giả actor_id/trace_id trong event audit")
 @pytest.mark.parametrize("how", ["session_ctx", "replace_actor_fn"])
 def test_r3_02_migrator_cannot_forge_audit_actor(envs: dict[str, Env], how: str) -> None:
     e = envs["xt"]
@@ -516,7 +514,6 @@ def test_r3_02_migrator_cannot_forge_audit_actor(envs: dict[str, Env], how: str)
             m.execute(orig)
 
 
-@pytest.mark.xfail(strict=True, reason="R3-03: migrator gỡ cột sensitive khỏi trigger → plaintext")
 def test_r3_03_install_cannot_drop_sensitive_columns(envs: dict[str, Env]) -> None:
     e = envs["xt"]
     t = new_tenant(e)
@@ -534,9 +531,6 @@ def test_r3_03_install_cannot_drop_sensitive_columns(envs: dict[str, Env]) -> No
             m.execute("SELECT xt_audit.install(%s, 'emp', '{salary}')", (s,))
 
 
-@pytest.mark.xfail(
-    strict=True, reason="R3-04: migrator giả event của model thật bằng bảng tráo tên"
-)
 def test_r3_04_migrator_cannot_forge_event_for_real_model(envs: dict[str, Env]) -> None:
     e = envs["xt"]
     t = new_tenant(e)
@@ -603,9 +597,6 @@ def test_checkpoint_detects_superuser_tail_deletion(envs: dict[str, Env]) -> Non
     assert _status(e, doc, t) == "missing"
 
 
-@pytest.mark.xfail(
-    strict=True, reason="R3-05: checkpoint tin hàm verify_anchor trong DB của superuser"
-)
 def test_r3_05_checkpoint_verification_not_trusting_db_functions(envs: dict[str, Env]) -> None:
     e = envs["xt"]
     t = new_tenant(e)
@@ -839,9 +830,6 @@ def test_regex_subset_agrees_with_postgres(envs: dict[str, Env]) -> None:
 PG_REJECTS = ["^[A-Z]{2}{2}$", "^a$+", "^{2}a", "#*{0,}", "a+{1,3}"]
 
 
-@pytest.mark.xfail(
-    strict=True, reason="R3-07: check_regex nhận lượng từ chồng/lặp neo mà PG từ chối"
-)
 def test_r3_07_accepted_regex_compiles_in_postgres(envs: dict[str, Env]) -> None:
     ok = [p for p in PG_REJECTS if _accepts(p)]
     with envs["xt"].su() as su:
@@ -863,11 +851,17 @@ def _accepts(p: str) -> bool:
         return False
 
 
-@pytest.mark.xfail(strict=True, reason="R3-07: diễn tập ném StoreError thô (→ internal_error)")
 def test_pg_rejected_regex_is_blocked_at_rehearsal_not_500(envs: dict[str, Env]) -> None:
     e = envs["xt"]
     t = new_tenant(e)
-    new = bump(e.migrator.current(t), lambda d: fld(d, "emp", "code").update(regex="^[A-Z]{2}{2}$"))
+    try:
+        # sau sửa R3-07: bị chặn ngay ở validate spec (check_regex), trước cả diễn tập
+        new = bump(
+            e.migrator.current(t), lambda d: fld(d, "emp", "code").update(regex="^[A-Z]{2}{2}$")
+        )
+    except ValueError as x:
+        assert "lượng từ" in str(x)
+        return
     try:
         p = e.migrator.plan(t, new, rehearse=True)
     except ModelError as x:
@@ -919,16 +913,16 @@ def test_meta_audit_inventory(envs: dict[str, Env], db: str) -> None:
         "notenant=",
         sorted(r[0] for r in rows if not r[2]),
     )
-    assert gaps == sorted(KNOWN_GAPS), (db, gaps)
+    # Sau sửa R3-06: không còn bảng mang quyền/trạng thái nào ngoài hash-chain
+    assert gaps == [], (db, gaps)
 
 
-# Ghi nhận ở báo cáo vòng 3 (R3-06): mang quyền/chính sách nhưng không vào hash-chain. Test riêng
-# bên dưới là xfail strict.
+# Ghi nhận ở báo cáo vòng 3 (R3-06): mang quyền/chính sách, trước đây không vào hash-chain. Test
+# bên dưới khẳng định nay đã có audit.
 KNOWN_GAPS = {"agent_grant", "catalog_version", "login_tenant", "org_unit", "person", "tenant",
               "tenant_profile"}  # fmt: skip
 
 
-@pytest.mark.xfail(strict=True, reason="R3-06: bảng quyền/chính sách xt_meta không có audit")
 @pytest.mark.parametrize("db", ["xt", "xt_up"])
 def test_r3_06_permission_and_catalog_tables_audited(envs: dict[str, Env], db: str) -> None:
     with envs[db].su() as su:

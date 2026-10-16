@@ -424,3 +424,14 @@ Không gọi Bot API thật để đăng ký webhook trong triển khai/test t�
 | `get_inbox`: tiêu đề `"<bước>: <model>:<id8>"`, `from: null` khi người xem không đọc được bản ghi | Không lộ nội dung bản ghi |
 | REST decision trên bản ghi không phải đề nghị: luôn `transition_record` | Ref ma và bản ghi không giữ bước trả cùng 404 |
 | Gói `giao-viec-sla`, `nhan-su-vong-doi` 0.3.3 (task v4, onboarding v5, offboarding v4) | Cài lại gói |
+
+### Model engine vòng 3 (16/10/2026)
+
+| Thay đổi | Ảnh hưởng tới lớp tích hợp |
+|---|---|
+| `sql/audit_meta.sql` phiên bản 2 (`xt_meta.platform.audit_meta_version = 2`) | CSDL cũ: superuser chạy `install_meta_audit()` rồi `xt db migrate` (migration **0016** gắn audit cho person/agent_grant/tenant_profile/org_unit/login_tenant/catalog_version/tenant) |
+| Mọi bảng thường trong `xt_t<seq>` tự có trigger audit (cần cột `id uuid`, `tenant_id uuid` đúng tenant); cấm INHERITS/partition/SET SCHEMA/ALTER SCHEMA/RULE ở đó | Không tạo bảng phụ trợ trong `xt_t<seq>` ngoài bảng model của engine |
+| `xt.set_context(8)` thuộc `xt_audit_owner`; mọi hàm `xt_audit.*` và `xt.set_context` chỉ superuser đổi được | Migration của module khác không được `CREATE OR REPLACE` các hàm này (sẽ 42501); việc nâng cấp cần qua `install_meta_audit` (superuser) |
+| `xt_audit.install_meta2(bảng, cột_khóa[], redact[], tenant_col)`: `tenant_col` = `'tenant_id'` \| `'seq:<cột>'` \| `'self:<cột>'` | Bảng `xt_meta` mới: chọn `install_meta`/`install_meta2` trong chính migration, hoặc thêm vào `META_AUDIT_EXEMPT` (kèm lý do); test kiểm theo catalog thật |
+| Checkpoint có thêm `audit_functions`; `verify_against_checkpoint` tính lại chuỗi ở client (đọc `xt_audit.chain(t)`, EXECUTE cho `xt_app`) | Checkpoint lấy trước khi nâng cấp hàm audit sẽ báo `functions_changed`: sau mỗi lần `install_meta_audit` phải lấy checkpoint mới |
+| Hạ nhãn sensitive thật sự: superuser `SELECT xt_audit.declassify('<schema>.<bảng>', '<cột>')` | Trước đó cột vẫn được che (`"redacted"`) dù catalog đã hạ nhãn |

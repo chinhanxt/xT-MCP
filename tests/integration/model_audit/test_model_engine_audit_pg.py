@@ -95,9 +95,9 @@ def _start() -> Pg:
     if subprocess.run(["docker", "image", "inspect", IMAGE], capture_output=True).returncode:
         pytest.fail(f"thiếu image {IMAGE} (kiểm `df -h /` trước khi pull)")
     pg = Pg(*(secrets.token_urlsafe(16) for _ in range(3)), secrets.token_bytes(32))
-    subprocess.run(["docker", "rm", "-f", CONTAINER], capture_output=True)
+    subprocess.run(["docker", "rm", "-f", "-v", CONTAINER], capture_output=True)
     subprocess.run(
-        ["docker", "run", "-d", "--rm", "--name", CONTAINER, "-p", f"{PORT}:5432",
+        ["docker", "run", "-d", "--name", CONTAINER, "-p", f"{PORT}:5432",
          "-e", "POSTGRES_USER=xt_owner", "-e", f"POSTGRES_PASSWORD={pg.su_pw}",
          "-e", "POSTGRES_DB=xt", IMAGE, "-c", "deadlock_timeout=1s"],
         check=True, capture_output=True,
@@ -144,7 +144,7 @@ def env() -> Iterator[Env]:
         app.close()
         mig_db.close()
     finally:
-        subprocess.run(["docker", "rm", "-f", CONTAINER], capture_output=True)
+        subprocess.run(["docker", "rm", "-f", "-v", CONTAINER], capture_output=True)
 
 
 def hr(t: TenantRef, uid: int = 7) -> ModelActor:
@@ -439,7 +439,7 @@ def test_r2_04_migrator_cannot_tamper_or_forge_audit(env: Env) -> None:
             " CREATE TRIGGER xt_audit AFTER INSERT ON xt_meta.fake FOR EACH ROW"
             " EXECUTE FUNCTION xt_audit.log()",
             "SELECT xt_audit.install('xt_meta', 'tenant', '{}')",
-            "SELECT xt_audit.append(gen_random_uuid(), 'x', gen_random_uuid(), 'INSERT', '{}')",
+            "SELECT xt_audit.append(gen_random_uuid(), 'x', gen_random_uuid(), 'INSERT', '{}', 0)",
             "CREATE FUNCTION xt.noop() RETURNS trigger LANGUAGE plpgsql AS"
             " $$ BEGIN RETURN NULL; END $$;"
             f" CREATE TRIGGER spy AFTER INSERT ON xt_t{s}.emp FOR EACH ROW"

@@ -76,9 +76,9 @@ def pg() -> Iterator[Pg]:
     if subprocess.run(["docker", "image", "inspect", IMAGE], capture_output=True).returncode:
         pytest.fail(f"thiếu image {IMAGE}")
     p = Pg(*(secrets.token_urlsafe(16) for _ in range(3)), secrets.token_bytes(32))
-    subprocess.run(["docker", "rm", "-f", CONTAINER], capture_output=True)
+    subprocess.run(["docker", "rm", "-f", "-v", CONTAINER], capture_output=True)
     subprocess.run(
-        ["docker", "run", "-d", "--rm", "--name", CONTAINER, "-p", f"{PORT}:5432",
+        ["docker", "run", "-d", "--name", CONTAINER, "-p", f"{PORT}:5432",
          "-e", "POSTGRES_USER=xt_owner", "-e", f"POSTGRES_PASSWORD={p.su_pw}",
          "-e", "POSTGRES_DB=xt", IMAGE],
         check=True, capture_output=True,
@@ -100,7 +100,7 @@ def pg() -> Iterator[Pg]:
             migrate(m)
         yield p
     finally:
-        subprocess.run(["docker", "rm", "-f", CONTAINER], capture_output=True)
+        subprocess.run(["docker", "rm", "-f", "-v", CONTAINER], capture_output=True)
 
 
 def q1(c: psycopg.Connection[Any], q: str, *a: Any) -> Any:
@@ -122,17 +122,24 @@ def _events(pg: Pg, tenant: uuid.UUID, db: str = "xt") -> list[tuple[Any, ...]]:
 
 
 def test_fresh_install_attaches_meta_audit_to_all_tables(pg: Pg) -> None:
+    """Theo catalog thật: mọi bảng xt_meta hoặc có audit (bật) hoặc nằm trong danh sách miễn có lý
+    do (`META_AUDIT_EXEMPT`). Bảng xt_meta mới không có audit sẽ làm test đỏ."""
+    from xt.adapters.db.audit import META_AUDIT_EXEMPT
+
     with pg.su() as su:
         rows = su.execute(
-            "SELECT c.relname, g.tgname, g.tgenabled::text FROM pg_trigger g"
-            " JOIN pg_class c ON c.oid = g.tgrelid WHERE c.relnamespace = 'xt_meta'::regnamespace"
-            " AND g.tgname LIKE 'xt_audit_meta%' ORDER BY 1, 2"
+            "SELECT c.relname, (SELECT array_agg(g.tgname || ':' || g.tgenabled::text"
+            " ORDER BY g.tgname) FROM pg_trigger g WHERE g.tgrelid = c.oid"
+            " AND g.tgname LIKE 'xt_audit_meta%') FROM pg_class c"
+            " WHERE c.relnamespace = 'xt_meta'::regnamespace AND c.relkind = 'r' ORDER BY 1"
         ).fetchall()
-    present = {r[0] for r in rows}
-    with pg.su() as su:
-        existing = {t for t in META_TABLES if q1(su, "SELECT to_regclass(%s)", f"xt_meta.{t}")}
-    assert existing and present == existing
-    assert all(r[2] == "O" for r in rows) and len(rows) == 2 * len(existing)
+    audited = {r[0] for r in rows if r[1]}
+    gaps = sorted(r[0] for r in rows if not r[1] and r[0] not in META_AUDIT_EXEMPT)
+    assert not gaps, f"bảng xt_meta chưa có audit và không có lý do miễn: {gaps}"
+    assert set(META_TABLES) <= audited | {t for t in META_TABLES if t not in {r[0] for r in rows}}
+    for name, trig in rows:
+        if trig:
+            assert trig == ["xt_audit_meta:O", "xt_audit_meta_truncate:O"], (name, trig)
 
 
 def test_meta_writes_enter_tenant_chain_with_redaction(pg: Pg) -> None:
@@ -200,7 +207,8 @@ def test_migrator_cannot_disable_drop_or_bypass_meta_audit(pg: Pg) -> None:
             " approved_by) VALUES (%s, 'p', '1', 'd', 'a', 'b')",
             (t,),
         )
-    assert [e[1] for e in _events(pg, t)] == ["xt_meta.pack_install"]
+    # tạo tenant (xt_meta.tenant) cũng có audit từ R3-06
+    assert [e[1] for e in _events(pg, t)] == ["xt_meta.tenant", "xt_meta.pack_install"]
 
 
 def test_checkpoint_anchor_covers_meta_chain(pg: Pg) -> None:
@@ -239,7 +247,12 @@ def test_drop_tenant_cascade_still_audited(pg: Pg) -> None:
         )
         drop_tenant(m, TenantRef(ref.seq, ref.id))
     ops = [(e[1], e[2]) for e in _events(pg, ref.id)]
-    assert ops == [("xt_meta.pack_install", "INSERT"), ("xt_meta.pack_install", "DELETE")]
+    assert ops == [
+        ("xt_meta.tenant", "INSERT"),
+        ("xt_meta.pack_install", "INSERT"),
+        ("xt_meta.tenant", "DELETE"),
+        ("xt_meta.pack_install", "DELETE"),
+    ]
 
 
 def test_existing_db_upgrade_path(pg: Pg) -> None:
@@ -277,4 +290,4 @@ def test_existing_db_upgrade_path(pg: Pg) -> None:
             " approved_by) VALUES (%s, 'p', '1', 'd', 'a', 'b')",
             (t,),
         )
-    assert [e[1] for e in _events(pg, t, "xt_old")] == ["xt_meta.pack_install"]
+    assert [e[1] for e in _events(pg, t, "xt_old")] == ["xt_meta.tenant", "xt_meta.pack_install"]

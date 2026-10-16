@@ -207,7 +207,14 @@ class PgMigrator:
         lay = Layout(tenant.seq)
         prober = Prober(conn, lay, old, new)
         changes = diff_catalogs(old, new)
-        results = {cid: prober.run(p) for cid, p in probes(changes)}
+        try:
+            results = {cid: prober.run(p) for cid, p in probes(changes)}
+        except psycopg.errors.InvalidRegularExpression as e:
+            raise ModelError(
+                "invalid_request",
+                f"Regex trong spec không biên dịch được ở Postgres: {e.diag.message_primary}",
+                details={"reason": "validation"},
+            ) from e
         try:
             plan = build_plan(old, new, results)
         except ValueError as e:  # version không nối tiếp: catalog đã đổi kể từ lúc đề xuất

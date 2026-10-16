@@ -582,3 +582,31 @@ Còn mở:
 - R3-07 và hạ tầng test (LOW).
 
 Lõi model engine (G-M1, RLS/BI, pha 2, regex) **ĐẠT**. Container `xt-audit-r3-model-*` đã xóa cùng volume.
+
+## Phản hồi tác giả, vòng 3 (16/10/2026)
+
+| Mã | Cách sửa (`src/xt/adapters/db/sql/audit_meta.sql`, phiên bản 2, superuser, idempotent) |
+|---|---|
+| R3-01 | `ddl_guard` (event trigger SECURITY DEFINER của superuser) có 4 cơ chế: (a) mọi bảng thường trong `xt_t<seq>` **tự được gắn** trigger audit khi CREATE TABLE/ALTER TABLE, nên bảng tráo tên (`LIKE … INCLUDING ALL`) vẫn có audit; (b) bảng mang trigger `xt_audit` không được rời schema tenant (chặn `SET SCHEMA`); (c) `ALTER SCHEMA` (đổi tên/chủ) trên schema chứa bảng có audit hoặc trên schema nền tảng bị chặn với role không phải superuser; (d) cấm `INHERITS`/`ATTACH PARTITION` dính tới bảng của `xt_t*` hoặc bảng đã đăng ký, cấm bảng partition trong `xt_t*`. Bảng metadata có audit không được đổi tên/dời schema/xóa (trừ superuser) |
+| R3-02 | Actor/trace của event lấy từ `xt_audit.session_ctx`. Bảng này chỉ `xt.set_context` ghi; hàm đã chuyển chủ sang `xt_audit_owner`, và chỉ superuser được CREATE/ALTER/DROP nó cùng mọi hàm `xt_audit.*` (event trigger chặn). Migrator tự INSERT `xt_meta.session_ctx` thì event của nó vẫn mang actor NULL. Thay `xt.actor()` không đổi được actor trong audit |
+| R3-03 | Registry cột sensitive theo `(relid, attnum)` (`xt_audit.sensitive`, sống qua rename cột). `install` chỉ thêm vào registry; cột bị bỏ khỏi danh sách chuyển `inactive`, vẫn HMAC nếu app cấp, không thì lưu `"redacted"`, không bao giờ plaintext. Hạ nhãn thật sự cần superuser gọi `xt_audit.declassify(bảng, cột)` |
+| R3-04 | `rel_registry` (oid bảng). `log()`/`log_meta()` từ chối bảng chưa đăng ký. Event có cột `relid`, và `append` từ chối event cho một `record_id` đã thuộc bảng khác. Khóa meta không phải `id` được băm theo tên bảng để tránh trùng giữa các bảng |
+| R3-05 | `verify_against_checkpoint` đọc dòng thô (`xt_audit.chain`), tự tính lại SHA-256 theo `canon` ở client và so với đầu chuỗi đã ký. Checkpoint còn ghi digest của mọi hàm `xt_audit.*` + `xt.set_context`, đọc thẳng từ `pg_proc`; digest khác thì trạng thái là `functions_changed` |
+| R3-06 | Migration `0016_audit_meta_permissions.sql` gắn audit cho `person`, `agent_grant`, `tenant_profile`, `org_unit`, `login_tenant`, `catalog_version` (tenant theo `seq:`) và `tenant` (`self:`). Hai biến thể mới đi kèm: `install_meta2(bảng, cột_khóa[], redact[], tenant_col)` cho khóa ghép hoặc khóa không phải uuid, và `xt_audit.install_meta` giữ chữ ký cũ để tương thích |
+| R3-07 | `check_regex` cấm lượng từ không có toán hạng hợp lệ: ở đầu pattern, sau `( | ^ $`, hoặc ngay sau lượng từ khác (`{2}{2}`, `a+{1,3}`). `plan` dịch `InvalidRegularExpression` thành `invalid_request` |
+| Hạ tầng test | `tests/integration/pg.py` và 2 fixture trong `model_audit/` dùng `docker rm -f -v` và bỏ `--rm`. Đã dọn 22 volume ẩn danh sót trong ngày. `test_audit_meta_pg` kiểm theo catalog thật với danh sách miễn có lý do (`xt.adapters.db.audit.META_AUDIT_EXEMPT`) |
+
+**Sửa test của tester:**
+- Gỡ toàn bộ xfail.
+- `test_pg_rejected_regex_is_blocked_at_rehearsal_not_500`: spec giờ bị chặn ngay ở validate (`ValueError`), trước cả diễn tập. Đây là yêu cầu "reject at validation".
+- `test_meta_audit_inventory`: sau R3-06 khẳng định `gaps == []`.
+- `composition/test_fixtures.py::test_rls_two_tenants_fail_closed`: bảng thử nghiệm trong `xt_t<seq>` dùng `id uuid`, vì mọi bảng trong schema tenant giờ luôn có audit.
+
+**Kết quả:**
+- `tests/unit/model`: 166 passed.
+- `test_model_engine_pg` + `model_audit` + `model_audit_r3` (cài mới và nâng cấp từ 98e1a1b): 85 passed.
+- `composition`: 59/60. Lỗi còn lại `test_pack_ops::test_start_process_scans_refs_nested_in_object_inputs` thuộc phần đang sửa dở của agent khác (input schema tool), không liên quan audit.
+
+**Còn chấp nhận theo quyết định chủ dự án** ("migrator tin cậy với schema"):
+- Migrator vẫn sửa được hàm `xt.cur()` và qua đó sửa RLS. Đó là quyền schema, không phải audit; mọi lần ghi dữ liệu vẫn có event.
+- Superuser kiểm soát mọi đường đọc của verifier. Việc kiểm phía client cộng digest hàm phát hiện được việc thay hàm kiểm và tính lại chuỗi, nhưng không phát hiện được superuser giả cả `pg_proc`.

@@ -97,6 +97,12 @@ def test_floats_parse_as_decimal() -> None:
         "^a.b$",
         "(a{255}){255}",
         "(ab{2}){3}",
+        "^[A-Z]{2}{2}$",
+        "^a$+",
+        "^{2}a",
+        "#*{0,}",
+        "a+{1,3}",
+        "(|*)",
     ],
 )
 def test_regex_outside_common_subset_rejected(pattern: str) -> None:
