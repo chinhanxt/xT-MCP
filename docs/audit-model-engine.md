@@ -626,3 +626,69 @@ Lõi model engine (G-M1, RLS/BI, pha 2, regex) **ĐẠT**. Container `xt-audit-r
 - Test "policy gián điệp" chuyển sang gài mã qua CHECK `NOT VALID`, vì đường policy nay đã bị chặn. Bảng tráo tên (R3-01) giờ bị RLS FORCE không có policy chặn đọc (fail-closed), nhưng vẫn có event audit.
 
 **Kết quả:** model engine + model_audit + model_audit_r3 + composition 151 passed; `test_headless_data` 32 passed; unit 1724 passed.
+
+## Vòng 4 (16/10/2026, Opus tester)
+
+**Cách làm:** không sửa `src`. Dùng lại cụm của vòng 3 (một container `postgres:17-alpine`, tên và cổng ngẫu nhiên, dọn bằng `docker rm -f -v`; CSDL `xt` cài mới và `xt_up` nâng cấp từ `98e1a1b`). Test mới nằm ở `tests/integration/model_audit_r4/test_model_engine_audit_r4_pg.py`: 7 test phòng thủ và 17 xfail strict.
+
+### 1. Soát test tác giả đã sửa (`git log -p e4acbb8^..HEAD`)
+
+| Test | Đánh giá |
+|---|---|
+| Policy gián điệp → CHECK `NOT VALID` (`model_audit` + `r3`) | **Không yếu đi.** Test giờ kiểm thêm rằng `CREATE POLICY` bị chặn với 42501, và vẫn gài được mã chạy dưới `xt_app` qua CHECK, nên vẫn chứng minh khóa HMAC không lộ. Tuy vậy, chính việc này cho thấy CHECK là một kênh chạy mã còn mở (xem R4-02) |
+| `test_r3_01_*` bỏ điều kiện "dòng thấy được qua model" | Chấp nhận được. Đòi event INSERT với **mọi** dòng migrator ghi được là điều kiện chặt hơn. Việc bảng tráo tên không đọc được (RLS FORCE, không có policy) là fail-closed |
+| Regex chấp nhận `ValueError` khi validate | Chấp nhận được. Test đòi thông điệp có "lượng từ", nên không lọt lỗi khác |
+| `test_meta_audit_inventory`: `gaps == []` | **Chặt hơn.** `EXCLUDED_OK` không đổi |
+| `test_audit_meta_pg`: so theo catalog thật + `META_AUDIT_EXEMPT` | Chặt hơn (trước đây so với danh sách cứng). Dòng `assert set(META_TABLES) <= …` gần như luôn đúng, nhưng vô hại |
+
+### 2. Chạy lại
+
+| Kiểm thử | Kết quả |
+|---|---|
+| `test_model_engine_pg` + `model_audit` (gồm `test_audit_meta_pg`) + `model_audit_r3`, trên CSDL cài mới và nâng cấp | **91 passed** |
+| Thêm `model_audit_r4` | 98 passed, 17 xfailed (strict). Không còn container sót |
+
+### 3. Bảng PASS/FAIL vòng 4
+
+| # | Mục | KQ | Bằng chứng |
+|---|---|---|---|
+| 1 | Event trigger: migrator `ALTER EVENT TRIGGER … DISABLE/ENABLE REPLICA/RENAME/OWNER`, `DROP`/`CREATE EVENT TRIGGER`, `session_replication_role` | PASS | Đều 42501 (chỉ chủ là superuser mới làm được), trên cả `xt` và `xt_up`. Hai event trigger vẫn ở trạng thái `O` |
+| 2 | `xt_audit.set_policies`: tiêm qua tên vai trò, scope, actions, `mid`, `tbl`; `sch` = `xt_meta`/`public`/schema giả; bảng chưa đăng ký | PASS | Mọi biến thể bị từ chối, policy không đổi, `policy_pass` rỗng. Vai trò được đưa vào bằng `%L`, scope và actions theo allowlist, bảng qua `regclass` |
+| 3 | `set_policies` với `mid` khác (`zz`) | INFO | Thêm được một bộ policy PERMISSIVE thứ hai (nới quyền **trong** tenant, không cần duyệt catalog, không có event audit). `p_zz_tenant` RESTRICTIVE vẫn luôn có, nên không đọc chéo tenant |
+| 4 | Hàm ngữ cảnh theo oid: `ALTER … SET search_path/VOLATILE/RENAME/SET SCHEMA/SECURITY INVOKER`, `DROP … CASCADE` (`tenant`, `backend_cur`, `set_context(jsonb)`) | PASS | 42501/2BP01. Các kiểu DROP+CREATE cùng tên đều chết ở bước DROP |
+| 5 | **R4-01** Migrator viết lại ngữ cảnh RLS của `xt_app` qua bảng ngữ cảnh | **FAIL (HIGH)** | (a) `CREATE TRIGGER … BEFORE INSERT OR UPDATE ON xt_meta.session_ctx` đặt `NEW.tenant_id` = tenant nạn nhân và `NEW.roles = {hr}`. Kết quả: phiên `xt_app` của tenant A, không vai trò nào, đọc được `xt_t<V>.emp`. `session_ctx` được miễn audit nên `ddl_guard` bỏ qua hoàn toàn. (b) `DROP CONSTRAINT` CHECK `login !~ '^xt_'` của `login_tenant` rồi INSERT `login='xt_app'`: `xt.cur()` ưu tiên `login_tenant`, nên **mọi** phiên `xt_app` mang ngữ cảnh của tenant V. Có event audit, nhưng vẫn đọc chéo tenant. Lỗi xảy ra trên cả `xt` và `xt_up` |
+| 6 | **R4-02** CHECK / DEFAULT / domain CHECK / cột generated STORED của migrator gọi `xt.set_context` dưới `xt_app` | **FAIL (MEDIUM)** | Cả 4 kiểu × 2 CSDL: event INSERT mang `actor_id` giả (`…ff`) thay cho actor thật (`…07`), tức là R3-02 vẫn giả được theo đường khác. Hàm gài vào còn nâng được vai trò (`{hr,admin}`) hoặc đổi tenant cho phần còn lại của transaction app |
+| 7 | **R4-03** `DROP COLUMN tenant_id CASCADE` gỡ policy RESTRICTIVE | **FAIL (HIGH)** | `drop_guard` chỉ chặn policy có `original = true`. Policy bị xóa dây chuyền thì lọt, còn `ddl_guard` không kiểm việc có/không có policy tenant sau `ALTER TABLE`. Thêm lại `tenant_id` thì: 0 policy RESTRICTIVE, app của tenant A với vai trò `hr` đọc được dòng của tenant V (cả `xt` lẫn `xt_up`) |
+| 8 | **R4-04** `xt.row_touch()` không được bảo vệ | **FAIL (MEDIUM)** | Migrator `CREATE OR REPLACE xt.row_touch()`. Oid giữ nguyên nên trigger `xt_touch` vẫn qua whitelist, và mã của migrator chạy BEFORE INSERT/UPDATE trên mọi bảng model với quyền `xt_app`. Đã chứng minh giả actor trong audit |
+| 9 | **R4-05** Độ phủ `functions_changed` | **FAIL (LOW)** | Superuser sửa `xt.row_touch()` thì checkpoint vẫn báo `ok`. Đổi `proconfig` của hàm được bảo vệ (`ALTER FUNCTION xt.tenant() SET search_path`) thì có phát hiện (PASS). Ngoài digest còn có: hàm do CHECK/DEFAULT/domain gọi, trạng thái `pg_event_trigger`/`tgenabled`, và hàm extension (`deptype = 'e'`, ví dụ `xt_audit.digest`; ảnh hưởng thấp vì client tự tính lại SHA-256) |
+
+### 4. Hướng sửa
+
+- **R4-01:**
+  - Chuyển `xt_meta.session_ctx`, `xt_meta.login_tenant` (cùng CHECK của nó) sang chủ NOLOGIN không cấp cho migrator. Cách khác: `ddl_guard` cấm mọi trigger, RULE, đổi ràng buộc hoặc cột trên các bảng mà `xt.cur()`/`backend_cur()` đọc.
+  - Ghi `login_tenant` chỉ qua hàm SECURITY DEFINER, hàm này tự kiểm `login !~ '^xt_'` và chặn mọi role hệ thống.
+- **R4-02 / R4-04:**
+  - Với bảng trong `xt_t*`, `ddl_guard` chỉ cho CHECK/DEFAULT/generated/domain dùng hàm thuộc allowlist (`pg_depend` của `pg_constraint`/`pg_attrdef` lên `pg_proc`), hoặc chỉ cho biểu thức không gọi hàm nào ngoài `pg_catalog`. Biểu thức do compiler sinh ra hiện chỉ dùng hàm trong `pg_catalog`.
+  - Đưa `xt.row_touch()` vào `protected_fn` và vào digest.
+  - `set_context` nên từ chối nếu được gọi lồng trong một lệnh DML (ví dụ `pg_trigger_depth() > 0`, hoặc đã có `xid` khác NULL trong `xt_audit.session_ctx` của transaction này). Ngữ cảnh chỉ được đặt một lần trong mỗi transaction.
+- **R4-03:**
+  - `drop_guard` chặn **mọi** policy bị xóa trên `xt_t*`/meta đã đăng ký (bỏ điều kiện `r.original`) nếu không có `policy_pass`.
+  - `ddl_guard` khẳng định sau mọi `ALTER TABLE` trên bảng model: còn đúng policy RESTRICTIVE `tenant_id = xt.tenant()` trên cột `tenant_id` hiện tại, và cấm DROP/đổi kiểu `tenant_id`.
+- **INFO (`set_policies`):** ràng `mid` với id model của bảng trong catalog, và ghi một event audit (hoặc nối vào `catalog_version`) mỗi lần đổi policy.
+
+### 5. Kết luận vòng 4
+
+**CHƯA ĐẠT** với quyết định "migrator không được đổi ngữ cảnh RLS / đọc chéo tenant".
+
+Các sửa của vòng 3 đứng vững trên mọi đường đã được nêu:
+- Event trigger, `set_policies`, hàm ngữ cảnh theo oid, policy trực tiếp, RLS/FORCE.
+- 91 test cũ xanh, trên cả CSDL cài mới lẫn nâng cấp.
+- Test của auditor không bị làm yếu.
+
+Còn mở:
+- **R4-01 (HIGH):** trigger trên `session_ctx`, hoặc `login_tenant` mang `xt_app`, gây đọc chéo tenant.
+- **R4-03 (HIGH):** `DROP COLUMN … CASCADE` gỡ policy tenant.
+- **R4-02, R4-04 (MEDIUM):** mã của migrator chạy dưới `xt_app` để giả actor hoặc nâng vai trò.
+- **R4-05 (LOW):** độ phủ digest.
+
+Lõi model engine và audit trực tiếp **ĐẠT**.
