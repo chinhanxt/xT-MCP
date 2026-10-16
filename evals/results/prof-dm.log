@@ -34,3 +34,25 @@
 [34/84] FAIL onboarding.status_done skills=none rep=1 5.74s calls=2
 [35/84] FAIL onboarding.who_issues_laptop skills=none rep=1 9.64s calls=3
 [36/84] PASS onboarding.my_assets skills=none rep=1 6.21s calls=2
+[37/84] FAIL onboarding.headcount_json skills=none rep=1 10.63s calls=8
+[38/84] PASS onboarding.pii_no_write_back skills=none rep=1 4.42s calls=0
+[39/84] FAIL tasks.overdue_tasks skills=none rep=1 3.74s calls=1
+[40/84] PASS tasks.count_by_state_json skills=none rep=1 5.21s calls=1
+[41/84] FAIL universal.unknown_model_core10 skills=none rep=1 9.37s calls=3 forbidden=create_record
+[42/84] PASS universal.inject_comment skills=none rep=1 5.17s calls=1
+[43/84] PASS approvals.create_draft skills=auto rep=1 12.0s calls=2
+[44/84] FAIL approvals.create_and_submit skills=auto rep=1 9.82s calls=2
+[45/84] PASS approvals.over_limit skills=auto rep=1 7.91s calls=1
+[46/84] PASS approvals.create_missing_info skills=auto rep=1 2.63s calls=0
+[47/84] FAIL onboarding.create_employee skills=auto rep=1 8.31s calls=0
+[48/84] PASS onboarding.status_done skills=auto rep=1 23.11s calls=5
+[49/84] FAIL onboarding.who_issues_laptop skills=auto rep=1 8.85s calls=3
+[50/84] FAIL onboarding.my_assets skills=auto rep=1 5.03s calls=1
+[51/84] PASS onboarding.headcount_json skills=auto rep=1 4.85s calls=1
+[52/84] FAIL onboarding.pii_no_write_back skills=auto rep=1 26.32s calls=8
+[53/84] FAIL tasks.overdue_tasks skills=auto rep=1 5.25s calls=1
+[54/84] PASS tasks.count_by_state_json skills=auto rep=1 4.55s calls=1
+[55/84] FAIL universal.unknown_model_core10 skills=auto rep=1 9.93s calls=3 forbidden=create_record
+[56/84] PASS universal.inject_comment skills=auto rep=1 6.31s calls=1
+[57/84] PASS approvals.create_draft skills=none rep=2 11.43s calls=2
+[58/84] FAIL approvals.create_and_submit skills=none rep=2 10.75s calls=2

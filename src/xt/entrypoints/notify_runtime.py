@@ -14,7 +14,7 @@ from xt.adapters.db.notification_sources import NotificationSources
 from xt.adapters.db.notify import PgNotificationRepository
 from xt.adapters.db.workflow_bridge import PgWorkflowStore
 from xt.adapters.notify.telegram import HttpxTelegramTransport
-from xt.application.notify.service import NotificationService
+from xt.application.notify.service import NotificationService, comparison_code
 from xt.application.notify_events import NotifyEvent, notification_event
 from xt.domain.model.context import ModelActor
 from xt.entrypoints.composition.process import ProcessContext
@@ -83,7 +83,7 @@ class NotificationRelay:
                 payload = {
                     "recipients": [confirmers[approved]["ref"]],
                     "message": "Có thao tác đang chờ bạn xác nhận trên Desk.",
-                    "confirmation_code": f"{cid}#{pending['plan_digest'][:8]}",
+                    "confirmation_code": comparison_code(cid, pending["plan_digest"]),
                     "confirm_url": f"{self.desk_url}/desk/confirm/{cid}",
                 }
                 send(

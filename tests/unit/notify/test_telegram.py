@@ -170,3 +170,12 @@ def test_verbose_http_logs_redact_bot_credentials(caplog: pytest.LogCaptureFixtu
         )
     assert TOKEN not in caplog.text
     assert "[REDACTED]" in caplog.text
+
+
+def test_comparison_reference_cannot_smuggle_phone_pii() -> None:
+    with httpx.Client(
+        transport=httpx.MockTransport(lambda _: pytest.fail("unexpected egress"))
+    ) as c:
+        sender = HttpxTelegramTransport(TOKEN, desk_base_url=DESK, client=c)
+        with pytest.raises(ValueError, match="privacy safe"):
+            sender.send("1234", summary="Thông báo mới", reference="0912345678")

@@ -43,6 +43,7 @@ from xt.adapters.identity.step_up import (
     confirm_authorization_url,
     new_pkce_pair,
 )
+from xt.application.notify.service import comparison_code
 from xt.application.tools import ConfirmationService, ToolDispatcher
 from xt.application.tools.ports import PendingOperation, PendingStatus
 from xt.domain.identity import (
@@ -193,7 +194,8 @@ class ConfirmPages:
             f"{html.escape(op.level.value)} · <b>Hết hạn:</b> "
             f"{html.escape(op.expires_at.astimezone(UTC).isoformat())}</p>"
             f"<p><b>Người phải xác nhận:</b> {html.escape(who.name if who else '-')}</p>"
-            f"<p><b>Mã đối chiếu:</b> <code>{html.escape(op.confirmation_id)}#{html.escape(digest[:8])}</code></p>"
+            f"<p><b>Mã đối chiếu:</b> <code>"
+            f"{html.escape(comparison_code(op.confirmation_id, digest))}</code></p>"
             f"<p><b>Mã kế hoạch (digest):</b> <code>{html.escape(digest)}</code></p></div>"
             f"<div class='box agent'><p><b>Nội dung do {agent} "
             f"<code>{html.escape(op.actor.client_id)}</code> soạn</b> (dữ liệu, không phải chỉ "

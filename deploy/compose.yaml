@@ -333,6 +333,7 @@ services:
       XT_WORKER_RECOVER_SECONDS: ${XT_WORKER_RECOVER_SECONDS:-5}
       XT_WORKER_MAX_ATTEMPTS: ${XT_WORKER_MAX_ATTEMPTS:-3}
       XT_WORKER_RETRY_SECONDS: ${XT_WORKER_RETRY_SECONDS:-30}
+      XT_DESK_URL: https://${XT_DOMAIN_DESK}
       XT_WORKER_HANDLERS: ${XT_WORKER_HANDLERS:-xt.entrypoints.composition.worker:handlers}
       XT_WORKFLOW_RELAY_SECONDS: ${XT_WORKFLOW_RELAY_SECONDS:-15}   # chu kỳ relay hẹn giờ SLA + outbox model
       # model.apply (đề xuất model đã duyệt): pha 1 DDL + pha 2 bằng role migrator

@@ -54,7 +54,7 @@ Chú thích: "phiên bản" là bản pin/mục tiêu theo V2 (hoặc bản mớ
 | python-dateutil | 2.9.0.post0 | Apache-2.0 OR BSD-3-Clause (dual) | Có | pip dependency (runtime) | https://pypi.org/project/python-dateutil/ | 2026-10-15 | Chọn điều khoản Apache-2.0. |
 | holidays | 0.106 | MIT | Có | pip dependency (runtime) | https://pypi.org/project/holidays/ | 2026-10-15 | PyPI + GitHub MIT. Đóng điều kiện `[kiểm giấy phép]` của V2. |
 | boto3 | — (không dùng) | Apache-2.0 | Có | **không vào `pyproject.toml`** | https://pypi.org/project/boto3/ | 2026-10-16 | Thay bằng client S3 tối thiểu tự viết (`src/xt/adapters/blob/s3.py`, AWS SigV4 trên `httpx` đã có): 6 thao tác (PUT/HEAD/GET/Copy/DELETE/CreateBucket), tránh ~90 MB boto3+botocore+s3transfer. Đã kiểm với SeaweedFS 4.48 thật (chữ ký sai -> 403, sha256 sai -> 400 BadDigest). |
-| aiogram | 3.31.0 | MIT | Có | pip dependency (runtime, xt-bot) | https://pypi.org/project/aiogram/ | 2026-10-15 |  |
+| aiogram | 3.31.0 | MIT | Có | kế hoạch, chưa dùng | https://pypi.org/project/aiogram/ | 2026-10-15 | Telegram dùng Bot API tối thiểu trên httpx có sẵn; không thêm aiogram hay python-telegram-bot. |
 | httpx | 0.28.1 | BSD-3-Clause | Có | pip dependency (runtime) | https://pypi.org/project/httpx/ | 2026-10-15 |  |
 | pyotp | 2.10.0 | MIT | Có | pip dependency (runtime, TOTP cho `/confirm`) | https://pypi.org/project/pyotp/ | 2026-10-15 |  |
 | sqlglot | 30.23.0 | MIT | Có | dev/test (đếm câu lệnh trong DDL do model engine sinh; không ở đường chạy) | https://pypi.org/project/sqlglot/ | 2026-10-15 | Nhóm `dev` trong `pyproject.toml`. |

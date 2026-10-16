@@ -55,7 +55,7 @@ class NotificationToolAdapter:
             summary=f"Gửi thông báo nội bộ tới {len(recipients)} người.",
             target_ref=str(subject_ref) if subject_ref else None,
             digest_source={
-                "recipients": [p.ref for p in recipients],
+                "recipients": [{"id": str(p.id), "ref": p.ref} for p in recipients],
                 "message": args["message"],
                 "subject_ref": subject_ref,
             },

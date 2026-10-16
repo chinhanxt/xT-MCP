@@ -15,7 +15,7 @@ from tests.unit.notify.test_service import Repository
 from tests.unit.tools.fakes import agent_ctx
 from xt.adapters.notify.telegram import HttpxTelegramTransport
 from xt.application.notify.ports import Notification, Person
-from xt.application.notify.service import SAFE_SUMMARY, NotificationService
+from xt.application.notify.service import SAFE_SUMMARY, NotificationService, comparison_code
 from xt.application.tools.dispatcher import plan_digest
 from xt.entrypoints.composition.notify import NotificationToolAdapter
 
@@ -102,3 +102,32 @@ def test_audit_unavailable_blocks_any_telegram_egress(monkeypatch: pytest.Monkey
         )
         with pytest.raises(RuntimeError, match="audit storage unavailable"):
             service.deliver_pending()
+
+
+@pytest.mark.parametrize("prefix", ["", "sha256:"])
+def test_comparison_code_strips_digest_prefix_and_displays_exact_eight_hex(prefix: str) -> None:
+    assert comparison_code("cf_example", prefix + "1234abcd" + "0" * 56) == "cf_example#1234abcd"
+
+
+@pytest.mark.parametrize("digest", ["sha256:x", "sha256:" + "a" * 63, "sha256:" + "g" * 64])
+def test_comparison_code_rejects_malformed_digest(digest: str) -> None:
+    with pytest.raises(ValueError):
+        comparison_code("cf_example", digest)
+
+
+def test_confirm_page_displays_same_code_as_telegram() -> None:
+    from xt.entrypoints.composition.confirm_web import ConfirmPages
+
+    pending = SimpleNamespace(
+        confirmation_id="cf_example",
+        next_confirmer=None,
+        arguments={},
+        actor=SimpleNamespace(is_agent=True, client_id="xt-agent"),
+        plan_summary="Private plan",
+        tool="notify",
+        level=SimpleNamespace(value="L2"),
+        expires_at=agent_ctx().now,
+    )
+    digest = "sha256:" + "1234abcd" + "0" * 56
+    page = ConfirmPages._plan_html(None, pending, digest)  # type: ignore[arg-type]
+    assert f"<code>{comparison_code(pending.confirmation_id, digest)}</code>" in page

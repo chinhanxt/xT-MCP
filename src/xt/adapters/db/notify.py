@@ -235,6 +235,7 @@ class PgTelegramDirectory:
             used = cur.execute(
                 "UPDATE xt_meta.telegram_link_code SET used_at=clock_timestamp()"
                 " WHERE hash=%s AND used_at IS NULL AND expires_at>clock_timestamp()"
+                " AND EXISTS(SELECT 1 FROM xt_meta.person WHERE id=xt.actor() AND active)"
                 " RETURNING person",
                 (digest,),
             ).fetchone()
@@ -264,9 +265,12 @@ class PgTelegramDirectory:
         actor = ModelActor(TenantRef(context[0], context[1]), context[2], ())
         with self.db.tenant_tx(actor) as cur:
             row = cur.execute(
-                "SELECT id,confirmation_code,confirm_url FROM xt_meta.notification"
-                " WHERE recipient=xt.actor() AND (id::text=%s OR confirmation_code=%s)",
-                (reference, reference),
+                "SELECT n.id,n.confirmation_code,n.confirm_url FROM xt_meta.notification n"
+                " JOIN xt_meta.telegram_link l ON l.tenant_id=n.tenant_id AND l.person=n.recipient"
+                " JOIN xt_meta.person p ON p.tenant_id=n.tenant_id AND p.id=n.recipient"
+                " WHERE n.recipient=xt.actor() AND p.active AND l.telegram_user_id=%s"
+                " AND l.chat_id=%s AND (n.id::text=%s OR n.confirmation_code=%s)",
+                (str(telegram_user_id), str(chat_id), reference, reference),
             ).fetchone()
         if not row:
             return None

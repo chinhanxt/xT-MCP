@@ -16,6 +16,16 @@ from xt.application.tools.errors import invalid_request
 SAFE_SUMMARY = "Bạn có thông báo mới trong xT. Mở Desk để xem nội dung."
 
 
+def comparison_code(confirmation_id: str, plan_digest: str) -> str:
+    """Same captured-plan code on Desk and Telegram, with exactly eight digest hex digits."""
+    digest = plan_digest.removeprefix("sha256:")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,160}", confirmation_id):
+        raise ValueError("Invalid confirmation identifier")
+    if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise ValueError("Invalid SHA-256 plan digest")
+    return f"{confirmation_id}#{digest[:8]}"
+
+
 class NotificationService:
     def __init__(
         self,

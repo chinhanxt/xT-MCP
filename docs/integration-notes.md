@@ -389,3 +389,21 @@ Quyết định: `docs/decisions.md` "start_process + timer start". Catalog MCP 
 | `get_inbox`: mục của bước có `complete_via` -> `ref` bản ghi chủ thể, `revision`, `to_states`, `suggested_tool:"transition_record"`; `get_record.available_transitions` có transition của bước người gọi giữ | Agent đi thẳng inbox -> transition_record |
 | REST `POST /tasks/{ref}/decision` nhận `values` (chỉ bước người); ref không phải đề nghị -> `transition_record`. `GET /instances/{id}`: `request` có thể `null`, `tasks[].task_id` = ref bản ghi chủ thể | OpenAPI `x-xt-tools` thêm `transition_record`, `describe_process` |
 | Gói `giao-viec-sla` 0.3.2 (`task_normal`/`task_urgent` v3, statement `tsk.step-transition`), `nhan-su-vong-doi` 0.3.2 (onboarding v4, offboarding v3, `lifecycle_task.step`, `owner_unit` + `chief_accountant`, statement `hr.step-transition`) | Tenant đã cài 0.3.1 cài lại gói (chỉ thêm); instance cũ chạy bản cũ (không `complete_via`) |
+
+## `notify` v1.0 / Telegram (16/10/2026)
+
+Quyết định D-NOTIFY-1…8 trong `docs/decisions.md`; hướng dẫn vận hành: `docs/notifications.md`.
+
+| Điểm cắm | Hiện thực |
+|---|---|
+| Catalog | File mới `contracts/tools/notify.py`, một import + nối `NOTIFY` vào cuối `CATALOG`; đúng TCV1 §6.4, IAM `notify.send`, L2. Không sửa core-10. Test equality docs↔code và contract invariants bao phủ tool mới. |
+| Pipeline tool | `ToolServices.notifications` optional + handler `Notify` nhỏ trong `application/tools/handlers.py`; logic port ở `application/notify_tool.py`. `composition/__init__.py` chỉ thêm import + `notifications=NotificationToolAdapter(rt)`. Dispatcher cũ giữ IAM → idempotency → plan → Desk confirmation → commit → PII. |
+| Application/DB | `application/notify/{ports,service}.py`; `adapters/db/notify.py`; migrations `0014_notify.sql`, `0015_notification_sources.sql`. Migration tự nhận qua `xt db migrate`. Inbox hiện có đọc nguyên bảng `xt_meta.notification`; giữ API `get_inbox`. `IntegrationStore.notify` bỏ RETURNING để không cần quyền SELECT inbox người khác. |
+| Worker | File mới `entrypoints/notify_runtime.py`, `adapters/db/notification_sources.py`, `application/notify_events.py`; `composition/worker.py` chỉ dựng `NotificationRelay` và gọi trong relay tenant hiện có. Không thêm chuỗi timer hay queue pool. Gửi Telegram sau commit, audit trước network, không retry mơ hồ. |
+| HTTP | File mới `entrypoints/notify_http.py`, `telegram_http.py`, `telegram_link.py`; `serve.Prepared.http_app` bọc `with_notifications(...)` sau files/workflow. Token rỗng không mount bot. Giữ lifespan/mount hiện tại. |
+| Liên kết người | POST `/telegram/link-code` với token đúng audience MCP + allowlist `TELEGRAM_LINK_CLIENTS`; chỉ khởi tạo PKCE, chưa trả mã. Người mở URL, xác thực tươi+OTP tại callback `/desk/telegram/callback` rồi tự nhập `/link <code>` trong private chat. Provision client confirm thêm URI callback cố định này. Không nhận person/tenant từ body. |
+| Confirm page | Thêm dòng mã đối chiếu chụp từ pending digest; không thay logic duyệt. Telegram không thể thực thi operation. |
+| Deploy | `xt-api`/`xt-worker` có `TELEGRAM_*`; worker thêm `XT_DESK_URL`. APISIX route POST webhook ở domain API; link-code ở API/Desk; callback `/desk/*` đi route Desk có sẵn. Không tạo service/container mới. |
+| Skills | `skills/xt-core/references/notifications.md`; `tool_count: 19`. Eval agent cần sinh lại catalog full nếu đang giữ snapshot; core-10 không thay đổi. |
+
+Không gọi Bot API thật để đăng ký webhook trong triển khai/test tự động. Người vận hành đăng ký thủ công theo tài liệu chính thức, secret không nằm trong repo.

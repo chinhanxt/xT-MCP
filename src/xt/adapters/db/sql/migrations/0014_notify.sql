@@ -4,6 +4,7 @@
 ALTER TABLE xt_meta.notification DROP CONSTRAINT IF EXISTS notification_title_check;
 ALTER TABLE xt_meta.notification ADD CONSTRAINT notification_title_check
  CHECK (char_length(title) BETWEEN 1 AND 1000);
+ALTER TABLE xt_meta.notification ADD CONSTRAINT notification_tenant_id UNIQUE (tenant_id,id);
 ALTER TABLE xt_meta.notification ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'notification';
 ALTER TABLE xt_meta.notification ADD COLUMN IF NOT EXISTS confirmation_code text;
 ALTER TABLE xt_meta.notification ADD COLUMN IF NOT EXISTS confirm_url text;
@@ -22,10 +23,11 @@ CREATE TABLE xt_meta.notification_request (
 );
 CREATE TABLE xt_meta.notification_delivery (
  tenant_id uuid NOT NULL DEFAULT xt.tenant() REFERENCES xt_meta.tenant(id) ON DELETE CASCADE,
- id uuid PRIMARY KEY REFERENCES xt_meta.notification(id) ON DELETE CASCADE,
+ id uuid PRIMARY KEY,
  actor uuid NOT NULL, recipient uuid NOT NULL, payload jsonb NOT NULL,
  state text NOT NULL DEFAULT 'queued' CHECK (state IN ('queued','sending','sent','failed')),
- external_id text, attempts int NOT NULL DEFAULT 0, updated_at timestamptz NOT NULL DEFAULT clock_timestamp()
+ external_id text, attempts int NOT NULL DEFAULT 0, updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+ FOREIGN KEY(tenant_id,id) REFERENCES xt_meta.notification(tenant_id,id) ON DELETE CASCADE
 );
 CREATE INDEX notification_delivery_pending ON xt_meta.notification_delivery(tenant_id,state);
 CREATE TABLE xt_meta.telegram_link_code (

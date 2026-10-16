@@ -443,7 +443,7 @@ def provision(kc: KC, env: dict[str, str]) -> None:
     confirm = upsert_client(kc, realm, {
         "clientId": env.get("XT_CONFIRM_CLIENT_ID", "xt-desk-confirm"), "name": "xT Desk confirm (step-up OTP)",
         "publicClient": True, "standardFlowEnabled": True, "directAccessGrantsEnabled": False, "serviceAccountsEnabled": False,
-        "redirectUris": [f"{desk}/desk/confirm/callback"], "webOrigins": [desk],
+        "redirectUris": [f"{desk}/desk/confirm/callback", f"{desk}/desk/telegram/callback"], "webOrigins": [desk],
         "attributes": {**pkce, "minimum.acr.value": env.get("XT_CONFIRM_ACR", "urn:xt:acr:otp")},
         "authenticationFlowBindingOverrides": {"browser": flow_id}, "protocolMappers": [amr]})
     kc.call("DELETE", f"/realms/{realm}/clients/{confirm}/default-client-scopes/{mcp_sid}", ok=(404,))

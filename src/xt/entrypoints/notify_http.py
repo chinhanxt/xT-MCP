@@ -5,7 +5,8 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager
 from dataclasses import replace
 from typing import Any
 
@@ -15,14 +16,20 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from xt.adapters.db.notify import PgNotificationRepository, PgTelegramDirectory
-from xt.adapters.identity import extract_bearer
+from xt.adapters.db.notify import PgTelegramDirectory
+from xt.adapters.identity import (
+    build_revocation_guard,
+    extract_bearer,
+    load_introspection_settings,
+)
 from xt.application.tools.context import Actor
+from xt.domain.autonomy import RiskLevel
 from xt.domain.identity import IdentityError
 from xt.entrypoints.composition import Composition
 from xt.entrypoints.composition.runtime import CallerError
 from xt.entrypoints.notify_runtime import telegram_sender
 from xt.entrypoints.telegram_http import TelegramWebhook
+from xt.entrypoints.telegram_link import TelegramLinkPages
 
 
 class TelegramLinkCodes:
@@ -30,6 +37,8 @@ class TelegramLinkCodes:
 
     def __init__(self, prepared: Any, env: Mapping[str, str]) -> None:
         self.prepared = prepared
+        self.pages = TelegramLinkPages(prepared.services.runtime, prepared.services.config.confirm)
+        self.revocation = build_revocation_guard(load_introspection_settings(env))
         self.clients = frozenset(
             env.get("TELEGRAM_LINK_CLIENTS", "xt-cli,xt-desk-agent").replace(",", " ").split()
         )
@@ -56,20 +65,13 @@ class TelegramLinkCodes:
                     expected_jkt=principal.dpop_jkt,
                 )
                 principal = replace(principal, dpop_jkt=jkt)
+            self.revocation.ensure_active(principal, token, RiskLevel.L2)
             actor = Actor.from_principal(principal, principal.tenant)
             rt = p.services.runtime
             caller = rt.resolve(actor, uuid.uuid4().hex)
-            code = rt.run_as(
-                caller,
-                actor,
-                lambda: PgNotificationRepository(rt.uow, caller.actor).mint_link_code(),
-            )
+            return self.pages.begin(caller, request)
         except (IdentityError, CallerError, PermissionError):
             return JSONResponse({"error": "unauthenticated"}, status_code=401)
-        return JSONResponse(
-            {"code": code, "expires_in": 600, "command": f"/link {code}"},
-            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
-        )
 
     async def endpoint(self, request: Request) -> JSONResponse:
         return await anyio.to_thread.run_sync(self.mint, request)
@@ -88,9 +90,21 @@ def with_notifications(prepared: Any, env: Mapping[str, str], app: Starlette) ->
         sender=sender,
     )
     codes = TelegramLinkCodes(prepared, env)
+    prior_lifespan = app.router.lifespan_context
+
+    @asynccontextmanager
+    async def lifespan(application: Starlette) -> AsyncIterator[Any]:
+        try:
+            async with prior_lifespan(application) as state:
+                yield state
+        finally:
+            sender.close()
+
+    app.router.lifespan_context = lifespan
     # Mount on the existing app to preserve its lifespan, mounts and exception handlers.
     app.router.routes[:0] = [
         *webhook.routes(),
+        *codes.pages.routes(),
         Route("/telegram/link-code", codes.endpoint, methods=["POST"]),
     ]
     return app

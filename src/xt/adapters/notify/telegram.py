@@ -123,6 +123,7 @@ class HttpxTelegramTransport:
             raise ValueError("Invalid comparison code")
         scrubber = ErrorScrubber(lambda _: "[PII:masked]")
         safe_summary = scrubber.text(summary)
+        scrubber.text(reference)
         if (
             not summary.strip()
             or len(summary) > 1000

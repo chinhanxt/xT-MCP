@@ -335,13 +335,14 @@ class PgIntegrationStore:
         self, actor: ModelActor, recipient: UUID, title: str, ref: str | None, dedupe_key: str
     ) -> bool:
         with self.uow.tenant_tx(actor) as cur:
-            row = cur.execute(
+            cur.execute(
                 "INSERT INTO xt_meta.notification (tenant_id, recipient, title, ref, dedupe_key)"
                 " VALUES (xt.tenant(), %s, %s, %s, %s)"
-                " ON CONFLICT (tenant_id, recipient, dedupe_key) DO NOTHING RETURNING id",
+                " ON CONFLICT (tenant_id, recipient, dedupe_key) DO NOTHING",
                 (recipient, title[:500], ref, dedupe_key[:255]),
-            ).fetchone()
-        return row is not None
+            )
+            inserted = cur.rowcount == 1
+        return inserted
 
     def notifications(
         self, actor: ModelActor, recipient: UUID, *, open_only: bool

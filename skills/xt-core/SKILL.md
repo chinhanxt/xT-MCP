@@ -41,3 +41,5 @@ chỉ nêu tool có ở mọi hồ sơ. Có thêm tool (hồ sơ đầy đủ): 
 Tiền gửi dạng chuỗi (`"8000000"`), ngày `YYYY-MM-DD`. Báo lại ref, trạng thái và việc người dùng cần làm tiếp.
 Mã lỗi chi tiết: [error-recovery](references/error-recovery.md). PII: [pii-and-untrusted](references/pii-and-untrusted.md).
 Mức tự chủ, xác nhận: [autonomy-and-confirmation](references/autonomy-and-confirmation.md). Không thấy tool xT: [connection-and-recovery](references/connection-and-recovery.md).
+
+Thông báo v1.0 (catalog full): [notifications](references/notifications.md).
