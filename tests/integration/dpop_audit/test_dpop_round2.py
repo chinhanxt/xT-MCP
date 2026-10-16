@@ -212,14 +212,9 @@ def test_db_unreachable_fails_closed_503_quickly(stack_base: StackBase) -> None:
     finally:
         db.close()
     print(f"DB unreachable -> 503 sau {elapsed:.1f}s")
-    assert elapsed < 40
+    assert elapsed < 5  # DPA-07: acquire timeout 1,5 s, không phải 30 s mặc định của pool
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="DPA-07: statement_timeout_ms=3000 của pool jti không được áp (chỉ tenant_tx đặt) -> "
-    "consume treo vô hạn khi bảng bị khóa; pool timeout 30 s khi DB mất",
-)
 def test_consume_bounded_when_table_locked(stack_base: StackBase, pg: pgfixture.Pg) -> None:
     from xt.entrypoints.serve import _dpop_verifier
 

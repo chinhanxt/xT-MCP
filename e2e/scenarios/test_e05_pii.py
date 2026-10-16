@@ -86,9 +86,14 @@ def test_masked_then_reveal(ev: Evidence, world) -> None:  # type: ignore[no-unt
     seen = world.call(viewer, "get_record", {"ref": ref})
     ev.step("giám đốc get_record (masked)", seen)
     vtok = str(((seen.get("data") or {}).get("record") or {}).get("values", {}).get("bank_account"))
-    c.check(bool(TOKEN_RE.fullmatch(vtok)) and ACCT not in dumps(seen), f"giám đốc cũng chỉ thấy token ({vtok})")
+    c.check(
+        bool(TOKEN_RE.fullmatch(vtok)) and ACCT not in dumps(seen),
+        f"giám đốc cũng chỉ thấy token ({vtok})",
+    )
     tok = world.token(viewer)
-    tools = {t.name: t for t in mcpc.list_tools(tok)}
+    dkey = world.key(viewer)  # DPoP bật: vé gắn khóa DPoP của phiên, không gửi pubkey_jwk
+    ev.step("chế độ vé", "dpop" if dkey else "khóa khung (pubkey_jwk)")
+    tools = {t.name: t for t in mcpc.list_tools(tok, key=dkey)}
     t = tools.get("pii_reveal_ticket")
     if t is None:
         ev.gap("W4 tool app-only pii_reveal_ticket", "tools/list không có")
@@ -96,9 +101,10 @@ def test_masked_then_reveal(ev: Evidence, world) -> None:  # type: ignore[no-unt
     c.check(vis == ["app"], f"pii_reveal_ticket chỉ hiện cho App (visibility={vis})")
 
     priv = ec.generate_private_key(ec.SECP256R1())
-    raw = mcpc.call_raw(
-        tok, "pii_reveal_ticket", {"tokens": [vtok], "pubkey_jwk": _jwk(priv.public_key())}
-    )
+    targs: dict[str, Any] = {"tokens": [vtok]}
+    if dkey is None:
+        targs["pubkey_jwk"] = _jwk(priv.public_key())
+    raw = mcpc.call_raw(tok, "pii_reveal_ticket", targs, key=dkey)
     meta = (getattr(raw, "meta", None) or {}).get("xt/reveal") or {}
     body_text = raw.content[0].text if raw.content else ""
     ev.step(
@@ -121,21 +127,40 @@ def test_masked_then_reveal(ev: Evidence, world) -> None:  # type: ignore[no-unt
     url = meta["url"]
     c.check(url == f"{world.s.desk}/pii/reveal", f"URL đổi vé là origin Desk ({url})")
     ts = int(time.time())
-    payload = {"ticket": meta["ticket"], "ts": ts, "sig": _sign(priv, f"{meta['ticket']}.{ts}")}
+    if dkey is None:
+        payload: dict[str, Any] = {
+            "ticket": meta["ticket"],
+            "ts": ts,
+            "sig": _sign(priv, f"{meta['ticket']}.{ts}"),
+        }
+    else:
+        payload = {"ticket": meta["ticket"]}
     hdr = {"Origin": world.s.desk, "Content-Type": "application/json"}
+
+    def proof() -> dict[str, str]:
+        # RFC 9449: htm POST, htu = URL /pii/reveal, ath = hash(vé); jti mới mỗi lần.
+        return {"DPoP": dkey.proof("POST", url, meta["ticket"])} if dkey else {}
+
     with net.client() as h:
         pre = h.options(
             url,
             headers={
                 **hdr,
                 "Access-Control-Request-Method": "POST",
-                "Access-Control-Request-Headers": "content-type",
+                "Access-Control-Request-Headers": "content-type" + (", dpop" if dkey else ""),
             },
         )
-        r1 = h.post(url, content=json.dumps(payload), headers=hdr)
-        r2 = h.post(url, content=json.dumps(payload), headers=hdr)
+        no_proof = None
+        if dkey is not None:  # vé riêng: thử sai cũng tiêu vé (một lần thử)
+            raw2 = mcpc.call_raw(tok, "pii_reveal_ticket", {"tokens": [vtok]}, key=dkey)
+            t2 = ((getattr(raw2, "meta", None) or {}).get("xt/reveal") or {}).get("ticket", "")
+            no_proof = h.post(url, content=json.dumps({"ticket": t2}), headers=hdr)
+        r1 = h.post(url, content=json.dumps(payload), headers={**hdr, **proof()})
+        r2 = h.post(url, content=json.dumps(payload), headers={**hdr, **proof()})
         bad_origin = h.post(
-            url, content=json.dumps(payload), headers={**hdr, "Origin": "https://evil.example"}
+            url,
+            content=json.dumps(payload),
+            headers={**hdr, **proof(), "Origin": "https://evil.example"},
         )
     ev.step(
         "POST /pii/reveal",
@@ -147,8 +172,14 @@ def test_masked_then_reveal(ev: Evidence, world) -> None:  # type: ignore[no-unt
             "cache": r1.headers.get("cache-control"),
             "bad_origin": bad_origin.status_code,
             "first_keys": _shape(r1),
+            "dpop_thiếu_proof": no_proof.status_code if no_proof is not None else None,
         },
     )
+    if no_proof is not None:
+        c.check(
+            no_proof.status_code in (400, 401, 403),
+            f"DPoP: đổi vé không proof bị từ chối ({no_proof.status_code})",
+        )
     c.check(pre.status_code == 204, f"preflight CORS 204 ({pre.status_code})")
     vals = (
         r1.json().get("values", {})
@@ -182,5 +213,8 @@ def test_masked_then_reveal(ev: Evidence, world) -> None:  # type: ignore[no-unt
         },
     )
     ev.step("ghi ngược token PII", up)
-    c.check(up.get("ok") is False and "schema" not in dumps(up), f"ghi token PII vào field bị từ chối, không phải lỗi schema ({err(up).get('code')})")
+    c.check(
+        up.get("ok") is False and "schema" not in dumps(up),
+        f"ghi token PII vào field bị từ chối, không phải lỗi schema ({err(up).get('code')})",
+    )
     c.done()

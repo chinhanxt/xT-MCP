@@ -112,7 +112,9 @@ def test_sla_escalation_survives_worker_restart(ev: Evidence, world) -> None:  #
             ev.gap("đăng nhập cho người nhận leo thang", f"{who} không có trong tập user demo-seed")
         got = world.call(h, "get_record", {"ref": ref})
         ev.step("người nhận leo thang get_record", got)
-        rev = ((got.get("data") or {}).get("record") or {}).get("revision") or sub["data"]["request"]["revision"]
+        rev = ((got.get("data") or {}).get("record") or {}).get("revision") or sub["data"][
+            "request"
+        ]["revision"]
         args = {
             "ref": ref,
             "decision": "approve",

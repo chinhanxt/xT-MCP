@@ -30,6 +30,7 @@ CREATE TABLE xt_meta.notification_delivery (
  FOREIGN KEY(tenant_id,id) REFERENCES xt_meta.notification(tenant_id,id) ON DELETE CASCADE
 );
 CREATE INDEX notification_delivery_pending ON xt_meta.notification_delivery(tenant_id,state);
+CREATE INDEX notification_delivery_rate ON xt_meta.notification_delivery(tenant_id,recipient,updated_at);
 CREATE TABLE xt_meta.telegram_link_code (
  tenant_id uuid NOT NULL DEFAULT xt.tenant() REFERENCES xt_meta.tenant(id) ON DELETE CASCADE,
  hash bytea PRIMARY KEY CHECK (octet_length(hash)=32), person uuid NOT NULL,

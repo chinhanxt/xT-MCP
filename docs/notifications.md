@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 xT contributors -->
 # Thông báo và Telegram
 
-`notify` là tool v1.0 (ngoài core-10): `recipients`, `message`, `subject_ref?`, `idempotency_key`. Cần policy IAM `notify.send` trên `xrn:<tenant>:notification:notification`. Agent dưới L2 nhận `confirmation_required`; người mở Desk để xác nhận. Cùng key và tham số trả receipt cũ. Người nhận phải đang hoạt động trong tenant; giới hạn 30 thông báo/người/phút.
+`notify` là tool v1.0 (ngoài core-10): `recipients`, `message`, `subject_ref?`, `idempotency_key`. Cần policy IAM `notify.send` trên `xrn:<tenant>:notification:notification` (gói `packages/thong-bao`). Agent dưới L2 nhận `confirmation_required`; người mở Desk để xác nhận. Cùng key và tham số trả receipt cũ. Người nhận phải đang hoạt động trong tenant; giới hạn 30 thông báo/người/phút.
 
 Thông báo xuất hiện qua `get_inbox(kinds=["notification"])`. DB cô lập tenant và người nhận bằng RLS. Worker relay hiện có đọc assignment/escalation và pending confirmation, checkpoint cùng transaction ghi inbox. Nếu không bật Telegram, inbox vẫn hoạt động.
 
@@ -12,7 +12,7 @@ Trong `.env` riêng của deployment (không commit), đặt `TELEGRAM_BOT_TOKEN
 
 Theo [setWebhook của Telegram](https://core.telegram.org/bots/api#setwebhook), đăng ký URL `https://<domain-api>/telegram/webhook`, `secret_token` bằng secret đã đặt, `allowed_updates=["message"]`. Không đưa token vào shell history/log; không chạy thao tác này trong test. API không tự đăng ký webhook khi khởi động.
 
-Người dùng tạo liên kết từ Desk hoặc CLI: POST `/telegram/link-code` bằng token cá nhân cho audience MCP (allowlist mặc định `xt-cli,xt-desk-agent`; token DPoP phải có proof). Endpoint chỉ trả `authorize_url`, chưa trả link code. Mở URL trong cùng trình duyệt có cookie khởi tạo, đăng nhập tươi + OTP; trang Desk hiển thị `/link <code>`. Nhập lệnh đó trong private chat với bot trong 10 phút. Mã chỉ dùng một lần, DB chỉ giữ hash. `/start <code>` cũng được nhận. CLI cần mở luồng bằng trình duyệt, không có xác nhận CLI.
+Người dùng tạo liên kết từ Desk hoặc CLI: POST `/telegram/link-code` bằng token cá nhân cho audience MCP (allowlist mặc định `xt-cli,xt-desk-agent`; token DPoP phải có proof). Endpoint chỉ trả `authorize_url`, chưa trả link code. Mở URL trên trình duyệt; trang bắt đầu ở domain Desk đặt cookie riêng rồi chuyển tới đăng nhập tươi + OTP; trang Desk hiển thị `/link <code>`. Nhập lệnh đó trong private chat với bot trong 10 phút. Mã chỉ dùng một lần, DB chỉ giữ hash. `/start <code>` cũng được nhận. CLI cần mở luồng bằng trình duyệt, không có xác nhận CLI.
 
 Bot chỉ xử lý liên kết và `/summary <notification-uuid hoặc mã-đối-chiếu>`. Chỉ người đã liên kết đúng chat riêng, còn hoạt động và là người nhận mới xem được. Group/forward/callback bị bỏ qua. Secret header không phải bằng chứng duyệt.
 

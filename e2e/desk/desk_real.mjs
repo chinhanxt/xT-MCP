@@ -79,7 +79,10 @@ const page = await ctx.newPage();
 page.on("pageerror", (e) => out.http.push(`pageerror ${e.message.slice(0, 200)}`));
 
 let token = null;
-page.on("request", (r) => { if (r.url().endsWith("/mcp") && r.headers()["authorization"]) token = r.headers()["authorization"].slice(7); });
+page.on("request", (r) => {
+  const a = r.url().endsWith("/mcp") && r.headers()["authorization"];
+  if (a) { token = a.replace(/^(Bearer|DPoP) /, ""); out.scheme = a.split(" ")[0]; out.dpop_proof = !!r.headers()["dpop"]; }
+});
 
 try {
   const res = await page.goto(`https://${H.desk}/`);
@@ -105,6 +108,9 @@ try {
     out.claims = { azp: c.azp, aud: c.aud, organization: c.organization, scope: c.scope };
     check(c.azp === "xt-desk-agent", `azp=${c.azp}`);
     check([].concat(c.aud).includes(`https://${H.mcp}/mcp`), "aud = resource MCP");
+    if (process.env.XT_DPOP_REQUIRED === "true") {
+      check(out.scheme === "DPoP" && out.dpop_proof && !!c.cnf?.jkt, `DPoP: scheme ${out.scheme}, proof ${out.dpop_proof}, cnf.jkt ${!!c.cnf?.jkt}`);
+    }
   }
   const enabled = await page.waitForSelector("#box:not([disabled])", { timeout: 15000 }).catch(() => null);
   check(!!enabled, "ô chat bật (kết nối MCP thật thành công)");

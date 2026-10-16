@@ -347,3 +347,139 @@ def test_recipient_rate_limit_rolls_back_whole_batch_and_rls_mark_read(people: A
         assert cur.rowcount == 1
     assert PgNotificationRepository(db, b).inbox() == []
     assert len(PgNotificationRepository(db, b).inbox(open_only=False)) == 1
+
+
+def test_worker_rate_limited_batch_commits_progress_and_resumes_without_duplicates(
+    people: Any,
+) -> None:
+    from psycopg.types.json import Jsonb
+
+    from xt.adapters.workflow.bpmn.spiff import SpiffProcessEngine
+    from xt.entrypoints.composition.runtime import Runtime
+    from xt.entrypoints.notify_runtime import NotificationRelay
+
+    db, a, b, _other = people
+    event_ids = [uuid4() for _ in range(31)]
+    with db.tenant_tx(a) as cur:
+        for eid in event_ids:
+            cur.execute(
+                "INSERT INTO xt_meta.process_event(id,tenant_id,instance_id,type,payload)"
+                " VALUES(%s,xt.tenant(),'notify-rate-batch','assignment',%s)",
+                (eid, Jsonb({"recipients": [f"person:{b.actor_id}"], "task": "Batch task"})),
+            )
+    relay = NotificationRelay(
+        Runtime(app_db=db, migrator_dsn=None),
+        SpiffProcessEngine(),
+        {"XT_DESK_URL": "https://desk.example"},
+    )
+    assert relay.run(a.tenant.id) == 0
+    assert len(PgNotificationRepository(db, b).inbox()) == 30
+    keys = ["event:" + str(eid) for eid in event_ids]
+    with db.tenant_tx(a) as cur:
+        assert (
+            cur.execute(
+                "SELECT count(*) AS n FROM xt_meta.notification_source WHERE source_key=ANY(%s)",
+                (keys,),
+            ).fetchone()["n"]
+            == 30
+        )
+    # Advance only stored rate timestamps; no wall-clock sleep or external API.
+    with db.tenant_tx(replace(a, roles=("xt_workflow",))) as cur:
+        cur.execute(
+            "UPDATE xt_meta.notification_delivery"
+            " SET updated_at=clock_timestamp()-interval '2 minutes'"
+            " WHERE recipient=%s",
+            (b.actor_id,),
+        )
+    assert relay.run(a.tenant.id) == 0
+    assert len(PgNotificationRepository(db, b).inbox()) == 31
+    assert relay.run(a.tenant.id) == 0
+    assert len(PgNotificationRepository(db, b).inbox()) == 31
+    with db.tenant_tx(a) as cur:
+        assert (
+            cur.execute(
+                "SELECT count(*) AS n FROM xt_meta.notification_source WHERE source_key=ANY(%s)",
+                (keys,),
+            ).fetchone()["n"]
+            == 31
+        )
+
+
+def test_desk_link_requires_real_fresh_owner_oidc_proof_and_persists_one_use_code(
+    people: Any, pg: Any, idp: Any
+) -> None:
+    import re
+    from types import SimpleNamespace
+    from urllib.parse import parse_qs, urlsplit
+
+    from starlette.applications import Starlette
+    from starlette.requests import Request
+    from starlette.testclient import TestClient
+
+    from xt.entrypoints.composition.confirm_web import ConfirmSettings
+    from xt.entrypoints.composition.runtime import Runtime
+    from xt.entrypoints.telegram_link import TelegramLinkPages
+
+    db, _a, owner, _other = people
+    subject = "telegram-owner-" + str(owner.actor_id)
+    with pg.migrator() as conn:
+        conn.execute(
+            "UPDATE xt_meta.person SET subject=%s WHERE tenant_id=%s AND id=%s",
+            (subject, owner.tenant.id, owner.actor_id),
+        )
+    pages = TelegramLinkPages(
+        Runtime(app_db=db, migrator_dsn=None),
+        ConfirmSettings(
+            "https://desk.example", idp.base + "/auth", idp.base + "/token", idp.stepup_settings()
+        ),
+    )
+    caller = SimpleNamespace(
+        tenant=owner.tenant, person=SimpleNamespace(id=owner.actor_id, subject=subject, active=True)
+    )
+    request = Request({"type": "http", "headers": []})
+    with TestClient(Starlette(routes=pages.routes()), base_url="https://desk.example") as browser:
+        for expected_subject, expected_status in (("wrong-owner", 403), (subject, 200)):
+            initiated = pages.begin(caller, request)
+            start_url = json.loads(initiated.body)["authorize_url"]
+            assert "link_code" not in json.loads(initiated.body)
+            with db.tenant_tx(owner) as cur:
+                assert (
+                    cur.execute(
+                        "SELECT count(*) AS n FROM xt_meta.telegram_link_code"
+                        " WHERE person=xt.actor()"
+                    ).fetchone()["n"]
+                    == 0
+                )
+            started = browser.get(urlsplit(start_url).path, follow_redirects=False)
+            assert started.status_code == 302
+            query = parse_qs(urlsplit(started.headers["location"]).query)
+            assert query["max_age"] == ["0"]
+            assert query["code_challenge_method"] == ["S256"]
+            state, nonce = query["state"][0], query["nonce"][0]
+            # Real local-IDP signature, HTTP code exchange, JWKS and DB jti verification.
+            authorization_code = idp.issue_code(idp.id_token(expected_subject, nonce=nonce))
+            callback = browser.get(
+                "/desk/telegram/callback", params={"state": state, "code": authorization_code}
+            )
+            assert callback.status_code == expected_status, callback.text
+            with db.tenant_tx(owner) as cur:
+                assert (
+                    cur.execute(
+                        "SELECT 1 FROM xt_meta.confirmation_session WHERE state=%s", (state,)
+                    ).fetchall()
+                    == []
+                )
+            if expected_status == 200:
+                match = re.search(r"/link ([A-Za-z0-9_-]{43})", callback.text)
+                assert match is not None
+                code = match[1]
+                assert callback.headers["cache-control"] == "no-store"
+                directory = PgTelegramDirectory(db)
+                assert directory.consume(code, "626262", "626262")
+                assert not directory.consume(code, "626262", "626262")
+                replay = browser.get(
+                    "/desk/telegram/callback", params={"state": state, "code": authorization_code}
+                )
+                assert replay.status_code == 400
+    assert idp.token_requests[-1]["redirect_uri"] == "https://desk.example/desk/telegram/callback"
+    assert "code_verifier" in idp.token_requests[-1]

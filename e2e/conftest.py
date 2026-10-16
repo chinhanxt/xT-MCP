@@ -110,7 +110,12 @@ class World:
     def call(
         self, user: dict[str, Any], tool: str, args: dict[str, Any], **kw: Any
     ) -> dict[str, Any]:
-        return mcpc.call(self.token(user, **kw), tool, args)
+        sess = self.session(user, **kw)
+        return mcpc.call(sess.access(), tool, args, key=sess.dpop)
+
+    def key(self, user: dict[str, Any], **kw: Any) -> Any:
+        """Khóa DPoP của phiên (None khi XT_DPOP_REQUIRED tắt hoặc client không gắn DPoP)."""
+        return self.session(user, **kw).dpop
 
     # ------------------------------------------------------ /desk/confirm ----
     def confirm(

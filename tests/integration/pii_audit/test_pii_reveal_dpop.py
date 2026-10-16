@@ -46,6 +46,7 @@ class DStack:
     idp: LocalIdp
     app: RunningApp
     required: bool
+    prepared: Any = None
 
     @property
     def reveal_url(self) -> str:
@@ -92,7 +93,7 @@ def ds(
     prepared = prepare(env, ns)
     app = serve(prepared.http_app(), mcp_port)
     try:
-        yield DStack(idp, app, required)
+        yield DStack(idp, app, required, prepared)
     finally:
         app.stop()
         prepared.close()
@@ -263,3 +264,33 @@ async def test_unbound_desk_token_follows_flag(ds: DStack) -> None:
         post, ds, {"ticket": t2}, holder.proof("POST", ds.reveal_url, token=t2)
     )
     assert r.status_code == 403 and r.json() == {"error": "BAD_SIGNATURE"}
+
+
+class _DownStore:
+    def consume(self, key: str, expires_at: int | None) -> bool:
+        raise ConnectionError("db down")
+
+
+@pytest.mark.anyio
+async def test_replay_store_outage_is_503_and_ticket_survives(ds: DStack) -> None:
+    """DPA-08 (ghi chú): store jti lỗi -> /pii/reveal 503 + Retry-After, vé KHÔNG bị tiêu."""
+    holder = DpopKey()
+    tok = await seen_token(ds, holder, 3)
+    m = await mint(ds, holder, [tok])
+    assert not m.is_error, m
+    t = str(m.meta["xt/reveal"]["ticket"])
+    reveal = ds.prepared.services.reveal()
+    real = reveal.dpop._replay
+    reveal.dpop._replay = _DownStore()
+    try:
+        r = await anyio.to_thread.run_sync(
+            post, ds, {"ticket": t}, holder.proof("POST", ds.reveal_url, token=t)
+        )
+    finally:
+        reveal.dpop._replay = real
+    assert r.status_code == 503 and r.headers["retry-after"] == "5"
+    assert r.json() == {"error": "TEMPORARILY_UNAVAILABLE"}
+    ok = await anyio.to_thread.run_sync(
+        post, ds, {"ticket": t}, holder.proof("POST", ds.reveal_url, token=t)
+    )
+    assert ok.status_code == 200 and ok.json()["values"] == {tok: ACCOUNT}

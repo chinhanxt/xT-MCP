@@ -1,0 +1,11 @@
+{
+  "format": "xt-pack/1",
+  "pack": "thong-bao",
+  "version": "1.0.0",
+  "title": "Thông báo nội bộ đa kênh",
+  "depends_on": [],
+  "models": [],
+  "processes": [],
+  "policies": ["iam"],
+  "notes": {"tenant_demo": "binhminh", "autonomy": "notify L2; dưới trần cần người xác nhận trên Desk", "telegram": "chỉ hiển thị, không bằng chứng duyệt"}
+}

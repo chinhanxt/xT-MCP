@@ -99,10 +99,5 @@ def test_key_non_extractable_and_removed_on_logout(result: dict[str, Any]) -> No
     assert result["next"] != f["jkt"]  # người sau cùng profile: jkt mới
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="DPA-08: reset() trong lúc sinh khóa lần đầu: put() của lượt cũ ghi lại khóa cũ "
-    "vào IndexedDB sau clear(), người sau dùng lại khóa đó",
-)
 def test_logout_during_key_generation_does_not_resurrect_key(result: dict[str, Any]) -> None:
     assert result["race"]["after"] != result["race"]["old"]

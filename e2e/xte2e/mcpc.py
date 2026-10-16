@@ -14,15 +14,21 @@ import httpx2
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
-from xte2e import net
+from xte2e import dpop, net
 from xte2e.config import settings
 
 
 @asynccontextmanager
-async def session(token: str, url: str | None = None) -> AsyncIterator[ClientSession]:
+async def session(
+    token: str, url: str | None = None, key: dpop.DpopKey | None = None
+) -> AsyncIterator[ClientSession]:
+    async def sign(request: httpx2.Request) -> None:
+        # Mỗi request một proof (htm/htu theo URL logic https, ath = hash access token) khi phiên DPoP.
+        request.headers.update(dpop.auth_headers(key, request.method, str(request.url), token))
+
     async with (
         httpx2.AsyncClient(
-            transport=net.AsyncMapped2(), headers={"Authorization": f"Bearer {token}"}, timeout=60
+            transport=net.AsyncMapped2(), event_hooks={"request": [sign]}, timeout=60
         ) as http,
         streamable_http_client(url or settings().mcp_url, http_client=http) as (read, write),
         ClientSession(read, write) as s,
@@ -46,40 +52,50 @@ def envelope(result: Any) -> dict[str, Any]:
 
 
 def call(
-    token: str | Callable[[], str], tool: str, args: dict[str, Any], url: str | None = None
+    token: str | Callable[[], str],
+    tool: str,
+    args: dict[str, Any],
+    url: str | None = None,
+    key: dpop.DpopKey | None = None,
 ) -> dict[str, Any]:
     tok = token() if callable(token) else token
 
     async def go() -> dict[str, Any]:
-        async with session(tok, url) as s:
+        async with session(tok, url, key) as s:
             return envelope(await s.call_tool(tool, args))
 
     try:
         return anyio.run(go)
     except Exception as e:  # noqa: BLE001 - lỗi JSON-RPC của server: thành envelope để kịch bản báo đúng
         inner = e.exceptions[0] if isinstance(e, BaseExceptionGroup) and e.exceptions else e
-        return {"ok": False, "error": {"code": "mcp_protocol_error", "message": f"{tool}: {type(inner).__name__}: {inner}"}}
+        return {
+            "ok": False,
+            "error": {
+                "code": "mcp_protocol_error",
+                "message": f"{tool}: {type(inner).__name__}: {inner}",
+            },
+        }
 
 
-def call_raw(token: str, tool: str, args: dict[str, Any]) -> Any:
+def call_raw(token: str, tool: str, args: dict[str, Any], key: dpop.DpopKey | None = None) -> Any:
     async def go() -> Any:
-        async with session(token) as s:
+        async with session(token, key=key) as s:
             return await s.call_tool(tool, args)
 
     return anyio.run(go)
 
 
-def list_tools(token: str) -> list[Any]:
+def list_tools(token: str, key: dpop.DpopKey | None = None) -> list[Any]:
     async def go() -> list[Any]:
-        async with session(token) as s:
+        async with session(token, key=key) as s:
             return list((await s.list_tools()).tools)
 
     return anyio.run(go)
 
 
-def list_resources(token: str) -> list[Any]:
+def list_resources(token: str, key: dpop.DpopKey | None = None) -> list[Any]:
     async def go() -> list[Any]:
-        async with session(token) as s:
+        async with session(token, key=key) as s:
             try:
                 return list((await s.list_resources()).resources)
             except Exception as e:  # server không khai capability resources
@@ -88,9 +104,9 @@ def list_resources(token: str) -> list[Any]:
     return anyio.run(go)
 
 
-def read_resource(token: str, uri: str) -> Any:
+def read_resource(token: str, uri: str, key: dpop.DpopKey | None = None) -> Any:
     async def go() -> Any:
-        async with session(token) as s:
+        async with session(token, key=key) as s:
             return await s.read_resource(uri)  # type: ignore[arg-type]
 
     return anyio.run(go)

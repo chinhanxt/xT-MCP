@@ -63,7 +63,7 @@ Không có host, realm hay secret mặc định. Thiếu hoặc sai thì hàm `l
 | `XT_IDP_INTROSPECTION_URL` | khi `high_risk` | | `…/protocol/openid-connect/token/introspect` |
 | `XT_IDP_INTROSPECTION_CLIENT_ID` / `_SECRET` | khi `high_risk` | | Client confidential của xt-api. Đặt các biến này khi `off` là lỗi cấu hình |
 | `XT_IDP_INTROSPECTION_CACHE_SECONDS` | không | `30` | Cache kết quả theo SHA-256 của token, tối đa 60 |
-| `XT_DPOP_REQUIRED` | không | `false` | `true`: client trong `XT_DPOP_CLIENTS` **phải** dùng token gắn DPoP (Bearer thường bị 401), vé `/pii/reveal` chỉ gắn khóa DPoP. Token có `cnf.jkt` luôn bị kiểm proof, bất kể cờ. `provision.py` dùng cùng cờ cho `dpop.bound.access.tokens` |
+| `XT_DPOP_REQUIRED` | không | `false` trong mã (unit test); **`true` trong `deploy/compose.yaml`/`.env.example`** | `true`: client trong `XT_DPOP_CLIENTS` **phải** dùng token gắn DPoP (Bearer thường bị 401), vé `/pii/reveal` chỉ gắn khóa DPoP. Token có `cnf.jkt` luôn bị kiểm proof, bất kể cờ. `provision.py` dùng cùng cờ cho `dpop.bound.access.tokens` |
 | `XT_DPOP_CLIENTS` | không | `XT_DESK_AGENT_CLIENT_ID` hoặc `xt-desk-agent` | Client bị cờ trên ràng buộc (phân cách dấu phẩy) |
 | `XT_DPOP_ALGORITHMS` | không | `ES256` | `alg` nhận cho proof; tập con của `{ES256, ES384, RS256, PS256}`. `none`/`HS*` bị từ chối lúc khởi động |
 | `XT_DPOP_PROOF_MAX_AGE_SECONDS` | không | `60` | Tuổi tối đa của proof theo `iat` (1–300), cộng thêm `XT_DPOP_LEEWAY_SECONDS` |
@@ -122,11 +122,11 @@ Bề mặt không có ngữ cảnh DPoP (REST `/workflow/v1`, `/files/v1`, stdio
 6. `ath` == base64url(SHA-256(access token)) (với `/pii/reveal`: hash của vé).
 7. Thumbprint RFC 7638 của `jwk` == `cnf.jkt` (so sánh hằng thời gian).
 8. `iat` số: `now − max_age − leeway ≤ iat ≤ now + leeway`. Kiểm sau ath/jkt để "stale" (không tiêu vé PII) chỉ báo cho đúng chủ khóa.
-9. Cuối cùng mới tiêu `jti` (khóa `dpop|jkt|jti`, hết hạn sau cửa sổ iat): proof sai không đốt jti của proof thật; phát lại bị `dpop_replay`. `XT_DPOP_REPLAY_STORE=postgres` (compose): bảng chung `xt_identity.dpop_jti` (UNIQUE (jkt, jti), migration `0013_dpop_jti.sql`, xt_app chỉ gọi hàm SECURITY DEFINER `dpop_jti_consume`/`dpop_jti_purge`), đúng cho nhiều worker/replica và qua restart; job relay của `xt worker` dọn mục hết hạn; DB lỗi → 503. `memory` chỉ cho unit test/một tiến trình (heap theo hạn, O(log n)); `WEB_CONCURRENCY > 1` với `memory` bị từ chối lúc khởi động. `iat` không hữu hạn (NaN/±inf) → `dpop_iat` (DPA-01).
+9. Cuối cùng mới tiêu `jti` (khóa `dpop|jkt|jti`, hết hạn sau cửa sổ iat): proof sai không đốt jti của proof thật; phát lại bị `dpop_replay`. `XT_DPOP_REPLAY_STORE=postgres` (compose): bảng chung `xt_identity.dpop_jti` (UNIQUE (jkt, jti), migration `0013_dpop_jti.sql`, xt_app chỉ gọi hàm SECURITY DEFINER `dpop_jti_consume`/`dpop_jti_purge`), đúng cho nhiều worker/replica và qua restart; job relay của `xt worker` dọn mục hết hạn; DB lỗi → 503. Pool jti: chờ kết nối tối đa 1,5 s, `statement_timeout`/`lock_timeout` 3 s mỗi lần gọi (DPA-07), nên DB mất hoặc bảng bị khóa → 503 nhanh, không treo luồng. `/pii/reveal` khi store lỗi: 503 `TEMPORARILY_UNAVAILABLE` + `Retry-After`, vé không bị tiêu. `memory` chỉ cho unit test/một tiến trình (heap theo hạn, O(log n)); `WEB_CONCURRENCY > 1` với `memory` bị từ chối lúc khởi động. `iat` không hữu hạn (NaN/±inf) → `dpop_iat` (DPA-01).
 
 Challenge: `WWW-Authenticate: DPoP error="…", error_description="…", algs="ES256", Bearer resource_metadata="…", scope="…"` (vẫn có PRM cho client MCP). Server không phát `DPoP-Nonce`.
 
-Keycloak (`deploy/keycloak/provision.py`, `desk_agent_client_rep`): attribute client `dpop.bound.access.tokens` (`OIDCConfigAttributes.DPOP_BOUND_ACCESS_TOKENS`, "Require DPoP bound tokens") = `XT_DPOP_REQUIRED`. Tắt: Desk gửi proof vẫn nhận token gắn khóa, Keycloak không ép. Bật: token request thiếu proof bị 400. CORS token endpoint của Keycloak đã cho phép header `DPoP`.
+Keycloak (`deploy/keycloak/provision.py`, `desk_agent_client_rep`): attribute client `dpop.bound.access.tokens` (`OIDCConfigAttributes.DPOP_BOUND_ACCESS_TOKENS`, "Require DPoP bound tokens") = `XT_DPOP_REQUIRED` (khi chạy `provision.py`, thiếu biến = bật, chỉ `false/0/no/off` mới tắt). Tắt: Desk gửi proof vẫn nhận token gắn khóa, Keycloak không ép. Bật: token request thiếu proof bị 400. CORS token endpoint của Keycloak đã cho phép header `DPoP`.
 
 ## Connector DCR: allowlist động
 

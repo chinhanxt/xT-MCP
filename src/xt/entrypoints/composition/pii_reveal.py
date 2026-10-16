@@ -53,6 +53,7 @@ from xt.application.tools import CallContext, ToolDispatcher, ToolError, ToolOut
 from xt.application.tools.errors import access_denied, invalid_request
 from xt.contracts.tools import CONTRACT_VERSION, ErrorCode, StrictValidator
 from xt.contracts.tools.apps import PII_REVEAL_TICKET
+from xt.domain.identity import IdentityProviderUnavailableError
 from xt.domain.model.context import ModelActor
 from xt.entrypoints.composition.runtime import NIL, Caller, Runtime
 from xt.entrypoints.composition.security import ToolAccessGuard
@@ -348,6 +349,8 @@ class PiiReveal:
             return self._deny("BAD_REQUEST", allowed, 400)
         status, payload = await run_in_threadpool(self._reveal, ticket, ts, sig, proofs)
         headers = {**_NO_STORE, **self._cors(allowed)}
+        if status == 503:
+            headers["Retry-After"] = "5"
         return JSONResponse(payload, status_code=status, headers=headers)
 
     def _proof_check(
@@ -377,6 +380,8 @@ class PiiReveal:
                 if e.reason in ("dpop_iat_stale", "dpop_iat_future"):
                     return "STALE_REQUEST"
                 return "BAD_DPOP_PROOF"
+            except IdentityProviderUnavailableError:
+                return "TEMPORARILY_UNAVAILABLE"  # store jti lỗi: 503, vé KHÔNG bị tiêu
             return None
         if self.settings.dpop_required:  # vé khung cấp trước khi bật cờ
             return "TICKET_INVALID"
@@ -432,6 +437,9 @@ class PiiReveal:
             if row is None:
                 return 403, {"error": "TICKET_INVALID"}
             failure = self._proof_check(row, ticket, ts, sig, proofs)
+            if failure == "TEMPORARILY_UNAVAILABLE":
+                log.warning("pii reveal: DPoP replay store unavailable")
+                return 503, {"error": failure}
             if failure == "STALE_REQUEST":
                 # STALE không tiêu vé (khung Desk có thể ký lại trong TTL) nhưng có dấu vết.
                 audit("stale", row["person"], denied=list(row["tokens"]))

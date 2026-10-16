@@ -135,9 +135,9 @@ def cli_client_rep(env: dict[str, str]) -> dict[str, Any]:
 
 
 def dpop_required(env: dict[str, str]) -> bool:
-    """`XT_DPOP_REQUIRED` (cùng cờ với xt-api, mặc định tắt): bật thì Keycloak từ chối token request của
-    xt-desk-agent không có DPoP proof. Tắt thì Desk gửi proof vẫn được token gắn khóa (`cnf.jkt`)."""
-    return env.get("XT_DPOP_REQUIRED", "").strip().lower() in ("1", "true", "yes", "on")
+    """`XT_DPOP_REQUIRED` (cùng cờ với xt-api trong compose, mặc định BẬT khi triển khai): Keycloak từ chối
+    token request của xt-desk-agent không có DPoP proof. Chỉ `false/0/no/off` mới tắt."""
+    return env.get("XT_DPOP_REQUIRED", "true").strip().lower() not in ("0", "false", "no", "off")
 
 
 def desk_agent_client_rep(env: dict[str, str], desk: str, mappers: list[dict[str, Any]]) -> dict[str, Any]:

@@ -215,3 +215,12 @@ mặc định `XT_DPOP_REQUIRED=true`**: không còn đường nào dùng đư�
 chung, sống qua restart. Điều kiện trước khi đổi mặc định: (1) sửa DPA-07 (vài dòng), vì khi bật cờ mọi request Desk phụ thuộc
 bảng jti và DB chậm sẽ làm `/mcp` treo thay vì 503 nhanh; (2) chạy lại e2e Desk với Keycloak thật ở chế độ cờ bật, và chạy lại
 `provision.py` với cùng cờ. DPA-08 sửa được sau, không chặn việc đổi mặc định.
+
+## 8. Đã sửa sau vòng 2
+
+| # | Sửa | Kiểm chứng |
+|---|---|---|
+| DPA-07 | `PgDpopReplayStore`: lấy kết nối `pool.connection(timeout=1.5)`, mỗi lần gọi một transaction `SET LOCAL statement_timeout/lock_timeout = 3000` | `test_consume_bounded_when_table_locked` (bỏ xfail), `test_db_unreachable_fails_closed_503_quickly` (< 5 s) |
+| DPA-08 | `DpopSigner`: bộ đếm thế hệ; `reset()` chờ lượt nạp đang chạy rồi mới `clear()`; lượt cũ không `put`, `put` bị chen thì xóa lại | `test_logout_during_key_generation_does_not_resurrect_key` (bỏ xfail, Chromium/IndexedDB thật), vitest DPA-08 |
+| Ghi chú | `/pii/reveal`: store jti lỗi → 503 `TEMPORARILY_UNAVAILABLE` + `Retry-After: 5`, vé không bị tiêu | `test_replay_store_outage_is_503_and_ticket_survives` |
+| Mặc định | `XT_DPOP_REQUIRED=true` trong compose, `.env.example`, `provision.py` (thiếu biến = bật); mã giữ mặc định tắt cho unit test | `test_deploy_offline.DeskAgentDpop` |

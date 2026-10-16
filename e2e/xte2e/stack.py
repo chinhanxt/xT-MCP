@@ -56,7 +56,8 @@ def preflight(wait: float = 600) -> None:
 def up() -> None:
     preflight()
     compose.dc(["--profile", "*", "down", "--remove-orphans", "--volumes"], check=False)
-    subprocess.run([sys.executable, "scripts/render_apisix.py"], cwd=DEPLOY, check=True)
+    # `make -C deploy render` = env (sinh bí mật mới thêm vào .env.example: S3/SeaweedFS JWT...) + APISIX.
+    subprocess.run(["make", "-s", "render"], cwd=DEPLOY, check=True)
     print("[stack] build + up (volume mới)")
     compose.dc(["build"], timeout=1800, capture=False)
     r = compose.dc(["up", "-d", *compose.CORE], timeout=900, capture=False, check=False)

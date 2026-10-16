@@ -114,6 +114,7 @@ export class DpopSigner implements DpopProver {
   private subtle: SubtleCrypto;
   private store: KeyStore;
   private loaded: Promise<Loaded> | null = null;
+  private gen = 0; // tăng mỗi lần reset(): lượt sinh khóa cũ không được ghi khóa vào kho (DPA-08)
 
   constructor(private o: DpopOptions = {}) {
     this.subtle = o.subtle ?? globalThis.crypto.subtle;
@@ -122,7 +123,11 @@ export class DpopSigner implements DpopProver {
 
   /** Đăng xuất: quên cặp khóa trong bộ nhớ và xóa khỏi kho (IndexedDB). */
   async reset(): Promise<void> {
+    this.gen++;
+    const inflight = this.loaded;
     this.loaded = null;
+    // Chờ lượt sinh/nạp khóa đang chạy kết thúc (put của nó, nếu có, xong trước) rồi mới xóa.
+    if (inflight) await inflight.catch(() => undefined);
     try {
       await this.store.clear();
     } catch {
@@ -130,23 +135,26 @@ export class DpopSigner implements DpopProver {
     }
   }
 
-  private gen() {
+  private generate() {
     return this.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]) as Promise<CryptoKeyPair>;
   }
 
   /** Nạp cặp khóa đã lưu, chưa có thì sinh + lưu. Kho lỗi (không có IndexedDB) => cặp khóa trong bộ nhớ cho trang này. */
   private async loadPair(): Promise<CryptoKeyPair> {
     const store = this.store;
+    const gen = this.gen;
     let pair: CryptoKeyPair | undefined;
     try {
       pair = await store.get();
     } catch {
-      return this.gen();
+      return this.generate();
     }
     if (pair) return pair;
-    pair = await this.gen();
+    pair = await this.generate();
+    if (gen !== this.gen) return pair; // đã đăng xuất trong lúc sinh khóa: không lưu
     try {
       await store.put(pair);
+      if (gen !== this.gen) await store.clear(); // reset() chen giữa put: xóa lại (ghi-sau-kiểm)
     } catch {
       /* không lưu được: dùng khóa cho vòng đời trang */
     }

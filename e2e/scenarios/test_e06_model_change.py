@@ -153,7 +153,9 @@ def test_add_field_apply(ev: Evidence, world) -> None:  # type: ignore[no-untype
     ev.step("sau khi người duyệt xác nhận", done)
     c.check(done.get("ok") is True, f"duyệt đề xuất ok ({err(done).get('code')})")
     state = ""
-    for _ in range(80):  # worker: relay (chu kỳ XT_WORKFLOW_RELAY_SECONDS) -> model.apply (pha 1 + 2)
+    for _ in range(
+        80
+    ):  # worker: relay (chu kỳ XT_WORKFLOW_RELAY_SECONDS) -> model.apply (pha 1 + 2)
         st = world.call(approver, "get_record", {"ref": ref})
         state = str(
             ((st.get("data") or {}).get("record") or {}).get("state")

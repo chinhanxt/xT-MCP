@@ -226,16 +226,6 @@ class ProcessContext:
     def _event(self, ev: dict[str, Any]) -> None:
         iid = str(ev.get("instance", ""))
         self.rt.store.process_event(self.actor, iid, str(ev.get("type", "event")), jsonable(ev))
-        if ev.get("type") == "assignment.escalated":
-            ref = PgWorkflowStore(self.rt.uow).ref_for(iid)
-            for cand in ev.get("candidates", ()):
-                self.rt.store.notify(
-                    self.actor,
-                    UUID(str(cand)),
-                    f"Việc được chuyển cho bạn (leo thang): {ev.get('task')}",
-                    ref,
-                    f"esc:{iid}:{ev.get('task')}:{cand}",
-                )
 
     # ProcessCatalog
     def active(self, process_id: str) -> ProcessRuntime | None:

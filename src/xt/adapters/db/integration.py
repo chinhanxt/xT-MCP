@@ -341,7 +341,7 @@ class PgIntegrationStore:
                 " ON CONFLICT (tenant_id, recipient, dedupe_key) DO NOTHING",
                 (recipient, title[:500], ref, dedupe_key[:255]),
             )
-            inserted = cur.rowcount == 1
+            inserted = bool(cur.rowcount == 1)
         return inserted
 
     def notifications(

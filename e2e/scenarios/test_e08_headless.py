@@ -7,6 +7,8 @@ decision 428 + confirm_url -> người xác nhận), Files (`/files` upload + t�
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import os
 import re
 import subprocess
@@ -18,7 +20,7 @@ import pytest
 
 from xte2e import net, oidc
 from xte2e.config import HEADLESS_CLIENT, ROOT
-from xte2e.flows import A, B, DEPT_HEAD, DIRECTOR, REQUESTER, advance, dumps, key
+from xte2e.flows import A, B, B_EMPLOYEE, DEPT_HEAD, DIRECTOR, REQUESTER, advance, dumps, key
 from xte2e.report import Checks, Evidence
 
 SCENARIO = "E8"
@@ -214,7 +216,63 @@ def test_files(ev: Evidence, world) -> None:  # type: ignore[no-untyped-def]
             f"{world.s.api}/files/v1/{fid}/content", headers={"Authorization": f"Bearer {tok}"}
         )
         ev.step("GET /files/v1/{id}/content", {"status": dl.status_code, "bytes": len(dl.content)})
-    assert dl.status_code == 200 and dl.content == body, dl.text[:300]
+        meta = h.get(f"{world.s.api}/files/v1/{fid}", headers={"Authorization": f"Bearer {tok}"})
+        # Luồng hai bước: ý định -> PUT put_url (Content-Digest, không Bearer) -> tải về.
+        intent = h.post(
+            f"{world.s.api}/files/v1",
+            headers={"Authorization": f"Bearer {tok}"},
+            json={"name": "e2e-2.txt", "content_type": "text/plain"},
+        )
+        put_status, dl2_ok = None, False
+        if intent.status_code == 201:
+            d = intent.json()["data"]
+            body2 = b"xT e2e put_url"
+            digest = base64.b64encode(hashlib.sha256(body2).digest()).decode()
+            put = h.put(
+                d["put_url"],
+                content=body2,
+                headers={"Content-Digest": f"sha-256=:{digest}:", "Content-Type": "text/plain"},
+            )
+            put_status = put.status_code
+            fid2 = d["file"]["id"]
+            dl2 = h.get(
+                f"{world.s.api}/files/v1/{fid2}/content", headers={"Authorization": f"Bearer {tok}"}
+            )
+            dl2_ok = dl2.status_code == 200 and dl2.content == body2
+        tb = _cli(world, world.by_key(B, B_EMPLOYEE), "files")
+        cross = h.get(f"{world.s.api}/files/v1/{fid}", headers={"Authorization": f"Bearer {tb}"})
+        mcp_tok = h.get(
+            f"{world.s.api}/files/v1/{fid}", headers={"Authorization": f"Bearer {world.token(u)}"}
+        )
+    ev.step(
+        "files: metadata / put_url / chéo tenant / token MCP",
+        {
+            "meta": meta.status_code,
+            "status": (meta.json().get("data") or {}).get("file", {}).get("status")
+            if meta.status_code == 200
+            else meta.text[:200],
+            "intent": intent.status_code,
+            "put": put_status,
+            "download2": dl2_ok,
+            "tenant B": cross.status_code,
+            "token MCP": mcp_tok.status_code,
+        },
+    )
+    c = Checks(ev)
+    c.check(
+        dl.status_code == 200 and dl.content == body,
+        f"multipart: tải lên rồi tải về đúng byte ({dl.status_code})",
+    )
+    c.check(meta.status_code == 200, f"metadata 200 ({meta.status_code})")
+    c.check(
+        intent.status_code == 201 and put_status == 200 and dl2_ok,
+        f"ý định + PUT put_url (Content-Digest) + tải về ({intent.status_code}/{put_status}/{dl2_ok})",
+    )
+    c.check(cross.status_code == 404, f"tenant B đọc tệp của A -> 404 ({cross.status_code})")
+    c.check(
+        mcp_tok.status_code == 401, f"token MCP không dùng được cho /files ({mcp_tok.status_code})"
+    )
+    c.done()
 
 
 def _get_token(kind: str, user: dict, proxy: net.HostProxy, out: Path, ev: Evidence) -> int:  # type: ignore[type-arg]

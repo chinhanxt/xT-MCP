@@ -243,7 +243,12 @@ class WorkflowJobs:
         if self.files is not None and self.files_maintenance is None:  # quét lại `scanning`
             await anyio.to_thread.run_sync(self.rescan_files, tenant)
         if self.notifications is not None:
-            await anyio.to_thread.run_sync(self.notifications.run, job.tenant_id)
+            try:
+                await anyio.to_thread.run_sync(self.notifications.run, job.tenant_id)
+            except Exception as error:
+                # Notification faults must not stop workflow timers or the next relay slot.
+                # Provider exceptions may contain credentials or PII: log only the type.
+                log.warning("Notification relay failed: %s", type(error).__name__)
         await self._schedule_timer_starts(connection, job.tenant_id)
         await self._schedule_relay(connection, job.tenant_id, after=self.relay_interval_s)
 

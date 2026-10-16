@@ -11,10 +11,11 @@ import hashlib
 import hmac
 import json
 import subprocess
+from typing import Any
 
 import pytest
 
-from xte2e import compose, mcpc, net
+from xte2e import compose, dpop, mcpc, net
 from xte2e.config import DEPLOY, HEADLESS_CLIENT, HEADLESS_REDIRECT
 from xte2e.flows import A, DEPT_HEAD, REQUESTER, advance, dumps, err, key
 from xte2e.kcadmin import Admin
@@ -44,12 +45,14 @@ def test_security_smoke(ev: Evidence) -> None:
     )
 
 
-def _status(tok: str, url: str) -> int:
+def _status(tok: str, url: str, key: Any = None, extra: dict[str, str] | None = None) -> int:
+    auth = dpop.auth_headers(key, "POST", url, tok) if key else {"Authorization": f"Bearer {tok}"}
     with net.client() as h:
         return h.post(
             url,
             headers={
-                "Authorization": f"Bearer {tok}",
+                **auth,
+                **(extra or {}),
                 "Accept": "application/json, text/event-stream",
             },
             json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
@@ -65,7 +68,41 @@ def test_auth_negative(ev: Evidence, world) -> None:  # type: ignore[no-untyped-
     assert tok is not None
     hdr, payload, sig = good.split(".")
     url = world.s.mcp_url
-    c.check(_status(good, url) == 200, "token hợp lệ -> 200 (đối chứng)")
+    key = sess.dpop
+    c.check(
+        _status(good, url, key) == 200,
+        f"token hợp lệ -> 200 (đối chứng, {'DPoP' if key else 'Bearer'})",
+    )
+    if key is not None:  # XT_DPOP_REQUIRED: token gắn cnf.jkt
+        other = dpop.DpopKey()
+        replay = key.proof("POST", url, good)
+        dres = {
+            "token gắn khóa gửi như Bearer, không proof": _status(good, url),
+            "proof ký bằng khóa khác": _status(
+                good,
+                url,
+                extra={"Authorization": f"DPoP {good}", "DPoP": other.proof("POST", url, good)},
+            ),
+            "proof sai htu (/pii/reveal)": _status(
+                good,
+                url,
+                extra={
+                    "Authorization": f"DPoP {good}",
+                    "DPoP": key.proof("POST", f"{world.s.desk}/pii/reveal", good),
+                },
+            ),
+            "proof thiếu ath": _status(
+                good, url, extra={"Authorization": f"DPoP {good}", "DPoP": key.proof("POST", url)}
+            ),
+        }
+        first = _status(good, url, extra={"Authorization": f"DPoP {good}", "DPoP": replay})
+        dres["phát lại proof (jti đã dùng)"] = _status(
+            good, url, extra={"Authorization": f"DPoP {good}", "DPoP": replay}
+        )
+        ev.step("DPoP âm", {**dres, "proof lần đầu": first})
+        c.check(first == 200, f"proof hợp lệ lần đầu -> 200 ({first})")
+        for name, code in dres.items():
+            c.check(code == 401, f"DPoP: {name} -> 401 (thực tế {code})")
     none_tok = f"{_b64(json.dumps({'alg': 'none', 'typ': 'JWT'}).encode())}.{payload}."
     with net.client() as h:
         jwks = h.get(f"{world.s.issuer}/protocol/openid-connect/certs").json()
@@ -135,7 +172,7 @@ def test_sod(ev: Evidence, world) -> None:  # type: ignore[no-untyped-def]
 
     async def hammer() -> list[str]:
         codes: list[str] = []
-        async with mcpc.session(tok) as s:
+        async with mcpc.session(tok, key=world.key(dh)) as s:
             for i in range(100):
                 r = mcpc.envelope(
                     await s.call_tool(
@@ -162,8 +199,29 @@ def test_sod(ev: Evidence, world) -> None:  # type: ignore[no-untyped-def]
     )
     trig = compose.psql(
         "SELECT tgrelid::regclass || ':' || tgname FROM pg_trigger WHERE NOT tgisinternal"
-        " AND (tgname ILIKE '%sod%' OR tgname ILIKE '%decider%' OR tgname ILIKE '%self_approv%')"
+        " AND tgrelid = 'xt_meta.decision'::regclass"
     )
-    ev.step("trigger SoD trong DB", trig.splitlines())
-    c.check(bool(trig), "W9: có trigger DB chặn decider = requester")
+    ev.step("trigger trên xt_meta.decision", trig.splitlines())
+    c.check("decision_sod" in trig, f"W9: có trigger SoD trên xt_meta.decision ({trig!r})")
+    # SQL trực tiếp (kể cả superuser, trigger/CHECK vẫn chạy): người duyệt = người đề nghị phải bị DB chặn (không qua app).
+    tid = world.tenants[A]["id"]
+    pid = compose.psql(
+        f"SELECT id FROM xt_meta.person WHERE tenant_id = '{tid}' AND key = '{REQUESTER}'"
+    )
+    try:
+        compose.psql(
+            "BEGIN;"
+            " INSERT INTO xt_meta.decision (tenant_id, kind, ref, step, decision, approver, requester,"
+            " actor_kind, actor_client, confirmed_by) VALUES"
+            f" ('{tid}', 'request', '{ref}', 'dept_head', 'approve', '{pid}', '{pid}', 'human', 'sql',"
+            f" ARRAY['{req['sub']}']); ROLLBACK;"
+        )
+        blocked = ""
+    except RuntimeError as e:
+        blocked = str(e)[-300:]
+    ev.step("INSERT decision approver = requester (SQL trực tiếp)", blocked or "KHÔNG bị chặn")
+    c.check(
+        ("decision_sod" in blocked or "SoD" in blocked or "sod" in blocked.lower()),
+        f"DB chặn decider = requester bằng ràng buộc/trigger ({blocked[-160:] or 'không bị chặn'})",
+    )
     c.done()

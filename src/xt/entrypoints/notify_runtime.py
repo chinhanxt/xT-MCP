@@ -5,7 +5,9 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Mapping
+import logging
+from collections.abc import Callable, Mapping
+from functools import partial
 from typing import Any
 from uuid import UUID
 
@@ -16,9 +18,13 @@ from xt.adapters.db.workflow_bridge import PgWorkflowStore
 from xt.adapters.notify.telegram import HttpxTelegramTransport
 from xt.application.notify.service import NotificationService, comparison_code
 from xt.application.notify_events import NotifyEvent, notification_event
+from xt.application.tools.errors import ToolError
+from xt.contracts.tools import ErrorCode
 from xt.domain.model.context import ModelActor
 from xt.entrypoints.composition.process import ProcessContext
 from xt.entrypoints.composition.runtime import NIL, WORKFLOW_ROLE, Runtime
+
+log = logging.getLogger(__name__)
 
 
 def telegram_sender(env: Mapping[str, str]) -> HttpxTelegramTransport | None:
@@ -29,6 +35,22 @@ def telegram_sender(env: Mapping[str, str]) -> HttpxTelegramTransport | None:
         token,
         desk_base_url=env.get("XT_DESK_URL", ""),
         api_base_url=env.get("TELEGRAM_API_BASE_URL", "https://api.telegram.org"),
+    )
+
+
+def _process_event(row: Mapping[str, Any]) -> NotifyEvent | None:
+    if not isinstance(row["payload"], Mapping):
+        raise ValueError("Notification event payload must be an object")
+    return notification_event(
+        str(row["id"]), row["type"], row["payload"], subject_ref=row.get("ref")
+    )
+
+
+def _confirmation_event(cid: str, approved: int, payload: Mapping[str, Any]) -> NotifyEvent | None:
+    return notification_event(
+        f"{cid}:{approved}",
+        "confirmation_required",
+        {**payload, "confirmation_code": comparison_code(cid, str(payload["confirmation_code"]))},
     )
 
 
@@ -49,29 +71,48 @@ class NotificationRelay:
             sources = NotificationSources(self.rt.uow, actor)
             service = NotificationService(repo, confirm_base_url=self.desk_url)
 
-            def send(key: str, event: NotifyEvent | None) -> None:
-                if event is None or not sources.claim(key):
-                    return
-                recipients = [repo.resolve_person(ref) for ref in event.recipients]
-                active = [person for person in recipients if person is not None]
-                if active:
-                    service.send(
-                        actor_id=NIL,
-                        recipients=active,
-                        message=event.message,
-                        idempotency_key=event.idempotency_key,
-                        kind=event.kind,
-                        subject_ref=event.subject_ref,
-                        confirmation_code=event.confirmation_code,
-                        confirm_url=event.confirm_url,
-                    )
+            def send(key: str, build: Callable[[], NotifyEvent | None]) -> None:
+                def enqueue_one() -> None:
+                    # Each source is isolated: a recipient quota must not roll back the batch.
+                    if not sources.claim(key):
+                        return
+                    event = build()
+                    if event is None:
+                        return  # Permanently unassigned/irrelevant sources are checkpointed.
+                    recipients = [repo.resolve_person(ref) for ref in event.recipients]
+                    active = [person for person in recipients if person is not None]
+                    if active:
+                        service.send(
+                            actor_id=NIL,
+                            recipients=active,
+                            message=event.message,
+                            idempotency_key=event.idempotency_key,
+                            kind=event.kind,
+                            subject_ref=event.subject_ref,
+                            confirmation_code=event.confirmation_code,
+                            confirm_url=event.confirm_url,
+                        )
+
+                try:
+                    self.rt.uow.run(enqueue_one)
+                except ToolError as error:
+                    if error.code == ErrorCode.RATE_LIMITED:
+                        # Savepoint rolled back the source claim. Retry it in a later relay.
+                        log.info("Notification source deferred: recipient rate limit")
+                        return
+                    if error.code != ErrorCode.INVALID_REQUEST:
+                        raise
+                    self.rt.uow.run(lambda: sources.claim(key))
+                    log.warning("Malformed notification source checkpointed: invalid_request")
+                except (ValueError, TypeError, KeyError):
+                    self.rt.uow.run(lambda: sources.claim(key))
+                    # Never log free text, recipient identities, locator URLs or link codes.
+                    log.warning("Malformed notification source checkpointed: invalid_payload")
 
             for row in sources.process_events():
                 send(
                     f"event:{row['id']}",
-                    notification_event(
-                        str(row["id"]), row["type"], row["payload"], subject_ref=row.get("ref")
-                    ),
+                    partial(_process_event, row),
                 )
             for row in sources.pending_confirmations():
                 pending = row["pending"]
@@ -83,12 +124,12 @@ class NotificationRelay:
                 payload = {
                     "recipients": [confirmers[approved]["ref"]],
                     "message": "Có thao tác đang chờ bạn xác nhận trên Desk.",
-                    "confirmation_code": comparison_code(cid, pending["plan_digest"]),
+                    "confirmation_code": pending.get("plan_digest", ""),
                     "confirm_url": f"{self.desk_url}/desk/confirm/{cid}",
                 }
                 send(
                     f"confirm:{cid}:{approved}",
-                    notification_event(f"{cid}:{approved}", "confirmation_required", payload),
+                    partial(_confirmation_event, cid, approved, payload),
                 )
             profile = self.rt.store.profile(actor)
             if profile is None:
@@ -101,7 +142,8 @@ class NotificationRelay:
                         key = f"assignment:{iid}:{task['task_id']}:{candidate}"
                         send(
                             key,
-                            notification_event(
+                            partial(
+                                notification_event,
                                 hashlib.sha256(key.encode()).hexdigest(),
                                 "assignment",
                                 {

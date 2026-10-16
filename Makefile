@@ -121,3 +121,19 @@ e2e:
 e2e-llm:   # E1: Desk + Ollama qwen3.5:4b (slot heavy riêng); cần stack đã up + demo-seed
 	$(E2E) python -m xte2e.stack preflight
 	$(E2E) pytest -c pytest.ini -m llm $(E2E_ARGS)
+
+# Notifications: no live Telegram; integration uses one isolated Postgres + MockTransport.
+NOTIFY_SRC := src/xt/application/notify src/xt/application/notify_tool.py src/xt/application/notify_events.py src/xt/adapters/notify src/xt/adapters/db/notify.py src/xt/adapters/db/notification_sources.py src/xt/contracts/tools/notify.py src/xt/entrypoints/composition/notify.py src/xt/entrypoints/notify_runtime.py src/xt/entrypoints/notify_http.py src/xt/entrypoints/telegram_http.py src/xt/entrypoints/telegram_link.py
+NOTIFY_UNIT := tests/unit/notify tests/unit/tools/test_contracts.py tests/unit/tools/test_handlers.py tests/unit/mcp/test_mcp_http.py
+NOTIFY_IT := tests/integration/notify
+.PHONY: check-notify test-notify-integration
+check-notify:
+	uv run ruff check $(NOTIFY_SRC) $(NOTIFY_UNIT) $(NOTIFY_IT)
+	uv run ruff format --check $(NOTIFY_SRC) $(NOTIFY_UNIT) $(NOTIFY_IT)
+	uv run mypy $(NOTIFY_SRC)
+	uv run lint-imports
+	uv run pytest $(NOTIFY_UNIT) --no-cov
+	uv run reuse lint-file $(shell find src/xt/application/notify src/xt/adapters/notify -name '*.py') $(filter %.py,$(NOTIFY_SRC)) src/xt/adapters/db/sql/migrations/0014_notify.sql src/xt/adapters/db/sql/migrations/0015_notification_sources.sql docs/notifications.md skills/xt-core/references/notifications.md
+
+test-notify-integration:
+	uv run pytest -m integration $(NOTIFY_IT) --no-cov

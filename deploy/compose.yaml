@@ -226,7 +226,7 @@ services:
       XT_PII_REVEAL_ORIGINS: https://${XT_DOMAIN_DESK}
       XT_PII_REVEAL_CLIENTS: ${XT_DESK_AGENT_CLIENT_ID:-xt-desk-agent}
       XT_PII_REVEAL_TICKETS_PER_MINUTE: ${XT_PII_REVEAL_TICKETS_PER_MINUTE:-10}
-      XT_DPOP_REQUIRED: ${XT_DPOP_REQUIRED:-false}   # RFC 9449 cho xt-desk-agent; bật sau cổng e2e (provision.py dùng cùng cờ)
+      XT_DPOP_REQUIRED: ${XT_DPOP_REQUIRED:-true}   # RFC 9449 cho xt-desk-agent, mặc định BẬT (provision.py dùng cùng cờ)
       XT_DPOP_CLIENTS: ${XT_DPOP_CLIENTS:-${XT_DESK_AGENT_CLIENT_ID:-xt-desk-agent}}   # DPA-06: cùng client mà provision.py ép DPoP
       XT_DPOP_REPLAY_STORE: postgres   # DPA-02: cache jti chung (xt_identity.dpop_jti), sống qua restart/nhiều worker
       XT_MCP_CONFIDENTIAL_CLIENTS: ${XT_MCP_CONFIDENTIAL_CLIENTS:-}

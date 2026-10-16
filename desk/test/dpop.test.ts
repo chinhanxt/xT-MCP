@@ -117,3 +117,16 @@ describe("reset (đăng xuất)", () => {
     expect(await store.get()).toBeDefined();
   });
 });
+
+describe("đăng xuất giữa lúc sinh khóa lần đầu (DPA-08)", () => {
+  it("không ghi lại khóa cũ vào kho; người sau nhận khóa mới", async () => {
+    const store = memoryKeyStore();
+    const s = new DpopSigner({ store, subtle: webcrypto.subtle as SubtleCrypto });
+    const inflight = s.thumbprint(); // đang sinh khóa
+    await s.reset(); // đăng xuất đúng lúc đó
+    const old = await inflight;
+    expect(await store.get()).toBeUndefined();
+    const after = await new DpopSigner({ store, subtle: webcrypto.subtle as SubtleCrypto }).thumbprint();
+    expect(after).not.toBe(old);
+  });
+});

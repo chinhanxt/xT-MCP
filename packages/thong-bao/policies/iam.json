@@ -1,0 +1,22 @@
+{
+  "version": "1",
+  "tenant": "binhminh",
+  "statements": [
+    {
+      "id": "notify.employee-send",
+      "effect": "Allow",
+      "subjects": ["role:employee"],
+      "actions": ["notify.send"],
+      "resources": ["xrn:binhminh:notification:notification"],
+      "conditions": []
+    },
+    {
+      "id": "notify.agent-send",
+      "effect": "Allow",
+      "subjects": ["role:agent"],
+      "actions": ["notify.send"],
+      "resources": ["xrn:binhminh:notification:notification"],
+      "conditions": []
+    }
+  ]
+}

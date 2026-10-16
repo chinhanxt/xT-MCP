@@ -404,6 +404,7 @@ Quyết định D-NOTIFY-1…8 trong `docs/decisions.md`; hướng dẫn vận h
 | Liên kết người | POST `/telegram/link-code` với token đúng audience MCP + allowlist `TELEGRAM_LINK_CLIENTS`; chỉ khởi tạo PKCE, chưa trả mã. Người mở URL, xác thực tươi+OTP tại callback `/desk/telegram/callback` rồi tự nhập `/link <code>` trong private chat. Provision client confirm thêm URI callback cố định này. Không nhận person/tenant từ body. |
 | Confirm page | Thêm dòng mã đối chiếu chụp từ pending digest; không thay logic duyệt. Telegram không thể thực thi operation. |
 | Deploy | `xt-api`/`xt-worker` có `TELEGRAM_*`; worker thêm `XT_DESK_URL`. APISIX route POST webhook ở domain API; link-code ở API/Desk; callback `/desk/*` đi route Desk có sẵn. Không tạo service/container mới. |
+| Gói policy | `packages/thong-bao` cấp `notify.send` cho employee và agent đại diện; không hard-code grant trong backend. Cài qua luồng pack chuẩn. |
 | Skills | `skills/xt-core/references/notifications.md`; `tool_count: 19`. Eval agent cần sinh lại catalog full nếu đang giữ snapshot; core-10 không thay đổi. |
 
 Không gọi Bot API thật để đăng ký webhook trong triển khai/test tự động. Người vận hành đăng ký thủ công theo tài liệu chính thức, secret không nằm trong repo.

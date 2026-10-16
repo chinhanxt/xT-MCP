@@ -15,24 +15,41 @@ from datetime import UTC, datetime
 from xt.adapters.db.connection import Database
 
 PURGE_BATCH = 10_000
+ACQUIRE_TIMEOUT_S = 1.5  # chờ kết nối từ pool (DB mất -> 503 nhanh, DPA-07)
+STATEMENT_TIMEOUT_MS = 3000  # câu lệnh/khóa bảng (LOCK, VACUUM FULL, migration) -> 503 nhanh
 
 
 class PgDpopReplayStore:
-    def __init__(self, db: Database) -> None:
+    def __init__(
+        self,
+        db: Database,
+        *,
+        acquire_timeout_s: float = ACQUIRE_TIMEOUT_S,
+        statement_timeout_ms: int = STATEMENT_TIMEOUT_MS,
+    ) -> None:
         self._db = db
+        self._acquire = acquire_timeout_s
+        self._stmt = int(statement_timeout_ms)
+
+    def _call(self, sql: str, params: tuple[object, ...]) -> object:
+        """Một transaction ngắn: `SET LOCAL` statement/lock timeout, rồi gọi hàm. Không bao giờ treo
+        quá acquire + statement timeout; lỗi ném ra để verifier trả 503."""
+        with self._db.pool.connection(timeout=self._acquire) as conn, conn.transaction():
+            conn.execute(f"SET LOCAL statement_timeout = {self._stmt}")
+            conn.execute(f"SET LOCAL lock_timeout = {self._stmt}")
+            row = conn.execute(sql, params).fetchone()
+        return row[0] if row else None
 
     def consume(self, key: str, expires_at: int | None) -> bool:
         prefix, jkt, jti = key.split("|", 2)  # jti có thể chứa "|": maxsplit giữ nguyên
         if prefix != "dpop" or not jkt or not jti or expires_at is None:
             raise ValueError("khóa DPoP không hợp lệ")
-        with self._db.connection() as conn:
-            row = conn.execute(
-                "SELECT xt_identity.dpop_jti_consume(%s, %s, %s)",
-                (jkt, jti, datetime.fromtimestamp(expires_at, UTC)),
-            ).fetchone()
-        return bool(row and row[0])
+        got = self._call(
+            "SELECT xt_identity.dpop_jti_consume(%s, %s, %s)",
+            (jkt, jti, datetime.fromtimestamp(expires_at, UTC)),
+        )
+        return bool(got)
 
     def purge(self, limit: int = PURGE_BATCH) -> int:
-        with self._db.connection() as conn:
-            row = conn.execute("SELECT xt_identity.dpop_jti_purge(%s)", (limit,)).fetchone()
-        return int(row[0]) if row else 0
+        got = self._call("SELECT xt_identity.dpop_jti_purge(%s)", (limit,))
+        return int(got) if isinstance(got, int) else 0

@@ -352,9 +352,10 @@ class DeskAgentDpop(unittest.TestCase):
     def tearDown(self):
         sys.argv = self._argv
 
-    def test_default_off_and_flag_on(self):
-        for env, want in (({}, "false"), ({"XT_DPOP_REQUIRED": "false"}, "false"), ({"XT_DPOP_REQUIRED": "true"}, "true"),
-                          ({"XT_DPOP_REQUIRED": "1"}, "true"), ({"XT_DPOP_REQUIRED": "maybe"}, "false")):
+    def test_default_on_and_explicit_off(self):
+        for env, want in (({}, "true"), ({"XT_DPOP_REQUIRED": "false"}, "false"), ({"XT_DPOP_REQUIRED": "true"}, "true"),
+                          ({"XT_DPOP_REQUIRED": "1"}, "true"), ({"XT_DPOP_REQUIRED": "off"}, "false"),
+                          ({"XT_DPOP_REQUIRED": "maybe"}, "true")):  # giá trị lạ: giữ an toàn (bật)
             rep = self.mod.desk_agent_client_rep(env, self.DESK, [])
             self.assertEqual(rep["attributes"]["dpop.bound.access.tokens"], want, env)
 
@@ -375,8 +376,8 @@ class DeskAgentDpop(unittest.TestCase):
 
     def test_compose_and_env_example_carry_the_flag(self):
         compose = (DEPLOY / "compose.yaml").read_text()
-        self.assertIn("XT_DPOP_REQUIRED: ${XT_DPOP_REQUIRED:-false}", compose)
-        self.assertIn("XT_DPOP_REQUIRED=false", (DEPLOY / ".env.example").read_text())
+        self.assertIn("XT_DPOP_REQUIRED: ${XT_DPOP_REQUIRED:-true}", compose)
+        self.assertIn("XT_DPOP_REQUIRED=true", (DEPLOY / ".env.example").read_text())
         self.assertIn("XT_DPOP_CLIENTS: ${XT_DPOP_CLIENTS:-${XT_DESK_AGENT_CLIENT_ID:-xt-desk-agent}}", compose)
         self.assertIn("XT_DPOP_REPLAY_STORE: postgres", compose)
         self.assertIn("XT_DPOP_CLIENTS=", (DEPLOY / ".env.example").read_text())

@@ -26,7 +26,7 @@ from urllib.parse import parse_qs, urlencode, urljoin, urlsplit
 
 import httpx
 
-from xte2e import net
+from xte2e import dpop, net
 from xte2e.config import settings
 
 
@@ -256,6 +256,7 @@ def exchange(
     code: str,
     verifier: str,
     secret: str | None = None,
+    key: dpop.DpopKey | None = None,
 ) -> Tokens:
     data = {
         "grant_type": "authorization_code",
@@ -266,7 +267,8 @@ def exchange(
     }
     if secret:
         data["client_secret"] = secret
-    r = c.post(token_endpoint(), data=data)
+    hdr = {"DPoP": key.proof("POST", token_endpoint())} if key else {}
+    r = c.post(token_endpoint(), data=data, headers=hdr)
     if r.status_code != 200:
         raise LoginError(f"đổi code thất bại HTTP {r.status_code}: {r.text[:300]}")
     return _tokens(r.json())
@@ -282,9 +284,12 @@ def _tokens(j: dict[str, Any]) -> Tokens:
     )
 
 
-def refresh(c: httpx.Client, client_id: str, tok: Tokens) -> Tokens:
+def refresh(
+    c: httpx.Client, client_id: str, tok: Tokens, key: dpop.DpopKey | None = None
+) -> Tokens:
     r = c.post(
         token_endpoint(),
+        headers={"DPoP": key.proof("POST", token_endpoint())} if key else {},
         data={
             "grant_type": "refresh_token",
             "client_id": client_id,
@@ -321,6 +326,7 @@ def login(
     user: str,
     password: str,
     totp_raw: str | None = None,
+    key: dpop.DpopKey | None = None,
     **extra: str,
 ) -> Tokens:
     verifier, challenge = pkce()
@@ -331,7 +337,7 @@ def login(
     q = parse_qs(urlsplit(step.url).query)
     if "code" not in q:
         raise LoginError(f"redirect không có code: {q.get('error')} {q.get('error_description')}")
-    return exchange(browser.c, client_id, redirect_uri, q["code"][0], verifier)
+    return exchange(browser.c, client_id, redirect_uri, q["code"][0], verifier, key=key)
 
 
 # ------------------------------------------------------------------------- phiên ----
@@ -346,6 +352,8 @@ class Session:
             scope,
         )
         self.browser = Browser()
+        # DPoP (XT_DPOP_REQUIRED): một khóa cho cả phiên, token gắn `cnf.jkt` của khóa này.
+        self.dpop = dpop.for_client(client_id)
         self.tok: Tokens | None = None
         self.lock = threading.Lock()
 
@@ -360,10 +368,11 @@ class Session:
                     self.user["username"],
                     self.user["password"],
                     self.user.get("totp"),
+                    key=self.dpop,
                 )
             elif self.tok.expires_at - time.time() < 60:
                 try:
-                    self.tok = refresh(self.browser.c, self.client_id, self.tok)
+                    self.tok = refresh(self.browser.c, self.client_id, self.tok, self.dpop)
                 except LoginError:
                     self.tok = login(
                         self.browser,
@@ -373,8 +382,13 @@ class Session:
                         self.user["username"],
                         self.user["password"],
                         self.user.get("totp"),
+                        key=self.dpop,
                     )
             return self.tok.access
+
+    def auth(self, method: str, url: str) -> dict[str, str]:
+        """Header xác thực cho một request tài nguyên (Bearer, hoặc DPoP + proof khi phiên gắn khóa)."""
+        return dpop.auth_headers(self.dpop, method, url, self.access())
 
 
 # ------------------------------------------------------------------------------ DCR ----
