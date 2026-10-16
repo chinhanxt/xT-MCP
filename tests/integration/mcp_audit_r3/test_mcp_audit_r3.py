@@ -240,7 +240,10 @@ def _err(env: dict[str, Any]) -> tuple[str, Any]:
 
 # =========================================== 1. R2-H1: khóa trùng không chặn event loop ====
 def _dup_body(target: int, dup: bool = True) -> bytes:
-    head = '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"get_record","arguments":{'
+    head = (
+        '{"jsonrpc":"2.0","id":7,"method":"tools/call",'
+        + '"params":{"name":"get_record","arguments":{'
+    )
     parts: list[str] = []
     size, i = len(head) + 4, 0
     while True:
@@ -318,8 +321,13 @@ def test_r2h1_4mib_duplicate_keys_keep_event_loop_responsive(w: W) -> None:
     assert max(lat) < 1.0, w.notes["dup4"]
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="R3-M1: SDK parse lại body (pydantic_core.from_json) TRÊN event loop, ~0,35 s/4 MiB",
+)
 def test_r2h1_4mib_unique_keys_keep_event_loop_responsive(w: W) -> None:
-    """Không trùng khóa: body đi tiếp vào SDK (parse) và kiểm schema; event loop vẫn phải thở."""
+    """Không trùng khóa: body đi tiếp vào SDK (parse) và kiểm schema; event loop vẫn phải thở.
+    16 request 4 MiB đồng thời (một token hợp lệ bất kỳ) -> /healthz phải < 1 s."""
     body = _dup_body(4 * 1024 * 1024 - 64, dup=False)
     tok = w.token("NV-0010")
 
@@ -328,7 +336,7 @@ def test_r2h1_4mib_unique_keys_keep_event_loop_responsive(w: W) -> None:
         r = w.post(body, tok)
         return r.status_code, time.perf_counter() - t, len(r.content)
 
-    res, lat = _probe_while(w, lambda: _parallel(4, big))
+    res, lat = _probe_while(w, lambda: _parallel(16, big))
     w.notes["uniq4"] = {
         "req_s": [round(x[1], 2) for x in res],
         "resp_bytes": [x[2] for x in res],
@@ -337,7 +345,7 @@ def test_r2h1_4mib_unique_keys_keep_event_loop_responsive(w: W) -> None:
     }
     print("R3 uniq4:", w.notes["uniq4"])
     for status, secs, size in res:
-        assert status == 200 and secs < 30
+        assert status == 200 and secs < 120
         assert size < 64 * 1024  # lỗi schema không echo 380k khóa
     assert max(lat) < 1.0, w.notes["uniq4"]
 
@@ -357,7 +365,7 @@ def test_r2l1_duplicates_outside_tools_call_and_lone_surrogate(w: W) -> None:
 # =============================================== 2. R2-M1/M2: PII trong mọi đường lỗi ====
 @pytest.mark.anyio
 async def test_pii_in_start_process_errors_cloud(w: W) -> None:
-    cases = [
+    cases: list[dict[str, Any]] = [
         {"process_id": "task_normal",
          "parameters": {"assignee_user": f"CCCD {CCCD}", "assigner_user": PHONE,
                         "task_id": EMAIL}},
@@ -371,7 +379,9 @@ async def test_pii_in_start_process_errors_cloud(w: W) -> None:
     ]  # fmt: skip
     seen = []
     for i, args in enumerate(cases):
-        out = await w.call("NV-0009", "start_process", {**args, "idempotency_key": f"r3-sp-{i:04d}"})
+        out = await w.call(
+            "NV-0009", "start_process", {**args, "idempotency_key": f"r3-sp-{i:04d}"}
+        )
         seen.append((_err(out), out["error"]["message"][:120]))
         assert not _leaks(out), out
     w.notes["start_process_errors"] = seen
@@ -483,95 +493,173 @@ async def test_pii_in_notify_errors_cloud(w: W) -> None:
 ROUNDS = 100
 
 
-def test_r2m3_confirm_vs_expire_race_dispatcher_pg(w: W) -> None:
-    """100 vòng: người xác nhận bấm ngay trước hạn (now = expires-1ms) và agent gọi lại ngay sau
-    hạn (now = expires+1s), hai thread/hai connection, xuất phát cùng barrier + jitter ngẫu nhiên.
-    Bất biến: có receipt <=> pending_status=confirmed <=> confirm CONFIRMED; agent không bao giờ
-    nhận `confirmation_expired` khi mutation đã commit; đúng 0 hoặc 1 notification mỗi vòng."""
+def _two(a: Any, b: Any) -> None:
+    """Chạy hai hàm ở hai thread, xuất phát cùng một barrier."""
+    gate = threading.Barrier(2)
+
+    def go(fn: Any) -> None:
+        gate.wait()
+        fn()
+
+    ths = [threading.Thread(target=go, args=(f,)) for f in (a, b)]
+    for t in ths:
+        t.start()
+    for t in ths:
+        t.join(60)
+
+
+def _code(a: Any) -> str:
+    if isinstance(a, dict):
+        return "ok" if a.get("ok") else str(a["error"]["code"])
+    return repr(a)
+
+
+def _dispatcher_round(w: W, i: int, jit: tuple[float, float]) -> tuple[str, bool]:
     d = w.prepared.dispatcher
     rt = w.prepared.services.runtime
     svc = ConfirmationService(d, DESK_CLIENT)
     key = "NV-0009"
     agent = Actor(ALIAS, w.sub(key), PrincipalKind.AGENT, AGENT_CLIENT, w.sub(key))
+    args = {"recipients": [f"person:{w.pid('NV-0010')}"], "message": f"race {i}",
+            "idempotency_key": f"r3-race-{i:04d}-{uuid.uuid4().hex[:6]}"}  # fmt: skip
+    first = d.call("notify", args, w.ctx(key, datetime.now(UTC))).envelope
+    assert first["error"]["code"] == "confirmation_required", first
+    det = first["error"]["details"]
+    cid = det["confirmation_id"]
+    exp = datetime.fromisoformat(det["expires_at"].replace("Z", "+00:00"))
+    out: dict[str, Any] = {}
+
+    def confirmer() -> None:
+        trace = f"r3c-{i}"
+        time.sleep(jit[0])
+        try:
+            out["c"] = rt.run_as(
+                rt.resolve(agent, trace),
+                agent,
+                lambda: svc.confirm(cid, w.sub(key), exp - timedelta(milliseconds=1), trace),
+            )
+        except Exception as e:
+            out["c"] = e
+
+    def retry() -> None:
+        time.sleep(jit[1])
+        try:
+            out["a"] = d.call("notify", args, w.ctx(key, exp + timedelta(seconds=1))).envelope
+        except Exception as e:
+            out["a"] = e
+
+    _two(confirmer, retry)
+    with w.pg.su() as su:
+        row = su.execute(
+            "SELECT pending_status, receipt IS NOT NULL FROM xt_meta.tool_operation"
+            " WHERE confirmation_id=%s",
+            (cid,),
+        ).fetchone()
+    assert row is not None
+    status, has_receipt = row
+    c, a = out.get("c"), out.get("a")
+    c_status = getattr(c, "status", c)
+    a_code = _code(a)
+    tag = (
+        f"{status}|receipt={has_receipt}|confirm={getattr(c_status, 'value', c_status)}"
+        f"|agent={a_code}"
+    )
+    a_status = None
+    if isinstance(a, dict) and a_code != "ok":
+        a_status = a["error"]["details"].get("status")
+    ok = (
+        has_receipt == (status == "confirmed")
+        and (c_status is PendingStatus.CONFIRMED) == has_receipt
+        and not (has_receipt and a_code != "ok")
+        and not (not has_receipt and a_code == "ok")
+        and (a_code != "confirmation_declined" or a_status == "expired")
+        and a_code in ("ok", "confirmation_declined")
+    )
+    return tag, ok
+
+
+def test_r2m3_confirm_vs_expire_race_dispatcher_pg(w: W) -> None:
+    """100 vòng: người xác nhận bấm ngay trước hạn (now = expires-1ms) và agent gọi lại ngay sau
+    hạn (now = expires+1s), hai thread/hai connection, xuất phát cùng barrier + jitter ngẫu nhiên.
+    Bất biến: có receipt <=> pending_status=confirmed <=> confirm CONFIRMED; agent không bao giờ
+    nhận lỗi khi mutation đã commit, không bao giờ nhận ok khi chưa commit."""
     tally: dict[str, int] = {}
     bad: list[Any] = []
     rnd = random.Random(3)
     for i in range(ROUNDS):
-        args = {"recipients": [f"person:{w.pid('NV-0010')}"], "message": f"race {i}",
-                "idempotency_key": f"r3-race-{i:04d}-{uuid.uuid4().hex[:6]}"}  # fmt: skip
-        first = d.call("notify", args, w.ctx(key, datetime.now(UTC))).envelope
-        assert first["error"]["code"] == "confirmation_required", first
-        det = first["error"]["details"]
-        cid = det["confirmation_id"]
-        exp = datetime.fromisoformat(det["expires_at"].replace("Z", "+00:00"))
-        gate = threading.Barrier(2)
-        out: dict[str, Any] = {}
-        jit = (rnd.random() * 0.004, rnd.random() * 0.004)
-
-        def confirmer() -> None:
-            trace = f"r3c-{i}"
-            gate.wait()
-            time.sleep(jit[0])
-            try:
-                out["c"] = rt.run_as(
-                    rt.resolve(agent, trace),
-                    agent,
-                    lambda: svc.confirm(cid, w.sub(key), exp - timedelta(milliseconds=1), trace),
-                )
-            except Exception as e:  # noqa: BLE001
-                out["c"] = e
-
-        def retry() -> None:
-            gate.wait()
-            time.sleep(jit[1])
-            try:
-                out["a"] = d.call("notify", args, w.ctx(key, exp + timedelta(seconds=1))).envelope
-            except Exception as e:  # noqa: BLE001
-                out["a"] = e
-
-        ths = [threading.Thread(target=confirmer), threading.Thread(target=retry)]
-        for t in ths:
-            t.start()
-        for t in ths:
-            t.join(60)
-        with w.pg.su() as su:
-            row = su.execute(
-                "SELECT pending_status, receipt IS NOT NULL FROM xt_meta.tool_operation"
-                " WHERE confirmation_id=%s",
-                (cid,),
-            ).fetchone()
-        assert row is not None
-        status, has_receipt = row
-        c, a = out.get("c"), out.get("a")
-        c_status = getattr(c, "status", c)
-        a_code = "ok" if isinstance(a, dict) and a.get("ok") else (
-            a["error"]["code"] if isinstance(a, dict) else repr(a))  # fmt: skip
-        tag = f"{status}|receipt={has_receipt}|confirm={getattr(c_status, 'value', c_status)}|agent={a_code}"
+        tag, ok = _dispatcher_round(w, i, (rnd.random() * 0.004, rnd.random() * 0.004))
         tally[tag] = tally.get(tag, 0) + 1
-        ok = (
-            has_receipt == (status == "confirmed")
-            and (c_status is PendingStatus.CONFIRMED) == has_receipt
-            and not (has_receipt and a_code != "ok")
-            and not (not has_receipt and a_code == "ok")
-            and (a_code != "confirmation_declined" or a["error"]["details"]["status"] == "expired")
-            and a_code in ("ok", "confirmation_declined")
-        )
         if not ok:
-            bad.append((i, tag, a if not isinstance(a, dict) else a.get("error")))
+            bad.append((i, tag))
     w.notes["race"] = tally
     print("R3 race:", tally)
     assert not bad, bad[:5]
     # Hai nhánh của cuộc đua đều phải xảy ra, nếu không bài kiểm không có ý nghĩa.
-    assert any("receipt=True" in k for k in tally) and any("receipt=False" in k for k in tally), tally
+    branches = {"receipt=True" in k for k in tally}
+    assert branches == {True, False}, tally
+
+
+def _store_round(w: W, store: Any, tx: Any, scope: Any) -> tuple[str, bool]:
+    from tests.unit.tools.operation_store_contract import NOW, _key, _pending, _receipt
+    from xt.application.tools.ports import PendingOperation, Receipt
+
+    k = _key(f"r3-st-{uuid.uuid4().hex[:12]}")
+    op = _pending(k, f"cf_r3_{uuid.uuid4().hex}")
+
+    def create() -> None:
+        assert store.claim(k, "fp", NOW) is None
+        store.save_pending(op)
+
+    tx(create)
+    out: dict[str, Any] = {}
+
+    def confirm_body() -> str:
+        cur = store.lock_pending(op.confirmation_id)
+        assert cur is not None
+        if not cur.status.open:
+            return str(cur.status.value)
+        store.save_receipt(_receipt(k))
+        done = store.update_pending(replace(cur, status=PendingStatus.CONFIRMED))
+        return "confirmed" if done else "update_false"
+
+    def agent_body() -> Any:
+        seen = store.claim(k, "fp", NOW + timedelta(minutes=11))
+        if isinstance(seen, PendingOperation):
+            if seen.status.open:
+                ok = store.update_pending(replace(seen, status=PendingStatus.EXPIRED))
+                return "expired" if ok else "update_false"
+            return seen.status.value
+        return "receipt" if isinstance(seen, Receipt) else repr(seen)
+
+    def confirmer() -> None:
+        out["c"] = tx(confirm_body)
+
+    def agent() -> None:
+        out["a"] = tx(agent_body)
+
+    _two(confirmer, agent)
+    with scope():
+        final = store.get_pending(op.confirmation_id)
+    with w.pg.su() as su:
+        rr = su.execute(
+            "SELECT receipt IS NOT NULL FROM xt_meta.tool_operation WHERE confirmation_id=%s",
+            (op.confirmation_id,),
+        ).fetchone()
+    assert final is not None and rr is not None
+    tag = f"{final.status.value}|receipt={rr[0]}|c={out.get('c')}|a={out.get('a')}"
+    ok = (
+        rr[0] == (final.status is PendingStatus.CONFIRMED)
+        and not (out.get("a") == "expired" and rr[0])
+        and "update_false" not in tag
+    )
+    return tag, ok
 
 
 def test_r2m3_store_level_race_two_connections(w: W) -> None:
     """Cùng cuộc đua ở mức port (không qua dispatcher): `lock_pending`+receipt+CONFIRMED vs
     `claim`(sau hạn)+EXPIRED, 100 vòng, pool 2 connection, không Event đồng bộ (chỉ barrier)."""
-    from tests.unit.tools.operation_store_contract import NOW, _key, _pending, _receipt
     from xt.adapters.db.confirmations import PgOperationStore, PgUnitOfWork
     from xt.adapters.db.connection import Database
-    from xt.application.tools.ports import PendingOperation, Receipt
     from xt.domain.model.context import ModelActor
 
     tenant = w.tenant
@@ -588,63 +676,9 @@ def test_r2m3_store_level_race_two_connections(w: W) -> None:
     bad: list[Any] = []
     try:
         for i in range(ROUNDS):
-            k = _key(f"r3-st-{i:05d}-{uuid.uuid4().hex[:6]}")
-            op = replace(_pending(k, f"cf_r3_{uuid.uuid4().hex}"))
-
-            def create() -> None:
-                assert store.claim(k, "fp", NOW) is None
-                store.save_pending(op)
-
-            tx(create)
-            gate = threading.Barrier(2)
-            out: dict[str, Any] = {}
-
-            def confirmer() -> None:
-                gate.wait()
-
-                def body() -> str:
-                    cur = store.lock_pending(op.confirmation_id)
-                    assert cur is not None
-                    if not cur.status.open:
-                        return cur.status.value
-                    store.save_receipt(_receipt(k))
-                    return "confirmed" if store.update_pending(
-                        replace(cur, status=PendingStatus.CONFIRMED)) else "update_false"  # fmt: skip
-
-                out["c"] = tx(body)
-
-            def agent() -> None:
-                gate.wait()
-
-                def body() -> Any:
-                    seen = store.claim(k, "fp", NOW + timedelta(minutes=11))
-                    if isinstance(seen, PendingOperation):
-                        if seen.status.open:
-                            ok = store.update_pending(replace(seen, status=PendingStatus.EXPIRED))
-                            return "expired" if ok else "update_false"
-                        return seen.status.value
-                    return "receipt" if isinstance(seen, Receipt) else repr(seen)
-
-                out["a"] = tx(body)
-
-            ths = [threading.Thread(target=confirmer), threading.Thread(target=agent)]
-            for t in ths:
-                t.start()
-            for t in ths:
-                t.join(30)
-            with uow.scope(actor):
-                final = store.get_pending(op.confirmation_id)
-            with w.pg.su() as su:
-                rr = su.execute(
-                    "SELECT receipt IS NOT NULL FROM xt_meta.tool_operation WHERE confirmation_id=%s",
-                    (op.confirmation_id,),
-                ).fetchone()
-            assert final is not None and rr is not None
-            tag = f"{final.status.value}|receipt={rr[0]}|c={out.get('c')}|a={out.get('a')}"
+            tag, ok = _store_round(w, store, tx, lambda: uow.scope(actor))
             tally[tag] = tally.get(tag, 0) + 1
-            if rr[0] != (final.status is PendingStatus.CONFIRMED) or (
-                out.get("a") == "expired" and rr[0]
-            ) or "update_false" in tag:
+            if not ok:
                 bad.append((i, tag))
     finally:
         db.close()
@@ -795,7 +829,7 @@ async def test_catalog_full_and_core10_integrity(w: W) -> None:
         full = [t.name for t in (await s.list_tools()).tools]
     catalog = [c.name for c in CATALOG]
     assert full[: len(catalog)] == catalog, full
-    assert set(full[len(catalog):]) <= set(APP_TOOLS_BY_NAME), full
+    assert set(full[len(catalog) :]) <= set(APP_TOOLS_BY_NAME), full
     assert {"start_process", "notify"} <= set(full)
     async with w.session(w.token("NV-0010"), w.core) as (s, init):
         core = [t.name for t in (await s.list_tools()).tools]

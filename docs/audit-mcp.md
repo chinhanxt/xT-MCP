@@ -376,3 +376,116 @@ Ngày 2026-10-16. 12 test của `test_audit_mcp_r2.py` đã bỏ `xfail` và pas
 | R2-L2 | Sửa | `ecma_pattern` compile với `re.ASCII` |
 | R2-L3 | Sửa | `safe_log.log_failure`: chỉ ghi kiểu ngoại lệ, chuỗi `file:dòng:hàm` và `trace_id`; không ghi `str(exc)`, không ghi message của jsonschema |
 | R2-I1 | Một phần | `wrong_tool` cắt tên tool còn 64 ký tự. `confirm()` chưa introspect token agent, vì PendingOperation không giữ token; cần lưu `token_id` và kiểm qua IdP, để lại khi có Desk confirm thật. `ConfirmPages` thuộc integrator |
+
+## Vòng 3
+
+Ngày 2026-10-16. Người kiểm: agent Opus (tester độc lập). Không sửa `src/`. HEAD lúc chốt: `f61ab94`.
+- Hạ tầng: một container `postgres:17-alpine` (fixture phiên, cổng ngẫu nhiên, `docker rm -f -v`), IdP test (JWKS HTTP thật, RS256, `AccessTokenVerifier` thật), `prepare()` + uvicorn thật.
+- Ba app: `full`, `core-10`, và `full` + `XT_DPOP_REQUIRED=true`/`XT_DPOP_CLIENTS=xt-desk-agent`.
+- Client: SDK `mcp` (`streamable_http_client` + `ClientSession`, DPoP qua `httpx2.Auth`, mỗi request một proof) và httpx thô. Tenant riêng `mr3` với các gói đề xuất, giao việc, nhân sự, thông báo, kênh PII.
+- Test mới:
+  - `tests/integration/mcp_audit_r3/test_mcp_audit_r3.py`: 11 pass, 3 xfail strict.
+  - `tests/unit/tools/audit_r3/test_audit_mcp_r3.py`: 6 xfail strict.
+- Số đo thô: `/tmp/xt-audit-r3/notes.json`.
+
+### 1. Test vòng 2 có bị nới không
+
+`test_audit_mcp_r2.py` chỉ có một commit (`98e1a1b`), và lúc commit đã ở dạng "đã sửa", nên `git log -p` không cho thấy được bản `xfail`. Người kiểm đối chiếu với bản gốc mà tester vòng 2 đã ghi (lấy từ transcript của phiên đó). Khác biệt chỉ gồm:
+- bỏ 6 marker `xfail(strict=True)`;
+- import `PostgresPiiLane` muộn bên trong `_real_lane()`;
+- chữ số fullwidth/Arabic-Indic viết lại dạng `\uXXXX`, cùng giá trị.
+
+Không assert nào bị nới: ngưỡng 0,3 s/15k khóa, 6 ca echo, continuation, số tiền và ngày ASCII đều giữ nguyên. **Kết luận: không nới test.**
+
+### 2. Chạy lại
+
+| Bộ | Kết quả |
+|---|---|
+| `pytest tests/unit` (mặc định + `-m slow`) | 1709 passed, 6 xfailed (audit_r3), 3 slow passed |
+| `tests/unit/mcp tests/unit/tools` | 298 passed (gồm 12 test hồi quy vòng 2) |
+| Integration: `mcp_audit_r3`, `composition/test_e2e.py` (gồm `test_pg_operation_store_contract`), `pii_audit`, `dpop_audit/test_dpop_round2.py` | 72 passed, 3 xfailed. Chạy trên worktree sạch ở `f61ab94` |
+| `dpop_audit/test_desk_key_rotation.py` | Pass ở cây chính. Trên worktree: 2 lỗi setup vì thiếu `desk/node_modules` (môi trường, không phải lỗi) |
+| ruff check, ruff format, mypy (file mới) | Sạch |
+
+Ghi chú:
+- Cây làm việc chính đang có WIP chưa commit của agent khác (`src/xt/adapters/db/sql/audit_meta.sql`). WIP này làm `pack install` báo `stack depth limit exceeded`, nên integration phải chạy trên worktree sạch.
+- Còn một container mồ côi `xt-it-composition-pg-d4fa7064` (tạo 08:12, không có tiến trình pytest nào sở hữu). Người kiểm không xóa vì chưa chắc container này là của mình.
+
+### 3. PASS/FAIL
+
+| # | Ca | Kết quả | Bằng chứng |
+|---|---|---|---|
+| R3-01 | R2-H1, live: 4 body 4 MiB đồng thời, mỗi body ~185k khóa trùng | PASS | 200 `duplicate_key` (≤20 khóa) trong 1,9–3,7 s. `/healthz` p50 2–37 ms, max 0,23–0,51 s (vòng 2: một request 1,3 MB làm `/healthz` chờ 22 s). In-process: 190k khóa trùng 0,39 s, tuyến tính |
+| R3-02 | Body 4 MiB, ~370k khóa **không trùng**, 16 request đồng thời | **FAIL (R3-M1)** | Mỗi request 10–17 s. `/healthz` max 1,59–2,70 s qua 3 lần chạy (với 4 request: 0,38–1,23 s) |
+| R3-03 | R2-L1: khóa trùng ở `tools/list`; khóa trùng kèm lone surrogate | PASS | 400 `-32600`; không 500, không traceback |
+| R3-04 | PII trong lỗi `start_process` (client cloud): param `user` sai chứa CCCD/SĐT/email, mảng, `case_id="so_cccd:…"`, subject không đọc được, process lạ | PASS | Không giá trị thô nào lọt. Ví dụ: `input assignee_user=['[PII:…]','[PII:…]'] không hợp lệ`. Subject lạ: `not_found` đồng nhất (sau PSA-03) |
+| R3-05 | PII trong lỗi hoàn thành bước người (`transition_record`, instance `task_normal` thật) | PASS | `transition_not_allowed` (kèm `available_transitions`), `field_not_writable`, `unknown_field`, `state_in_values`, `revision_conflict`, `not_found`: không echo `values`/`reason`. Riêng tên field do agent tự đặt (`f079123456789`) được echo, vì lookbehind cố ý bỏ qua chữ liền trước (Info) |
+| R3-06 | PII trong lỗi `notify`: người nhận lạ, xrn tenant khác, subject lạ, `confirmation_required` | PASS | `not_found`. `details`/`plan_summary` không echo. `continuation` (args agent gửi) gọi lại được, ra lại `confirmation_required`, không `masked_value` (R2-M2) |
+| R3-07 | R2-M1 (unit, làn thật): giá trị PII đã biết nằm trong thông điệp tự do | **FAIL (R3-L1)** | `PostgresPiiLane.scrub_error` không truyền `known_values`. Trong `src`/`tests` không có chỗ nào dùng nguồn "giá trị đã biết" mà phản hồi tác giả nhắc tới. Số tài khoản 16 số trong message đi nguyên văn |
+| R3-08 | R2-M1 (unit): `float`, dấu `_` hoặc `/` giữa nhóm số | **FAIL (R3-L1)** | `912345678.0`, `079_123_456_789`, `079/123/456/789` lọt |
+| R3-09 | R2-M3, dispatcher thật + PG: `ConfirmationService.confirm` (now = hạn − 1 ms) đua với agent gọi lại (now = hạn + 1 s). 100 vòng, 2 connection, barrier + jitter | PASS | 30 lần `confirmed+receipt`, agent `ok` (replay). 70 lần `expired`, không receipt, agent `confirmation_declined{status=expired}`. 0 vi phạm bất biến. Cả hai nhánh đều xảy ra |
+| R3-10 | R2-M3, mức port `PgOperationStore`: `lock_pending`+receipt+CONFIRMED đua với `claim` sau hạn + EXPIRED. 100 vòng × 3 lần chạy | PASS | Mỗi lần chạy: 8–14 `confirmed`, agent thấy receipt; 86–92 `expired`, không receipt. Không lần nào EXPIRED đè hàng có receipt, không lần nào `update_pending` trả False. Fix: `claim` đọc bằng `FOR UPDATE`, `update_pending` có điều kiện |
+| R3-11 | R2-M4: tier của Desk | PASS | `xt-desk-agent` (public) ra `masked`, kể cả khi token gắn DPoP. Client confidential ra `full`. `load_serve_config` từ chối `XT_MCP_LOCAL_CLIENTS=xt-desk-agent` khi thiếu `XT_MCP_CONFIDENTIAL_CLIENTS`, và từ chối cả khi nó đi kèm một client confidential |
+| R3-12 | DPoP trên `/mcp`: phiên SDK thật với token gắn khóa; 11 kiểu tấn công | PASS | Phiên chạy được. 401 cho cả 11 kiểu: token gắn khóa đi qua Bearer (có hoặc không có proof), proof replay, sai `htm`, sai `htu` (`/workflow/v1`), sai `ath`, khóa khác `cnf.jkt`, thiếu proof, 2 proof, scheme DPoP với token không gắn khóa, `iat` cũ 600 s |
+| R3-13 | `XT_DPOP_REQUIRED=true` | PASS | `xt-desk-agent` Bearer không gắn khóa: 401. Client khác (it-agent): 200. Desk có gắn khóa: 200 |
+| R3-14 | Aud ngoại trên `/mcp` | PASS | 401 cho mọi biến thể: `[mcp,xt-workflow]`, `[mcp,xt-data]`, `[mcp,xt-files]`, chỉ `"xt-workflow"`, chỉ `["xt-files"]`, `[mcp,account,xt-data]`, token DPoP gắn khóa có `[mcp,xt-files]`. Đối chứng `[mcp,account]`: 200 |
+| R3-15 | Catalog sau tool mới | PASS | `full` = 19 tool theo đúng thứ tự `CATALOG` (17 tool v0.1, `start_process`, `notify`), sau đó là các tool app-only |
+| R3-16 | Hồ sơ core-10 | PASS | `CORE_10` không đổi so với v0.1. `core-10` quảng bá đúng 10 tool, cộng 3 tool app-only có view gắn với tool trong hồ sơ: `org_person_details`, `records_table_page`, `pii_reveal_ticket` (đúng thiết kế) |
+| R3-17 | Gọi tool ẩn trong core-10 (9 tool, gồm `start_process` và `notify`) và tool lạ | PASS | Đều ra `invalid_request/wrong_tool` với cùng `tools=sorted(CORE_10)`. Instructions không nhắc tool ẩn |
+| R3-18 | Echo ngoài `tools/call`: `prompts/get` và `resources/read` với tên/URI 3 MiB | **FAIL (R3-L2)** | 200, response 3 145 806 / 3 145 813 byte: echo nguyên văn `unknown prompt: …` / `unknown resource: …` |
+| R3-19 | R2-L3: log trên đường thật | **FAIL (R3-L3)** | `ScopedDispatcher.scoped` (đường của `xt serve`) vẫn `log.exception`, nên log có message và traceback, ví dụ `Failing row contains (so_cccd 079123456789, "postgres://u:p@h")` |
+
+### 4. Lỗi mới
+
+**R3-M1 (Medium). Body lớn không trùng khóa vẫn làm event loop ngừng thở (phần còn lại của R2-H1).**
+- Nguyên nhân:
+  - `DuplicateKeyGuard` parse body ngoài loop rồi trả nguyên body cho SDK.
+  - SDK parse lại bằng `pydantic_core.from_json(body)` **trên event loop** (`mcp/server/streamable_http.py:581`). Body 4 MiB có 370k khóa mất ~0,35 s cho mỗi request.
+  - Thêm vào đó là tranh GIL của các thread `inspect_body` và jsonschema.
+- Tác động: chỉ cần một token hợp lệ bất kỳ (kể cả connector DCR). 16 request đồng thời làm `/healthz` chờ tới 2,7 s và mỗi request mất 10–17 s CPU. Mức độ nhẹ hơn nhiều so với R2-H1 (tuyến tính, không còn bậc hai) nhưng vẫn khuếch đại được.
+- Sửa (chọn một hoặc kết hợp):
+  - Trần số khóa của một object và tổng số node, áp trong `inspect_body`. Ví dụ ≤ 10k khóa (trần schema rộng nhất hiện là `maxProperties: 200`).
+  - Hạ `max_body_bytes` của `/mcp` xuống 1 MiB, vì tệp đi qua `/files`, không đi qua tool args.
+  - Giới hạn số request đồng thời theo `azp`/`sub`.
+- Test: `test_r2h1_4mib_unique_keys_keep_event_loop_responsive`.
+
+**R3-L1 (Low). Lưới lỗi PII thiếu nguồn "giá trị đã biết" và còn vài dạng lọt.**
+- Phản hồi vòng 2 ghi rằng `ErrorScrubber` có ba nguồn. Thực tế `PostgresPiiLane.scrub_error` chỉ truyền `pii_fields`; tham số `known_values` có trong code nhưng không chỗ nào dùng.
+- Vì vậy giá trị PII không phải CCCD, SĐT hay email (số tài khoản, họ tên, địa chỉ) nằm trong thông điệp tự do sẽ không bị che. Ngoài ra `float` không được quét, và dấu `_`, `/` giữa các nhóm số không được nhận.
+- Mức Low: trên đường thật chưa tìm được lỗi nào echo PII lấy từ DB. Các lỗi Postgres chỉ dùng `message_primary`/tên constraint; mọi echo đã thấy đều là dữ liệu agent tự gửi hoặc đã bị che theo field.
+- Sửa:
+  - Nối `known_values` từ các bản ghi mà lời gọi đã đọc (`outbound` đã biết các giá trị này).
+  - Quét `float` như `int`.
+  - Thêm `_` và `/` vào `_SEP`.
+- Test: `tests/unit/tools/audit_r3/test_audit_mcp_r3.py`, 5 ca.
+
+**R3-L2 (Low). Echo không giới hạn ở `prompts/get` và `resources/read`.**
+- `_get_prompt` dựng `MCPError(f"unknown prompt: {params.name}")`, `_read_resource` dựng `f"unknown resource: {params.uri}"`. `PromptError` còn liệt kê nguyên tên argument lạ.
+- Hậu quả: response tới ~4 MiB, tốn băng thông và token của client. R2-I1 mới cắt tên cho `wrong_tool`.
+- Sửa: cắt tên/URI còn 64 ký tự, như `wrong_tool`.
+- Test: `test_unbounded_echo_of_unknown_names` (2 ca).
+
+**R3-L3 (Low). R2-L3 mới sửa một phần.**
+- `safe_log` được dùng ở dispatcher và adapter MCP. Nhưng `ScopedDispatcher.scoped` (`composition/runtime.py:313,323`) và `confirm_web.py:232,338,420` vẫn gọi `log.exception`.
+- Đây là đường mọi lời gọi của `xt serve` đi qua. Lỗi lúc COMMIT hoặc lỗi resolve sẽ ghi message và traceback, có thể chứa PII hoặc DSN.
+- Sửa: thay bằng `log_failure(log, …, e, trace_id=…)`.
+- Test: `test_composition_transaction_failure_log_has_no_pii`.
+
+**Info:**
+- Catalog hiện có 19 tool (`notify` đã lên catalog). `CLAUDE.md`/TCV1 vẫn ghi "v0.1 có 17 tool". Cần ghi rõ `notify`/`start_process` là v1.0 sớm, hoặc ẩn `notify` khỏi `full` khi phần Notifier còn WIP.
+- Assignee (NV-0010) không `get_record` được việc của chính mình qua MCP (`access_denied`). Ngoài phạm vi MCP, chuyển cho người làm model/IAM.
+- R2-I1 (confirm không introspect token agent) vẫn như cũ.
+
+### Kết luận vòng 3
+
+- **R2-H1: ĐẠT.** Quét khóa trùng tuyến tính và chạy ngoài loop. Còn **R3-M1** (SDK parse lại trên loop) cho body lớn không trùng khóa.
+- **R2-M1: ĐẠT MỘT PHẦN.** Mọi đường lỗi live, kể cả `start_process`, hoàn thành bước người và `notify`, đều không lộ PII. Nguồn "giá trị đã biết" chưa được nối (**R3-L1**).
+- **R2-M2: ĐẠT.**
+- **R2-M3: ĐẠT.** Adapter Postgres sửa đúng. 2 × 100 vòng đua thật trên PG không vi phạm, cả hai nhánh đều xảy ra. `test_pg_operation_store_contract` pass.
+- **R2-M4: ĐẠT.** DPoP không nâng tier, cấu hình chặn client public.
+- **R2-L1, R2-L2: ĐẠT.** **R2-L3: một phần (R3-L3).**
+- **Mới:** DPoP trên `/mcp`, aud ngoại, catalog/core-10 sau `start_process`/`notify`: ĐẠT.
+
+**Verdict: ĐẠT để khóa v0.1.0 lớp MCP.** Không còn lỗi High. Điều kiện:
+- Sửa **R3-M1** trước khi mở `xt-mcp.freepro.online` cho connector công khai. Vài dòng: trần số khóa hoặc body 1 MiB cho `/mcp`.
+- R3-L1..L3 không chặn phát hành; nên sửa cùng đợt, vì mỗi lỗi chỉ vài dòng và đã có test xfail strict.

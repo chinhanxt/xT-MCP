@@ -72,7 +72,5 @@ def test_composition_transaction_failure_log_has_no_pii(caplog: pytest.LogCaptur
     with caplog.at_level("DEBUG"):
         out = d.call("get_record", {"ref": "employee:x"}, agent_ctx("sub-mai"))
     assert out.envelope["error"]["code"] == "internal_error"
-    logged = caplog.text + "".join(
-        r.exc_text or "" for r in caplog.records
-    )
+    logged = caplog.text + "".join(r.exc_text or "" for r in caplog.records)
     assert CCCD not in logged and "postgres://u:p@h" not in logged
