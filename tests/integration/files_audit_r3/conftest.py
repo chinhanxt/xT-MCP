@@ -18,8 +18,6 @@ import argparse
 import json
 import re
 import secrets
-import subprocess
-import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -27,7 +25,6 @@ from typing import Any
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from psycopg import sql
 
 from tests.integration import seaweed
 from tests.integration.composition import pgfixture
@@ -39,7 +36,6 @@ from tests.integration.composition.fixtures import (
     ROOT,
     Stack,
     Worker,
-    _url,
     _write,
     run_admin,
     sub,
@@ -185,38 +181,23 @@ def r3stack(
 
 
 @pytest.fixture(scope="module")
-def r3worker(r3stack: Stack, pg: pgfixture.Pg) -> Worker:
-    """Hàng đợi thật + env cho tiến trình `xt worker` (handlers composition), cùng Postgres/SeaweedFS
-    của `r3stack`. Test tự `bind-queue` rồi chạy `xt worker` để chứng minh files.maintain qua worker."""
-    control_pw = secrets.token_urlsafe(16)
-    with pg.su() as su:
-        if not su.execute("SELECT 1 FROM pg_roles WHERE rolname='xt_control'").fetchone():
-            su.execute(
-                sql.SQL("CREATE ROLE xt_control LOGIN NOBYPASSRLS PASSWORD {}").format(
-                    sql.Literal(control_pw)
-                )
-            )
-            su.execute("GRANT CONNECT ON DATABASE xt TO xt_control")
-        else:
-            su.execute(sql.SQL("ALTER ROLE xt_control PASSWORD {}").format(sql.Literal(control_pw)))
-    owner = _url("xt_owner", pg.owner_password)
-    wenv = {
-        **r3stack.env,
-        "XT_WORKER_DATABASE_URL": _url("xt_app", pg.app_password),
-        "XT_QUEUE_DATABASE_URL": _url("xt_control", control_pw),
-        "XT_QUEUE_MIGRATOR_DATABASE_URL": owner,
-        "XT_DB_OWNER_URL": owner,
-        "XT_WORKER_CONCURRENCY": "1",
-        "XT_WORKER_STALLED_SECONDS": "6",
-        "XT_WORKER_RECOVER_SECONDS": "1",
-        "XT_WORKER_MAX_ATTEMPTS": "2",
-        "XT_WORKER_RETRY_SECONDS": "1",
-        "XT_WORKER_HANDLERS": "xt.entrypoints.composition.worker:handlers",
-        "XT_WORKFLOW_RELAY_SECONDS": "60",
-    }
-    xt_bin = str(Path(sys.executable).with_name("xt"))
-    inst = subprocess.run(
-        [xt_bin, "worker", "--install-schema"], env=wenv, capture_output=True, timeout=120
+def r3worker(r3stack: Stack, worker: Worker) -> Worker:
+    """Hàng đợi thật + env cho tiến trình `xt worker` (handlers composition), cùng Postgres/
+    SeaweedFS của `r3stack`. Dùng lại schema hàng đợi + role xt_control của fixture phiên `worker`
+    (cài lại schema trên cùng Postgres -> DuplicateObject; đổi mật khẩu xt_control làm hỏng
+    `worker`). Test tự `bind-queue` rồi chạy `xt worker` để chứng minh files.maintain qua worker."""
+    queue_keys = (
+        "XT_WORKER_DATABASE_URL",
+        "XT_QUEUE_DATABASE_URL",
+        "XT_QUEUE_MIGRATOR_DATABASE_URL",
+        "XT_DB_OWNER_URL",
+        "XT_WORKER_CONCURRENCY",
+        "XT_WORKER_STALLED_SECONDS",
+        "XT_WORKER_RECOVER_SECONDS",
+        "XT_WORKER_MAX_ATTEMPTS",
+        "XT_WORKER_RETRY_SECONDS",
+        "XT_WORKER_HANDLERS",
+        "XT_WORKFLOW_RELAY_SECONDS",
     )
-    assert inst.returncode == 0, inst.stderr.decode()
-    return Worker(wenv, xt_bin)
+    wenv = {**r3stack.env, **{k: worker.env[k] for k in queue_keys}}
+    return Worker(wenv, worker.xt_bin)

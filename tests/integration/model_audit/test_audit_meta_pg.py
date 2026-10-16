@@ -46,6 +46,8 @@ META_TABLES = (
     "file_object",  # 0009_files: metadata tệp (tên redact) cũng vào hash-chain
     "file_event",
     "decision",  # 0010_decision_sod
+    "notification",  # 0014_notify: tiêu đề redact
+    "telegram_link",  # 0014_notify: telegram_user_id/chat_id redact
 )
 
 

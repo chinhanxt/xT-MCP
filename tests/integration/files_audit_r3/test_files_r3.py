@@ -23,7 +23,6 @@ import secrets
 import subprocess
 import threading
 import time
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -41,7 +40,7 @@ from tests.integration.files_audit_r2.test_files_r2 import (
     store,
     upload,
 )
-from tests.integration.files_audit_r3.conftest import A, COLLEAGUE, MAX, TENANT_Q
+from tests.integration.files_audit_r3.conftest import COLLEAGUE, MAX, TENANT_Q, A
 
 pytestmark = pytest.mark.integration
 
@@ -73,7 +72,7 @@ def test_purge_finalize_high_concurrency_keeps_bytes(r3stack: Stack) -> None:
         while not stop.is_set():
             try:
                 backend(s).maintain(s.tenants[A])
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 purge_err.append(e)
                 return
 

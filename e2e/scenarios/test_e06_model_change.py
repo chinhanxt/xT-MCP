@@ -10,15 +10,14 @@ import time
 from typing import Any
 
 import pytest
-
 from xte2e import compose
 from xte2e.flows import (
-    A,
     ACCOUNTANT,
     DEPT_HEAD,
     DEPT_HEAD_ACCT,
     DIRECTOR,
     REQUESTER,
+    A,
     advance,
     dumps,
     err,

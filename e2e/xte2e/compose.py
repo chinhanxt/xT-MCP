@@ -18,13 +18,23 @@ from xte2e.config import DEPLOY, ROOT, settings
 CORE = ["postgres", "keycloak", "apisix", "xt-init", "xt-api", "xt-worker", "xt-desk"]
 
 
+def override_file() -> Path:
+    return settings().state_dir / "compose-config-files.yaml"
+
+
 def base_cmd() -> list[str]:
     s = settings()
+    files = ["-f", str(DEPLOY / "compose.yaml")]
+    if (
+        override_file().exists()
+    ):  # chỉ khi stack.up phải dùng đường vòng (ghi vào stack-issues.json, E0 FAIL)
+        files += ["-f", str(override_file())]
     return [
         "docker",
         "compose",
         "-p",
         s.project,
+        *files,
         "--env-file",
         str(DEPLOY / ".env"),
         "--profile",

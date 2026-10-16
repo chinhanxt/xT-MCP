@@ -16,9 +16,8 @@ import pytest
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
-
 from xte2e import compose, mcpc, net
-from xte2e.flows import A, DIRECTOR, REQUESTER, advance, dumps, err, key
+from xte2e.flows import DIRECTOR, REQUESTER, A, advance, dumps, err, key
 from xte2e.report import Checks, Evidence
 
 SCENARIO = "E5"

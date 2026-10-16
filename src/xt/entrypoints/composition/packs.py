@@ -252,6 +252,7 @@ def plan_install(
             policy = (dumped, digest)
     bindings: list[tuple[str, str, dict[str, Any]]] = []
     by_name = {x.name: x for x in catalog.models}
+    problems += _complete_via_problems(processes, by_name)
     proc_ids = {p[0] for p in processes} | set(active)
     for model, b in m.bindings.items():
         spec_m = by_name.get(model)
@@ -292,6 +293,37 @@ def plan_install(
         bindings,
         problems,
     )
+
+
+def _complete_via_problems(
+    processes: list[tuple[str, int, dict[str, Any], str, dict[str, list[str]]]],
+    models: Mapping[str, Any],
+) -> list[str]:
+    """`complete_via` phải trỏ model có thật, trường match/state có thật, `writable_fields` chỉ
+    gồm trường thường (không ref/user/file, không managed_by) — PSA-01."""
+    out: list[str] = []
+    for pid, _ver, spec, _sha, _ops in processes:
+        for st, _ in parse_spec(spec).iter_steps():
+            via = getattr(st, "complete_via", None)
+            if via is None:
+                continue
+            m = models.get(via.model)
+            where = f"quy trình {pid} bước {st.id}: complete_via"
+            if m is None:
+                out.append(f"{where}: model {via.model!r} không có")
+                continue
+            by = m.by_name()
+            for f in [*via.match, via.state_field]:
+                if f != "id" and f not in by:
+                    out.append(f"{where}: trường {f!r} không có trong {via.model}")
+            for f in via.writable_fields:
+                fs = by.get(f)
+                if fs is None or fs.type in ("ref", "user", "file") or fs.managed_by:
+                    out.append(
+                        f"{where}: writable_fields {f!r} không ghi được (không có / ref /"
+                        " user / file / managed_by)"
+                    )
+    return out
 
 
 def install(

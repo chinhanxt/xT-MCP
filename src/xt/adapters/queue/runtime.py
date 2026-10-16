@@ -260,6 +260,9 @@ class QueueRuntime:
                 "autocommit": True,
                 "options": self.tenant_options,
                 "cursor_factory": GuardedCursor,
+                # DISCARD ALL (reset) xóa prepared statement phía server; tắt auto-prepare để
+                # cache phía psycopg không trỏ tới `_pg3_N` đã mất sau khi trả kết nối về pool.
+                "prepare_threshold": None,
             },
             reset=_reset_session,
             min_size=1,

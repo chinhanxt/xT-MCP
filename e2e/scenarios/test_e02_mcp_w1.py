@@ -12,9 +12,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
 from xte2e import mcpc, net, oidc, seed
-from xte2e.flows import A, DEPT_HEAD, DIRECTOR, REQUESTER, advance, dumps, err, key
+from xte2e.flows import DEPT_HEAD, DIRECTOR, REQUESTER, A, advance, dumps, err, key
 from xte2e.report import Checks, Evidence
 
 SCENARIO = "E2"

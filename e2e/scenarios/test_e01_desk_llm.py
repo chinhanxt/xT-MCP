@@ -10,9 +10,8 @@ import os
 
 import httpx
 import pytest
-
 from xte2e import desk
-from xte2e.flows import A, DEPT_HEAD, DIRECTOR, REQUESTER, err
+from xte2e.flows import DEPT_HEAD, DIRECTOR, REQUESTER, A, err
 from xte2e.report import Checks, Evidence
 
 SCENARIO = "E1"

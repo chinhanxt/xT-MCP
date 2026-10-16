@@ -242,10 +242,10 @@ def ops(
 
 
 def test_packs_install_with_registered_ops(ops: Ops) -> None:
-    assert "task_normal v3" in ops.plans["giao-viec-sla"]
+    assert "task_normal v4" in ops.plans["giao-viec-sla"]
     assert "weekly_digest v3" in ops.plans["giao-viec-sla"]
-    assert "employee_onboarding v4" in ops.plans["nhan-su-vong-doi"]
-    assert "employee_offboarding v3" in ops.plans["nhan-su-vong-doi"]
+    assert "employee_onboarding v5" in ops.plans["nhan-su-vong-doi"]
+    assert "employee_offboarding v4" in ops.plans["nhan-su-vong-doi"]
 
 
 def test_task_normal_happy_path_closes_task(ops: Ops) -> None:
@@ -779,7 +779,8 @@ def test_task_normal_steps_complete_via_transition_record(ops: Ops) -> None:
     assert (item["kind"], item["step"], item["state"]) == ("task", "accept", "new"), item
     assert item["suggested_tool"] == "transition_record" and item["to_states"] == ["accepted"]
     assert item["sla_status"] == "on_track" and item["due_at"]
-    assert item["title"] == "Xác nhận nhận việc: Báo cáo công nợ quý"
+    # Người làm không đọc được task (own theo người tạo): inbox không lộ tiêu đề (PSA-03).
+    assert item["title"] == f"Xác nhận nhận việc: task:{task['id'][:8]}"
 
     # Người giao không giữ bước accept: không hoàn thành thay được.
     other = ops.tool(

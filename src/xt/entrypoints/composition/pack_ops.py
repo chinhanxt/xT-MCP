@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Mapping
+from contextvars import ContextVar
 from datetime import UTC, date, datetime, time
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -36,6 +37,11 @@ TASK_OPEN_END = ("done", "cancelled", "not_accepted")
 MAX_ROWS = 200
 _ROLE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 _DEPT = re.compile(r"^[A-Za-z0-9_-]{1,20}$")
+
+
+# (instance, task) đang được hoàn thành trong lời gọi hiện tại: op chạy NGAY sau bước đó (vd
+# close_lifecycle_case) thấy bước vừa xong dù history trong DB chưa có (PSA-04).
+ACTING: ContextVar[tuple[str, str] | None] = ContextVar("xt_acting_task", default=None)
 
 
 class OpInputError(ValueError):
@@ -412,8 +418,14 @@ def _acted_steps(pc: ProcessContext, instance_id: str) -> set[str]:
     from xt.adapters.db.workflow_bridge import PgWorkflowStore
 
     rec = PgWorkflowStore(pc.rt.uow).get_for_update(instance_id)
-    hist = (rec.state.get("meta") or {}).get("history", []) if rec else []
-    return {str(h["step"]) for h in hist if h.get("step")}
+    meta = (rec.state.get("meta") or {}) if rec else {}
+    out = {str(h["step"]) for h in meta.get("history", []) if h.get("step")}
+    acting = ACTING.get()
+    if acting is not None and acting[0] == instance_id:
+        a = (meta.get("assign") or {}).get(acting[1]) or {}
+        if a.get("step"):
+            out.add(str(a["step"]))
+    return out
 
 
 def close_lifecycle_case(pc: ProcessContext, d: ProcessDefinition) -> ServiceFn:
@@ -437,8 +449,8 @@ def close_lifecycle_case(pc: ProcessContext, d: ProcessDefinition) -> ServiceFn:
                     " truy cập chưa thu hồi, chưa đóng được"
                 )
         done = 0
-        # Bước có điều kiện chưa từng chạy -> skipped. Lịch sử đọc từ DB là trạng thái TRƯỚC lần
-        # hoàn thành đang chạy, nên chỉ xét bước có `when` (bước thường chắc chắn đã chạy).
+        # Bước có điều kiện chưa từng chạy -> skipped. Lịch sử trong DB chưa có lần hoàn thành
+        # đang chạy: bổ sung bằng ACTING; chỉ xét bước có `when` (bước thường chắc chắn đã chạy).
         spec = ProcessSpec.model_validate(d.spec)
         conditional = {st.id for st, _ in spec.iter_steps() if getattr(st, "when", None)}
         acted = _acted_steps(pc, _instance(idempotency_key)) if idempotency_key else set()

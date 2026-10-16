@@ -123,20 +123,39 @@ class Realm:
         return e
 
 
-class Admin:
+class _AdminAuth(httpx.Auth):
+    """Token admin-cli của master sống 60 s; fixture session dùng lâu hơn -> lấy lại khi 401."""
+
     def __init__(self, password: str) -> None:
-        self.c = httpx.Client(base_url=BASE, timeout=30)
-        r = self.c.post(
-            "/realms/master/protocol/openid-connect/token",
+        self.password = password
+        self.token = self._fetch()
+
+    def _fetch(self) -> str:
+        r = httpx.post(
+            f"{BASE}/realms/master/protocol/openid-connect/token",
             data={
                 "grant_type": "password",
                 "client_id": "admin-cli",
                 "username": "admin",
-                "password": password,
+                "password": self.password,
             },
+            timeout=30,
         )
         r.raise_for_status()
-        self.c.headers["Authorization"] = f"Bearer {r.json()['access_token']}"
+        return str(r.json()["access_token"])
+
+    def auth_flow(self, request: httpx.Request) -> Any:
+        request.headers["Authorization"] = f"Bearer {self.token}"
+        response = yield request
+        if response.status_code == 401:
+            self.token = self._fetch()
+            request.headers["Authorization"] = f"Bearer {self.token}"
+            yield request
+
+
+class Admin:
+    def __init__(self, password: str) -> None:
+        self.c = httpx.Client(base_url=BASE, timeout=30, auth=_AdminAuth(password))
 
     def ok(self, r: httpx.Response) -> httpx.Response:
         if r.status_code not in (200, 201, 204):

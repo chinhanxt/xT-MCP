@@ -67,7 +67,7 @@ from xt.entrypoints.composition.model_changes import (
     ModelChangeDecisions,
     ModelDecidePlan,
 )
-from xt.entrypoints.composition.pack_ops import PACK_OPS
+from xt.entrypoints.composition.pack_ops import ACTING, PACK_OPS
 from xt.entrypoints.composition.runtime import Caller, Runtime, after_rollback
 from xt.entrypoints.composition.util import (
     engine_call,
@@ -298,7 +298,26 @@ class ProcessContext:
         return self.runtime(d) if d else None
 
     def service(self) -> EngineProcesses:
-        return EngineProcesses(self, PgWorkflowStore(self.rt.uow))
+        return _Processes(self, PgWorkflowStore(self.rt.uow))
+
+
+class _Processes(EngineProcesses):
+    """`ProcessService` + ngữ cảnh task đang hoàn thành cho op dịch vụ chạy ngay sau (ACTING)."""
+
+    def act(
+        self,
+        instance_id: str,
+        task_id: str,
+        actor: str,
+        outcome: str,
+        comment: str | None = None,
+        **kw: Any,
+    ) -> dict[str, Any]:
+        token = ACTING.set((instance_id, task_id))
+        try:
+            return super().act(instance_id, task_id, actor, outcome, comment, **kw)
+        finally:
+            ACTING.reset(token)
 
 
 # ------------------------------------------------------------------------- plan payload ----
@@ -431,6 +450,21 @@ def _matches(via: CompleteVia, data: Mapping[str, Any], row: Mapping[str, Any]) 
         if got is None or _norm_ref(got) != v:
             return False
     return True
+
+
+def writable_fields(via: CompleteVia, model: Any) -> set[str]:
+    """Trường được ghi kèm khi hoàn thành bước: `writable_fields` của bước, trừ khóa match,
+    trường trạng thái, trường ref/user/file và trường managed_by của model."""
+    by = model.by_name()
+    out: set[str] = set()
+    for name in via.writable_fields:
+        f = by.get(name)
+        if f is None or name in via.match or name == via.state_field:
+            continue
+        if f.type in ("ref", "user", "file") or getattr(f, "managed_by", None):
+            continue
+        out.add(name)
+    return out
 
 
 def bound_record(
@@ -836,8 +870,8 @@ class ProcessToolAdapter:
             if model == "person":
                 if self.rt.store.person(caller.actor, rid) is None:
                     raise not_found(str(args["subject_ref"]))
-            else:  # đọc bằng ngữ cảnh của chính người gọi (RLS): không thấy = không có
-                engine_call(lambda: self.rt.records.get(caller.actor, model, rid))
+            else:  # RLS + IAM của chính người gọi: không thấy = không có (PSA-03)
+                self._require_record(ctx, caller, model, f"{model}:{rid}", False)
             subject = f"{model}:{rid}"
             # Quy ước dữ liệu: input `<model>_id` kiểu str nhận ref của subject khi chưa truyền.
             key = f"{model}_id"
@@ -845,6 +879,7 @@ class ProcessToolAdapter:
             if hint is not None and hint.type == "str" and key not in inputs:
                 inputs[key] = subject
         engine_call(lambda: rt.validate_inputs(inputs))
+        self._check_start_refs(ctx, caller, spec, inputs)
         requester = str(caller.person.id)
         if not rt.is_active(requester):
             raise access_denied("Người khởi tạo không còn hoạt động.", "inactive_requester", None)
@@ -862,6 +897,73 @@ class ProcessToolAdapter:
             target_ref=subject or f"process:{pid}",
             payload=plan,
         )
+
+    def _start_targets(self, caller: Caller, spec: ProcessSpec) -> dict[str, tuple[str, bool]]:
+        """input -> (model, quy trình ghi lên bản ghi?) từ `complete_via.match` của các bước:
+        `id: <input>` = bản ghi chủ thể (quy trình ghi), `<field ref>: <input>` = bản ghi được
+        tham chiếu (chỉ đọc)."""
+        current = self.rt.catalogs.current(caller.actor)
+        out: dict[str, tuple[str, bool]] = {}
+        for st, _ in spec.iter_steps():
+            via = getattr(st, "complete_via", None)
+            if via is None:
+                continue
+            for f, expr in via.match.items():
+                name = expr.strip()
+                if name not in spec.inputs:
+                    continue
+                if f == "id":
+                    out[name] = (via.model, True)
+                    continue
+                try:
+                    fld = current[1].model(via.model).by_name().get(f) if current else None
+                except KeyError:
+                    fld = None
+                if fld is not None and fld.type == "ref" and name not in out:
+                    out[name] = (str(fld.ref), False)
+        return out
+
+    def _require_record(
+        self, ctx: CallContext, caller: Caller, model: str, value: Any, write: bool
+    ) -> None:
+        """Người khởi tạo phải đọc được (RLS + IAM `record.read`) — và nếu quy trình ghi lên bản
+        ghi thì có `record.update` — đúng bản ghi đó, đúng model, cùng tenant. Mọi từ chối là
+        `not_found` (không phân biệt với id không tồn tại) — PSA-03."""
+        raw = str(value)
+        head, sep, tail = raw.rpartition(":")
+        if sep and head.split(":")[-1] != model:
+            raise not_found(raw)
+        try:
+            rid = UUID(tail if sep else raw)
+        except ValueError:
+            raise not_found(raw) from None
+        if sep and head.startswith("xrn:") and head.split(":")[1] != ctx.tenant:
+            raise not_found(raw)
+        if not self._readable(caller, model, rid):
+            raise not_found(raw)
+        if self.access is not None:
+            ref = f"{model}:{rid}"
+            actions = ("record.read", "record.update") if write else ("record.read",)
+            for action in actions:
+                if not self.access.person_allowed(ctx, caller.person, action, ref):
+                    raise not_found(raw)
+
+    def _check_start_refs(
+        self, ctx: CallContext, caller: Caller, spec: ProcessSpec, inputs: Mapping[str, Any]
+    ) -> None:
+        targets = self._start_targets(caller, spec)
+        current = self.rt.catalogs.current(caller.actor)
+        names = {m.name for m in current[1].models} if current is not None else set()
+        for k, v in inputs.items():
+            if k in targets:
+                model, write = targets[k]
+            elif isinstance(v, str) and ":" in v and v.rsplit(":", 2)[-2] in names:
+                model, write = v.rsplit(":", 2)[-2], False  # mọi ref bản ghi khác: phải đọc được
+            else:
+                continue
+            if v is None or v == "":
+                continue
+            self._require_record(ctx, caller, model, v, write)
 
     def _commit_start(self, ctx: CallContext, caller: Caller, p: StartPlan) -> CommitResult:
         svc = self.pc(caller).service()
@@ -1258,6 +1360,18 @@ class ProcessToolAdapter:
                 fields=unknown,
                 valid_fields=sorted(spec_m.by_name()),
             )
+        allowed = writable_fields(hit.via, spec_m)
+        blocked = sorted(set(values) - allowed)
+        if blocked:
+            # PSA-01: chỉ trường bước khai `writable_fields` (đã duyệt cùng quy trình) mới ghi
+            # được kèm hoàn thành bước; khóa match, trạng thái, ref/user, managed_by: không bao giờ.
+            raise invalid_request(
+                f"Bước '{hit.task['name']}' không cho ghi các trường {blocked}.",
+                "field_not_writable",
+                remediation="Send only writable_fields of this step in values (or none).",
+                fields=blocked,
+                writable_fields=sorted(allowed),
+            )
         if self.record_view is not None:
             values = dict(self.record_view.values_in(caller, ctx, spec_m, values))
         confirmers: tuple[PersonRef, ...] = ()
@@ -1509,8 +1623,11 @@ class ProcessToolAdapter:
                 ref = f"{via.model}:{row['id']}"
                 state = str(row.get(via.state_field) or state)
                 revision = int(row["revision"])
-                owner = row.get("owner_id")
-                title = f"{t['name']}: {label}"
+                if self._readable(caller, via.model, UUID(str(row["id"]))):
+                    owner = row.get("owner_id")
+                    title = f"{t['name']}: {label}"
+                else:  # không lộ nội dung bản ghi người xem không đọc được (PSA-03)
+                    title = f"{t['name']}: {ref[: len(via.model) + 9]}"
             elif ":" in ref and not ref.startswith("process_instance:"):
                 model, rid = ref.split(":", 1)
                 try:

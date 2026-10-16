@@ -14,10 +14,9 @@ import subprocess
 from typing import Any
 
 import pytest
-
 from xte2e import compose, dpop, mcpc, net
 from xte2e.config import DEPLOY, HEADLESS_CLIENT, HEADLESS_REDIRECT
-from xte2e.flows import A, DEPT_HEAD, REQUESTER, advance, dumps, err, key
+from xte2e.flows import DEPT_HEAD, REQUESTER, A, advance, dumps, err, key
 from xte2e.kcadmin import Admin
 from xte2e.report import Checks, Evidence
 

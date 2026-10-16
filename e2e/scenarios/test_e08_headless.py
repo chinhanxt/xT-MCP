@@ -17,10 +17,9 @@ import time
 from pathlib import Path
 
 import pytest
-
 from xte2e import net, oidc
 from xte2e.config import HEADLESS_CLIENT, ROOT
-from xte2e.flows import A, B, B_EMPLOYEE, DEPT_HEAD, DIRECTOR, REQUESTER, advance, dumps, key
+from xte2e.flows import B_EMPLOYEE, DEPT_HEAD, DIRECTOR, REQUESTER, A, B, advance, dumps, key
 from xte2e.report import Checks, Evidence
 
 SCENARIO = "E8"

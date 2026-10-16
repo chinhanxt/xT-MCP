@@ -320,7 +320,6 @@ def _hr_done(w_hr: Any) -> dict[str, Any]:
 
 
 # ============================================================ 2. values injection (lỗi mở) ====
-@pytest.mark.xfail(strict=True, reason="PSA-01: values ghi bằng xt_workflow, không giới hạn trường")
 def test_values_cannot_rewrite_fields_employee_cannot_edit(world: World) -> None:
     """Người làm (employee, model `task` chỉ cho employee quyền read) hoàn thành bước accept (L1,
     agent tự làm, không ai xác nhận) kèm values sửa hạn chót/ưu tiên/tiêu chí/người giao."""
@@ -336,7 +335,6 @@ def test_values_cannot_rewrite_fields_employee_cannot_edit(world: World) -> None
     assert row["done_criteria"] == "Có số liệu đầy đủ" and row["priority"] == "medium"
 
 
-@pytest.mark.xfail(strict=True, reason="PSA-01: values sửa được khóa match (lifecycle_case/step)")
 def test_values_cannot_rebind_lifecycle_task_to_other_case(w_hr: Any) -> None:
     """Quản trị IT (lifecycle_task chỉ read) hoàn thành bước IT kèm values chuyển bản ghi sang hồ
     sơ khác + đổi `step`/`owner_unit` (khóa `match` của bước)."""
@@ -418,7 +416,6 @@ def test_data_api_has_no_write_path(world: World) -> None:
 
 
 # ============================== 4. instance tự dựng trỏ vào bản ghi không đọc được (lỗi mở) ===
-@pytest.mark.xfail(strict=True, reason="PSA-03: start_process không kiểm parameters.task_id")
 def test_crafted_instance_cannot_drive_foreign_task(world: World) -> None:
     """Trưởng IT (NV-0004) không đọc được task của phòng Nhân sự. Khởi động task_normal KHÔNG
     subject, `parameters.task_id` = task nạn nhân, tự giao cho mình -> inbox lộ tiêu đề, rồi
@@ -460,7 +457,6 @@ def test_employee_agent_cannot_craft_instance(world: World) -> None:
     assert err(out)[0] == "access_denied", out
 
 
-@pytest.mark.xfail(strict=True, reason="PSA-06: REST decision lộ tồn tại")
 def test_rest_decision_unheld_step_same_answer_as_ghost(world: World) -> None:
     """Người ngoài cuộc (NV-0013) POST decision lên task có thật (không đọc được) và lên ref ma:
     phải cùng một câu trả lời như MCP (not_found/404), không lộ tồn tại qua details.reason."""
@@ -808,7 +804,6 @@ def test_inbox_only_my_steps(w_hr: Any) -> None:
 
 
 # ===================================== 7. bước có điều kiện ngay trước đóng hồ sơ (lỗi tác giả) =
-@pytest.mark.xfail(strict=True, reason="PSA-04: close_lifecycle_case đánh skipped bước vừa xong")
 def test_conditional_step_right_before_close_keeps_done(world: World) -> None:
     c: Aud = world.c  # type: ignore[attr-defined]
     dept = c.create("NV-0003", "department", {"code": "KD", "name": "Kinh doanh"})

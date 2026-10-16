@@ -9,9 +9,11 @@ stack Keycloak/Ollama nặng khác đang chạy.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 from xte2e import compose
 from xte2e.config import DEPLOY, settings
@@ -60,10 +62,50 @@ def up() -> None:
     subprocess.run(["make", "-s", "render"], cwd=DEPLOY, check=True)
     print("[stack] build + up (volume mới)")
     compose.dc(["build"], timeout=1800, capture=False)
-    r = compose.dc(["up", "-d", *compose.CORE], timeout=900, capture=False, check=False)
+    issues: list[str] = []
+    compose.override_file().unlink(missing_ok=True)
+    r = compose.dc(["up", "-d", *compose.CORE], timeout=900, check=False)
+    print((r.stdout or "")[-1500:], (r.stderr or "")[-1500:])
+    if (
+        r.returncode != 0
+        and "read-only service" in (r.stderr or "")
+        and "`file` is the sole" in (r.stderr or "")
+    ):
+        # Docker Compose này không nạp `configs.content` vào service read_only. Đường vòng CHỈ cho harness:
+        # cùng nội dung (đã nội suy) ghi ra tệp ngoài repo rồi dùng `file:`. E0 vẫn FAIL với lỗi gốc.
+        issues.append(
+            "compose.yaml: `configs.content` + `read_only` không chạy được với "
+            + subprocess.run(
+                ["docker", "compose", "version", "--short"], capture_output=True, text=True
+            ).stdout.strip()
+            + f" ({(r.stderr or '').strip().splitlines()[-1][:200]}); harness dùng `configs.file` thay thế"
+        )
+        write_config_override()
+        r = compose.dc(["up", "-d", *compose.CORE], timeout=900, capture=False, check=False)
+    issues_file().write_text(json.dumps(issues, ensure_ascii=False), encoding="utf-8")
     if r.returncode != 0:
         # Không dừng: kịch bản E0 báo dịch vụ nào hỏng kèm log (báo cáo vẫn được sinh).
         print(f"[stack] CẢNH BÁO: docker compose up rc={r.returncode}\n{compose.ps()}")
+
+
+def issues_file() -> Path:
+    settings().state_dir.mkdir(parents=True, exist_ok=True)
+    return settings().state_dir / "stack-issues.json"
+
+
+def write_config_override() -> None:
+    compose.override_file().unlink(missing_ok=True)
+    cfg = json.loads(compose.dc(["config", "--format", "json"]).stdout)
+    d = settings().state_dir / "compose-configs"
+    d.mkdir(parents=True, exist_ok=True)
+    out = ["configs:"]
+    for name, c in (cfg.get("configs") or {}).items():
+        if "content" in c:
+            f = d / name
+            f.write_text(c["content"], encoding="utf-8")
+            f.chmod(0o644)  # đọc bởi uid trong container; thư mục cha 0700 (bind do daemon)
+            out += [f"  {name}:", "    content: !reset null", f"    file: {f}"]
+    compose.override_file().write_text("\n".join(out) + "\n", encoding="utf-8")
 
 
 def down() -> None:

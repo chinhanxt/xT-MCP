@@ -8,8 +8,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pytest
-
-from xte2e.flows import A, REQUESTER, advance, dumps, err, key
+from xte2e.flows import REQUESTER, A, advance, dumps, err, key
 from xte2e.report import Checks, Evidence
 
 SCENARIO = "E3"

@@ -8,10 +8,9 @@ from __future__ import annotations
 import uuid
 
 import pytest
-
 from xte2e import net, oidc
 from xte2e.config import HEADLESS_CLIENT, HEADLESS_REDIRECT
-from xte2e.flows import A, B, B_EMPLOYEE, REQUESTER, advance, dumps, err, key
+from xte2e.flows import B_EMPLOYEE, REQUESTER, A, B, advance, dumps, err, key
 from xte2e.report import Checks, Evidence
 
 SCENARIO = "E4"

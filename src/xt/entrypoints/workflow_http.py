@@ -50,6 +50,7 @@ from xt.application.tools import Actor
 from xt.domain.identity import IdentityError, InsufficientScopeError, InvalidTokenError, Principal
 from xt.domain.process.errors import DecisionError
 from xt.entrypoints.composition import Composition
+from xt.entrypoints.composition.model_changes import MODEL_PROPOSAL
 from xt.entrypoints.composition.process import (
     ProcessContext,
     ProcessToolAdapter,
@@ -200,23 +201,26 @@ class CompositionWorkflowBackend:
         def body() -> InstanceView | None:
             store = PgWorkflowStore(rt.uow)
             ref = store.ref_for(instance_id)
-            try:
-                info = pc.service().get(instance_id)
-            except DecisionError:
-                return None
             rec = store.get_for_update(instance_id)
             if rec is None:
                 return None
             if ref is None:
                 # Không gắn bản ghi: chỉ người tham gia (khởi tạo, đang/đã giữ bước) thấy; người
-                # khác nhận đúng câu trả lời của id không tồn tại.
+                # khác nhận đúng câu trả lời của id không tồn tại. Kiểm trên meta TRƯỚC khi nạp
+                # engine (giảm chênh lệch thời gian với id ma, O3).
                 me = str(caller.person.id)
                 meta = rec.state.get("meta") or {}
                 involved = {str(meta.get("requester") or "")}
-                involved |= {str(h.get("actor")) for h in info.get("history") or ()}
-                involved |= {str(u) for t in info["tasks"] for u in t.get("candidates") or ()}
+                involved |= {str(h.get("actor")) for h in meta.get("history") or ()}
+                involved |= {
+                    str(u) for a in (meta.get("assign") or {}).values() for u in a["candidates"]
+                }
                 if me not in involved:
                     return None
+            try:
+                info = pc.service().get(instance_id)
+            except DecisionError:
+                return None
             prt = pc.get(rec.process_id, rec.version)
             data = dict(prt.load(rec.state).data()) if prt is not None else {}
 
@@ -258,17 +262,17 @@ class CompositionWorkflowBackend:
         try:
             caller, pc = self._pc(actor, trace_id)
         except CallerError:
-            return None
+            return decision
         model, _, raw = ref.partition(":")
         try:
             rid = UUID(raw)
         except ValueError:
-            return None
+            return decision
         adapter = ProcessToolAdapter(rt, cursor_key=self.c.config.cursor_key, engine=self.c.engine)
 
         def body() -> str | None:
             binding = rt.store.bindings(caller.actor).get(model)
-            if binding is not None and binding.primitive == "request":
+            if model == MODEL_PROPOSAL or (binding is not None and binding.primitive == "request"):
                 return None
             if idempotency_key:
                 # Gửi lại cùng Idempotency-Key (sau khi người xác nhận): bước đã xong, lấy đúng
@@ -284,10 +288,13 @@ class CompositionWorkflowBackend:
                         return str(prev["receipt"]["data"]["to_state"])
                     if prev["pending"]:
                         return str(prev["pending"]["arguments"].get("to_state") or "") or None
+            # Không phải đề nghị: LUÔN đi transition_record (PSA-06). Không suy ra được to_state
+            # (bản ghi ma, bước của người khác, quyết định không hợp lệ) -> gửi tên quyết định để
+            # tool trả đúng lỗi chuẩn (not_found / not_assigned / transition_not_allowed).
             try:
                 row = rt.records.get(caller.workflow(), model, rid)["record"]
-            except Exception:  # không có bản ghi/model: để tool trả lỗi chuẩn
-                return None
+            except Exception:
+                return decision
             me = str(caller.person.id)
             for s in adapter.open_steps(caller, pc, model, rid, row):
                 if me not in s.task.get("candidates", ()):
@@ -298,7 +305,7 @@ class CompositionWorkflowBackend:
                 for to_state, outcome in s.via.states.items():
                     if outcome == want:
                         return to_state
-            return None
+            return decision
 
         out: str | None = rt.run_as(caller, actor, body)
         return out

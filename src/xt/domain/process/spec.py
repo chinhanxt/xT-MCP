@@ -390,10 +390,33 @@ class CompleteVia(Strict):
         ),
     )
 
+    writable_fields: list[FieldName] = Field(
+        default_factory=list,
+        max_length=20,
+        description=(
+            "Trường người hoàn thành bước được ghi kèm (values của transition_record), ví dụ "
+            '["result"]. Mặc định không trường nào; khóa match, state_field, trường ref/user '
+            "và trường managed_by không bao giờ ghi được"
+        ),
+    )
+
     @field_validator("match")
     @classmethod
     def _match(cls, v: dict[str, str]) -> dict[str, str]:
         return {k: safe_expr(x, k) for k, x in v.items()}
+
+    @model_validator(mode="after")
+    def _writable(self) -> CompleteVia:
+        bad = sorted(
+            {f for f in self.writable_fields if f in self.match or f in (self.state_field, "id")}
+        )
+        if bad:
+            raise ValueError(
+                f"complete_via.writable_fields không được chứa khóa match/state_field: {bad}"
+            )
+        if len(set(self.writable_fields)) != len(self.writable_fields):
+            raise ValueError("complete_via.writable_fields bị trùng")
+        return self
 
 
 class _Human(Strict):

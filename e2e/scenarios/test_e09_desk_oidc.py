@@ -10,10 +10,9 @@ import subprocess
 import sys
 
 import pytest
-
 from xte2e import desk
 from xte2e.config import DEPLOY
-from xte2e.flows import A, REQUESTER
+from xte2e.flows import REQUESTER, A
 from xte2e.report import Checks, Evidence
 
 SCENARIO = "E9"

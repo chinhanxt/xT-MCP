@@ -33,7 +33,7 @@ Bước người của quy trình không gắn đề nghị hoàn thành bằng 
 
 - `get_inbox` cho `ref`, `revision`, `step`, `to_states`, `suggested_tool:"transition_record"`; `get_record` (nếu đọc được) cho `available_transitions` kèm `level`.
 - Mức tự chủ theo bước: nhận việc / nộp kết quả L1 (agent làm ngay); nghiệm thu và mọi bước HR/IT/Kế toán/Quản lý là chỉ-người -> `confirmation_required`, chỉ chính người được giao bấm xác nhận.
-- Lỗi: `access_denied` `not_assigned` (bước của người khác), `precondition_failed` `transition_not_allowed` (dùng `details.available_transitions`) / `no_open_step` (quy trình đã xong hoặc chưa chạy), `rule_violation` (thiếu `result`/`note`), `invalid_request` `reason_required` (trả lại cần lý do).
+- Lỗi: `access_denied` `not_assigned` (bước của người khác), `precondition_failed` `transition_not_allowed` (dùng `details.available_transitions`) / `no_open_step` (quy trình đã xong hoặc chưa chạy), `rule_violation` (thiếu `result`/`note`), `invalid_request` `reason_required` (trả lại cần lý do), `invalid_request` `field_not_writable` (chỉ gửi `details.writable_fields`).
 - REST: `POST /workflow/v1/tasks/{ref}/decision` (`approve` = hoàn thành bước, `values` tùy chọn) đi cùng service.
 
 ## SLA

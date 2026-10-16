@@ -414,3 +414,13 @@ Không gọi Bot API thật để đăng ký webhook trong triển khai/test t�
 - `PgFileRepository._wtx`: mọi thao tác ghi/khóa của dịch vụ tệp lấy `lock_audit_chain` TRƯỚC khóa quota/nội dung/dòng (thứ tự WA-11).
 - `files_http.retry_transient`: nếu vẫn gặp deadlock (40P01) hoặc serialization failure (40001) thì chạy lại cả transaction tối đa 3 lần; vẫn lỗi thì trả `timeout` (503, retryable). Không bao giờ trả 500.
 - Đường tool (`ScopedDispatcher`) không có retry này, nhưng không còn chu trình khóa: `claim` cũng lấy chuỗi audit trước.
+
+## Vá audit bước người (D-STEP-6, gói 0.3.3)
+
+| Thay đổi | Ảnh hưởng |
+|---|---|
+| `complete_via.writable_fields` (spec + schema), `values` ngoài danh sách -> `invalid_request` `field_not_writable` (`details.writable_fields`) | Agent chỉ gửi `values` của trường bước cho phép (task `work`: `result`; bước nhân sự: `note`) |
+| `start_process`: ref bản ghi trong `parameters`/`subject_ref` phải đọc được (RLS + IAM) và ghi được nếu quy trình ghi lên nó; không thì `not_found` | Người khởi tạo không trỏ quy trình vào bản ghi ngoài quyền |
+| `get_inbox`: tiêu đề `"<bước>: <model>:<id8>"`, `from: null` khi người xem không đọc được bản ghi | Không lộ nội dung bản ghi |
+| REST decision trên bản ghi không phải đề nghị: luôn `transition_record` | Ref ma và bản ghi không giữ bước trả cùng 404 |
+| Gói `giao-viec-sla`, `nhan-su-vong-doi` 0.3.3 (task v4, onboarding v5, offboarding v4) | Cài lại gói |

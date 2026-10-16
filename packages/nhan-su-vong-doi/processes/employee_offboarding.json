@@ -1,7 +1,7 @@
 {
   "id": "employee_offboarding",
   "name": "Nghỉ việc (HR, Quản lý, IT, Kế toán, đóng hồ sơ)",
-  "version": 3,
+  "version": 4,
   "roles": [
     "hr",
     "it_admin",
@@ -51,7 +51,10 @@
           "done": "done",
           "skipped": "done"
         },
-        "autonomy": "human_only"
+        "autonomy": "human_only",
+        "writable_fields": [
+          "note"
+        ]
       }
     },
     {
@@ -79,7 +82,10 @@
                 "done": "done",
                 "skipped": "done"
               },
-              "autonomy": "human_only"
+              "autonomy": "human_only",
+              "writable_fields": [
+                "note"
+              ]
             }
           }
         ],
@@ -103,7 +109,10 @@
                 "done": "done",
                 "skipped": "done"
               },
-              "autonomy": "human_only"
+              "autonomy": "human_only",
+              "writable_fields": [
+                "note"
+              ]
             }
           },
           {
@@ -145,7 +154,10 @@
                 "done": "done",
                 "skipped": "done"
               },
-              "autonomy": "human_only"
+              "autonomy": "human_only",
+              "writable_fields": [
+                "note"
+              ]
             }
           }
         ]
@@ -171,7 +183,10 @@
         "states": {
           "done": "approve"
         },
-        "autonomy": "human_only"
+        "autonomy": "human_only",
+        "writable_fields": [
+          "note"
+        ]
       }
     },
     {
@@ -193,7 +208,10 @@
           "done": "done",
           "skipped": "done"
         },
-        "autonomy": "human_only"
+        "autonomy": "human_only",
+        "writable_fields": [
+          "note"
+        ]
       }
     },
     {

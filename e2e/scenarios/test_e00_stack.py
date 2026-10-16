@@ -8,7 +8,6 @@ import json
 import subprocess
 
 import pytest
-
 from xte2e import compose
 from xte2e.kcadmin import Admin
 from xte2e.report import Checks, Evidence
@@ -38,6 +37,11 @@ def _health(project_service: str) -> str:
 
 def test_services_running(ev: Evidence) -> None:
     c = Checks(ev)
+    issues_f = compose.settings().state_dir / "stack-issues.json"
+    issues = json.loads(issues_f.read_text(encoding="utf-8")) if issues_f.exists() else []
+    ev.step("lỗi khi dựng stack bằng compose.yaml gốc", issues)
+    for msg in issues:
+        c.check(False, msg)
     rows = dict(line.split("\t", 1) for line in compose.ps().splitlines() if "\t" in line)
     ev.step("docker compose ps", rows)
     for svc in REQUIRED:

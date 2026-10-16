@@ -10,9 +10,8 @@ from __future__ import annotations
 import time
 
 import pytest
-
 from xte2e import compose
-from xte2e.flows import B, B_EMPLOYEE, B_HEAD, advance, dumps, err, key
+from xte2e.flows import B_EMPLOYEE, B_HEAD, B, advance, dumps, err, key
 from xte2e.report import Checks, Evidence
 
 SCENARIO = "E7"

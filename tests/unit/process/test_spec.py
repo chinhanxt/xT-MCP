@@ -331,3 +331,11 @@ def test_sha_unchanged_for_specs_without_complete_via() -> None:
         json.dumps(legacy, sort_keys=True, ensure_ascii=False).encode()
     ).hexdigest()
     assert compile_process(spec, TASK_OPS).sha256 == want
+
+
+def test_complete_via_writable_fields_cannot_name_match_or_state() -> None:
+    spec = _task_pack()
+    for bad in (["id"], ["state"], ["result", "result"]):
+        s = copy.deepcopy(spec)
+        s["steps"][1]["complete_via"]["writable_fields"] = bad
+        assert any("writable_fields" in e for e in errors_of(s, TASK_OPS)), bad

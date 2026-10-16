@@ -297,6 +297,16 @@
           ],
           "title": "Autonomy",
           "type": "string"
+        },
+        "writable_fields": {
+          "description": "Trường người hoàn thành bước được ghi kèm (values của transition_record), ví dụ [\"result\"]. Mặc định không trường nào; khóa match, state_field, trường ref/user và trường managed_by không bao giờ ghi được",
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]{0,62}$",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Writable Fields",
+          "type": "array"
         }
       },
       "required": [

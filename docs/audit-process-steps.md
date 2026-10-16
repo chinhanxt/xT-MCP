@@ -171,3 +171,7 @@ Tuy vậy còn hai lỗi chặn:
 - **PSA-01 (cao):** `values` ghi bằng vai trò dịch vụ, không giới hạn trường, ở mức L1 không cần xác nhận.
 
 Hai lỗi này cộng lại cho phép một trưởng phòng, hay một giám đốc chỉ có quyền read, sửa tùy ý task của phòng khác mà không ai phải xác nhận. Phải vá PSA-03 và PSA-01 trước khi demo gói giao việc và nhân sự. PSA-04 và PSA-06 sửa trong cùng đợt. Khi đã vá, gỡ dấu `xfail` tương ứng (strict sẽ báo XPASS).
+
+## 5. Trạng thái vá (16/10/2026, tác giả)
+
+PSA-01, PSA-03, PSA-04, PSA-06 đã vá (docs/decisions.md D-STEP-6, gói 0.3.3); 5 test xfail đã gỡ dấu và đạt. O3 đã giảm (kiểm người tham gia trên meta trước khi nạp engine). O1, O2, O4, O5 ghi nhận, chưa làm.

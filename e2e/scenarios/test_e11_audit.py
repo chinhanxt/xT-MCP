@@ -12,9 +12,8 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
 from xte2e import compose
-from xte2e.flows import A, B, REQUESTER, advance, key
+from xte2e.flows import REQUESTER, A, B, advance, key
 from xte2e.report import Checks, Evidence
 
 SCENARIO = "E11"

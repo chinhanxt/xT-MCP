@@ -190,8 +190,9 @@ class WorkflowBackend(Protocol):
         self, actor: Actor, trace_id: str, ref: str, decision: str, idempotency_key: str = ""
     ) -> str | None:
         """Bản ghi `ref` là chủ thể (`complete_via`) của bước người gọi đang giữ: trạng thái đích
-        ứng với `decision` (approve/reject/return_for_revision). None = không phải bước như vậy
-        (đi decide_request như đề nghị)."""
+        ứng với `decision` (approve/reject/return_for_revision); không suy ra được thì trả chính
+        `decision` để transition_record báo lỗi chuẩn. None = đề nghị / đề xuất model (đi
+        decide_request)."""
         ...
 
 
@@ -1274,7 +1275,7 @@ class WorkflowApi:
             )
         step_state = getattr(self.backend, "step_state", None)
         to_state = None
-        if step_state is not None and body["decision"] != "delegate":
+        if step_state is not None:
             to_state = await anyio.to_thread.run_sync(
                 step_state, ctx.actor, ctx.trace_id, task_id, str(body["decision"]), key
             )

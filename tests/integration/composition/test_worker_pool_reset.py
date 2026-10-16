@@ -34,11 +34,10 @@ def test_repeated_tenant_pool_resets_keep_driver_and_server_statement_state_alig
             max_attempts=2,
             retry_seconds=1,
         )
-        async with runtime.tenant_pool:
-            async with runtime.tenant_pool.connection() as connection:
-                for value in range(16):
-                    result = await connection.execute("SELECT %s::int AS value", (value,))
-                    assert await result.fetchone() == (value,)
-                    await _reset_session(connection)
+        async with runtime.tenant_pool, runtime.tenant_pool.connection() as connection:
+            for value in range(16):
+                result = await connection.execute("SELECT %s::int AS value", (value,))
+                assert await result.fetchone() == (value,)
+                await _reset_session(connection)
 
     asyncio.run(scenario())
