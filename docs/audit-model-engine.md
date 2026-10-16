@@ -470,3 +470,115 @@ Theo quyết định của chủ dự án (`docs/decisions.md`, "Vai trò `xt_mi
 **Còn lại:**
 - **Rủi ro chấp nhận:** migrator vẫn sửa được *dữ liệu*. Mọi lần sửa đều đi qua trigger audit và để lại event với actor NULL; migrator không tắt được trigger này.
 - **Chưa làm:** audit cho bảng `xt_meta.*` (I-AUD-META) cần một hàm riêng của `xt_audit_owner`.
+
+## Vòng 3 (16/10/2026, Opus tester)
+
+**Cách làm:**
+- Không sửa `src`.
+- Một container `postgres:17-alpine`, tên và cổng ngẫu nhiên, dọn bằng `docker rm -f -v`. Có hai CSDL:
+  - `xt`: cài mới bằng mã hiện tại (bootstrap + migrate 0001–0015).
+  - `xt_up`: CSDL nâng cấp thật. Bootstrap, migrate 0001–0004, tạo tenant và áp catalog bằng mã commit `98e1a1b` (lấy qua `git archive`), sau đó chạy `install_meta_audit` + tạo `xt_job` + migrate bằng mã hiện tại, đúng như `init_db.py`.
+- Test mới: `tests/integration/model_audit_r3/test_model_engine_audit_r3_pg.py`, gồm 18 test phòng thủ và 17 xfail strict.
+
+### 1. Kiểm thử chạy lại
+
+| Kiểm thử | Kết quả |
+|---|---|
+| `uv run pytest tests/unit/model` | 160 passed |
+| `tests/integration/test_model_engine_pg.py` + `tests/integration/model_audit` | 49 passed, **1 failed**: `test_audit_meta_pg.py::test_fresh_install_attaches_meta_audit_to_all_tables`. Migration 0014 gắn audit cho `notification`/`telegram_link` nhưng `META_TABLES` không được cập nhật (test cũ, không phải lỗi engine) |
+| `tests/integration/model_audit_r3` (mới) | 18 passed, 17 xfailed (strict) |
+
+### 2. Soát test của auditor
+
+- `git log -p tests/unit/model/audit tests/integration/model_audit`: `test_model_engine_audit_pg.py` và `tests/unit/model/audit/` không đổi kể từ `98e1a1b`. Các sửa của vòng 1/2 bị gộp chung vào commit đó nên không diff được bản gốc của tester.
+- Nội dung hiện tại **không bị làm yếu**:
+  - `ctx()` đã nằm ngoài `pytest.raises` và có assert ngữ cảnh.
+  - `created_by` bắt `CheckViolation` + `constraint_name`.
+  - Các test R2 có mặt.
+- Lần sửa duy nhất sau đó là `e531425`: thêm 3 bảng vào `META_TABLES` của `test_audit_meta_pg.py`.
+- Điểm yếu còn lại (LOW):
+  - `test_fresh_install_…` chỉ so trong danh sách cứng. Bảng `xt_meta` mới không có audit sẽ không bao giờ làm test đỏ, xem R3-06.
+  - `test_r2_03` chỉ kiểm `done >= 1`, chưa kiểm "chạy đúng một lần". Vòng 3 đã bổ sung kiểm `attempts = 1` cho mọi job.
+  - `test_dead_post_job_…` chấp nhận mọi `ModelError`.
+
+### 3. Bảng PASS/FAIL vòng 3
+
+| # | Mục | KQ | Bằng chứng |
+|---|---|---|---|
+| 1 | Nâng cấp 98e1a1b → hiện tại | PASS | Ledger `schema_migration` của `xt_up` giống `xt`. Hai event trigger `O`. Migrator, `xt_app` và `xt_job` không có EXECUTE trên `log`/`append`/`log_truncate`/`log_meta`/`log_meta_truncate`. Migrator không đọc được `pepper`. Mọi bảng `xt_audit` thuộc `xt_audit_owner` |
+| 2 | Migrator tấn công trực tiếp: DISABLE/ENABLE REPLICA/ALWAYS/RENAME/DROP trigger, RULE, trigger lạ, CONSTRAINT TRIGGER, gọi `append`/`log`, gắn `log()` vào bảng tự tạo, đọc `pepper`/`head`, sửa `event`, thay `verify_anchor`, tắt/xóa event trigger, `session_replication_role`, tắt/xóa trigger `xt_audit_meta`, RULE trên `pii_egress` | PASS | 26 tấn công × 3 đích (tenant mới ở `xt`, tenant mới ở `xt_up`, tenant **cũ** do mã 98e1a1b tạo): đều 42501/0A000/P0001. Trigger giữ nguyên `xt_audit`, `xt_audit_truncate`, `xt_touch` ở trạng thái `O` |
+| 3 | Đọc khóa HMAC qua policy "gián điệp" | PASS | Policy chỉ thấy `xt.audit_hmac`, không có `xt.audit_key`, khóa hay giá trị (cả 3 đích) |
+| 4 | **R3-01** Migrator ghi dòng model mà không có event | **FAIL (HIGH)** | 4 cách, trên cả `xt` lẫn `xt_up` (xem §4). Dòng hiện ra qua `RecordService.search` nhưng có 0 event |
+| 5 | **R3-02** Giả `actor_id`/`effective_actor`/`client_azp`/`trace_id` trong event | **FAIL (MEDIUM)** | (a) Migrator là chủ `xt_meta.session_ctx` nên tự INSERT ngữ cảnh rồi ghi: event mang actor giả, không phải NULL. (b) Migrator là chủ `xt.actor()`: `CREATE OR REPLACE` làm mọi event của **`xt_app`** mang actor giả |
+| 6 | **R3-03** G-M2 qua `xt_audit.install` | **FAIL (MEDIUM)** | `SELECT xt_audit.install('xt_tN','emp','{}')` của migrator gỡ cột sensitive khỏi trigger. Lần ghi lương tiếp theo của app nằm **plaintext** trong `xt_audit.event` (bất biến, không xóa được) |
+| 7 | **R3-04** Event giả trong lịch sử bản ghi thật | **FAIL (MEDIUM)** | Đổi tên `emp`, tạo bảng `emp` giả, `install`, INSERT/DELETE với `id` của bản ghi thật. Lịch sử bản ghi thành `[INSERT, INSERT, DELETE]` với `model='emp'`, `verify` vẫn toàn vẹn |
+| 8 | Checkpoint: superuser xóa đuôi + sửa `head` | PASS | DB `verify` báo intact, còn checkpoint báo `missing`. Ghi thêm event sau đó vẫn là `missing` |
+| 9 | **R3-05** Checkpoint khi superuser thay luôn hàm kiểm | **FAIL (MEDIUM)** | Xóa đuôi + `CREATE OR REPLACE xt_audit.verify_anchor` trả `ok` thì `verify_against_checkpoint` báo `ok`. Việc kiểm chạy bằng hàm SECURITY DEFINER **trong** DB do chính đối thủ (superuser) kiểm soát |
+| 10 | Pha 2: giết backend giữa `CREATE UNIQUE INDEX CONCURRENTLY` | PASS | Job còn `pending`, index INVALID còn lại. `apply` vN+1 → `post_pending`, `reconcile` → `pending`. `run_jobs` xóa INVALID rồi dựng lại (done = 1), sau đó `reconcile` → `validated` và apply được |
+| 11 | Pha 2: job dead (trùng unique) | PASS | `reconcile` → `failed`, không còn index INVALID, `apply` bị chặn. Sửa dữ liệu + `retry_failed` → `validated` |
+| 12 | 4 worker `run_jobs` song song (2 tenant × 2 index CONCURRENTLY, mỗi worker một instance/kết nối) | PASS | Mọi job `done` với `attempts = 1` (đúng một lần), 0 failed/dead, 4 index hợp lệ |
+| 13 | Regex: ngữ nghĩa Rust ↔ PG | PASS | Fuzz 30.000 pattern ngẫu nhiên (seed cố định): 9.778 pattern qua `check_regex` × 36 chuỗi mẫu, **0** khác biệt khớp/không khớp |
+| 14 | **R3-07** Regex Rust nhận nhưng PG không biên dịch | **FAIL (LOW)** | 585/9.778 pattern (6 %), ví dụ `^[A-Z]{2}{2}$`, `a+{1,3}`, `^{2}a`, `^a$+`, PG báo "quantifier operand invalid". Diễn tập ném `StoreError` thô (lên `internal_error`) thay vì BLOCKED/`invalid_request`. Fail-closed, không áp gì |
+| 15 | Audit metadata cho bảng của 0007–0015 | PASS + INFO | Có audit: `file_object` (cột `name` HMAC), `file_event` (0009), `decision` (0010), `notification`, `telegram_link` (0014). Loại trừ hợp lý: `pii_token_source`/`pii_token_seen`/`pii_reveal_ticket` (0007, mỗi lần xem đã ghi `pii_egress` có audit), `workflow_timer_fire` (0012, sổ idempotency), `xt_identity.dpop_jti` (0013, cache replay tạm, không có tenant), `notification_request`/`notification_delivery`/`telegram_link_code`/`telegram_update` (0014), `notification_source` (0015) |
+| 16 | **R3-06** Bảng quyền/chính sách không có audit | **FAIL (MEDIUM)** | Ở cả `xt` và `xt_up`: `person` (roles, `limit_amount`, unit/manager: nền của RBAC/SoD), `agent_grant` (autonomy, roles của agent), `tenant_profile` (`llm_egress` masked/local_only), `org_unit` (`head`), `login_tenant` (role của login BI), `catalog_version` (migrator UPDATE được `spec`), `tenant`. I-AUD-META 0006 chỉ phủ 8 bảng |
+| 17 | Login BI: thoát ngữ cảnh | PASS | 13 lệnh bị từ chối: `set_context` 8 tham số và bản jsonb, INSERT `session_ctx`, `backend_cur()`, đọc `login_tenant`, `api_t<B>`, `xt_t<A>` trực tiếp, `xt_audit.event`, `SET ROLE xt_app/xt_authenticator`, `SET SESSION AUTHORIZATION`, TEMP, CREATE FUNCTION. Tự đặt `xt.tenant_id`/`xt.pgrst_ctx`/`xt.roles`/`xt.actor_id` → `xt.tenant()` vẫn A, `has_role('admin')` false. Không CONNECT được CSDL khác |
+| 18 | Ngữ cảnh `xt_app` qua transaction/role | PASS | Transaction sau trên cùng kết nối: `xt.tenant()` NULL. `SET LOCAL ROLE xt_workflow` không thấy tenant B và không gọi được `set_context` |
+| 19 | Hạ tầng test | **FAIL (LOW)** | `tests/integration/pg.py` và hai file trong `model_audit/` dùng `docker run --rm` + `docker rm -f` (không `-v`). Đã thử thực nghiệm: cách này **để lại volume ẩn danh** (mỗi lượt 3 volume), trái quy tắc CLAUDE.md |
+
+### 4. Chi tiết lỗi mới
+
+**R3-01 (HIGH): `ddl_guard` chỉ xét bảng đang nằm trong `xt_t<seq>` lúc lệnh kết thúc, và chỉ cấm trigger lạ, không bắt buộc phải có trigger audit.** Bốn cách migrator ghi dữ liệu model mà không để lại event:
+
+1. **`set_schema`:** `ALTER TABLE xt_tN.emp SET SCHEMA xt_meta` → `DISABLE TRIGGER xt_audit` → INSERT → ENABLE → dời bảng về.
+2. **`rename_schema`:** `ALTER SCHEMA xt_tN RENAME TO x` → DISABLE → đổi tên lại. `pg_namespace` không bị kiểm, nên trigger **giữ trạng thái tắt** ngay trong `xt_tN`. Từ đó mọi lần ghi, kể cả của `xt_app`, đều không có audit.
+3. **`swap_table`:** `CREATE TABLE xt_tN.emp_r3 (LIKE emp INCLUDING ALL)`, đổi tên tráo vào `emp`. Bảng không có trigger và không có RLS nên còn mất luôn cô lập tenant với `xt_app` nếu được GRANT.
+4. **`inherit_child`:** `CREATE TABLE xt_meta.kid () INHERITS (xt_tN.emp)`. Dòng hiện qua `emp` nhưng không kích trigger của `emp`.
+
+Điều này trái với quyết định "migrator không tin cậy với audit" và với câu "Rủi ro chấp nhận" ở phản hồi vòng 2.
+
+Hướng sửa:
+- Bắt `ALTER SCHEMA` trên `xt_t*`.
+- Từ chối bảng đã mang trigger `xt_audit` mà nằm ngoài `xt_t*`.
+- Bắt buộc mọi bảng thường trong `xt_t*` có `xt_audit` + `xt_audit_truncate`.
+- Cấm `INHERITS`/`ATTACH PARTITION` với cha nằm trong `xt_t*` (kiểm `pg_inherits`).
+- Tốt nhất: bảng và schema `xt_t*` thuộc một role NOLOGIN; migrator chỉ `SET ROLE` sang role đó trong `PgMigrator.apply`, và event trigger chặn mọi DDL khác.
+
+**R3-02 (MEDIUM):** `xt_meta.session_ctx`, `login_tenant` và các hàm `xt.cur`/`backend_cur`/`cur_meta`/`actor`/`tenant`/`has_role` đều thuộc `xt_migrator`. Hệ quả:
+- Migrator giả được actor trong audit.
+- Migrator đổi được `xt.cur()`, và qua đó đổi RLS của BI, `xt_web` và `xt_app` (cho họ đọc chéo tenant). Đây là năng lực vượt quá BYPASSRLS của chính nó.
+
+Hướng sửa: chuyển sở hữu sang role NOLOGIN không cấp cho migrator, và event trigger chặn `CREATE OR REPLACE` trên các hàm này.
+
+**R3-03 (MEDIUM):** `install()` tin danh sách cột sensitive do migrator đưa vào.
+
+Hướng sửa: `xt_audit_owner` giữ registry riêng cho cột sensitive theo (tenant, bảng, cột). Registry chỉ được thu hẹp qua một đường đã duyệt; `install` hợp danh sách truyền vào với registry chứ không thay thế.
+
+**R3-04 (MEDIUM):** event chỉ ghi `TG_TABLE_NAME`.
+
+Hướng sửa: `install` ghi oid bảng vào registry; `log()` từ chối nếu `TG_RELID` không khớp.
+
+**R3-05 (MEDIUM):** `verify_against_checkpoint` phải tự tính lại chuỗi SHA-256 ở client từ các dòng `xt_audit.event`, theo đúng `canon`, thay vì gọi `verify_anchor`/`verify` trong DB. Cách khác, ít nhất là so `prosrc` của các hàm audit với digest ghi trong checkpoint.
+
+**R3-06 (MEDIUM):** gắn `install_meta` cho `person`, `agent_grant`, `tenant_profile`, `org_unit`. Với `login_tenant` (khóa kiểu text) và `catalog_version` (`tenant_seq`) cần một biến thể của `install_meta`: suy `record_id` bằng uuid v5 và `tenant_id` qua `xt_meta.tenant`. Sửa `test_audit_meta_pg` thành kiểm "mọi bảng `xt_meta` hoặc có audit hoặc nằm trong allowlist có lý do".
+
+**R3-07 (LOW):**
+- `check_regex` phải cấm lượng từ đứng ngay sau lượng từ, và lượng từ sau `^`, `$`, `(`, `|`.
+- `migrator.plan` phải dịch `InvalidRegularExpression` thành BLOCKED hoặc `invalid_request`.
+
+### 5. Kết luận vòng 3
+
+**CHƯA ĐẠT** cho mục tiêu của quyết định chủ dự án ("`xt_migrator` không được tin cậy với audit") và cho neo checkpoint trước superuser.
+
+Đã đóng và kiểm thực nghiệm:
+- R2-01 (khóa không vào DB).
+- R2-02 và R2-03 (pha 2: kill, dead, 4 worker song song đều đúng một lần).
+- R2-05 (0 khác biệt ngữ nghĩa trên gần 10.000 pattern).
+- Phần trực tiếp của R2-04 (26 tấn công × 3 đích, kể cả CSDL nâng cấp).
+- AUD-13 (BI/`set_context`).
+
+Còn mở:
+- **R3-01 (HIGH):** né trigger audit bằng DDL ngoài tầm event trigger.
+- **R3-02…R3-06 (MEDIUM):** giả actor, plaintext qua `install`, event giả, checkpoint tin hàm trong DB, bảng quyền chưa có audit.
+- R3-07 và hạ tầng test (LOW).
+
+Lõi model engine (G-M1, RLS/BI, pha 2, regex) **ĐẠT**. Container `xt-audit-r3-model-*` đã xóa cùng volume.
