@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
 """Audit lớp MCP vòng 3 (docs/audit-mcp.md, mục "Vòng 3"): phần còn hở của R2-M1 trên làn PII
-thật. Lỗi còn mở: `xfail(strict=True)`; sửa xong thì XPASS làm suite đỏ, khi ấy xóa marker."""
+thật. Đã sửa; giữ làm hồi quy."""
 
 from __future__ import annotations
 
@@ -22,11 +22,6 @@ def _scrub(details: dict[str, Any]) -> str:
     return repr(_real_lane().scrub_error(ctx, "update_record", error))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="R3-L1: PostgresPiiLane không truyền known_values cho ErrorScrubber (nguồn 2 chưa nối)",
-)
 def test_known_pii_value_in_free_text_is_scrubbed() -> None:
     """Số tài khoản (field `pii` của advance_request) nằm trong thông điệp tự do, không gắn khóa
     field: chỉ nguồn "giá trị đã biết" bắt được. Phản hồi tác giả vòng 2 nói đã có nguồn này."""
@@ -34,7 +29,6 @@ def test_known_pii_value_in_free_text_is_scrubbed() -> None:
     assert ACCT not in out
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="R3-L1: float/dấu '_' '/' lọt lưới")
 @pytest.mark.parametrize(
     "details",
     [
@@ -50,11 +44,6 @@ def test_real_lane_scrubs_float_and_other_separators(details: dict[str, Any]) ->
         assert raw not in out
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="R3-L3: ScopedDispatcher.scoped (đường thật của xt serve) vẫn log.exception -> str(exc)",
-)
 def test_composition_transaction_failure_log_has_no_pii(caplog: pytest.LogCaptureFixture) -> None:
     """R2-L3 sửa ở dispatcher/adapter MCP, nhưng mọi lời gọi thật đi qua `ScopedDispatcher.scoped`;
     lỗi lúc COMMIT (vd Postgres `Failing row contains (…)`) thoát ra ngoài dispatcher và bị log

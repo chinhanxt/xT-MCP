@@ -37,7 +37,9 @@ from xt.domain.identity import (
 )
 
 CALLER_SCOPE_KEY = "xt.caller"
-DEFAULT_MAX_BODY_BYTES = 4 * 1024 * 1024
+# 1 MiB tệp inline (upload_file base64 tối đa 1.398.104 ký tự) + envelope JSON-RPC. Tệp lớn đi
+# qua /files. Áp ở biên ASGI, trước SDK (audit R3-M1).
+DEFAULT_MAX_BODY_BYTES = 1536 * 1024
 
 
 @dataclass(frozen=True, slots=True)

@@ -17,7 +17,6 @@ from __future__ import annotations
 import argparse
 import json
 import random
-import statistics
 import threading
 import time
 import uuid
@@ -294,60 +293,84 @@ def _parallel(n: int, fn: Any) -> list[Any]:
     return out
 
 
+def _p95(lat: list[float]) -> float:
+    return sorted(lat)[max(0, int(len(lat) * 0.95) - 1)]
+
+
 def test_r2h1_4mib_duplicate_keys_keep_event_loop_responsive(w: W) -> None:
+    """Sau R3-M1: /mcp có trần 1,5 MiB ở biên ASGI (1 MiB tệp inline + envelope), nên body 4 MiB
+    bị 413 trước khi parse. Khóa trùng trong body hợp lệ vẫn ra `duplicate_key`."""
     body = _dup_body(4 * 1024 * 1024 - 64)
     tok = w.token("NV-0010")
 
-    def big() -> tuple[int, float, dict[str, Any]]:
+    def big() -> tuple[int, float]:
         t = time.perf_counter()
         r = w.post(body, tok)
-        return r.status_code, time.perf_counter() - t, r.json()
+        return r.status_code, time.perf_counter() - t
 
     res, lat = _probe_while(w, lambda: _parallel(4, big))
     w.notes["dup4"] = {
-        "body_mib": round(len(body) / 2**20, 2),
         "req_s": [round(x[1], 2) for x in res],
         "healthz_max_s": round(max(lat), 3),
-        "healthz_p50_s": round(statistics.median(lat), 3),
-        "probes": len(lat),
+        "healthz_p95_s": round(_p95(lat), 3),
     }
     print("R3 dup4:", w.notes["dup4"])
-    for status, secs, js in res:
-        assert status == 200, js
-        tool = json.loads(js["result"]["content"][0]["text"])
-        assert tool["error"]["details"]["reason"] == "duplicate_key"
-        assert len(tool["error"]["details"]["keys"]) <= 20
-        assert secs < 15
+    assert all(status == 413 and secs < 5 for status, secs in res), res
     assert max(lat) < 1.0, w.notes["dup4"]
+    small = _dup_body(16 * 1024)
+    r = w.post(small, tok)
+    tool = json.loads(r.json()["result"]["content"][0]["text"])
+    assert tool["error"]["details"]["reason"] == "duplicate_key"
+    assert len(tool["error"]["details"]["keys"]) <= 20
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R3-M1: SDK parse lại body (pydantic_core.from_json) TRÊN event loop, ~0,35 s/4 MiB",
-)
 def test_r2h1_4mib_unique_keys_keep_event_loop_responsive(w: W) -> None:
-    """Không trùng khóa: body đi tiếp vào SDK (parse) và kiểm schema; event loop vẫn phải thở.
-    16 request 4 MiB đồng thời (một token hợp lệ bất kỳ) -> /healthz phải < 1 s."""
-    body = _dup_body(4 * 1024 * 1024 - 64, dup=False)
+    """R3-M1: 16 request đồng thời. 4 MiB -> 413; ~1 MiB nhiều khóa -> 400 (trần số phần tử, trước
+    SDK); ~1 MiB hợp lệ tối đa (upload_file base64) đi vào SDK. /healthz p95 < 200 ms."""
     tok = w.token("NV-0010")
+    over = _dup_body(4 * 1024 * 1024 - 64, dup=False)
+    many = _dup_body(1024 * 1024 - 64, dup=False)
+    legal = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 9,
+            "method": "tools/call",
+            "params": {
+                "name": "upload_file",
+                "arguments": {
+                    "name": "a.bin",
+                    "source": "base64",
+                    "base64": "A" * 1398100,
+                    "idempotency_key": "r3-big-0001",
+                },
+            },
+        }
+    ).encode()
 
-    def big() -> tuple[int, float, int]:
-        t = time.perf_counter()
-        r = w.post(body, tok)
-        return r.status_code, time.perf_counter() - t, len(r.content)
+    def run(body: bytes) -> Any:
+        def one() -> tuple[int, float, int]:
+            t = time.perf_counter()
+            r = w.post(body, tok)
+            return r.status_code, time.perf_counter() - t, len(r.content)
 
-    res, lat = _probe_while(w, lambda: _parallel(16, big))
-    w.notes["uniq4"] = {
-        "req_s": [round(x[1], 2) for x in res],
-        "resp_bytes": [x[2] for x in res],
-        "healthz_max_s": round(max(lat), 3),
-        "healthz_p50_s": round(statistics.median(lat), 3),
-    }
-    print("R3 uniq4:", w.notes["uniq4"])
-    for status, secs, size in res:
-        assert status == 200 and secs < 120
-        assert size < 64 * 1024  # lỗi schema không echo 380k khóa
-    assert max(lat) < 1.0, w.notes["uniq4"]
+        return _probe_while(w, lambda: _parallel(16, one))
+
+    notes: dict[str, Any] = {}
+    for label, body, want in (("over4", over, 413), ("many1", many, 400), ("legal1", legal, 200)):
+        res, lat = run(body)
+        notes[label] = {
+            "body_mib": round(len(body) / 2**20, 2),
+            "status": sorted({x[0] for x in res}),
+            "req_max_s": round(max(x[1] for x in res), 2),
+            "resp_max_bytes": max(x[2] for x in res),
+            "healthz_p95_s": round(_p95(lat), 3),
+            "healthz_max_s": round(max(lat), 3),
+        }
+        print("R3", label, notes[label])
+        assert all(x[0] == want for x in res), notes[label]
+        assert all(x[2] < 64 * 1024 for x in res)
+        assert _p95(lat) < 0.2, notes[label]
+    w.notes["uniq"] = notes
 
 
 def test_r2l1_duplicates_outside_tools_call_and_lone_surrogate(w: W) -> None:
@@ -857,7 +880,6 @@ async def test_catalog_full_and_core10_integrity(w: W) -> None:
 
 
 # ================================================ 7. echo không giới hạn ngoài tools/call ====
-@pytest.mark.xfail(strict=True, reason="R3-L2: _get_prompt/_read_resource echo nguyên tên/URI lạ")
 @pytest.mark.parametrize("method", ["prompts/get", "resources/read"])
 def test_unbounded_echo_of_unknown_names(w: W, method: str) -> None:
     """R2-I1 đã cắt tên tool trong `wrong_tool` còn 64 ký tự; tên prompt/URI resource lạ không

@@ -489,3 +489,15 @@ Ghi chú:
 **Verdict: ĐẠT để khóa v0.1.0 lớp MCP.** Không còn lỗi High. Điều kiện:
 - Sửa **R3-M1** trước khi mở `xt-mcp.freepro.online` cho connector công khai. Vài dòng: trần số khóa hoặc body 1 MiB cho `/mcp`.
 - R3-L1..L3 không chặn phát hành; nên sửa cùng đợt, vì mỗi lỗi chỉ vài dòng và đã có test xfail strict.
+
+### Phản hồi tác giả (vòng 3)
+
+Ngày 2026-10-16. Đã bỏ hết `xfail`. Kết quả: `tests/unit` 1723 passed; `tests/integration/mcp_audit_r3` **14 passed**. Integration chạy trên worktree sạch ở HEAD, chỉ chép thêm các file của lớp MCP, vì `audit_meta.sql` WIP của agent khác làm hỏng `pack install`.
+
+| # | Trạng thái | Ghi chú |
+|---|---|---|
+| R3-M1 | Sửa | Trần body `/mcp` 1,5 MiB áp ở biên ASGI, trước SDK. Lệch so với 1 MiB có chủ ý: `upload_file` base64 cho tệp inline 1 MiB theo TCV1 cần tới 1.398.104 ký tự + envelope. `check_shape` (tốc độ C: regex bỏ chuỗi, đếm `,` và ngoặc) chặn > 20.000 phần tử và > 64 cấp trước khi parse. Đo 16 request đồng thời: 4 MiB → 413, `/healthz` p95 2 ms; 1 MiB nhiều khóa → 400, p95 65 ms (max 136 ms); 1,33 MiB hợp lệ tối đa (base64) → 200, p95 29 ms. Test vòng 3 đã đổi theo trần mới (413/400 thay vì 200) và thêm ngưỡng p95 < 200 ms |
+| R3-L1 | Sửa | `PostgresPiiLane` nhớ giá trị đã token hóa/mở token theo (tenant, actor), có giới hạn 256 × 1024, và truyền vào `known_values`. Thêm recognizer tài khoản/thẻ (13–19 số, không bắt đầu bằng 0). Quét cả `float` nguyên; `_SEP` thêm `_` và `/`. Số tiền/revision vẫn được giữ |
+| R3-L2 | Sửa | `prompts/get`/`resources/read`/argument lạ: echo tối đa 64 ký tự, có test unit. Trên dây, body 3 MiB còn bị 413 trước đó |
+| R3-L3 | Sửa | `ScopedDispatcher.scoped` và 3 chỗ trong `confirm_web.py` dùng `log_failure` (kiểu ngoại lệ + vị trí + id) |
+| Info: 19 tool | Ghi nhận | `start_process`/`notify` là v1.0 sớm do nhóm process/notify thêm. Contract test vẫn khóa 17 tool v0.1 của TCV1; đề nghị cập nhật TCV1/CLAUDE.md khi chốt |

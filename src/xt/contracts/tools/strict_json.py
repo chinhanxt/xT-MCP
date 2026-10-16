@@ -9,6 +9,7 @@ vẫn qua schema. Mọi biên nhận JSON từ agent (MCP HTTP, stdio, REST) ph�
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 
@@ -40,37 +41,43 @@ class JsonTooDeepError(ValueError):
 
 
 MAX_DEPTH = 64
-_OPEN = {ord("["), ord("{")}
-_CLOSE = {ord("]"), ord("}")}
+# Trần số phần tử (dấu `,` ngoài chuỗi ~ số cặp khóa/phần tử mảng) của một thông điệp tool. Schema
+# rộng nhất: values <= 200 khóa, mảng <= 100 phần tử, propose_model_change <= 50 op (audit R3-M1).
+MAX_ITEMS = 20_000
+_STRING = re.compile(rb'"(?:[^"\\]|\\.)*"', re.S)
+_BRACKET = re.compile(rb"[\[\]{}]")
 
 
-def check_depth(raw: bytes, max_depth: int = MAX_DEPTH) -> None:
-    """Đếm độ lồng `[`/`{` ngoài chuỗi JSON, O(n), không đệ quy."""
+class JsonTooLargeError(ValueError):
+    """Quá nhiều phần tử: từ chối trước khi parse (SDK parse lại trên event loop)."""
+
+
+def check_shape(raw: bytes, max_depth: int = MAX_DEPTH, max_items: int = MAX_ITEMS) -> None:
+    """Kiểm độ sâu và số phần tử ở tốc độ C: bỏ nội dung chuỗi bằng regex rồi đếm."""
+    if raw.count(b",") <= max_items and raw.count(b"[") + raw.count(b"{") <= max_depth:
+        return  # đường nhanh: không thể vượt trần
+    bare = _STRING.sub(b'""', raw)
+    if bare.count(b",") > max_items:
+        raise JsonTooLargeError(f"JSON has more than {max_items} items")
     depth = 0
-    in_str = esc = False
-    for b in raw:
-        if in_str:
-            if esc:
-                esc = False
-            elif b == 0x5C:  # backslash
-                esc = True
-            elif b == 0x22:
-                in_str = False
-        elif b == 0x22:
-            in_str = True
-        elif b in _OPEN:
+    for m in _BRACKET.finditer(bare):
+        if m.group(0) in (b"[", b"{"):
             depth += 1
             if depth > max_depth:
                 raise JsonTooDeepError(f"JSON nesting deeper than {max_depth}")
-        elif b in _CLOSE:
+        else:
             depth -= 1
+
+
+def check_depth(raw: bytes, max_depth: int = MAX_DEPTH) -> None:
+    check_shape(raw, max_depth, max_items=2**62)
 
 
 def find_duplicate_keys(text: str | bytes, max_depth: int = MAX_DEPTH) -> tuple[Any, list[str]]:
     """Trả (giá trị, danh sách khóa trùng). JSON hỏng -> `json.JSONDecodeError`; lồng quá
     `max_depth` -> `JsonTooDeepError` (đều là `ValueError`, không bao giờ `RecursionError`)."""
     raw = text.encode("utf-8") if isinstance(text, str) else text
-    check_depth(raw, max_depth)
+    check_shape(raw, max_depth)
     dups: dict[str, None] = {}
     try:
         value = json.loads(raw, object_pairs_hook=_pairs_collector(dups))

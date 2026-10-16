@@ -74,7 +74,9 @@ class PromptContract:
         known = {a.name for a in self.arguments}
         unknown = sorted(set(given) - known)
         if unknown:
-            raise PromptError(f"unknown argument(s): {', '.join(unknown)}")
+            shown = ", ".join(repr(u[:64]) for u in unknown[:5])
+            more = f" (+{len(unknown) - 5})" if len(unknown) > 5 else ""
+            raise PromptError(f"unknown argument(s): {shown}{more}")
         for a in self.arguments:
             v = given.get(a.name)
             if a.required and (v is None or not str(v).strip()):

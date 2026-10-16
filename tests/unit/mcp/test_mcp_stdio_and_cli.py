@@ -280,3 +280,23 @@ def test_public_clients_cannot_get_local_pii_tier(tmp_path: Path) -> None:
         )
     dev = load_serve_config({**env, "XT_MCP_DEV_LOCAL_TIER": "true"}, "stdio", "full", None, None)
     assert dev.local_clients == frozenset({"xt-desk-agent"})
+
+
+async def test_unknown_prompt_and_resource_names_are_not_echoed(tmp_path: Path) -> None:
+    """R3-L2: tên/URI lạ chỉ echo tối đa 64 ký tự."""
+    from mcp.shared.exceptions import MCPError
+
+    tf = tmp_path / "token"
+    tf.write_text("tok-mai", encoding="utf-8")
+    ui = UiResource("ui://xt/orgchart", "org_chart", "<!DOCTYPE html><p>org</p>")
+    server = _server(tf, ui_resources=[ui])
+    big = "p" + "x" * 100_000
+    async with Client(server.server) as c:
+        with pytest.raises(MCPError) as a:
+            await c.get_prompt(big, {})
+        with pytest.raises(MCPError) as b:
+            await c.read_resource(f"ui://{big}")
+        with pytest.raises(MCPError) as d:
+            await c.get_prompt("triage_my_work", {big: "x"})
+    for e in (a, b, d):
+        assert len(str(e.value)) < 300

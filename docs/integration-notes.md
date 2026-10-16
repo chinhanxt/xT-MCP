@@ -435,3 +435,9 @@ Không gọi Bot API thật để đăng ký webhook trong triển khai/test t�
 | `xt_audit.install_meta2(bảng, cột_khóa[], redact[], tenant_col)`: `tenant_col` = `'tenant_id'` \| `'seq:<cột>'` \| `'self:<cột>'` | Bảng `xt_meta` mới: chọn `install_meta`/`install_meta2` trong chính migration, hoặc thêm vào `META_AUDIT_EXEMPT` (kèm lý do); test kiểm theo catalog thật |
 | Checkpoint có thêm `audit_functions`; `verify_against_checkpoint` tính lại chuỗi ở client (đọc `xt_audit.chain(t)`, EXECUTE cho `xt_app`) | Checkpoint lấy trước khi nâng cấp hàm audit sẽ báo `functions_changed`: sau mỗi lần `install_meta_audit` phải lấy checkpoint mới |
 | Hạ nhãn sensitive thật sự: superuser `SELECT xt_audit.declassify('<schema>.<bảng>', '<cột>')` | Trước đó cột vẫn được che (`"redacted"`) dù catalog đã hạ nhãn |
+
+### MCP vòng 3
+
+- `/mcp` có trần body 1,5 MiB ở biên ASGI (`DEFAULT_MAX_BODY_BYTES`), cộng trần 20.000 phần tử và 64 cấp trước khi parse. APISIX nên đặt `client_max_body_size` cho `/mcp` cùng mức.
+- `PostgresPiiLane` nhớ giá trị PII đã token hóa/mở token theo (tenant, actor) để lưới lỗi dùng làm `known_values`. Bộ nhớ này nằm trong tiến trình, có giới hạn.
+- `log_failure` (`xt.application.tools.safe_log`) là cách log lỗi chuẩn ở mọi đường xử lý tool/xác nhận.

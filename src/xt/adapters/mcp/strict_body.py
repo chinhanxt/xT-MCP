@@ -13,7 +13,8 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
-from xt.contracts.tools import JsonTooDeepError, check_depth, find_duplicate_keys
+from xt.contracts.tools import JsonTooDeepError, find_duplicate_keys
+from xt.contracts.tools.strict_json import JsonTooLargeError, check_shape
 
 DUPLICATE_KEYS_META = "xt.dev/duplicate_keys"
 
@@ -64,9 +65,11 @@ def inspect_body(raw: bytes) -> bytes | BodyRejection | None:
     """Body HTTP: quá sâu -> -32700; batch (bỏ từ 2025-06-18) -> -32600; khóa trùng ở thông
     điệp không phải `tools/call` -> -32600; khóa trùng trong `tools/call` -> body đã đánh dấu."""
     try:
-        check_depth(raw)
+        check_shape(raw)
     except JsonTooDeepError:
         return BodyRejection(-32700, "Parse error: JSON nesting too deep")
+    except JsonTooLargeError:
+        return BodyRejection(-32600, "Invalid Request: too many JSON items")
     if raw.lstrip()[:1] == b"[":
         return BodyRejection(-32600, "Invalid Request: JSON-RPC batches are not supported")
     try:

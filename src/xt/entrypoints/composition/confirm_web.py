@@ -46,6 +46,7 @@ from xt.adapters.identity.step_up import (
 from xt.application.notify.service import comparison_code
 from xt.application.tools import ConfirmationService, ToolDispatcher
 from xt.application.tools.ports import PendingOperation, PendingStatus
+from xt.application.tools.safe_log import log_failure
 from xt.domain.identity import (
     ApprovalDecision,
     ConfirmationBinding,
@@ -228,8 +229,8 @@ class ConfirmPages:
 
         try:
             res = self._in_tenant(tenant, work)
-        except Exception:
-            log.exception("confirm start failed cid=%s", cid)
+        except Exception as e:
+            log_failure(log, "confirm start failed", e, cid=cid)
             return _err("Lỗi máy chủ khi chuẩn bị trang xác nhận.", 500)
         if res is None:
             return _err("Không tìm thấy yêu cầu xác nhận.", 404)
@@ -334,8 +335,8 @@ class ConfirmPages:
             res = self._in_tenant(tenant, verify)
         except IdentityError as e:
             return _err(f"Bằng chứng xác thực không đạt ({e.reason}).", 403)
-        except Exception:
-            log.exception("confirm callback failed cid=%s", cid)
+        except Exception as e:
+            log_failure(log, "confirm callback failed", e, cid=cid)
             return _err("Lỗi máy chủ khi kiểm bằng chứng xác thực.", 500)
         if isinstance(res, str):
             return _err(res, 409)
@@ -416,8 +417,8 @@ class ConfirmPages:
             out = self.rt.run_as(caller, op.actor, act)
         except IdentityError as e:
             return _err(f"Biên nhận xác nhận bị từ chối ({e.reason}).", 403)
-        except Exception:
-            log.exception("confirm decide failed cid=%s", cid)
+        except Exception as e:
+            log_failure(log, "confirm decide failed", e, cid=cid)
             return _err("Lỗi máy chủ khi thực hiện thao tác.", 500)
         if isinstance(out, str):
             return _err(out, 409)

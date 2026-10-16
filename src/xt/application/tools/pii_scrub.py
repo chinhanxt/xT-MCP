@@ -22,14 +22,16 @@ import unicodedata
 from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
-_SEP = r"[ .\-]?"  # NBSP đã thành space sau NFKC
+_SEP = r"[ .\-_/]?"  # NBSP đã thành space sau NFKC; thêm `_`, `/` (R3-L1)
 _D = r"[0-9]"
 CCCD = re.compile(rf"(?<![0-9A-Za-z])0{_D}{{2}}(?:{_SEP}{_D}){{9}}(?![0-9])", re.ASCII)
 PHONE = re.compile(
     rf"(?<![0-9A-Za-z])(?:\+?84|0){_SEP}[35789](?:{_SEP}{_D}){{8}}(?![0-9])", re.ASCII
 )
 EMAIL = re.compile(r"[A-Za-z0-9._+-]+(?:@|%40)[A-Za-z0-9.-]+\.[A-Za-z]{2,}", re.ASCII)
-RECOGNIZERS = (CCCD, PHONE, EMAIL)
+# Số tài khoản/thẻ ngân hàng: 13-19 chữ số, không bắt đầu bằng 0 (tiền VND trong lỗi < 10^12).
+BANK = re.compile(rf"(?<![0-9A-Za-z])[1-9](?:{_SEP}{_D}){{12,18}}(?![0-9])", re.ASCII)
+RECOGNIZERS = (CCCD, PHONE, BANK, EMAIL)
 
 # Số nguyên mất số 0 đầu khi lưu dạng int: SĐT 9 số, CCCD 11 số.
 _INT_PII = re.compile(r"[35789][0-9]{8}|[0-9]{11}", re.ASCII)
@@ -96,8 +98,15 @@ class ErrorScrubber:
             return self.text(node)
         if isinstance(node, bool) or node is None:
             return node
-        if isinstance(node, int):
-            if key not in NUMERIC_BUSINESS_KEYS and _INT_PII.fullmatch(str(abs(node))):
+        if isinstance(node, int | float):
+            if key in NUMERIC_BUSINESS_KEYS:
+                return node
+            num = node
+            if isinstance(node, float):
+                if not node.is_integer():
+                    return node
+                num = int(node)
+            if _INT_PII.fullmatch(str(abs(num))):
                 return self._hit(str(node))
             return node
         if isinstance(node, list):

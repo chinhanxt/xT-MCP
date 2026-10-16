@@ -21,6 +21,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import threading
+from collections import OrderedDict
 from collections.abc import Mapping
 from typing import Any
 
@@ -42,11 +44,39 @@ def effective_mode(llm_egress: str, client: ClientClass) -> PiiMode:
     return "omitted" if llm_egress == "local_only" else "masked"
 
 
+SEEN_PER_ACTOR = 256
+SEEN_ACTORS = 1024
+
+
 class PostgresPiiLane:
     def __init__(self, rt: Runtime, key: bytes) -> None:
         if len(key) < 32:
             raise ValueError("PII token key must contain at least 32 bytes")
         self.rt, self.key = rt, key
+        # Nguồn "giá trị đã biết" của lưới lỗi (R3-L1): giá trị PII làn này đã token hóa hoặc mở
+        # token cho cùng (tenant, actor), giữ có giới hạn trong bộ nhớ tiến trình.
+        self._seen: OrderedDict[tuple[str, str], OrderedDict[str, None]] = OrderedDict()
+        self._seen_lock = threading.Lock()
+
+    def _remember(self, caller: Caller, value: Any) -> None:
+        text = str(value)
+        if len(text) < 4 or len(text) > 512:
+            return
+        k = (str(caller.tenant.id), str(caller.actor))
+        with self._seen_lock:
+            vals = self._seen.pop(k, None) or OrderedDict()
+            vals.pop(text, None)
+            vals[text] = None
+            while len(vals) > SEEN_PER_ACTOR:
+                vals.popitem(last=False)
+            self._seen[k] = vals
+            while len(self._seen) > SEEN_ACTORS:
+                self._seen.popitem(last=False)
+
+    def _known(self, caller: Caller) -> list[str]:
+        with self._seen_lock:
+            vals = self._seen.get((str(caller.tenant.id), str(caller.actor)))
+            return list(vals) if vals else []
 
     def token(
         self,
@@ -63,6 +93,7 @@ class PostgresPiiLane:
         mac = hmac.new(self.key, raw, hashlib.sha256).digest()
         tok = base64.b32encode(mac).decode().rstrip("=").lower()[:16]
         out = f"[PII:{tok}]"
+        self._remember(caller, value)
         if field is None and level is None:
             self.rt.store.pii_put(caller.actor, out, str(value))
         else:
@@ -117,11 +148,13 @@ class PostgresPiiLane:
         value = self.rt.store.pii_resolve(caller.actor, token)
         if value is None:
             raise invalid_request("Unknown or expired PII token.", "masked_value")
+        self._remember(caller, value)
         return value
 
     # ---- lỗi ---------------------------------------------------------------------------------
     def scrub_error(self, ctx: CallContext, tool: str, error: Data) -> Data:
-        """Lưới lỗi chung `ErrorScrubber`: field `pii` của catalog + bộ nhận dạng đã kiểm."""
+        """Lưới lỗi chung `ErrorScrubber`: field `pii` của catalog, giá trị PII làn đã thấy cho
+        actor này, bộ nhận dạng đã kiểm (CCCD, SĐT, tài khoản/thẻ, email)."""
         caller = self.rt.caller(ctx)
         mode = effective_mode(caller.profile.llm_egress, ctx.client_class)
         if mode == "full":
@@ -129,6 +162,7 @@ class PostgresPiiLane:
         scrubber = ErrorScrubber(
             (lambda v: self.token(caller, v)) if mode == "masked" else (lambda v: "[PII]"),
             pii_fields=self._pii_fields(caller),
+            known_values=self._known(caller),
         )
         cleaned = scrubber.error(error)
         if scrubber.hits:

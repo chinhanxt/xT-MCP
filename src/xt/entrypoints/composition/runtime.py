@@ -42,6 +42,7 @@ from xt.application.model_engine.service import RecordService as EngineRecords
 from xt.application.tools import ToolDispatcher, ToolOutcome
 from xt.application.tools.context import Actor, CallContext, PersonRef
 from xt.application.tools.errors import ToolError, access_denied
+from xt.application.tools.safe_log import log_failure
 from xt.contracts.tools import ErrorCode
 from xt.domain.iam import Actor as IamActor
 from xt.domain.model.context import ModelActor, TenantRef
@@ -309,8 +310,8 @@ class ScopedDispatcher(ToolDispatcher):
             caller = self.runtime.resolve(ctx.actor, ctx.trace_id)
         except CallerError as e:
             return self.reject(name, ctx.trace_id, e.error)
-        except Exception:
-            log.exception("caller resolution failed trace_id=%s", ctx.trace_id)
+        except Exception as e:
+            log_failure(log, "caller resolution failed", e, trace_id=ctx.trace_id)
             return self.reject(
                 name,
                 ctx.trace_id,
@@ -319,8 +320,8 @@ class ScopedDispatcher(ToolDispatcher):
 
         try:
             return self.runtime.run_as(caller, ctx.actor, body)
-        except Exception:
-            log.exception("transaction failed trace_id=%s tool=%s", ctx.trace_id, name)
+        except Exception as e:
+            log_failure(log, "transaction failed", e, trace_id=ctx.trace_id, tool=name)
             return self.reject(
                 name,
                 ctx.trace_id,

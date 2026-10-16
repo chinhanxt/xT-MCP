@@ -120,6 +120,13 @@ class ClientClassifier:
 
 
 CLOUD_BY_DEFAULT = ClientClassifier()
+ECHO_LIMIT = 64
+
+
+def _short(text: str) -> str:
+    """Tên/URI lạ chỉ được echo tối đa 64 ký tự (audit R3-L2), đã bỏ ký tự điều khiển."""
+    clean = "".join(c if c.isprintable() else "?" for c in text[: ECHO_LIMIT + 1])
+    return repr(clean[:ECHO_LIMIT] + ("…" if len(text) > ECHO_LIMIT else ""))
 
 
 def tool_definition(contract: ToolContract, ui_uris: frozenset[str]) -> types.Tool:
@@ -376,7 +383,7 @@ class XtMcpServer:
     ) -> types.GetPromptResult:
         p = self._prompts.get(params.name)
         if p is None:
-            raise MCPError(types.INVALID_PARAMS, f"unknown prompt: {params.name}")
+            raise MCPError(types.INVALID_PARAMS, f"unknown prompt: {_short(params.name)}")
         try:
             text = p.render(params.arguments)
         except PromptError as e:
@@ -414,7 +421,7 @@ class XtMcpServer:
     ) -> types.ReadResourceResult:
         r = self._ui.get(str(params.uri))
         if r is None:
-            raise MCPError(types.INVALID_PARAMS, f"unknown resource: {params.uri}")
+            raise MCPError(types.INVALID_PARAMS, f"unknown resource: {_short(str(params.uri))}")
         return types.ReadResourceResult(
             contents=[
                 types.TextResourceContents(
