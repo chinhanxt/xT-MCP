@@ -35,7 +35,7 @@ import pytest
 from tests.integration.composition import pgfixture
 from tests.integration.composition.fixtures import PACK, ROOT, StackBase, run_admin
 from tests.integration.composition.idp import DESK_CLIENT, LocalIdp
-from tests.integration.composition.mcphttp import RunningApp, serve
+from tests.integration.composition.mcphttp import RunningApp, free_port, serve
 from tests.integration.composition.test_pack_ops import DEPTS, PEOPLE, Ops
 from xt.adapters.db.integration import connect, tenant_of_alias
 from xt.application.tools import Actor
@@ -142,19 +142,21 @@ def world(
     stack_base: StackBase,
     pg: pgfixture.Pg,
     idp: LocalIdp,
-    mcp_port: int,
     tmp_path_factory: pytest.TempPathFactory,
 ) -> Iterator[World]:
-    env = {**stack_base.env, "XT_WORKFLOW_PUBLIC_URL": f"http://127.0.0.1:{mcp_port}"}
+    # Cổng riêng (bind :0): cổng MCP của phiên đã có app khác (stack của test_e2e) giữ khi chạy
+    # chung `make test-integration`.
+    port = free_port()
+    env = {**stack_base.env, "XT_WORKFLOW_PUBLIC_URL": f"http://127.0.0.1:{port}"}
     d = tmp_path_factory.mktemp("xt-psa")
     packs = [PACK, TASK_PACK, HR_PACK]
     ta = _tenant(env, d, A, packs)
     tb = _tenant(env, d, B, packs)
     tc = _tenant(env, d, C, [PACK, TASK_PACK, _variant_hr_pack(d)])
-    ns = argparse.Namespace(transport="http", host="127.0.0.1", port=mcp_port, profile="full")
+    ns = argparse.Namespace(transport="http", host="127.0.0.1", port=port, profile="full")
     prepared = prepare(env, ns)
     comp = prepared.services
-    app = serve(with_workflow_api(prepared, env, prepared.http_app()), mcp_port)
+    app = serve(with_workflow_api(prepared, env, prepared.http_app()), port)
     a = Aud(comp.runtime, comp.engine, ta, {}, prepared.dispatcher, alias=A)  # type: ignore[union-attr]
     b = Aud(comp.runtime, comp.engine, tb, {}, prepared.dispatcher, alias=B)  # type: ignore[union-attr]
     c = Aud(comp.runtime, comp.engine, tc, {}, prepared.dispatcher, alias=C)  # type: ignore[union-attr]
@@ -840,6 +842,165 @@ def test_conditional_step_right_before_close_keeps_done(world: World) -> None:
     row = c.get("lifecycle_task", chief["id"])
     world.__dict__["psa04_row"] = row
     assert row["state"] == "done" and row["note"] is None, row
+
+
+# ============================================================ VÒNG 2: thử vượt bản vá ========
+def test_r2_writable_fields_alias_case_unicode(world: World) -> None:
+    """writable_fields bước work = ["result"]. Gửi biến thể tên (hoa/thường, thừa khoảng trắng,
+    chữ Unicode giống): phải bị chặn, không ghi; chỉ đúng "result" mới ghi."""
+    a = world.a
+    t, ref, _ = task_flow(world, "Việc alias trường")
+    assert tr(a, "NV-0010", ref, "accepted", rev(a, "task", t["id"]))["ok"]
+    r = rev(a, "task", t["id"])
+    unicode_e = "r\u0435sult"  # chu Cyrillic, khong phai e Latin
+    for bad in ("Result", "RESULT", "result ", " result", unicode_e, "result\u200b", "r\u00e9sult"):
+        out = tr(a, "NV-0010", ref, "awaiting_acceptance", r, values={bad: "x", "result": "ok"})
+        assert err(out)[0] == "invalid_request", (bad, out)
+    assert a.get("task", t["id"])["state"] == "accepted"  # chưa ghi gì
+    ok = tr(a, "NV-0010", ref, "awaiting_acceptance", r, values={"result": "Đúng tên trường"})
+    assert ok["ok"], ok
+    assert a.get("task", t["id"])["result"] == "Đúng tên trường"
+
+
+def test_r2_writable_fields_empty_step_rejects_any_value(world: World) -> None:
+    """Bước accept có writable_fields rỗng: mọi values (kể cả trường hợp lệ của model) bị chặn."""
+    a = world.a
+    t, ref, _ = task_flow(world, "Việc accept không values")
+    for v in ({"result": "x"}, {"priority": "low"}, {"progress": 50}):
+        out = tr(a, "NV-0010", ref, "accepted", rev(a, "task", t["id"]), values=v)
+        assert err(out) == ("invalid_request", None) or out["error"]["code"] == "invalid_request"
+        assert (
+            out["error"]["details"].get("reason") in (None, "field_not_writable")
+            or out["error"]["code"] == "invalid_request"
+        ), out
+    assert a.get("task", t["id"])["state"] == "new"
+
+
+def test_r2_values_on_skip_step_not_written(world: World) -> None:
+    """values gửi kèm to_state không hợp lệ (nhảy bước): precondition_failed TRƯỚC khi chạm values,
+    không ghi gì lên bản ghi."""
+    a = world.a
+    t, ref, iid = task_flow(world, "Việc nhảy bước có values")
+    r = rev(a, "task", t["id"])
+    out = tr(a, "NV-0010", ref, "done", r, values={"result": "lén", "progress": 100})
+    assert err(out) == ("precondition_failed", "transition_not_allowed"), out
+    out = tr(a, "NV-0010", ref, "awaiting_acceptance", r, values={"result": "lén"})
+    assert err(out)[0] == "precondition_failed", out  # bước accept chưa xong
+    row = a.get("task", t["id"])
+    assert row["state"] == "new" and row["result"] is None
+    assert {x["step"] for x in info(a, iid)["tasks"]} == {"accept"}
+
+
+def test_r2_start_ref_other_model_same_id(world: World) -> None:
+    """parameters.task_id trỏ model khác (prefix sai) hoặc bare-uuid của bản ghi không đọc được:
+    not_found đồng nhất, không tạo instance."""
+    a = world.a
+    victim = mk_task(a, "NV-0002", "NV-0002", "NV-0003", "Task NS kín")
+    before = len(a.search("task", {"field": "state", "op": "=", "value": "new"}))
+    for val in (
+        f"lifecycle_task:{victim['id']}",
+        f"employee:{victim['id']}",
+        f"xrn:psb:task:{victim['id']}",
+        victim["id"],
+        f"task:{uuid.uuid4()}",
+    ):
+        out = start_task(a, None, "NV-0004", "NV-0004", "NV-0004", task_id=val)
+        assert err(out)[0] == "not_found", (val, out)
+    # Bare-uuid task đọc được của chính NV-0004: khởi động được (đối chứng dương).
+    mine = mk_task(a, "NV-0004", "NV-0004", "NV-0004", "Task IT của mình")
+    out = start_task(a, None, "NV-0004", "NV-0004", "NV-0004", task_id=mine["id"])
+    assert out["ok"], out
+    after = len(a.search("task", {"field": "state", "op": "=", "value": "new"}))
+    assert after == before + 1  # chỉ task mình tạo thêm, không có instance lên task nạn nhân
+
+
+def test_r2_start_ref_nested_or_subject_unreadable(world: World) -> None:
+    """subject_ref không đọc được -> not_found; ref model khác giấu trong tham số thường (không
+    phải khóa match) vẫn bị quét (nhánh chung của _check_start_refs)."""
+    a = world.a
+    victim = mk_task(a, "NV-0002", "NV-0002", "NV-0003", "Task NS kín 2")
+    out = a.tool("NV-0004", "start_process", {
+        "process_id": "task_normal", "subject_ref": f"task:{victim['id']}",
+        "parameters": {"assignee_user": f"person:{a.pid('NV-0004')}",
+                       "assigner_user": f"person:{a.pid('NV-0004')}"},
+        "idempotency_key": ik("r2-subj-")})  # fmt: skip
+    assert err(out)[0] == "not_found", out
+
+
+def test_r2_toctou_role_revoked_between_start_and_step(world: World) -> None:
+    """Quyền bị thu hồi SAU start_process, TRƯỚC transition_record: lời gọi transition tự
+    authorize lại -> access_denied, không ghi. Khôi phục grant sau đó."""
+    a = world.a
+    t, ref, _ = task_flow(world, "Việc TOCTOU")
+    r = rev(a, "task", t["id"])
+    with world.pg.su() as su:
+        row0 = su.execute(
+            "SELECT roles FROM xt_meta.agent_grant WHERE person=%s AND client_id=%s",
+            (a.pid("NV-0010"), a.agent("NV-0010").client_id),
+        ).fetchone()
+        assert row0 is not None
+        old = row0[0]
+        su.execute(
+            "UPDATE xt_meta.agent_grant SET roles='{}' WHERE person=%s AND client_id=%s",
+            (a.pid("NV-0010"), a.agent("NV-0010").client_id),
+        )
+    try:
+        out = tr(a, "NV-0010", ref, "accepted", r)
+        assert err(out)[0] == "access_denied", out
+        assert a.get("task", t["id"])["state"] == "new"
+    finally:
+        with world.pg.su() as su:
+            su.execute(
+                "UPDATE xt_meta.agent_grant SET roles=%s WHERE person=%s AND client_id=%s",
+                (old, a.pid("NV-0010"), a.agent("NV-0010").client_id),
+            )
+    assert tr(a, "NV-0010", ref, "accepted", rev(a, "task", t["id"]))["ok"]
+
+
+def _clone_pack_with_writable(d: Path, name: str, step: str, fields: list[str]) -> Path:
+    dst = d / f"evil-{uuid.uuid4().hex[:6]}"
+    shutil.copytree(TASK_PACK, dst)
+    proc = dst / "processes" / f"{name}.json"
+    spec = json.loads(proc.read_text(encoding="utf-8"))
+    for st in spec["steps"]:
+        if st["id"] == step:
+            st["complete_via"]["writable_fields"] = fields
+    proc.write_text(json.dumps(spec, ensure_ascii=False), encoding="utf-8")
+    return dst
+
+
+def test_r2_install_rejects_malicious_writable_fields(world: World) -> None:
+    """Cài gói khai writable_fields là trường ref/user hoặc trường không có -> KHÔNG CÀI ĐƯỢC
+    (guard _complete_via_problems ở plan_install). Tenant mới, chưa cài gì."""
+    env, d = world.env, world.tmp
+    _tenant(env, d, "psm", [PACK])  # tenant trống, chỉ có gói đề nghị
+    who = ["--proposed-by", "agent:it", "--approved-by", "person:admin"]
+    for fields in (["kind"], ["assignee"], ["khong_co_truong"], ["result", "kind"]):
+        pack = _clone_pack_with_writable(d, "task_normal", "work", fields)
+        rc, plan = run_admin(["pack", "install", "--tenant", "psm", str(pack), *who], env)
+        assert "KHÔNG CÀI ĐƯỢC" in plan and "writable_fields" in plan, (fields, plan)
+        assert rc == 1, (fields, rc)
+    # Đối chứng: gói thật (writable_fields hợp lệ) cài được.
+    rc, plan = run_admin(["pack", "install", "--tenant", "psm", str(TASK_PACK), *who], env)
+    assert "KHÔNG CÀI ĐƯỢC" not in plan, plan
+
+
+def test_r2_spec_rejects_state_field_in_writable(world: World) -> None:
+    """Validator spec chặn writable_fields trùng khóa match / state_field ngay khi parse."""
+    from xt.domain.process.spec import parse_spec
+
+    base = {"id": "p", "name": "P", "version": 1, "trigger": {"kind": "manual"},
+            "inputs": {"task_id": {"type": "str"}},
+            "steps": [{"id": "s", "type": "task", "name": "S",
+                       "assignee": "role(director)", "outcomes": ["done"],
+                       "complete_via": {"model": "task", "match": {"id": "task_id"},
+                                        "states": {"accepted": "done"},
+                                        "autonomy": "L1"}}]}  # fmt: skip
+    for bad in (["state"], ["id"], ["result", "result"]):
+        spec = json.loads(json.dumps(base))
+        spec["steps"][0]["complete_via"]["writable_fields"] = bad
+        with pytest.raises(ValueError):
+            parse_spec(spec)
 
 
 def test_zz_dump_for_report(world: World) -> None:

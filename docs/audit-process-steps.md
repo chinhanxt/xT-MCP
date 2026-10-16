@@ -175,3 +175,40 @@ Hai lỗi này cộng lại cho phép một trưởng phòng, hay một giám đ
 ## 5. Trạng thái vá (16/10/2026, tác giả)
 
 PSA-01, PSA-03, PSA-04, PSA-06 đã vá (docs/decisions.md D-STEP-6, gói 0.3.3); 5 test xfail đã gỡ dấu và đạt. O3 đã giảm (kiểm người tham gia trên meta trước khi nạp engine). O1, O2, O4, O5 ghi nhận, chưa làm.
+
+## 6. Vòng 2 — xác minh bản vá và thử vượt (16/10/2026, Opus tester)
+
+Đã đọc commit `f61ab94` (D-STEP-6, gói 0.3.3). Kiểm trước tiên các test cũ **không bị làm yếu**: diff với bản audit vòng 1 chỉ gỡ 5 dấu `xfail`, mọi assertion giữ nguyên; `test_pack_ops.py` chỉ đổi số version quy trình (v4/v5/v4) và sửa 1 kỳ vọng tiêu đề inbox cho đúng bản vá PSA-03. Chạy lại toàn bộ:
+
+```bash
+uv run pytest -m integration --no-cov -rA tests/integration/process_steps_audit
+# 32 passed in 39.03s   (24 hồi quy vòng 1 + 8 thử vượt vòng 2)
+```
+
+Bốn lỗi vòng 1 nay ĐẠT (XPASS → bỏ dấu, giữ assertion):
+- **PSA-01:** `_plan_step` lọc `values` theo `writable_fields(hit.via, model)` — chỉ trường bước khai, trừ khóa `match`, `state_field`, trường `ref/user/file` và `managed_by`. Trường ngoài danh sách → `field_not_writable`, không ghi.
+- **PSA-03:** `start_process` kiểm mọi ref (`subject_ref`, input khớp `match`, và mọi ref model khác trong `parameters`) bằng RLS + IAM `record.read` (và `record.update` nếu quy trình ghi lên bản ghi); mọi từ chối là `not_found` đồng nhất. `get_inbox` không lộ tiêu đề bản ghi người xem không đọc được. Dump vòng 2: `psa03 started=false, leaked=[], hijack_ok=false`.
+- **PSA-04:** `close_lifecycle_case` bổ sung bước đang hoàn thành qua `ACTING` ContextVar; bước có `when` vừa xong không còn bị đánh `skipped`.
+- **PSA-06:** REST decision trên bước không giữ/bản ghi ma luôn đi `transition_record`, trả 404 `not_found` đồng nhất. Dump: `rest_real=[404,not_found,null]`, `rest_ghost=[404,not_found,null]`.
+- **O3 (đã giảm):** `instance` kiểm người tham gia trên `meta` (requester/history/assign) TRƯỚC khi nạp engine. Đo lại: instance thật 27.2 ms vs id ma 26.0 ms (vòng 1 chênh ~2 lần); oracle thời gian coi như hết.
+
+Thử vượt các bản vá mới (8 test, đều PASS = bản vá giữ):
+
+| # | Né tránh | Kết quả | Bằng chứng |
+|---|---|---|---|
+| R2-01 | `writable_fields` qua biến thể tên: hoa/thường (`Result`/`RESULT`), thừa khoảng trắng, chữ Cyrillic `е`, zero-width `​`, `résult` | PASS | Đều `invalid_request` (unknown_field/field_not_writable); chỉ đúng `"result"` mới ghi. So khớp trường là exact match |
+| R2-02 | Gửi values ở bước có `writable_fields` rỗng (accept) | PASS | Mọi values (kể cả trường hợp lệ của model như `priority`, `progress`) bị `invalid_request`, không ghi |
+| R2-03 | values trên transition nhảy bước (to_state không hợp lệ) | PASS | `precondition_failed/transition_not_allowed` TRƯỚC khi chạm values; bản ghi giữ `new`, `result=null` |
+| R2-04 | ref model khác cùng id: `lifecycle_task:<id task>`, `employee:<id>`, `xrn:psb:task:<id>`, bare-uuid của task không đọc được | PASS | Tất cả `not_found`; không tạo instance. Đối chứng dương: bare-uuid task của chính mình khởi động được |
+| R2-05 | `subject_ref` không đọc được; ref giấu trong tham số thường | PASS | `not_found` (nhánh chung của `_check_start_refs` quét mọi ref model đã biết) |
+| R2-06 | TOCTOU: thu hồi vai trò agent SAU `start_process`, TRƯỚC `transition_record` | PASS | `transition_record` tự authorize lại → `access_denied`, không ghi; khôi phục grant thì hoàn thành được |
+| R2-07 | Cài gói khai `writable_fields` là trường ref (`kind`), user (`assignee`), trường không có | PASS | `plan_install` trả "KHÔNG CÀI ĐƯỢC" + nêu `writable_fields`, rc=1; gói thật cài được |
+| R2-08 | Spec khai `writable_fields` trùng `state`/`id`/trùng lặp | PASS | Validator `CompleteVia` raise ngay khi `parse_spec` |
+
+Giới hạn còn lại đã soi:
+- **Ref giấu trong input kiểu `object` (list/dict):** `check_value` cho phép input `object`, còn `_check_start_refs` chỉ quét input kiểu chuỗi. Một ref lồng trong input `object` không bị quét. Nhưng để lái một bước, ref phải khớp `complete_via.match` — mà `match` so với giá trị input nguyên khối, không bằng id bản ghi — nên không có đường khai thác với spec hiện có. Vẫn nên cho `_check_start_refs` duyệt đệ quy để chắc chắn khi gói tương lai dùng input `object`.
+- **O1/O2/O4/O5** vẫn như vòng 1 (chưa làm; không phải lỗ hổng vượt quyền).
+
+## 7. Verdict vòng 2
+
+**ĐẠT.** Bốn lỗi PSA-01/03/04/06 đã vá đúng chỗ, không làm yếu test cũ, và chịu được mọi biến thể né tránh đã thử (alias/case/unicode trường, cùng-id khác model, ref giấu trong tham số, TOCTOU thu hồi quyền, values nhảy bước, cài gói độc khai managed/ref field). Hàng rào vòng 1 giữ nguyên. Thiết kế hoàn thành bước người (D-STEP) xem như an toàn để demo gói giao việc và nhân sự. Còn lại chỉ là ghi chú cải thiện (duyệt ref đệ quy cho input `object`; O1/O2/O4/O5), không chặn bàn giao.
