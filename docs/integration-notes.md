@@ -441,3 +441,14 @@ Không gọi Bot API thật để đăng ký webhook trong triển khai/test t�
 - `/mcp` có trần body 1,5 MiB ở biên ASGI (`DEFAULT_MAX_BODY_BYTES`), cộng trần 20.000 phần tử và 64 cấp trước khi parse. APISIX nên đặt `client_max_body_size` cho `/mcp` cùng mức.
 - `PostgresPiiLane` nhớ giá trị PII đã token hóa/mở token theo (tenant, actor) để lưới lỗi dùng làm `known_values`. Bộ nhớ này nằm trong tiến trình, có giới hạn.
 - `log_failure` (`xt.application.tools.safe_log`) là cách log lỗi chuẩn ở mọi đường xử lý tool/xác nhận.
+
+### Ngữ cảnh RLS bất biến với migrator (16/10/2026, sau quyết định chủ dự án về `xt.cur()`)
+
+`sql/audit_meta.sql` phiên bản 3. CSDL cũ: chạy `install_meta_audit()` (superuser) và lấy checkpoint mới.
+
+| Thay đổi | Ảnh hưởng |
+|---|---|
+| `xt.cur/backend_cur/cur_meta/actor/tenant/has_role/in_teams/in_departments/tenant_seq/login_tenant/set_context/pgrst_*`, cùng mọi hàm mà policy của `xt_t*`/`xt_meta` tham chiếu: chỉ superuser được CREATE OR REPLACE / ALTER / DROP (theo oid trong `xt_audit.protected_fn`, đổi tên vẫn bị nhận ra). Các hàm này cũng nằm trong digest hàm của checkpoint | Migration của module khác không được định nghĩa lại các hàm này. Muốn đổi thì qua file SQL chạy bằng superuser (như `postgrest.sql`) |
+| Policy RLS của bảng model `xt_t*`: chỉ qua `xt_audit.set_policies(schema, bảng, model_id, perms jsonb)`. Hàm này dùng mẫu cố định từ permissions của catalog và luôn có policy RESTRICTIVE theo tenant; compiler đã dùng nó. Mọi `CREATE/ALTER/DROP POLICY` khác trên `xt_t*` và `DISABLE/NO FORCE ROW LEVEL SECURITY` đều bị chặn với non-superuser. Bảng mới trong `xt_t*` tự bật RLS + FORCE | Không tạo policy tay trên bảng của schema tenant. `composition/test_fixtures.py` đã chuyển sang dựng bảng thử bằng superuser |
+| Bảng `xt_meta` có audit: policy được chụp lại lúc đăng ký. Đổi biểu thức, xóa policy, thêm policy PERMISSIVE hoặc tắt RLS đều bị chặn; được đổi danh sách role (như 0008) và thêm policy RESTRICTIVE | Migration nới quyền trên bảng `xt_meta` cũ phải chạy bằng superuser |
+| `ALTER SCHEMA` trên schema chứa hàm/bảng được bảo vệ bị chặn | — |

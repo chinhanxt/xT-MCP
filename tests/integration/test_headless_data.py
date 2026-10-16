@@ -1024,7 +1024,11 @@ def titles_body(resp: hs.Resp) -> set[str]:
 
 def test_audited_context_logic_preserved_and_web_cannot_set_it(env: Env) -> None:
     """Điểm nối READ ONLY không sửa thân hàm RBAC đã audit, không mở setter ra cho client."""
-    core = Path("src/xt/adapters/db/sql/bootstrap.sql").read_text(encoding="utf-8")
+    # thân đã audit nằm ở bootstrap.sql, hoặc ở audit_meta.sql khi lớp audit nâng cấp hàm đó
+    # (xt.set_context: chủ xt_audit_owner, ghi thêm ngữ cảnh actor của audit, R3-02)
+    core = Path("src/xt/adapters/db/sql/bootstrap.sql").read_text(encoding="utf-8") + Path(
+        "src/xt/adapters/db/sql/audit_meta.sql"
+    ).read_text(encoding="utf-8")
     with env.st.su() as su:
         for signature in (
             "xt.backend_cur()",

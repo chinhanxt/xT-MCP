@@ -360,10 +360,14 @@ def test_migrator_cannot_install_pepper(env: Env) -> None:
             " current_setting('xt.audit_hmac', true)); RETURN true; END $$"
         )
         m.execute("GRANT EXECUTE ON FUNCTION xt.spy() TO xt_app")
-        m.execute(
-            f"CREATE POLICY spy ON xt_t{env.a.seq}.emp AS RESTRICTIVE FOR INSERT TO xt_app"
-            " WITH CHECK (xt.spy())"
-        )
+        # policy gián điệp nay bị chặn (policy bảng model chỉ qua xt_audit.set_policies) …
+        with pytest.raises(psycopg.errors.InsufficientPrivilege), m.transaction():
+            m.execute(
+                f"CREATE POLICY spy ON xt_t{env.a.seq}.emp AS RESTRICTIVE FOR INSERT TO xt_app"
+                " WITH CHECK (xt.spy())"
+            )
+        # … nên gài mã qua CHECK constraint (migrator vẫn được thêm ràng buộc)
+        m.execute(f"ALTER TABLE xt_t{env.a.seq}.emp ADD CONSTRAINT spy CHECK (xt.spy()) NOT VALID")
     try:
         env.records.create(hr(env.a), "emp", {"code": "SPY1", "salary": 31000000})
         with env.pg.migrator() as m:
@@ -374,7 +378,7 @@ def test_migrator_cannot_install_pepper(env: Env) -> None:
             assert h and "hmac:1:" in h and env.pg.pepper.hex() not in h and "31000000" not in h
     finally:
         with env.pg.migrator() as m:
-            m.execute(f"DROP POLICY spy ON xt_t{env.a.seq}.emp")
+            m.execute(f"ALTER TABLE xt_t{env.a.seq}.emp DROP CONSTRAINT spy")
             m.execute("DROP FUNCTION xt.spy()")
             m.execute("DROP TABLE xt_meta.spy")
     # thiếu HMAC hoặc HMAC của kid lạ → trigger từ chối (fail-closed)

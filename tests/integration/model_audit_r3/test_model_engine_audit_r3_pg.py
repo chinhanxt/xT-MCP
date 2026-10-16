@@ -375,10 +375,12 @@ def test_spy_policy_sees_only_hmac_never_key(envs: dict[str, Env], tgt: str) -> 
             " RETURN true; END $$"
         )
         m.execute("GRANT EXECUTE ON FUNCTION xt.r3_spy() TO xt_app")
-        m.execute(
-            f"CREATE POLICY r3_spy ON {s}.emp AS RESTRICTIVE FOR INSERT TO xt_app"
-            " WITH CHECK (xt.r3_spy())"
-        )
+        with pytest.raises(psycopg.errors.InsufficientPrivilege), m.transaction():
+            m.execute(
+                f"CREATE POLICY r3_spy ON {s}.emp AS RESTRICTIVE FOR INSERT TO xt_app"
+                " WITH CHECK (xt.r3_spy())"
+            )
+        m.execute(f"ALTER TABLE {s}.emp ADD CONSTRAINT r3_spy CHECK (xt.r3_spy()) NOT VALID")
     try:
         e.records.create(hr(t), "emp", {"code": "SPY", "salary": 31000000})
         with e.mig() as m:
@@ -388,7 +390,7 @@ def test_spy_policy_sees_only_hmac_never_key(envs: dict[str, Env], tgt: str) -> 
             assert not k and h and e.c.pepper.hex() not in h and "31000000" not in h
     finally:
         with e.mig() as m:
-            m.execute(f"DROP POLICY r3_spy ON {s}.emp")
+            m.execute(f"ALTER TABLE {s}.emp DROP CONSTRAINT r3_spy")
             m.execute("DROP FUNCTION xt.r3_spy()")
             m.execute("DROP TABLE xt_meta.r3_spy")
 
@@ -458,12 +460,10 @@ def test_r3_01_migrator_write_always_audited(envs: dict[str, Env], tgt: str, how
                 rid = BYPASS[how](m, s, t)
             except psycopg.Error:
                 return  # bị chặn: đúng
-        # dòng nằm trong model (app đọc được) …
-        found = e.records.search(hr(t), "emp", where={"field": "code", "op": "startswith",
-                                                       "value": "BYP"})  # fmt: skip
-        assert any(r["id"] == str(rid) for r in found["items"]), "dòng phải thấy được qua model"
-        # … thì phải có event INSERT
+        # mọi dòng migrator ghi được đều phải có event INSERT (kể cả khi bảng tráo tên bị RLS
+        # FORCE + không policy khiến app không đọc được: fail-closed)
         assert [ev[0] for ev in events_for(e, t, rid)] == ["INSERT"], how
+
     finally:
         with e.mig() as m:
             m.execute("DROP TABLE IF EXISTS xt_meta.emp_r3_kid")
@@ -1016,3 +1016,116 @@ def test_app_context_does_not_leak_across_transactions_or_roles(
             with pytest.raises(psycopg.errors.InsufficientPrivilege), c.transaction():
                 c.execute("SELECT xt.set_context(%s, NULL, '{hr}', '{}', '{}', NULL, NULL, NULL)",
                           (b.id,))  # fmt: skip
+
+
+# ------------------- 8. ngữ cảnh RLS bất biến với migrator (quyết định 16/10, sau vòng 3) ----
+def _meta_policy(m: psycopg.Connection[Any], tbl: str) -> str:
+    name = q1(m, "SELECT polname FROM pg_policy WHERE polrelid = %s::regclass ORDER BY 1 LIMIT 1",
+              f"xt_meta.{tbl}")  # fmt: skip
+    assert name, tbl
+    return str(name)
+
+
+@pytest.mark.parametrize("tgt", TARGETS)
+def test_rls_context_functions_and_policies_immutable_for_migrator(
+    envs: dict[str, Env], tgt: str
+) -> None:
+    e, t = target(envs, tgt)
+    s = f"xt_t{t.seq}"
+    other = new_tenant(e)
+    e.records.create(hr(t), "emp", {"code": "MINE"})
+    e.records.create(hr(other), "emp", {"code": "THEIRS"})
+    with e.mig() as m:
+        pol = _meta_policy(m, "iam_policy")
+        attacks = [
+            "CREATE OR REPLACE FUNCTION xt.cur(OUT tenant_id uuid, OUT actor_id uuid, OUT roles"
+            " text[], OUT team_ids uuid[], OUT department_ids uuid[]) LANGUAGE sql STABLE AS"
+            f" $$ SELECT '{other.id}'::uuid, NULL::uuid, '{{hr}}'::text[], '{{}}'::uuid[],"
+            " '{}'::uuid[] $$",
+            f"CREATE OR REPLACE FUNCTION xt.tenant() RETURNS uuid LANGUAGE sql STABLE AS"
+            f" $$ SELECT '{other.id}'::uuid $$",
+            "CREATE OR REPLACE FUNCTION xt.has_role(r text) RETURNS boolean LANGUAGE sql STABLE"
+            " AS $$ SELECT true $$",
+            "ALTER FUNCTION xt.cur() RENAME TO cur_old",
+            "ALTER FUNCTION xt.tenant() SECURITY INVOKER",
+            "ALTER FUNCTION xt.has_role(text) OWNER TO xt_migrator",
+            "DROP FUNCTION xt.has_role(text) CASCADE",
+            "DROP FUNCTION xt.in_departments(uuid) CASCADE",
+            f"ALTER POLICY p_m2_tenant ON {s}.emp USING (true)",
+            f"ALTER POLICY p_m2_read ON {s}.emp TO PUBLIC",
+            f"DROP POLICY p_m2_tenant ON {s}.emp",
+            f"CREATE POLICY wide ON {s}.emp FOR SELECT TO xt_app USING (true)",
+            f"ALTER TABLE {s}.emp DISABLE ROW LEVEL SECURITY",
+            f"ALTER TABLE {s}.emp NO FORCE ROW LEVEL SECURITY",
+            f"ALTER POLICY {pol} ON xt_meta.iam_policy USING (true)",
+            f"DROP POLICY {pol} ON xt_meta.iam_policy",
+            "CREATE POLICY wide ON xt_meta.iam_policy FOR SELECT TO xt_app USING (true)",
+            "ALTER TABLE xt_meta.iam_policy DISABLE ROW LEVEL SECURITY",
+            "ALTER SCHEMA xt RENAME TO xt_r4",
+        ]
+        for q in attacks:
+            with pytest.raises(psycopg.Error) as ex, m.transaction():
+                m.execute(q)
+            assert ex.value.sqlstate in ("42501", "2BP01"), (q, ex.value.sqlstate, ex.value)
+        # thu hẹp bảng metadata bằng policy RESTRICTIVE vẫn được (siết, không nới)
+        with m.transaction(force_rollback=True):
+            m.execute(
+                "CREATE POLICY r4_narrow ON xt_meta.iam_policy AS RESTRICTIVE FOR SELECT"
+                " TO xt_app USING (true)"
+            )
+    # ngữ cảnh/policy còn nguyên: tenant t không thấy dòng của tenant khác
+    found = e.records.search(hr(t), "emp", where={"field": "code", "op": "=", "value": "THEIRS"})
+    assert found["total"] == 0
+    with e.c.app(e.db) as c, c.transaction():
+        c.execute("SELECT xt.set_context(%s, %s, '{hr}', '{}', '{}', NULL, NULL, NULL)",
+                  (t.id, uuid.UUID(int=7)))  # fmt: skip
+        assert q1(c, f"SELECT count(*) FROM xt_t{other.seq}.emp") == 0
+
+
+@pytest.mark.parametrize("db", ["xt", "xt_up"])
+def test_engine_permission_change_goes_through_vetted_policy_path(
+    envs: dict[str, Env], db: str
+) -> None:
+    e = envs[db]
+    t = new_tenant(e)
+    new = bump(
+        e.migrator.current(t),
+        lambda d: mdl(d, "emp")["permissions"].update(
+            {"auditor": {"actions": ["read"], "scope": "all"}}
+        ),
+    )
+    p = e.migrator.plan(t, new, rehearse=True)
+    assert [c.kind for c in p.changes] == ["permission"] and not p.ids(RiskClass.BLOCKED)
+    e.migrator.apply(t, new, p.hash, set(), proposed_by="a", approved_by="b")
+    e.records.create(hr(t), "emp", {"code": "AUD1"})
+    out = e.records.search(ModelActor(t, uuid.UUID(int=9), ("auditor",)), "emp")
+    assert out["total"] == 1
+    with e.su() as su:
+        pols = {
+            r[0]: r[1]
+            for r in su.execute(
+                "SELECT polname, polpermissive FROM pg_policy WHERE polrelid = %s::regclass",
+                (f"xt_t{t.seq}.emp",),
+            )
+        }
+    assert pols["p_m2_tenant"] is False and "p_m2_read" in pols
+
+
+def test_checkpoint_detects_rls_function_replacement(envs: dict[str, Env]) -> None:
+    e = envs["xt"]
+    t = new_tenant(e)
+    e.records.create(hr(t), "emp", {"code": "CK"})
+    doc = _checkpoint(e)
+    assert _status(e, doc, t) == "ok"
+    with e.su() as su:
+        orig = q1(su, "SELECT pg_get_functiondef('xt.has_role(text)'::regprocedure)")
+        su.execute(
+            "CREATE OR REPLACE FUNCTION xt.has_role(r text) RETURNS boolean LANGUAGE sql STABLE"
+            " AS $$ SELECT true $$"
+        )
+    try:
+        assert _status(e, doc, t) == "functions_changed"
+    finally:
+        with e.su() as su:
+            su.execute(orig)
+    assert _status(e, doc, t) == "ok"

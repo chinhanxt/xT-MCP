@@ -610,3 +610,19 @@ Lõi model engine (G-M1, RLS/BI, pha 2, regex) **ĐẠT**. Container `xt-audit-r
 **Còn chấp nhận theo quyết định chủ dự án** ("migrator tin cậy với schema"):
 - Migrator vẫn sửa được hàm `xt.cur()` và qua đó sửa RLS. Đó là quyền schema, không phải audit; mọi lần ghi dữ liệu vẫn có event.
 - Superuser kiểm soát mọi đường đọc của verifier. Việc kiểm phía client cộng digest hàm phát hiện được việc thay hàm kiểm và tính lại chuỗi, nhưng không phát hiện được superuser giả cả `pg_proc`.
+
+## Phản hồi tác giả, sau quyết định "migrator không được đổi `xt.cur()`" (16/10/2026)
+
+**Đã sửa** (trong `sql/audit_meta.sql` v3):
+- Hàm ngữ cảnh RLS và mọi hàm mà policy của `xt_t*`/`xt_meta` tham chiếu nay bất biến với mọi role không phải superuser. Việc bảo vệ dựa theo oid, nên chặn được CREATE OR REPLACE, ALTER (kể cả RENAME/OWNER/SECURITY INVOKER) và DROP. Các hàm này cũng nằm trong digest hàm của checkpoint.
+- Policy của bảng model chỉ đổi được qua `xt_audit.set_policies`, dùng mẫu cố định và luôn có RESTRICTIVE theo tenant. RLS + FORCE luôn bật và tự bật khi tạo bảng.
+- Policy của bảng `xt_meta` có audit chỉ được giữ nguyên biểu thức hoặc siết thêm.
+- `ALTER SCHEMA` trên schema chứa đối tượng được bảo vệ bị chặn.
+
+**Test** (`model_audit_r3`, chạy cả CSDL cài mới lẫn nâng cấp từ 98e1a1b):
+- 19 tấn công × 3 đích đều bị chặn, và sau đó vẫn không đọc chéo được tenant.
+- Đổi quyền bằng engine vẫn chạy được trên cả `xt` và `xt_up`.
+- Superuser thay `xt.has_role` thì checkpoint báo `functions_changed`.
+- Test "policy gián điệp" chuyển sang gài mã qua CHECK `NOT VALID`, vì đường policy nay đã bị chặn. Bảng tráo tên (R3-01) giờ bị RLS FORCE không có policy chặn đọc (fail-closed), nhưng vẫn có event audit.
+
+**Kết quả:** model engine + model_audit + model_audit_r3 + composition 151 passed; `test_headless_data` 32 passed; unit 1724 passed.

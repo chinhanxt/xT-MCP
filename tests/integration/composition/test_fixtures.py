@@ -32,7 +32,9 @@ def test_pg_roles_and_two_tenants(pg: Any, tenants: Tenants) -> None:
 
 def test_rls_two_tenants_fail_closed(pg: Any, tenants: Tenants) -> None:
     a, b = tenants.a, tenants.b
-    with pg.migrator() as m:
+    # policy RLS trên bảng của schema tenant chỉ superuser/xt_audit.set_policies đổi được
+    # (quyết định 16/10/2026): bảng thử nghiệm này dựng bằng superuser
+    with pg.su() as m:
         for t in (a, b):
             m.execute(
                 # mọi bảng thường trong xt_t<seq> tự có trigger audit (R3-01) => cần id uuid

@@ -10,6 +10,7 @@ Tên constraint/index/policy lấy từ id ổn định (`xt.domain.model.checks
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal
@@ -25,7 +26,6 @@ from xt.domain.model.checks import (
     index_name,
     notnull_check_name,
     pk_name,
-    policy_name,
     ref_index_name,
     tid_unique_name,
     unique_name,
@@ -284,50 +284,21 @@ def grant_steps(lay: Layout, m: ModelSpec, order: int = 21) -> list[Step]:
 
 
 def policy_steps(lay: Layout, m: ModelSpec, drop_existing: bool = False) -> list[Step]:
-    t = lay.table(m.name)
-    steps: list[Step] = []
-    if drop_existing:
-        for what in ("tenant", *ACTIONS):
-            q = sql.SQL("DROP POLICY IF EXISTS {} ON {}").format(
-                sql.Identifier(policy_name(m, what)), t
-            )
-            steps.append(Step(q, order=80))
-    steps.append(
-        Step(
-            sql.SQL(
-                "CREATE POLICY {} ON {} AS RESTRICTIVE FOR ALL TO {}"
-                " USING (tenant_id = xt.tenant()) WITH CHECK (tenant_id = xt.tenant())"
-            ).format(sql.Identifier(policy_name(m, "tenant")), t, _roles(API_OWNER)),
-            order=81,
-        )
+    """Policy RLS của bảng model đi qua `xt_audit.set_policies` (superuser, mẫu cố định): luôn có
+    policy RESTRICTIVE theo tenant + PERMISSIVE theo role/phạm vi của catalog; migrator không tự
+    viết biểu thức policy được. `drop_existing` giữ cho tương thích (hàm luôn thay bộ policy)."""
+    del drop_existing
+    perms = {
+        role: {"actions": list(p.actions), "scope": p.scope}
+        for role, p in sorted(m.permissions.items())
+    }
+    q = sql.SQL("SELECT xt_audit.set_policies({}, {}, {}, {}::jsonb)").format(
+        sql.Literal(lay.schema),
+        sql.Literal(m.name),
+        sql.Literal(m.id),
+        sql.Literal(json.dumps(perms, sort_keys=True)),
     )
-    for action, verb in ACTIONS.items():
-        clauses = [
-            sql.SQL("(xt.has_role({}) AND {})").format(
-                sql.Literal(role), sql.SQL(SCOPE_SQL[p.scope])
-            )
-            for role, p in sorted(m.permissions.items())
-            if action in p.actions
-        ]
-        if not clauses:
-            continue  # không role nào được → không policy → từ chối mặc định
-        cond = sql.SQL(" OR ").join(clauses)
-        using = sql.SQL(" USING ({})").format(cond) if verb != "INSERT" else sql.SQL("")
-        check = (
-            sql.SQL(" WITH CHECK ({})").format(cond)
-            if verb in ("INSERT", "UPDATE")
-            else sql.SQL("")
-        )
-        roles = _roles(API_OWNER) if verb == "SELECT" else _roles()
-        steps.append(
-            Step(
-                sql.SQL("CREATE POLICY {} ON {} AS PERMISSIVE FOR {} TO {}{}{}").format(
-                    sql.Identifier(policy_name(m, action)), t, sql.SQL(verb), roles, using, check
-                ),
-                order=82,
-            )
-        )
-    return steps
+    return [Step(q, order=81)]
 
 
 def comment_steps(lay: Layout, m: ModelSpec) -> list[Step]:

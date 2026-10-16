@@ -145,15 +145,23 @@ AUDIT_FUNCTIONS_SQL = (
     "SELECT p.oid::regprocedure::text, p.prosrc, pg_get_userbyid(p.proowner)::text,"
     " p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '')"
     " FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace"
-    " WHERE (n.nspname = 'xt_audit' OR (n.nspname = 'xt' AND p.proname = 'set_context'))"
+    " WHERE (n.nspname = 'xt_audit' OR (n.nspname = 'xt' AND p.proname IN ('set_context', 'cur',"
+    " 'backend_cur', 'cur_meta', 'actor', 'tenant', 'has_role', 'in_teams', 'in_departments',"
+    " 'tenant_seq', 'login_tenant', 'pgrst_pre', 'pgrst_gate', 'pgrst_config'))"
+    # mọi hàm mà policy RLS của bảng model/metadata tham chiếu (pg_depend)
+    " OR p.oid IN (SELECT d.refobjid FROM pg_depend d JOIN pg_policy pp ON pp.oid = d.objid"
+    " JOIN pg_class pc ON pc.oid = pp.polrelid JOIN pg_namespace pn ON pn.oid = pc.relnamespace"
+    " WHERE d.classid = 'pg_policy'::regclass AND d.refclassid = 'pg_proc'::regclass"
+    " AND (pn.nspname ~ '^xt_t[0-9]+$' OR pn.nspname = 'xt_meta')))"
     " AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass"
     " AND d.objid = p.oid AND d.deptype = 'e')"
 )
 
 
 def audit_functions_digest(conn: psycopg.Connection[Any]) -> str:
-    """sha256 của thân + chủ + SECURITY DEFINER của mọi hàm audit (đọc thẳng pg_proc, không gọi
-    hàm của audit). Checkpoint ghi lại; kiểm lại thấy khác → hàm audit đã bị thay (R3-05)."""
+    """sha256 của thân + chủ + SECURITY DEFINER của mọi hàm audit, hàm ngữ cảnh RLS (`xt.cur`…) và
+    mọi hàm policy RLS tham chiếu (đọc thẳng pg_proc, không gọi hàm của audit). Checkpoint ghi lại;
+    kiểm lại thấy khác → hàm đã bị thay (R3-05, quyết định 16/10 về xt.cur)."""
     rows = sorted(tuple(str(x) for x in r) for r in conn.execute(AUDIT_FUNCTIONS_SQL).fetchall())
     h = hashlib.sha256()
     for r in rows:
