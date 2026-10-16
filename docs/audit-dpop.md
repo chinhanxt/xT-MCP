@@ -158,3 +158,60 @@ bắt buộc trước mọi scale-out. Không có lỗi nào cho phép dùng tok
 | DPA-04 | `InMemorySingleUseStore`: heap theo hạn, không quét toàn dict | unit identity |
 | DPA-05 | SECURITY.md: proof ký sẵn iat tương lai, giới hạn bởi `ath`/đời token | tài liệu |
 | DPA-06 | compose truyền `XT_DPOP_CLIENTS` (mặc định `XT_DESK_AGENT_CLIENT_ID`) + `.env.example` | `test_deploy_offline.DeskAgentDpop` |
+
+## Vòng 2 (16/10/2026, kiểm lại commit `c854a7f`)
+
+### Test của vòng 1 có bị nới không?
+- 4/5 test chỉ bỏ marker `xfail`, thân giữ nguyên: `test_iat_nan_is_a_dpop_error`, `test_nan_iat_gets_401_not_500`,
+  `test_desk_logout_rotates_dpop_key_and_ends_sso` (vẫn là kiểm tĩnh, nhưng nay có thêm kiểm chứng thật ở dưới).
+- `test_replay_rejected_by_second_process` được **viết lại**: không còn so hai verifier mặc định, mà truyền chung một
+  `InMemorySingleUseStore` và thêm kiểm "postgres thiếu store / `WEB_CONCURRENCY>1` với memory → dừng khởi động". Bản này
+  yếu hơn bản gốc (không đụng Postgres), nhưng phần thiếu đã được bù bằng `tests/integration/test_dpop_replay_pg.py` và
+  test hai tiến trình OS thật bên dưới. Chấp nhận.
+
+### Chạy lại
+| Bộ test | Kết quả |
+|---|---|
+| `tests/unit/identity` (gồm `dpop_audit/`) + `tests/unit/mcp/test_mcp_dpop.py` | 381 passed |
+| `tests/integration/test_dpop_replay_pg.py`, `test_dpop_keycloak.py` (Keycloak 26.6.3 thật), `pii_audit/test_pii_reveal_dpop.py`, `dpop_audit/test_dpop_round2.py` | 19 passed, 1 xfailed (strict) |
+| **Mới** `tests/integration/dpop_audit/test_desk_key_rotation.py` (Chromium headless, IndexedDB thật) | 1 passed, 1 xfailed (strict) |
+| **Mới** `tests/integration/dpop_audit/test_keycloak_logout.py` (Keycloak thật) | 1 passed |
+| `desk`: vitest `test/dpop.test.ts`, `tests/oidc.test.ts` | 38 passed |
+
+Slot nặng trống (available 7–8 GB, không có Keycloak/Ollama khác); container test tự xóa (`docker rm -f -v`), không còn sót.
+
+### Kết quả dò
+| Hạng mục | Kết quả | Chi tiết |
+|---|---|---|
+| Replay giữa 2 tiến trình OS thật dùng chung PG | PASS | `test_replay_across_two_os_processes_and_after_restart`: A `ok`, B `dpop_replay` |
+| Replay ngay sau restart | PASS | tiến trình thứ ba (A khởi động lại) → `dpop_replay` |
+| Đua đồng thời (6 pool, 25 vòng, barrier) | PASS | luôn đúng 1 bên thắng (`INSERT … ON CONFLICT`, `RETURN FOUND`) |
+| DB lỗi | PASS (fail-closed) / **FAIL nhẹ (DPA-07)** | Không fail-open: `/mcp` trả 503 `Retry-After: 5`. Nhưng DB không tới được thì 503 đến sau **30,0 s** (timeout mặc định của `psycopg_pool`); bảng bị khóa (`LOCK … ACCESS EXCLUSIVE`, migration, `VACUUM FULL`) thì `consume` **treo vô hạn** |
+| Quyền SQL `xt_identity` | PASS | Chỉ chủ bảng có quyền trên bảng; chỉ `xt_app` (+ chủ) EXECUTE hai hàm; `xt_app` không là thành viên của chủ bảng; `xt_app` không SELECT/INSERT/UPDATE/DELETE/TRUNCATE, không CREATE trong schema, không thay hàm; `purge` do `xt_app` gọi không xóa được mục còn hạn |
+| Purge | PASS | chỉ xóa mục hết hạn, theo lô; chạy song song với việc thay mục hết hạn (150 khóa, purge lô 5 liên tục) không làm mất mục còn hạn; jti chứa `|` giữ nguyên |
+| Logout: khóa thật sự bị xóa | PASS | Chromium headless: `privateKey.extractable=false`, `exportKey` bị từ chối; sau `reset()` IndexedDB rỗng; trang mới cùng profile ra `jkt` khác |
+| Logout: phiên SSO | PASS | Keycloak thật: `GET …/logout?client_id&id_token_hint&post_logout_redirect_uri=<Desk>/` → 302 về Desk; URI lạ không được chuyển hướng; refresh token gắn khóa bị 400 ngay cả với chủ khóa |
+| Logout giữa lúc sinh khóa lần đầu | **FAIL (DPA-08)** | xem dưới |
+
+### Lỗi mới
+- **DPA-07 (Trung bình, khả dụng):** `_dpop_verifier()` truyền `statement_timeout_ms=3000` cho `Database`, nhưng
+  `Database.connection()` không áp nó (chỉ `tenant_tx` có `SET LOCAL statement_timeout`), và pool để `timeout=30 s`. Khi DB
+  mất, mỗi request `/mcp` giữ một luồng threadpool 30 s trước khi 503 (40 luồng anyio cạn sau 40 request, mọi route dùng
+  threadpool cùng nghẽn); khi bảng bị khóa thì treo không giới hạn. Vẫn fail-closed, không lỗ bảo mật. Sửa: đặt
+  `options='-c statement_timeout=3000'` trong conninfo (hoặc `SET statement_timeout` ở `configure`) + `timeout≈3 s` cho pool
+  jti. Test: `test_consume_bounded_when_table_locked` (xfail strict). Đo: `test_db_unreachable_fails_closed_503_quickly` (30,0 s).
+- **DPA-08 (Thấp, Desk):** `DpopSigner.reset()` đặt `loaded=null` rồi `clear()`, nhưng không chặn `loadPair()` đang chạy: nếu
+  đăng xuất đúng lúc sinh khóa lần đầu, `put()` của lượt cũ ghi khóa cũ vào IndexedDB **sau** `clear()`, người kế tiếp dùng lại
+  khóa đó (đã tái hiện trên Chromium). Thực tế hiếm (khóa thường đã nạp từ lúc đổi token đăng nhập). Sửa: số thế hệ/epoch,
+  `put` chỉ ghi nếu epoch không đổi, hoặc `reset()` chờ `this.loaded` xong rồi mới `clear()`. Test:
+  `test_logout_during_key_generation_does_not_resurrect_key` (xfail strict).
+- **Ghi chú:** `/pii/reveal` khi store jti lỗi: `IdentityProviderUnavailableError` không thuộc `DpopError` nên ra 500 thay vì 503
+  (giao dịch rollback, vé không bị tiêu, vẫn fail-closed). Đồng hồ: hạn mục tính bằng đồng hồ app, so với `clock_timestamp()` của
+  DB; lệch > 30 s thì mở lại cửa sổ replay (cùng host Docker nên lệch ≈ 0).
+
+### Verdict vòng 2
+DPA-01…06 đã sửa đúng và đã kiểm chứng (Postgres thật, hai tiến trình OS, Keycloak thật, IndexedDB thật). Về bảo mật **có thể đổi
+mặc định `XT_DPOP_REQUIRED=true`**: không còn đường nào dùng được token/proof bị trộm mà thiếu khóa riêng, và cache jti nay dùng
+chung, sống qua restart. Điều kiện trước khi đổi mặc định: (1) sửa DPA-07 (vài dòng), vì khi bật cờ mọi request Desk phụ thuộc
+bảng jti và DB chậm sẽ làm `/mcp` treo thay vì 503 nhanh; (2) chạy lại e2e Desk với Keycloak thật ở chế độ cờ bật, và chạy lại
+`provision.py` với cùng cờ. DPA-08 sửa được sau, không chặn việc đổi mặc định.

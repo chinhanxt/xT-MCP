@@ -76,17 +76,22 @@ def test_concurrent_consume_from_separate_pools_exactly_one_wins(
     try:
         stores = [PgDpopReplayStore(d) for d in pools]
         exp = int(time.time()) + 120
+        lock = threading.Lock()
         for i in range(25):
             key = f"dpop|race-jkt|race-{i}"
             barrier = threading.Barrier(len(stores))
             wins: list[bool] = []
-            lock = threading.Lock()
 
-            def go(s: PgDpopReplayStore, k: str = key, b: threading.Barrier = barrier) -> None:
+            def go(
+                s: PgDpopReplayStore,
+                k: str = key,
+                b: threading.Barrier = barrier,
+                w: list[bool] = wins,
+            ) -> None:
                 b.wait()
                 r = s.consume(k, exp)
                 with lock:
-                    wins.append(r)
+                    w.append(r)
 
             ts = [threading.Thread(target=go, args=(s,)) for s in stores]
             for t in ts:
@@ -121,9 +126,11 @@ def test_sql_privileges_on_xt_identity(stack_base: StackBase, pg: pgfixture.Pg) 
                 ).fetchone()[0]:  # type: ignore[index]
                     callers.append(f"{role}:{fn.split('(')[0]}")
         owner = su.execute(
-            "SELECT tableowner FROM pg_tables WHERE schemaname='xt_identity' AND tablename='dpop_jti'"
+            "SELECT tableowner FROM pg_tables"
+            " WHERE schemaname = 'xt_identity' AND tablename = 'dpop_jti'"
         ).fetchone()[0]  # type: ignore[index]
-        member = su.execute("SELECT pg_has_role('xt_app', %s, 'MEMBER')", (owner,)).fetchone()[0]  # type: ignore[index]
+        q = "SELECT pg_has_role('xt_app', %s, 'MEMBER')"
+        member = su.execute(q, (owner,)).fetchone()[0]  # type: ignore[index]
     assert not member, "xt_app là thành viên của chủ bảng"
     assert all(r.split(":")[0] == owner for r in table_rw), table_rw
     assert {c.split(":")[0] for c in callers} <= {"xt_app", owner}, callers
