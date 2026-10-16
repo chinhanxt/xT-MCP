@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator, Mapping
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, contextmanager
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -19,6 +19,7 @@ import psycopg
 from psycopg import sql
 from psycopg.types.json import Jsonb
 
+from xt.adapters.db.audit import lock_audit_chain
 from xt.adapters.db.compiler import Layout
 from xt.application.files.ports import FileRow, Usage
 from xt.domain.model.audit import audit_hmac
@@ -50,6 +51,16 @@ class PgFileRepository:
     def _tx(self) -> AbstractContextManager[Any]:
         return self.uow.tenant_tx(self.actor)
 
+    @contextmanager
+    def _wtx(self) -> Iterator[Any]:
+        """Transaction sẽ ghi audit / giữ khóa: lấy khóa chuỗi audit của tenant TRƯỚC (thứ tự toàn
+        dự án như WA-11: chuỗi audit -> khóa quota/nội dung/dòng). Thiếu bước này, PUT (quota rồi
+        mới audit) và tool (audit ở claim rồi mới quota) khóa ngược thứ tự -> deadlock (R3-C1).
+        Advisory lock xact tái nhập được nên gọi nhiều lần trong cùng transaction không sao."""
+        with self._tx() as cur:
+            lock_audit_chain(cur, self.actor.tenant.id)
+            yield cur
+
     def tenant_id(self) -> UUID:
         return self.actor.tenant.id
 
@@ -63,7 +74,7 @@ class PgFileRepository:
 
     def insert(self, row: FileRow) -> None:
         guc = json.dumps({"meta:file_object": {"new": {"name": self._name_hmac(row.name)}}})
-        with self._tx() as cur:
+        with self._wtx() as cur:
             cur.execute(_GUC, (guc,))
             cur.execute(
                 "INSERT INTO xt_meta.file_object (id, name, declared_type, status, created_by,"
@@ -83,12 +94,12 @@ class PgFileRepository:
 
     def get(self, file_id: UUID, *, lock: bool = False) -> FileRow | None:
         q = f"SELECT {_COLS} FROM xt_meta.file_object WHERE id = %s AND deleted_at IS NULL"
-        with self._tx() as cur:
+        with self._wtx() if lock else self._tx() as cur:
             r = cur.execute(q + (" FOR UPDATE" if lock else ""), (file_id,)).fetchone()
         return _row(r) if r else None
 
     def update(self, row: FileRow) -> None:
-        with self._tx() as cur:
+        with self._wtx() as cur:
             cur.execute(
                 "UPDATE xt_meta.file_object SET status = %s, content_type = %s, size_bytes = %s,"
                 " sha256 = %s, object_key = %s, upload_expires_at = %s, finalized_at = %s,"
@@ -114,7 +125,7 @@ class PgFileRepository:
 
     def event(self, file_id: UUID, action: str, detail: Mapping[str, Any]) -> None:
         a = self.actor
-        with self._tx() as cur:
+        with self._wtx() as cur:
             cur.execute(
                 "INSERT INTO xt_meta.file_event (file_id, action, person, client_id, trace_id,"
                 " detail) VALUES (%s,%s,%s,%s,%s,%s)",
@@ -122,7 +133,7 @@ class PgFileRepository:
             )
 
     def scanning(self, limit: int) -> list[FileRow]:
-        with self._tx() as cur:
+        with self._wtx() as cur:
             rows = cur.execute(
                 f"SELECT {_COLS} FROM xt_meta.file_object WHERE status = 'scanning'"
                 " AND deleted_at IS NULL ORDER BY created_at LIMIT %s",
@@ -133,7 +144,7 @@ class PgFileRepository:
     def usage(self, person: UUID) -> Usage:
         """Ý định đang mở + byte đang giữ của người và của tenant (FB-02). Khóa tư vấn theo tenant
         tuần tự hóa kiểm-rồi-ghi quota trong cùng transaction."""
-        with self._tx() as cur:
+        with self._wtx() as cur:
             cur.execute(
                 "SELECT pg_advisory_xact_lock(hashtextextended('xt:files:quota:' || %s, 0))",
                 (str(self.actor.tenant.id),),
@@ -165,7 +176,7 @@ class PgFileRepository:
         """R2-F3: khóa theo (tenant, sha256) tới hết transaction. finalize (dùng lại / copy object
         theo nội dung) và purge (xóa object) cùng lấy khóa này, nên purge chỉ quyết định xóa sau
         khi mọi finalize cùng nội dung đã commit, và finalize luôn HEAD lại sau purge."""
-        with self._tx() as cur:
+        with self._wtx() as cur:
             cur.execute(
                 "SELECT pg_advisory_xact_lock(hashtextextended('xt:files:obj:' || %s || ':' || %s,"
                 " 0))",
@@ -195,7 +206,7 @@ class PgFileRepository:
         return out
 
     def expired_pending(self, limit: int) -> list[FileRow]:
-        with self._tx() as cur:
+        with self._wtx() as cur:
             rows = cur.execute(
                 f"SELECT {_COLS} FROM xt_meta.file_object"
                 " WHERE status IN ('awaiting_upload', 'uploaded')"
@@ -207,7 +218,7 @@ class PgFileRepository:
 
     def purgeable_deleted(self, older_than_s: int, limit: int) -> list[FileRow]:
         """Tệp xóa mềm quá hạn lưu, còn object."""
-        with self._tx() as cur:
+        with self._wtx() as cur:
             rows = cur.execute(
                 f"SELECT {_COLS} FROM xt_meta.file_object WHERE deleted_at IS NOT NULL"
                 " AND object_key IS NOT NULL"

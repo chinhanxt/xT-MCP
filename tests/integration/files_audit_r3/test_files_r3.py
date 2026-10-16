@@ -187,12 +187,6 @@ def _one_upload(s: Stack, who: str, idx: int, size: int) -> tuple[int, int]:
         return fin.status_code, (size if fin.status_code == 200 else 0)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="R3-C1: 2 người cùng tenant nạp song song -> DeadlockDetected (khóa audit-chain vs khóa "
-    "tư vấn quota lấy ngược thứ tự) nổi lên HTTP 500, không phải 507/retry",
-)
 def test_tenant_quota_parallel_two_users_no_overcommit(r3stack: Stack) -> None:
     """REQUESTER và COLLEAGUE (cùng tenant) nạp song song, mỗi người 4 tệp 64 KiB = 256 KiB; tổng
     512 KiB > TENANT_Q (384 KiB). Hợp đồng mong muốn: mỗi lời gọi kết thúc 200 (nhận) hoặc 507

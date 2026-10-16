@@ -37,7 +37,7 @@ import hmac
 import json
 import threading
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -81,6 +81,7 @@ from xt.application.iam.guard import AccessGuard as IamGuard
 from xt.application.jobs import JobRequest
 from xt.application.tools.context import CallContext, iso
 from xt.application.tools.errors import (
+    ToolError,
     access_denied,
     invalid_request,
     not_found,
@@ -88,6 +89,7 @@ from xt.application.tools.errors import (
 )
 from xt.application.tools.pii_scrub import ErrorScrubber
 from xt.application.tools.ports import Args, CommitResult, MutationPlan, PiiMode
+from xt.contracts.tools import ErrorCode
 from xt.domain.autonomy import RiskLevel
 from xt.domain.iam import AccessRequest, PolicyDocument, PolicyEvaluator
 from xt.domain.iam import Principal as IamPrincipal
@@ -239,6 +241,37 @@ class FilesConfig:
             policy,
             clamd,
         )
+
+
+TRANSIENT_SQLSTATES = frozenset({"40P01", "40001"})  # deadlock_detected, serialization_failure
+
+
+def _transient(e: BaseException) -> bool:
+    cur: BaseException | None = e
+    while cur is not None:
+        if getattr(cur, "sqlstate", None) in TRANSIENT_SQLSTATES:
+            return True
+        cur = cur.__cause__ or cur.__context__
+    return False
+
+
+def retry_transient[R](fn: Callable[[], R], attempts: int = 3) -> R:
+    """R3-C1: deadlock/serialization còn sót (thứ tự khóa đã cố định: chuỗi audit trước) -> chạy
+    lại cả transaction tối đa `attempts` lần; vẫn lỗi -> `timeout` (503, retryable), không 500."""
+    for i in range(attempts):
+        try:
+            return fn()
+        except Exception as e:
+            if not _transient(e):
+                raise
+            if i == attempts - 1:
+                raise ToolError(
+                    ErrorCode.TIMEOUT,
+                    "The server was busy with a concurrent upload; nothing was changed.",
+                    details={"commit_state": "none", "retry_after_seconds": 1},
+                ) from None
+            time.sleep(0.05 * (i + 1))
+    raise AssertionError("unreachable")
 
 
 def parse_file_ref(tenant_alias: str, ref: str) -> UUID | None:
@@ -536,8 +569,14 @@ class CompositionFilesBackend:
         return (grant, now), actor
 
     def _grant_tx(self, actor: ModelActor, fn: Any) -> Any:
-        with self.rt.uow.scope(actor):
-            return self.rt.uow.run(fn)
+        def once() -> Any:
+            with self.rt.uow.scope(actor):
+                return self.rt.uow.run(fn)
+
+        return retry_transient(once)
+
+    def _run_as(self, caller: Caller, ctx: CallContext, fn: Any) -> Any:
+        return retry_transient(lambda: self.rt.run_as(caller, ctx.actor, fn))
 
     def upload_info(self, token: str, trace_id: str) -> UploadInfo:
         (grant, now), actor = self._grant_actor(token, trace_id)
@@ -604,7 +643,7 @@ class CompositionFilesBackend:
                 raise not_found(f"file:{file_id}")
             return self.mgr.finalize(repo, row, sha256, ctx.now)
 
-        out: Outcome = self.rt.run_as(caller, ctx.actor, body)
+        out: Outcome = self._run_as(caller, ctx, body)
         row = self._raise(out)
         if row.status == "scanning":
             row = self._scan_outside_tx(caller.actor, row)
@@ -633,7 +672,7 @@ class CompositionFilesBackend:
             row = self._readable(caller, ctx, repo, file_id, lock=False)
             return self.mgr.current(repo, row, ctx.now)
 
-        row: FileRow = self.rt.run_as(caller, ctx.actor, body)
+        row: FileRow = self._run_as(caller, ctx, body)
         return self._view(caller, ctx, row)
 
     def list_mine(self, ctx: CallContext, limit: int) -> list[dict[str, Any]]:
@@ -643,7 +682,7 @@ class CompositionFilesBackend:
             repo = PgFileRepository(self.rt.uow, caller.actor)
             return repo.created_by(caller.person.id, limit)
 
-        rows: list[FileRow] = self.rt.run_as(caller, ctx.actor, body)
+        rows: list[FileRow] = self._run_as(caller, ctx, body)
         return [self._view(caller, ctx, r) for r in rows]
 
     def content(self, ctx: CallContext, file_id: UUID) -> Download:
@@ -657,7 +696,7 @@ class CompositionFilesBackend:
                 raise err
             return row, self.mgr.open(repo, row)
 
-        row, chunks = self.rt.run_as(caller, ctx.actor, body)
+        row, chunks = self._run_as(caller, ctx, body)
         mode = effective_mode(caller.profile.llm_egress, ctx.client_class)
         assert row.sha256 is not None and row.size_bytes is not None
         return Download(
@@ -684,7 +723,7 @@ class CompositionFilesBackend:
             ctx.ensure_active(RiskLevel.L1)
             return self.mgr.soft_delete(repo, row, ctx.now)
 
-        row: FileRow = self.rt.run_as(caller, ctx.actor, body)
+        row: FileRow = self._run_as(caller, ctx, body)
         return {**self._view(caller, ctx, row), "deleted": True}
 
     def rescan(self, tenant_alias: str, limit: int = 20) -> int:
