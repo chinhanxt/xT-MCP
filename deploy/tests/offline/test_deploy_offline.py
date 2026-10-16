@@ -421,6 +421,50 @@ class ComposeDefaults(unittest.TestCase):
         self.assertIn("XT_WORKFLOW_RELAY_SECONDS:-15", text)
 
 
+class SeaweedConfigsAndForwardedPort(unittest.TestCase):
+    def test_compose_uses_file_configs(self):
+        text = (DEPLOY / "compose.yaml").read_text()
+        cfg = text.split("\nconfigs:\n", 1)[1]
+        for name, f in (("seaweed-s3", "s3.json"), ("seaweed-security", "security.toml")):
+            m = re.search(rf"^  {name}:\n    (\w+): (.+)$", cfg, re.M)
+            self.assertEqual(m.group(1), "file")
+            self.assertEqual(m.group(2), "${XT_SECRETS_DIR:-${HOME}/.config/xt}/seaweed/" + f)
+        self.assertNotIn("content:", cfg)
+
+    def test_envfile_renders_seaweed_configs(self):
+        ef = load("envfile_sw", "scripts/envfile.py")
+        with tempfile.TemporaryDirectory() as t:
+            root = Path(t) / "xt"
+            root.mkdir(mode=0o700)
+            env = {k: "v-" + k for k in ef.SECRET_KEYS}
+            env["XT_SECRETS_DIR"] = str(root)
+            d = ef.ensure_seaweed_configs(env)
+            self.assertEqual(d, root / "seaweed")
+            self.assertEqual(root.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(d.stat().st_mode & 0o777, 0o755)
+            s3, sec = d / "s3.json", d / "security.toml"
+            for f in (s3, sec):
+                self.assertEqual(f.stat().st_mode & 0o777, 0o644)
+            cred = json.loads(s3.read_text())["identities"][0]["credentials"][0]
+            self.assertEqual(cred, {"accessKey": "v-XT_FILES_S3_ACCESS_KEY", "secretKey": "v-XT_FILES_S3_SECRET_KEY"})
+            toml = sec.read_text()
+            for k in ("XT_SEAWEED_JWT_WRITE_KEY", "XT_SEAWEED_JWT_READ_KEY",
+                      "XT_SEAWEED_FILER_JWT_WRITE_KEY", "XT_SEAWEED_FILER_JWT_READ_KEY"):
+                self.assertIn(f'key = "v-{k}"', toml)
+            self.assertNotIn("{", toml)
+
+    def test_auth_routes_set_forwarded_port_443(self):
+        text = (DEPLOY / "apisix" / "apisix.yaml.tmpl").read_text()
+        routes = re.split(r"(?m)^  - id: ", text)[1:]
+        seen = set()
+        for r in routes:
+            rid = r.split()[0]
+            if "X-Forwarded-Proto: https" in r:
+                seen.add(rid)
+                self.assertIn('X-Forwarded-Port: "443"', r, rid)
+        self.assertEqual(seen, {"auth-dcr", "auth-dcr-manage", "auth-token", "auth"})
+
+
 class Realm(BaseHTTPRequestHandler):
     docs: dict = {}
     hits: list = []

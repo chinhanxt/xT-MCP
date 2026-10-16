@@ -248,6 +248,7 @@ routes:
           set:
             X-Forwarded-Proto: https
             X-Forwarded-Host: "@@XT_DOMAIN_AUTH@@"
+            X-Forwarded-Port: "443"
     upstream:
       type: roundrobin
       nodes: {"keycloak:8080": 1}
@@ -271,6 +272,7 @@ routes:
           set:
             X-Forwarded-Proto: https
             X-Forwarded-Host: "@@XT_DOMAIN_AUTH@@"
+            X-Forwarded-Port: "443"
     upstream:
       type: roundrobin
       nodes: {"keycloak:8080": 1}
@@ -295,6 +297,7 @@ routes:
           set:
             X-Forwarded-Proto: https
             X-Forwarded-Host: "@@XT_DOMAIN_AUTH@@"
+            X-Forwarded-Port: "443"
     upstream:
       type: roundrobin
       nodes: {"keycloak:8080": 1}
@@ -312,6 +315,7 @@ routes:
           set:
             X-Forwarded-Proto: https
             X-Forwarded-Host: "@@XT_DOMAIN_AUTH@@"
+            X-Forwarded-Port: "443"
     upstream:
       type: roundrobin
       nodes: {"keycloak:8080": 1}

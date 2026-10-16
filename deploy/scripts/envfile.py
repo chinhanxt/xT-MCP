@@ -3,6 +3,7 @@
 """Đọc/ghi deploy/.env và sinh bí mật còn trống (stdlib)."""
 from __future__ import annotations
 
+import json
 import re
 import secrets
 import subprocess
@@ -73,6 +74,7 @@ def ensure_env(deploy: Path) -> dict[str, str]:
     if changed:
         env_path.write_text("\n".join(lines) + "\n")
     ensure_app_secrets(load_env(env_path))
+    ensure_seaweed_configs(load_env(env_path))
     return load_env(env_path)
 
 
@@ -98,4 +100,46 @@ def ensure_app_secrets(env: dict[str, str]) -> Path:
         subprocess.run(["openssl", "genpkey", "-algorithm", "ed25519", "-out", str(pem)], check=True)
         print(f"đã sinh {pem}")
     pem.chmod(0o644)
+    return d
+
+
+SEAWEED_SECURITY_TOML = """\
+# R2-F4: master/volume/filer chỉ nhận lệnh quản trị (/dir/assign, /col/delete, /vol/grow…)
+# từ loopback = gateway S3 trong cùng tiến trình `weed server`; peer trong mạng `files` bị 401.
+[guard]
+white_list = "127.0.0.1,@"   # @ = gRPC nội tiến trình (S3/filer -> master/volume)
+[jwt.signing]
+key = "{XT_SEAWEED_JWT_WRITE_KEY}"
+expires_after_seconds = 10
+[jwt.signing.read]
+key = "{XT_SEAWEED_JWT_READ_KEY}"
+expires_after_seconds = 10
+[jwt.filer_signing]
+key = "{XT_SEAWEED_FILER_JWT_WRITE_KEY}"
+expires_after_seconds = 10
+[jwt.filer_signing.read]
+key = "{XT_SEAWEED_FILER_JWT_READ_KEY}"
+expires_after_seconds = 10
+"""
+
+
+def ensure_seaweed_configs(env: dict[str, str]) -> Path:
+    """Render `s3.json` + `security.toml` của SeaweedFS (kèm bí mật từ .env) ra `<XT_SECRETS_DIR>/seaweed`
+    (ngoài repo). compose mount bằng `configs.<name>.file` vì Docker Compose không nạp `configs.content` vào
+    service read_only. Ghi lại mỗi lần (theo .env hiện tại). Container chạy uid 1000 nên thư mục 0755, tệp 0644
+    (thư mục cha vẫn 0700 nên người dùng khác trên host không đọc được), cùng mẫu với ensure_app_secrets."""
+    keys = ("XT_FILES_S3_ACCESS_KEY", "XT_FILES_S3_SECRET_KEY", *(k for k in SECRET_KEYS if k.startswith("XT_SEAWEED_")))
+    missing = [k for k in keys if not env.get(k)]
+    if missing:
+        raise SystemExit(f"thiếu {', '.join(missing)} trong .env (chạy make env)")
+    d = secrets_dir(env) / "seaweed"
+    d.mkdir(parents=True, exist_ok=True)
+    d.chmod(0o755)
+    s3 = {"identities": [{"name": "xt-api",
+                          "credentials": [{"accessKey": env["XT_FILES_S3_ACCESS_KEY"], "secretKey": env["XT_FILES_S3_SECRET_KEY"]}],
+                          "actions": ["Admin", "Read", "Write", "List", "Tagging"]}]}
+    for name, text in (("s3.json", json.dumps(s3) + "\n"), ("security.toml", SEAWEED_SECURITY_TOML.format(**env))):
+        f = d / name
+        f.write_text(text)
+        f.chmod(0o644)
     return d

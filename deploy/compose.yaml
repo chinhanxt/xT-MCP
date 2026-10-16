@@ -496,27 +496,11 @@ networks:
   files:
     internal: true
 
-# Danh tính S3 duy nhất của SeaweedFS (xt-api); giá trị từ deploy/.env (envfile.py tự sinh).
+# Cấu hình SeaweedFS (danh tính S3 duy nhất của xt-api + security.toml JWT nội bộ: truy cập thẳng :8080/:8888 bị 401).
+# Docker Compose không nạp `configs.content` vào service read_only nên dùng `file:`; `make env`
+# (envfile.ensure_seaweed_configs) render hai tệp từ deploy/.env vào ${XT_SECRETS_DIR}/seaweed (ngoài repo).
 configs:
   seaweed-s3:
-    content: |
-      {"identities": [{"name": "xt-api", "credentials": [{"accessKey": "${XT_FILES_S3_ACCESS_KEY:?chạy make env}", "secretKey": "${XT_FILES_S3_SECRET_KEY:?chạy make env}"}], "actions": ["Admin", "Read", "Write", "List", "Tagging"]}]}
-  # JWT nội bộ của SeaweedFS (volume ghi/đọc, filer ghi/đọc): truy cập thẳng :8080/:8888 bị 401.
+    file: ${XT_SECRETS_DIR:-${HOME}/.config/xt}/seaweed/s3.json
   seaweed-security:
-    content: |
-      # R2-F4: master/volume/filer chỉ nhận lệnh quản trị (/dir/assign, /col/delete, /vol/grow…)
-      # từ loopback = gateway S3 trong cùng tiến trình `weed server`; peer trong mạng `files` bị 401.
-      [guard]
-      white_list = "127.0.0.1,@"   # @ = gRPC nội tiến trình (S3/filer -> master/volume)
-      [jwt.signing]
-      key = "${XT_SEAWEED_JWT_WRITE_KEY:?chạy make env}"
-      expires_after_seconds = 10
-      [jwt.signing.read]
-      key = "${XT_SEAWEED_JWT_READ_KEY:?chạy make env}"
-      expires_after_seconds = 10
-      [jwt.filer_signing]
-      key = "${XT_SEAWEED_FILER_JWT_WRITE_KEY:?chạy make env}"
-      expires_after_seconds = 10
-      [jwt.filer_signing.read]
-      key = "${XT_SEAWEED_FILER_JWT_READ_KEY:?chạy make env}"
-      expires_after_seconds = 10
+    file: ${XT_SECRETS_DIR:-${HOME}/.config/xt}/seaweed/security.toml

@@ -35,7 +35,7 @@ Lượt `XT_DPOP_REQUIRED=false`: 19/23 test xanh; E7 chạy lại sau khi sửa
 
 | # | Kịch bản | DPoP tắt | Nguyên nhân gốc nếu đỏ |
 |---|---|---|---|
-| E0 | Dựng stack + seed | **FAIL** | `deploy/compose.yaml`: `configs.content` (seaweed-s3, seaweed-security) trên service `read_only` không chạy với Docker Compose 2.40.3 của máy này ("`file` is the sole supported option"). Harness dùng đường vòng `configs.file` (cùng nội dung, ngoài repo) để chạy tiếp, nhưng E0 vẫn báo đỏ. Mọi mục khác của E0 xanh (healthcheck xt-api, `xt doctor`, đủ gói, TOTP, bind-queue) |
+| E0 | Dựng stack + seed | **FAIL** | `deploy/compose.yaml`: `configs.content` (seaweed-s3, seaweed-security) trên service `read_only` không chạy với Docker Compose 2.40.3 của máy này ("`file` is the sole supported option"). (Đã sửa ở sản phẩm, xem "Việc chặn còn lại"; kết quả bên cạnh là của lượt trước khi sửa.) Mọi mục khác của E0 xanh (healthcheck xt-api, `xt doctor`, đủ gói, TOTP, bind-queue) |
 | E1 | Desk + qwen3.5:4b | **chưa chạy** | Cùng lỗi gốc với E9 (Desk luôn gửi proof DPoP khi đổi code) |
 | E2 | W1 qua MCP client có script | PASS | |
 | E3 | Poka-yoke | PASS | |
@@ -52,8 +52,8 @@ Tổng (DPoP tắt): **9/12 PASS**, E0 và E9 đỏ, E1 chưa chạy. Lượt DP
 
 ## Việc chặn còn lại
 
-1. APISIX: `X-Forwarded-Port: "443"` cho các route Keycloak (chặn E1, E9 và cả lượt DPoP bật).
-2. `compose.yaml`: cấp cấu hình SeaweedFS bằng `configs.file` (sinh bởi `make env`) thay cho `configs.content`, hoặc bỏ `read_only` cho seaweedfs (chặn E0 trên Docker Compose 2.40).
+1. ĐÃ SỬA (chưa chạy lại e2e): APISIX đặt `X-Forwarded-Port: "443"` cho 4 route Keycloak (test offline `SeaweedConfigsAndForwardedPort`).
+2. ĐÃ SỬA (chưa chạy lại e2e): seaweedfs dùng `configs.file` do `make env` render vào `${XT_SECRETS_DIR}/seaweed`; đường vòng `write_config_override` đã bỏ khỏi `e2e/xte2e/stack.py`, e2e chạy đúng đường sản phẩm.
 3. Sau 1-2: chạy lại `make e2e` hai lượt (`XT_DPOP_REQUIRED=true|false`) và `make e2e-llm`.
 
 ## Độ trễ relay hẹn giờ SLA (E7)
