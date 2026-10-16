@@ -483,3 +483,70 @@ def test_desk_link_requires_real_fresh_owner_oidc_proof_and_persists_one_use_cod
                 assert replay.status_code == 400
     assert idp.token_requests[-1]["redirect_uri"] == "https://desk.example/desk/telegram/callback"
     assert "code_verifier" in idp.token_requests[-1]
+
+
+def test_mcp_and_direct_enqueue_share_audit_before_notify_lock_order(people: Any, pg: Any) -> None:
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    from xt.adapters.db.audit import lock_audit_chain
+    from xt.adapters.db.confirmations import PgUnitOfWork
+    from xt.adapters.db.connection import Database
+
+    db, a, b, _other = people
+    recipient = Person(b.actor_id, f"person:{b.actor_id}", "Private Name")
+    marker = "xt-notify-lock-" + uuid4().hex
+    worker_db = Database(pg.app_dsn + " application_name=" + marker, min_size=1, max_size=1)
+    uow = PgUnitOfWork(db)
+    future = None
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            try:
+                with uow.scope(a), uow.tenant_tx(a) as cur:
+                    # Models the audit lock already taken by MCP operation claim/confirmation.
+                    lock_audit_chain(cur, a.tenant.id)
+                    main_pid = cur.execute("SELECT pg_backend_pid() AS pid").fetchone()["pid"]
+                    future = executor.submit(
+                        NotificationService(PgNotificationRepository(worker_db, a)).send,
+                        actor_id=a.actor_id,
+                        recipients=[recipient],
+                        message="ordinary sender",
+                        idempotency_key="lock-order-worker-" + uuid4().hex,
+                    )
+                    deadline = time.monotonic() + 5
+                    with pg.su() as monitor:
+                        while True:
+                            waiting = monitor.execute(
+                                "SELECT pid FROM pg_stat_activity WHERE application_name=%s"
+                                " AND wait_event_type='Lock' AND wait_event='advisory'"
+                                " AND %s=ANY(pg_blocking_pids(pid))",
+                                (marker, main_pid),
+                            ).fetchone()
+                            if waiting:
+                                break
+                            assert not future.done(), (
+                                "Concurrent enqueue exited before waiting on audit"
+                            )
+                            assert time.monotonic() < deadline, (
+                                "Concurrent enqueue did not wait on audit"
+                            )
+                            time.sleep(0.01)
+                    # The other sender is waiting for audit and must not own the notify lock.
+                    own_rows = NotificationService(PgNotificationRepository(uow, a)).send(
+                        actor_id=a.actor_id,
+                        recipients=[recipient],
+                        message="MCP sender",
+                        idempotency_key="lock-order-mcp-" + uuid4().hex,
+                    )
+                    assert len(own_rows) == 1
+            finally:
+                # Exiting the main transaction releases audit before waiting for the worker.
+                if future is not None:
+                    worker_rows = future.result(timeout=5)
+        assert worker_rows[0].id != own_rows[0].id
+        assert {row["title"] for row in PgNotificationRepository(db, b).inbox()} == {
+            "ordinary sender",
+            "MCP sender",
+        }
+    finally:
+        worker_db.close()

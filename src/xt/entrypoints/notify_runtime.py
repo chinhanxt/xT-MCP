@@ -21,7 +21,7 @@ from xt.application.notify_events import NotifyEvent, notification_event
 from xt.application.tools.errors import ToolError
 from xt.contracts.tools import ErrorCode
 from xt.domain.model.context import ModelActor
-from xt.entrypoints.composition.process import ProcessContext
+from xt.entrypoints.composition.process import ProcessContext, enqueue_notification
 from xt.entrypoints.composition.runtime import NIL, WORKFLOW_ROLE, Runtime
 
 log = logging.getLogger(__name__)
@@ -67,31 +67,16 @@ class NotificationRelay:
         actor = ModelActor(tenant, NIL, (WORKFLOW_ROLE,), client_azp="xt-worker")
 
         def enqueue() -> None:
-            repo = PgNotificationRepository(self.rt.uow, actor)
             sources = NotificationSources(self.rt.uow, actor)
-            service = NotificationService(repo, confirm_base_url=self.desk_url)
+            repo = PgNotificationRepository(self.rt.uow, actor)
 
             def send(key: str, build: Callable[[], NotifyEvent | None]) -> None:
                 def enqueue_one() -> None:
                     # Each source is isolated: a recipient quota must not roll back the batch.
-                    if not sources.claim(key):
-                        return
-                    event = build()
-                    if event is None:
-                        return  # Permanently unassigned/irrelevant sources are checkpointed.
-                    recipients = [repo.resolve_person(ref) for ref in event.recipients]
-                    active = [person for person in recipients if person is not None]
-                    if active:
-                        service.send(
-                            actor_id=NIL,
-                            recipients=active,
-                            message=event.message,
-                            idempotency_key=event.idempotency_key,
-                            kind=event.kind,
-                            subject_ref=event.subject_ref,
-                            confirmation_code=event.confirmation_code,
-                            confirm_url=event.confirm_url,
-                        )
+                    # Permanently unassigned/irrelevant sources are checkpointed too.
+                    enqueue_notification(
+                        sources, repo, key, build(), actor_id=NIL, confirm_base_url=self.desk_url
+                    )
 
                 try:
                     self.rt.uow.run(enqueue_one)

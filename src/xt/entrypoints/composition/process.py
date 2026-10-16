@@ -35,9 +35,13 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from xt.adapters.db.integration import ProcessDefinition, SodViolation
+from xt.adapters.db.notification_sources import NotificationSources
+from xt.adapters.db.notify import PgNotificationRepository
 from xt.adapters.db.workflow_bridge import PgTimerScheduler, PgWorkflowStore
 from xt.adapters.workflow.bpmn.spiff import SpiffProcessEngine
 from xt.application.model_engine.service import jsonable
+from xt.application.notify.service import NotificationService
+from xt.application.notify_events import NotifyEvent, notification_event
 from xt.application.process.ports import CompiledProcess, ServiceFn
 from xt.application.process.runtime import ProcessRuntime
 from xt.application.process.service import ProcessService as EngineProcesses
@@ -181,6 +185,42 @@ def check_pack_ops(allowed: Mapping[str, list[str]]) -> list[str]:
     return problems
 
 
+# ------------------------------------------------------------------------- notifications ----
+ESCALATION_EVENTS = frozenset({"assignment.escalated", "escalation"})
+
+
+def enqueue_notification(
+    sources: NotificationSources,
+    repo: PgNotificationRepository,
+    source_key: str,
+    event: NotifyEvent | None,
+    *,
+    actor_id: UUID,
+    confirm_base_url: str | None = None,
+) -> bool:
+    """Ghi thông báo của một nguồn (sự kiện/xác nhận/giao việc) qua Notifier, đúng một lần.
+
+    Claim `notification_source` và hộp thư cùng transaction của người gọi; nguồn không có người
+    nhận hợp lệ vẫn được checkpoint. Trả về True nếu lần này claim được nguồn."""
+    if not sources.claim(source_key):
+        return False
+    if event is None:
+        return True
+    active = [p for p in (repo.resolve_person(ref) for ref in event.recipients) if p is not None]
+    if active:
+        NotificationService(repo, confirm_base_url=confirm_base_url).send(
+            actor_id=actor_id,
+            recipients=active,
+            message=event.message,
+            idempotency_key=event.idempotency_key,
+            kind=event.kind,
+            subject_ref=event.subject_ref,
+            confirmation_code=event.confirmation_code,
+            confirm_url=event.confirm_url,
+        )
+    return True
+
+
 # ---------------------------------------------------------------------- catalog/runtime ----
 _COMPILED: dict[tuple[UUID, str, int, str], CompiledProcess] = {}
 _COMPILED_LOCK = threading.Lock()
@@ -225,7 +265,28 @@ class ProcessContext:
 
     def _event(self, ev: dict[str, Any]) -> None:
         iid = str(ev.get("instance", ""))
-        self.rt.store.process_event(self.actor, iid, str(ev.get("type", "event")), jsonable(ev))
+        type_ = str(ev.get("type", "event"))
+        payload = jsonable(ev)
+        event_id = self.rt.store.process_event(self.actor, iid, type_, payload)
+        if type_ in ESCALATION_EVENTS:
+            # Leo thang SLA báo ngay qua Notifier (in-app, cùng transaction với sự kiện); claim
+            # `event:<id>` trùng khóa của NotificationRelay nên relay không gửi lại.
+            event = notification_event(
+                str(event_id), type_, payload, subject_ref=PgWorkflowStore(self.rt.uow).ref_for(iid)
+            )
+            try:
+                sources = NotificationSources(self.rt.uow, self.actor)
+                repo = PgNotificationRepository(self.rt.uow, self.actor)
+                key = f"event:{event_id}"
+                self.rt.uow.run(
+                    lambda: enqueue_notification(
+                        sources, repo, key, event, actor_id=self.actor.actor_id
+                    )
+                )
+            except ToolError as error:
+                if error.code != ErrorCode.RATE_LIMITED:
+                    raise
+                # Savepoint hoàn tác claim: relay của worker gửi lại ở chu kỳ sau.
 
     # ProcessCatalog
     def active(self, process_id: str) -> ProcessRuntime | None:

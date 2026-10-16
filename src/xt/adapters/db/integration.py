@@ -359,13 +359,14 @@ class PgIntegrationStore:
     # ---- sự kiện / sự cố của process runtime
     def process_event(
         self, actor: ModelActor, instance_id: str, type_: str, payload: Mapping[str, Any]
-    ) -> None:
+    ) -> UUID:
         with self.uow.tenant_tx(actor) as cur:
-            cur.execute(
+            row = cur.execute(
                 "INSERT INTO xt_meta.process_event (tenant_id, instance_id, type, payload)"
-                " VALUES (xt.tenant(), %s, %s, %s)",
+                " VALUES (xt.tenant(), %s, %s, %s) RETURNING id",
                 (instance_id, type_[:100], Jsonb(dict(payload))),
-            )
+            ).fetchone()
+        return UUID(str(row["id"]))
 
     def process_events(self, actor: ModelActor, instance_id: str) -> list[dict[str, Any]]:
         with self.uow.tenant_tx(actor) as cur:

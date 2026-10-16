@@ -408,3 +408,9 @@ Quyết định D-NOTIFY-1…8 trong `docs/decisions.md`; hướng dẫn vận h
 | Skills | `skills/xt-core/references/notifications.md`; `tool_count: 19`. Eval agent cần sinh lại catalog full nếu đang giữ snapshot; core-10 không thay đổi. |
 
 Không gọi Bot API thật để đăng ký webhook trong triển khai/test tự động. Người vận hành đăng ký thủ công theo tài liệu chính thức, secret không nằm trong repo.
+
+### REST `/files/v1` vòng 3 (R3-C1)
+
+- `PgFileRepository._wtx`: mọi thao tác ghi/khóa của dịch vụ tệp lấy `lock_audit_chain` TRƯỚC khóa quota/nội dung/dòng (thứ tự WA-11).
+- `files_http.retry_transient`: nếu vẫn gặp deadlock (40P01) hoặc serialization failure (40001) thì chạy lại cả transaction tối đa 3 lần; vẫn lỗi thì trả `timeout` (503, retryable). Không bao giờ trả 500.
+- Đường tool (`ScopedDispatcher`) không có retry này, nhưng không còn chu trình khóa: `claim` cũng lấy chuỗi audit trước.

@@ -3,3 +3,5 @@
 [3/84] PASS approvals.over_limit skills=none rep=0 13.48s calls=3
 [4/84] PASS approvals.create_missing_info skills=none rep=0 4.2s calls=1
 [5/84] FAIL onboarding.create_employee skills=none rep=0 9.0s calls=5
+[6/84] FAIL onboarding.status_done skills=none rep=0 600.1s calls=0 ERR ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+[7/84] FAIL onboarding.who_issues_laptop skills=none rep=0 600.11s calls=0 ERR ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)

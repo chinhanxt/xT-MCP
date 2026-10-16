@@ -7,6 +7,8 @@
 - Mỗi quyết định ghi theo khuôn: **Quyết định → Lý do → Bằng chứng → Phương án bị loại**.
 - Chưa chạy thật thì ghi **[chưa kiểm chứng]**.
 
+> **Cập nhật triển khai Telegram (16/10/2026):** D-NOTIFY-3 trong [decisions](decisions.md#thông-báo-nội-bộ-và-telegram-hiển-thị-16102026) thay mô tả Telegram tap/nonce duyệt cũ bên dưới. Telegram chỉ hiển thị tóm tắt đã che PII, mã đối chiếu và link Desk; không là bằng chứng xác nhận, không thực thi duyệt. Xem [notifications](notifications.md).
+
 ## v2.2 changelog (15/10/2026, sau `research/spike-model-tenancy.md`, ký hiệu SMT, chạy thật trên PG 17 + PostgREST 16.4)
 
 B4 đã đóng. G-M1 và G-M2 của B6 đã đóng. Đã sửa đúng các mục mà SMT §0 yêu cầu:

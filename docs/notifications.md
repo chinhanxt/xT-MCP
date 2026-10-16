@@ -4,7 +4,7 @@
 
 `notify` là tool v1.0 (ngoài core-10): `recipients`, `message`, `subject_ref?`, `idempotency_key`. Cần policy IAM `notify.send` trên `xrn:<tenant>:notification:notification` (gói `packages/thong-bao`). Agent dưới L2 nhận `confirmation_required`; người mở Desk để xác nhận. Cùng key và tham số trả receipt cũ. Người nhận phải đang hoạt động trong tenant; giới hạn 30 thông báo/người/phút.
 
-Thông báo xuất hiện qua `get_inbox(kinds=["notification"])`. DB cô lập tenant và người nhận bằng RLS. Worker relay hiện có đọc assignment/escalation và pending confirmation, checkpoint cùng transaction ghi inbox. Nếu không bật Telegram, inbox vẫn hoạt động.
+Thông báo xuất hiện qua `get_inbox(kinds=["notification"])`. DB cô lập tenant và người nhận bằng RLS. Worker relay hiện có đọc assignment/escalation và pending confirmation, checkpoint cùng transaction ghi inbox. Leo thang SLA (`assignment.escalated`) được báo ngay trong transaction của tick timer qua cùng Notifier, claim nguồn `event:<id>` nên relay không gửi lại (D-NOTIFY-9). Nếu không bật Telegram, inbox vẫn hoạt động.
 
 ## Bật kênh Telegram
 

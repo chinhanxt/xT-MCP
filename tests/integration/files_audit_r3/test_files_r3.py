@@ -207,7 +207,8 @@ def test_tenant_quota_parallel_two_users_no_overcommit(r3stack: Stack) -> None:
         accepted = max(accepted, sum(b for _, b in res))
         # dọn để vòng sau lại sát trần
         backend(s).maintain(s.tenants[A])
-    server_errors = [c for c in codes if c >= 500]
+    # 507 = storage_quota (kết quả hợp lệ theo hợp đồng ở docstring), không phải lỗi server.
+    server_errors = [c for c in codes if c >= 500 and c != 507]
     assert not server_errors, f"5xx khi tranh chấp quota (deadlock): {server_errors} trong {codes}"
     assert accepted <= TENANT_Q, f"vượt trần tenant do đua: nhận {accepted} > {TENANT_Q}"
     assert 507 in codes, f"không có 507 dù vượt trần: {codes}"

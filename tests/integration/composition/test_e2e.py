@@ -1076,10 +1076,15 @@ async def test_worker_job_role_relays_timer_escalation_and_model_apply(
                     " AND instance_id=%s AND type='assignment.escalated'",
                     (t.id, iid),
                 ).fetchone()[0]
+                # Leo thang báo qua Notifier: thông báo kind=escalation, nguồn `event:<id>` của
+                # đúng sự kiện leo thang của instance đã được claim (relay không gửi lại).
                 state["notified"] = su.execute(
-                    "SELECT count(*) FROM xt_meta.notification WHERE tenant_id=%s"
-                    " AND dedupe_key LIKE %s",
-                    (t.id, f"esc:{iid}:%"),
+                    "SELECT count(*) FROM xt_meta.notification n WHERE n.tenant_id=%s"
+                    " AND n.kind='escalation' AND EXISTS (SELECT 1 FROM xt_meta.process_event e"
+                    " JOIN xt_meta.notification_source s ON s.tenant_id=e.tenant_id"
+                    " AND s.source_key='event:' || e.id::text WHERE e.tenant_id=n.tenant_id"
+                    " AND e.instance_id=%s AND e.type='assignment.escalated')",
+                    (t.id, iid),
                 ).fetchone()[0]
                 state["change"] = su.execute(
                     "SELECT state, dispatched_at IS NOT NULL, error"
@@ -1095,6 +1100,7 @@ async def test_worker_job_role_relays_timer_escalation_and_model_apply(
             state["column"] = _column_exists(pg, t.seq, "advance_request", "ma_cong_trinh")
             if (
                 state["escalated"]
+                and state["notified"]
                 and state["column"]
                 and state["change"] == [("applied", True, None)]
             ):

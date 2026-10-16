@@ -19,6 +19,7 @@ from uuid import UUID
 
 from psycopg.types.json import Jsonb
 
+from xt.adapters.db.audit import lock_audit_chain
 from xt.application.notify.ports import Notification, Person
 from xt.application.notify.service import SAFE_SUMMARY
 from xt.application.tools.errors import ToolError, invalid_request
@@ -76,6 +77,9 @@ class PgNotificationRepository:
         if actor_id != self.actor.actor_id:
             raise PermissionError("Notification actor differs from authenticated actor.")
         with self.uow.tenant_tx(self.actor) as cur:
+            # All metadata writers take audit first; MCP may already hold this lock.
+            # Reversing these locks deadlocks an ordinary enqueue against a pending tool call.
+            lock_audit_chain(cur, self.actor.tenant.id)
             cur.execute(
                 "SELECT pg_advisory_xact_lock(hashtextextended(%s,0))",
                 (f"notify:{self.actor.tenant.id}",),
