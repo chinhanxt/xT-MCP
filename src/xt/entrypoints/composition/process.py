@@ -452,6 +452,37 @@ def _matches(via: CompleteVia, data: Mapping[str, Any], row: Mapping[str, Any]) 
     return True
 
 
+MAX_REF_SCAN = 1000
+
+
+def record_refs(value: Any, models: set[str], _depth: int = 0) -> list[tuple[str, str]]:
+    """(model, ref) của mọi chuỗi `<model>:<uuid>` / `xrn:<t>:<model>:<uuid>` trong `value`,
+    duyệt đệ quy object/mảng (input `object` của start_process); `model` phải thuộc catalog."""
+    out: list[tuple[str, str]] = []
+    stack: list[tuple[Any, int]] = [(value, _depth)]
+    seen = 0
+    while stack:
+        v, d = stack.pop()
+        seen += 1
+        if seen > MAX_REF_SCAN or d > 20:
+            raise invalid_request("Tham số quy trình quá lớn/quá sâu.", "parameters_too_large")
+        if isinstance(v, str):
+            parts = v.split(":")
+            if len(parts) == 4 and parts[0] == "xrn":
+                parts = parts[2:]
+            if len(parts) == 2 and parts[0] in models:
+                try:
+                    UUID(parts[1])
+                except ValueError:
+                    continue
+                out.append((parts[0], v))
+        elif isinstance(v, Mapping):
+            stack.extend((x, d + 1) for x in v.values())
+        elif isinstance(v, list | tuple):
+            stack.extend((x, d + 1) for x in v)
+    return out
+
+
 def writable_fields(via: CompleteVia, model: Any) -> set[str]:
     """Trường được ghi kèm khi hoàn thành bước: `writable_fields` của bước, trừ khóa match,
     trường trạng thái, trường ref/user/file và trường managed_by của model."""
@@ -955,15 +986,13 @@ class ProcessToolAdapter:
         current = self.rt.catalogs.current(caller.actor)
         names = {m.name for m in current[1].models} if current is not None else set()
         for k, v in inputs.items():
-            if k in targets:
+            if k in targets and isinstance(v, str) and v:
                 model, write = targets[k]
-            elif isinstance(v, str) and ":" in v and v.rsplit(":", 2)[-2] in names:
-                model, write = v.rsplit(":", 2)[-2], False  # mọi ref bản ghi khác: phải đọc được
-            else:
+                self._require_record(ctx, caller, model, v, write)
                 continue
-            if v is None or v == "":
-                continue
-            self._require_record(ctx, caller, model, v, write)
+            # Mọi ref bản ghi khác, kể cả lồng trong input object/mảng: phải đọc được.
+            for model, ref in record_refs(v, names):
+                self._require_record(ctx, caller, model, ref, False)
 
     def _commit_start(self, ctx: CallContext, caller: Caller, p: StartPlan) -> CommitResult:
         svc = self.pc(caller).service()

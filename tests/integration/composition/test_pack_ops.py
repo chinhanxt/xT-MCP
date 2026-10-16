@@ -910,3 +910,64 @@ def test_task_normal_return_and_sla_escalation(ops: Ops, monkeypatch: pytest.Mon
     assert ops.get("task", task["id"])["state"] == "in_progress"
     item = ops.inbox_item("NV-0010", ref)
     assert item["step"] == "work" and item["to_states"] == ["awaiting_acceptance"]
+
+
+def test_start_process_scans_refs_nested_in_object_inputs(
+    ops: Ops, stack_base: StackBase, tmp_path: Any
+) -> None:
+    """Input `object` của quy trình: ref bản ghi trong mảng/object cũng phải đọc được bởi
+    người khởi tạo (như ref cấp cao nhất); không thì not_found như id ma (PSA-03 vòng 2)."""
+    import shutil
+
+    dst = tmp_path / "giao-viec-sla"
+    shutil.copytree(ROOT / "packages" / "giao-viec-sla", dst)
+    p = dst / "processes" / "task_normal.json"
+    spec = json.loads(p.read_text(encoding="utf-8"))
+    spec["version"] = int(spec["version"]) + 1
+    spec["inputs"]["context"] = {"type": "object", "required": False}
+    p.write_text(json.dumps(spec, ensure_ascii=False, indent=2), encoding="utf-8")
+    who = ["--proposed-by", "agent:it", "--approved-by", "person:admin"]
+    common = ["pack", "install", "--tenant", ALIAS, str(dst)]
+    rc, plan = run_admin([*common, *who], stack_base.env)
+    assert rc == 0 and "KHÔNG CÀI ĐƯỢC" not in plan, plan
+    digest = re.search(r"Mã xác nhận \(digest\): (sha256:[0-9a-f]{64})", plan)
+    assert digest, plan
+    rc, out = run_admin([*common, *who, "--confirm", digest.group(1)], stack_base.env)
+    assert rc == 0, out
+
+    own = _task(ops, "CV-2026-0401", "Việc có ngữ cảnh")
+    foreign = ops.create(
+        "NV-0002",
+        "task",
+        {"task_no": "CV-2026-0402", "title": "Việc phòng NS", "kind": own["kind"],
+         "assigner": ops.pid("NV-0002"), "assignee": ops.pid("NV-0003"),
+         "deadline": "2099-12-31T17:00:00+07:00", "done_criteria": "Có số liệu đầy đủ"},
+    )  # fmt: skip
+    # Bề mặt tool chỉ nhận mảng phẳng (object lồng: unit test record_refs).
+    hidden = ["ghi chú", f"task:{foreign['id']}"]
+    denied = ops.tool(
+        "NV-0009",
+        "start_process",
+        {"process_id": "task_normal", "subject_ref": f"task:{own['id']}",
+         "parameters": {"assignee_user": f"person:{ops.pid('NV-0010')}", "assigner_user": "me",
+                        "context": hidden},
+         "idempotency_key": "it-start-nested-1"},
+    )  # fmt: skip
+    ghost = ops.tool(
+        "NV-0009",
+        "start_process",
+        {"process_id": "task_normal", "subject_ref": f"task:{own['id']}",
+         "parameters": {"assignee_user": f"person:{ops.pid('NV-0010')}", "assigner_user": "me",
+                        "context": [f"task:{uuid.uuid4()}"]},
+         "idempotency_key": "it-start-nested-2"},
+    )  # fmt: skip
+    assert denied["error"]["code"] == ghost["error"]["code"] == "not_found", (denied, ghost)
+    ok = ops.tool(
+        "NV-0009",
+        "start_process",
+        {"process_id": "task_normal", "subject_ref": f"task:{own['id']}",
+         "parameters": {"assignee_user": f"person:{ops.pid('NV-0010')}", "assigner_user": "me",
+                        "context": [f"task:{own['id']}"]},
+         "idempotency_key": "it-start-nested-3"},
+    )  # fmt: skip
+    assert ok["ok"], ok
