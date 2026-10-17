@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 NguyenThong251 and xT contributors
 // Tiny app store + event bus. No framework.
 //
 // store.state            → current state (read-only by convention)
@@ -8,6 +10,7 @@
 // bus.on(evt, fn) / bus.off(evt, fn) / bus.emit(evt, payload)  — see SPEC §Events
 import { SIM_START_MINUTES } from '../data/mockData.js'
 import { db } from '../data/db.js'
+import { MODES, BUSINESS_IDLE } from './mode.js'
 
 const initial = {
   siteId: 'WH-01',            // 'WH-01'..'WH-05' | 'ALL' (network overview)
@@ -19,6 +22,8 @@ const initial = {
   simMinutes: SIM_START_MINUTES, // live clock (float, minutes since midnight)
   menu: null,                 // open dropdown: null | 'site' | 'notifications' | 'user' | 'search'
   searchQuery: '',
+  mode: MODES.SIMULATION,      // 'simulation' | 'business' (src/state/mode.js)
+  business: BUSINESS_IDLE,    // trạng thái đọc dữ liệu nghiệp vụ: idle | loading | not_connected | error | ready
 }
 
 function createStore(init) {
