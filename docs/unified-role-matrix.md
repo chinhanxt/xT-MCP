@@ -3,7 +3,7 @@
 
 # Ma trận quyền endpoint/tool × vai trò và provenance của hai bản nhập (G0)
 
-Lập bằng cách **đọc mã** ngày 17/10/2026 trên `staging` (commit gốc `466448c`); mỗi dòng ghi `tệp:dòng`. Chưa chạy test truy cập chéo nên đây **không** phải bằng chứng nghiệm thu U03. Đường dẫn Studio tính từ `imports/dify-rea/src/`; đường dẫn Python tính từ `src/xt/`.
+Lập bằng cách **đọc mã** ngày 17/10/2026 trên `staging` (commit gốc `b952f8e`); mỗi dòng ghi `tệp:dòng`. Chưa chạy test truy cập chéo nên đây **không** phải bằng chứng nghiệm thu U03. Đường dẫn Studio tính từ `imports/dify-rea/src/`; đường dẫn Python tính từ `src/xt/`.
 
 ## 1. Vai trò và cách đọc bảng
 
@@ -63,30 +63,30 @@ Catalog: `contracts/tools/catalog.py` (17 tool + `start_process`), `contracts/to
 
 | Tool (nguồn) | IAM action | Tự chủ tối đa | Studio | SA | SE/SU | WM | ST | Căn cứ policy `kho-hang` |
 |---|---|---|---|---|---|---|---|---|
-| `inspect_workspace` (`catalog.py:73-77`) | `workspace.read` | L0 | ✔ | ✖ | ✖ | ✔ | ✔ | `iam.json:139-161` (`wh.tools`) |
-| `describe_model` (`:218-222`) | `model.read` | L0 | ✔ | ✖ | ✖ | ✔ | ✔ | `iam.json:139-161` |
-| `describe_process` (`:285-289`) | `process.read` | L0 | ✔ | ✖ | ✖ | ✔ | ✔ | `iam.json:139-161` |
-| `find_people` (`:417-421`) | `person.read` | L0 | ✖ | ✖ | ✖ | ✔ | ✔ | `iam.json:139-161` |
-| `search_records` (`:502-506`) | `record.search` | L0 | ✔ | ✖ | ✖ | ✔ | ✔ | `iam.json:139-161` |
-| `aggregate_records` (`:586-590`) | `record.aggregate` | L0 | ✔ | ✖ | ✖ | ✖ | ✖ | **không statement nào** cấp `record.aggregate`; README còn ghi tool này trả `capability_unavailable` |
-| `get_record` (`:720-724`) | `record.read` | L0 | ✔ | ✖ | ✖ | ✔ | ✔ | `iam.json:5-26` (`wh.read`); phiếu kho: ST/agent chỉ bản ghi của mình (`stock_request.json:98-106`) |
-| `get_inbox` (`:820-824`) | `inbox.read` | L0 | ✔ | ✖ | ✖ | ✔ | ✔ | `iam.json:139-161` |
-| `get_history` (`:908-912`) | `history.read` | L0 | ✔ | ✖ | ✖ | ✖ | ✖ | `history.read` **không** có trong `wh.tools` |
-| `create_record` (`:1019-1023`) | `record.create` | L2 | ✔ | ✖ | ✖ | ◐ | ◐ | danh mục kho: chỉ WM/admin (`iam.json:27-44`); phiếu: người tạo = chủ (`:45-72`); `stock_balance`/`stock_movement`: **Deny mọi chủ thể** (`:103-119`) |
+| `inspect_workspace` (`catalog.py:73-77`) | `workspace.read` | L0 | ✔ | ✖ | ✖ | ✔ | ✔ | `iam.json:142-164` (`wh.tools`) |
+| `describe_model` (`:218-222`) | `model.read` | L0 | ✔ | ✖ | ✖ | ✔ | ✔ | `iam.json:142-164` |
+| `describe_process` (`:285-289`) | `process.read` | L0 | ✔ | ✖ | ✖ | ✔ | ✔ | `iam.json:142-164` |
+| `find_people` (`:417-421`) | `person.read` | L0 | ✖ | ✖ | ✖ | ✔ | ✔ | `iam.json:142-164` |
+| `search_records` (`:502-506`) | `record.search` | L0 | ✔ | ✖ | ✖ | ✔ | ✔ | `iam.json:142-164` |
+| `aggregate_records` (`:586-590`) | `record.aggregate` | L0 | ✔ | ✖ | ✖ | ✖ | ✖ | **không statement nào** cấp `record.aggregate`; composition còn `unavailable` (`entrypoints/composition/records.py:364-365`); hiện thực dự kiến theo D-UNI-AGG-1 (`docs/decisions.md`), khi đó gói cần thêm statement |
+| `get_record` (`:720-724`) | `record.read` | L0 | ✔ | ✖ | ✖ | ✔ | ✔ | `iam.json:5-27` (`wh.read`); phiếu kho: ST/agent chỉ bản ghi của mình (`stock_request.json:110-118`) |
+| `get_inbox` (`:820-824`) | `inbox.read` | L0 | ✔ | ✖ | ✖ | ✔ | ✔ | `iam.json:142-164` |
+| `get_history` (`:908-912`) | `history.read` | L0 | ✔ | ✖ | ✖ | ✔ | ✔ | `iam.json:142-164` (`history.read` ở dòng 158) |
+| `create_record` (`:1019-1023`) | `record.create` | L2 | ✔ | ✖ | ✖ | ◐ | ◐ | danh mục kho: chỉ WM/admin (`iam.json:28-45`); phiếu: người tạo = chủ (`:46-73`); `stock_balance`/`stock_movement`: **Deny mọi chủ thể** (`:104-121`) |
 | `update_record` (`:1096-1100`) | `record.update` | L2 | ✔ | ✖ | ✖ | ◐ | ◐ | như trên |
-| `transition_record` (`:1166-1170`) | `record.transition` | L3 | ✖ | ✖ | ✖ | ◐ | ◐ | chỉ phiếu của chính mình (`iam.json:45-72`) |
+| `transition_record` (`:1166-1170`) | `record.transition` | L3 | ✖ | ✖ | ✖ | ◐ | ◐ | chỉ phiếu của chính mình (`iam.json:46-73`) |
 | `upload_file` (`:1250-1254`) | `file.create` | L1 | ✖ | ✖ | ✖ | pol | pol | gói `tep-dinh-kem` |
-| `submit_request` (`:1350-1354`) | `request.submit` | L2 | ✔ | ✖ | ✖ | ◐ | ◐ | phiếu của chính mình (`iam.json:45-72`) |
-| `decide_request` (`:1429-1434`) | `request.decide` | L3 | ✖ | ✖ | ✖ | ✔ | ✖ | chỉ WM (`iam.json:73-87`); agent bị Deny (`:88-102`); người tạo không tự duyệt (SoD: `application/iam/guard.py:65,159`) |
+| `submit_request` (`:1350-1354`) | `request.submit` | L2 | ✔ | ✖ | ✖ | ◐ | ◐ | phiếu của chính mình (`iam.json:46-73`) |
+| `decide_request` (`:1429-1434`) | `request.decide` | L3 | ✖ | ✖ | ✖ | ✔ | ✖ | chỉ WM (`iam.json:74-88`); agent bị Deny (`:89-103`); người tạo không tự duyệt (SoD: `application/iam/guard.py:65,159`) |
 | `create_task` (`:1540-1544`) | `task.create` | L2 | ✖ | ✖ | ✖ | pol | pol | gói `giao-viec-sla` |
 | `propose_model_change` (`:1736-1740`) | `model.propose` | L1 | ✖ | ✖ | ✖ | pol | pol | gói `quan-tri-mo-hinh` |
 | `start_process` (`:1914-1918`) | `process.start` | L3 | ✖ | ✖ | ✖ | pol | pol | `stock_approval` khởi chạy qua `submit_request` (`pack.json:26-37`) |
 | `notify` (`notify.py:10-15`) | `notify.send` | L2 | ✖ | pol | pol | pol | pol | gói `thong-bao`; cần xác nhận |
 | App-only `org_person_details` (`apps.py:58-64`) | `person.read` | — | ✖ | pol | pol | pol | pol | MCP App `orgchart` |
-| App-only `records_table_page` (`apps.py:86-92`) | như `search_records` | — | ✖ | ✖ | ✖ | ✔ | ✔ | `iam.json:139-161` |
+| App-only `records_table_page` (`apps.py:86-92`) | như `search_records` | — | ✖ | ✖ | ✖ | ✔ | ✔ | `iam.json:142-164` |
 | App-only `pii_reveal_ticket` (`apps.py:104-112`) | `pii.reveal` | — | ✖ | pol | pol | pol | pol | gói `kenh-pii` |
 
-Quyền ở tầng model (RLS/CRUD theo cột `permissions` của từng model, áp thêm dưới IAM): `warehouse` (`warehouse.json:29`), `warehouse_location` (`:38`), `stock_item` (`:50`): WM và `admin` tạo/đọc/sửa toàn bộ, ST và agent chỉ đọc. `stock_balance` (`:49`) và `stock_movement` (`:72`): mọi vai trò người chỉ đọc; chỉ vai trò hệ thống `xt_workflow` ghi. `stock_request` (`:98`): ST và agent tạo/đọc/sửa phạm vi `own`; WM và `admin` phạm vi `all`.
+Quyền ở tầng model (RLS/CRUD theo cột `permissions` của từng model, áp thêm dưới IAM): `warehouse` (`warehouse.json:29`), `warehouse_location` (`:38`), `stock_item` (`:50`): WM và `admin` tạo/đọc/sửa toàn bộ, ST và agent chỉ đọc. `stock_balance` (`:57`), `stock_level` (`stock_level.json:80`) và `stock_movement` (`:80`): mọi vai trò người chỉ đọc; chỉ vai trò hệ thống `xt_workflow` ghi. `stock_request` (`:110`): ST và agent tạo/đọc/sửa phạm vi `own`; WM và `admin` phạm vi `all`.
 
 Ghi kho: bước `post_stock` chỉ chạy từ quy trình `stock_approval` sau khi `warehouse_manager` duyệt, kiểm tra person đang hoạt động và có vai trò `warehouse_manager` (`entrypoints/composition/warehouse.py:22-37`; `packages/kho-hang/processes/stock_approval.json:14-33`). Người tạo phiếu không được duyệt phiếu của chính mình (SoD ở guard).
 
@@ -100,7 +100,7 @@ Ghi kho: bước `post_stock` chỉ chạy từ quy trình `stock_approval` sau 
 Khoảng trống phát hiện (chưa sửa trong PR này, cần quyết định hoặc ticket):
 1. **Không có đường nào gán vai trò `studio_*`, `xt_admin`, `warehouse_manager`.** Không seed, `mapping.json` hay gói nào chứa chúng (grep trên `seed/`, `packages/`, `src/`); vai trò xT lấy từ `person.roles` (`entrypoints/composition/runtime.py:100`), nạp bằng `xt org import` (`entrypoints/composition/org_seed.py:69-76`). Theo D-UNI-H-1 (`docs/decisions.md`), gán vai trò ở H đi qua `packages/nhan-su-vong-doi` (`access_grant` + duyệt), không qua `xt org import` từ web. Hiện `access_grant` chỉ được **đếm** (`pack_ops.py:404`); chưa có application service áp bản ghi đã duyệt thành vai trò hiệu lực, nên chưa chứng minh được "thu hồi quyền có hiệu lực" (U02).
 2. **"staff" không có trong mã**: dùng `employee`. Nếu yêu cầu cần vai trò mới, phải khai trong gói (không thêm ngầm).
-3. **`director` (Studio admin) không là subject của policy `kho-hang`**, nên giám đốc không đọc được tồn kho qua MCP/Studio nếu không giữ thêm `employee` hoặc `admin`; `aggregate_records` và `get_history` không ai được cấp (ảnh hưởng U08, U09). Cần bổ sung statement trong gói hoặc quyết định cố ý.
+3. **`director` (Studio admin) không là subject của policy `kho-hang`**, nên giám đốc không đọc được tồn kho qua MCP/Studio nếu không giữ thêm `employee` hoặc `admin`; `aggregate_records` không ai được cấp và còn `unavailable` (D-UNI-AGG-1 mới là quyết định, chưa hiện thực; ảnh hưởng U08, U09). Cần bổ sung statement trong gói hoặc quyết định cố ý.
 4. **SA/SE xem mọi run trong workspace** (`apps.ts:323-331`), gồm input/output của người dùng khác.
 5. **Tri thức/RAG không có ACL theo tài liệu**; chỉ có biên workspace (`resources.ts:71-181`). U10 ("đổi quyền tài liệu thì RAG ngừng trả") chưa có cơ chế để nghiệm thu.
 6. `/healthz` không kiểm phụ thuộc (`http_app.py:251`).
