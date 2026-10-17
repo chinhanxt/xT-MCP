@@ -116,7 +116,8 @@ describe("handleCallback", () => {
     const h2 = setup();
     const { cb } = await loginUrl(h2, (q) => (q.delete("code"), q.set("error", "access_denied")));
     expect(await h2.s.handleCallback(cb)).toBe(false);
-    expect(h2.s.state.error).toMatch(/access_denied/);
+    expect(h2.s.state.error).toMatch(/Đăng nhập không thành công/);
+    expect(h2.s.state.detail).toMatch(/access_denied/);
   });
   it("phiên chờ dùng một lần: callback lần 2 thất bại", async () => {
     const h = setup();
@@ -137,6 +138,8 @@ describe("handleCallback", () => {
     const { cb } = await loginUrl(h);
     expect(await h.s.handleCallback(cb)).toBe(false);
     expect(h.s.state.status).toBe("error");
+    expect(h.s.state.error).toBe("Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại.");
+    expect(h.s.state.detail).toBe("Đổi token thất bại (invalid_grant)");
   });
 });
 

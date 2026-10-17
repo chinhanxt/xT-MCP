@@ -76,7 +76,7 @@ it('lists records of the app model only and opens a record through get_record', 
 it('creates a plain record with create_record only (no submit_request)', async () => {
   await mount(base((call) => call.name === 'create_record' ? ok({ record: { ref: 'cham_cong:9' } }) : undefined));
   await click('Mở Chấm công');
-  expect(container.querySelector('.portal-request h3')?.textContent).toBe('Tạo mới');
+  expect(container.querySelector('.portal-request h3')?.textContent).toBe('Tạo chấm công');
   await fill('note', 'Ca chiều'); await send();
   expect(calls('create_record')[0].arguments).toEqual({ model_id: 'cham_cong', values: { note: 'Ca chiều' }, idempotency_key: expect.any(String) });
   expect(calls('submit_request')).toHaveLength(0);

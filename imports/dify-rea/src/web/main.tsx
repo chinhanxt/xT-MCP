@@ -38,11 +38,11 @@ function Auth({ setup, done }: { setup: boolean; done: () => void }) {
       </div>
       <form className="auth-card" onSubmit={submit}>
         <span className="eyebrow">KHÔNG GIAN AI CỦA BẠN</span>
-        <h1>{setup ? 'Bắt đầu với workspace mới' : 'Chào mừng trở lại'}</h1>
-        <p>Kết nối model, xây dựng ứng dụng và đưa kiến thức của bạn vào cuộc trò chuyện.</p>
+        <h1>{setup ? 'Bắt đầu với không gian làm việc mới' : 'Chào mừng trở lại'}</h1>
+        <p>Kết nối mô hình, xây dựng ứng dụng và đưa kiến thức của bạn vào cuộc trò chuyện.</p>
         {setup && (
           <label>
-            Tên workspace
+            Tên không gian làm việc
             <input name="workspace_name" required placeholder="Công ty của bạn" maxLength={100} />
           </label>
         )}
@@ -63,7 +63,7 @@ function Auth({ setup, done }: { setup: boolean; done: () => void }) {
         </label>
         <ErrorBox error={error} />
         <button className="primary full" disabled={busy}>
-          {busy ? 'Đang xử lý…' : setup ? 'Tạo workspace' : 'Đăng nhập'} →
+          {busy ? 'Đang xử lý…' : setup ? 'Tạo không gian làm việc' : 'Đăng nhập'} →
         </button>
       </form>
     </div>
@@ -136,7 +136,7 @@ function Studio() {
           <span className="workspace-avatar">{session.user.workspace_name[0].toUpperCase()}</span>
           <div>
             <strong>{session.user.workspace_name}</strong>
-            <small>Workspace của bạn</small>
+            <small>Không gian của bạn</small>
           </div>
         </div>
         <div className="nav-label">XÂY DỰNG</div>
@@ -144,7 +144,7 @@ function Studio() {
           {[
             ['apps', '▦', 'Ứng dụng'],
             ...(session.user.role === 'viewer' ? [] : [['knowledge', '▤', 'Kiến thức']]),
-            ...(session.user.role === 'admin' || !session.integrated ? [['models', '◈', 'Model AI'], ['mcp', '⇄', 'Kết nối MCP']] : []),
+            ...(session.user.role === 'admin' || !session.integrated ? [['models', '◈', 'Mô hình AI'], ['mcp', '⇄', 'Kết nối MCP']] : []),
             ['runs', '◷', 'Lịch sử chạy'],
           ].map(([id, icon, label]) => (
             <button
@@ -183,7 +183,7 @@ function Studio() {
             {selected
               ? selected.name
               : (
-                  { apps: 'Ứng dụng', knowledge: 'Kiến thức', models: 'Model AI', mcp: 'Kết nối MCP', runs: 'Lịch sử chạy' } as Record<
+                  { apps: 'Ứng dụng', knowledge: 'Kiến thức', models: 'Mô hình AI', mcp: 'Kết nối MCP', runs: 'Lịch sử chạy' } as Record<
                     string,
                     string
                   >
@@ -240,17 +240,17 @@ function Studio() {
                     <strong>{knowledge.length}</strong> kho kiến thức
                   </div>
                   <div>
-                    <strong>{models.filter((m) => m.kind === 'chat').length}</strong> model chat
+                    <strong>{models.filter((m) => m.kind === 'chat').length}</strong> mô hình trò chuyện
                   </div>
                 </div>
                 {!models.length && (
                   <div className="onboarding">
                     <span className="onboarding-icon">◈</span>
                     <div>
-                      <strong>Kết nối model đầu tiên</strong>
+                      <strong>Kết nối mô hình đầu tiên</strong>
                       <p>Dùng Ollama trên máy hoặc dịch vụ tương thích OpenAI để chạy ứng dụng.</p>
                     </div>
-                    <button onClick={() => setPage('models')}>Thêm model →</button>
+                    <button onClick={() => setPage('models')}>Thêm mô hình →</button>
                   </div>
                 )}
                 <div className="section-title">
@@ -261,18 +261,18 @@ function Studio() {
                   {session.user.role !== 'viewer' && <button className="new-card" onClick={() => setCreate(true)}>
                     <span>+</span>
                     <strong>Tạo từ đầu</strong>
-                    <small>Chatbot, workflow hoặc agent</small>
+                    <small>Hội thoại, quy trình hoặc trợ lý tự động</small>
                   </button>}
                   {apps.map((app) => (
                     <button className="app-card" key={app.id} onClick={() => select(app)}>
                       <div className="row spread">
                         <span className={'app-icon ' + app.kind}>{kindIcon[app.kind]}</span>
                         <span className={'pill ' + (app.published ? 'green' : '')}>
-                          {app.published ? `Đã publish · v${app.version}` : 'Bản nháp'}
+                          {app.published ? `Đã xuất bản · v${app.version}` : 'Bản nháp'}
                         </span>
                       </div>
                       <h3>{app.name}</h3>
-                      <p>{app.description || 'Ứng dụng AI trong workspace của bạn.'}</p>
+                      <p>{app.description || 'Ứng dụng AI trong không gian làm việc của bạn.'}</p>
                       <div className="card-footer">
                         <span>{kindLabel[app.kind]}</span>
                         <small>{new Date(app.updated_at).toLocaleDateString('vi-VN')}</small>
@@ -316,9 +316,9 @@ function Studio() {
             <label>
               Loại ứng dụng
               <select name="kind">
-                <option value="chat">Chatbot — hội thoại cùng kiến thức</option>
-                <option value="workflow">Workflow — quy trình kéo thả</option>
-                <option value="agent">Agent — tự chọn công cụ để xử lý</option>
+                <option value="chat">Hội thoại — trò chuyện cùng kiến thức</option>
+                <option value="workflow">Quy trình — kéo thả các bước</option>
+                <option value="agent">Trợ lý tự động — tự chọn công cụ để xử lý</option>
               </select>
             </label>
             <button className="primary full">Tạo ứng dụng →</button>

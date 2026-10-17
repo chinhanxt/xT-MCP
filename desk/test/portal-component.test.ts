@@ -59,8 +59,8 @@ it('opens an inbox request, preserves human confirmation and retries the exact i
   await click('Mở Nhập vật tư'); await click('Duyệt');
   expect(container.querySelector('[data-testid="confirm-card"] a')?.getAttribute('href')).toBe('https://xt.test/desk/confirm/decision-1');
   const chip=container.querySelector('.tool .chip')!;
-  expect(chip.className).toContain('confirm'); expect(chip.className).not.toContain('error'); expect(chip.textContent).toContain('Cần xác nhận'); expect(chip.textContent).not.toContain('lỗi');
-  const note=container.querySelector('.portal [data-state="confirm"]')!; expect(note.getAttribute('role')).toBe('status'); expect(container.querySelector('[role="alert"]')).toBeNull();
+  expect(chip.className).toContain('confirm'); expect(chip.className).not.toContain('error'); expect(chip.textContent).toContain('chờ xác nhận'); expect(chip.textContent).toContain('Duyệt yêu cầu'); expect(chip.getAttribute('title')).toBe('decide_request'); expect(chip.textContent).not.toContain('lỗi');
+  const note=container.querySelector('[data-testid="confirm-card"]')!; expect(note.getAttribute('role')).toBe('status'); expect(note.textContent).toContain('Cần xác nhận: Duyệt PN-1'); expect(container.querySelector('.portal [data-state="confirm"]')).toBeNull(); expect(container.querySelector('[role="alert"]')).toBeNull();
   await click('Thử lại sau khi xác nhận');
   const calls=vi.mocked(mcp.client.callTool).mock.calls.map(call=>call[0]).filter(call=>call.name==='decide_request');
   expect(calls).toHaveLength(2); expect(calls[1].arguments).toEqual(calls[0].arguments);

@@ -189,13 +189,13 @@ export function AppEditor({
                 await save();
                 const published = await api<StudioApp>(`/apps/${app.id}/publish`, 'POST', {});
                 update(published);
-                notify(`Đã publish phiên bản ${published.version}`);
+                notify(`Đã xuất bản phiên bản ${published.version}`);
               } catch (e) {
                 setError((e as Error).message);
               }
             }}
           >
-            Publish ↗
+            Xuất bản ↗
           </button>
         </div>
       </div>
@@ -205,7 +205,7 @@ export function AppEditor({
         </button>
         {app.kind === 'workflow' && (
           <button className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}>
-            Model & hướng dẫn
+            Mô hình & hướng dẫn
           </button>
         )}
         <button className={tab === 'logs' ? 'active' : ''} onClick={() => setTab('logs')}>
@@ -217,7 +217,7 @@ export function AppEditor({
         <button className={tab === 'versions' ? 'active' : ''} onClick={() => setTab('versions')}>
           Phiên bản & xuất
         </button>
-        <span className="pill">{app.published ? `Đã publish · v${app.version}` : 'Chưa publish'}</span>
+        <span className="pill">{app.published ? `Đã xuất bản · v${app.version}` : 'Chưa xuất bản'}</span>
       </div>
       <ErrorBox error={error} />
       {tab === 'versions' ? (
@@ -265,7 +265,7 @@ export function AppEditor({
               >
                 <option value="draft">Bản nháp</option>
                 <option value="published" disabled={!app.published}>
-                  Bản publish · v{app.version}
+                  Bản xuất bản · v{app.version}
                 </option>
               </select>
               <button className="icon-btn" onClick={reset} disabled={busy} aria-label="Cuộc trò chuyện mới">
@@ -305,7 +305,7 @@ export function AppEditor({
                   <p>
                     {app.kind === 'workflow'
                       ? 'Nhập dữ liệu, chạy và xem kết quả của từng bước.'
-                      : 'Nội dung trả lời sẽ dùng model và kiến thức bạn đã cấu hình.'}
+                      : 'Nội dung trả lời sẽ dùng mô hình và kiến thức bạn đã cấu hình.'}
                   </p>
                 </div>
               )}
@@ -372,7 +372,7 @@ export function AppEditor({
                 }}
               />
               <div className="row spread">
-                <small>{mode === 'published' ? `Đang dùng phiên bản ${app.version} đã publish` : 'Chạy cấu hình bản nháp'}</small>
+                <small>{mode === 'published' ? `Đang dùng phiên bản ${app.version} đã xuất bản` : 'Chạy cấu hình bản nháp'}</small>
                 {busy ? (
                   <button type="button" onClick={() => controller.current?.abort()}>
                     Dừng ■

@@ -9,7 +9,7 @@ const names: Record<NodeKind, string> = {
   aggregate: 'Gộp biến',
   http: 'HTTP Request',
   start: 'Đầu vào',
-  llm: 'Model AI',
+  llm: 'Mô hình AI',
   retrieval: 'Truy xuất kiến thức',
   condition: 'Điều kiện',
   template: 'Biến đổi văn bản',
@@ -167,9 +167,9 @@ export function WorkflowEditor({
             )}
             {node.type === 'llm' && (
               <label>
-                Model
+                Mô hình
                 <select value={node.data.model_id ?? ''} onChange={(e) => patch({ model_id: e.target.value })}>
-                  <option value="">Dùng model của ứng dụng</option>
+                  <option value="">Dùng mô hình của ứng dụng</option>
                   {models
                     .filter((m) => m.kind === 'chat')
                     .map((m) => (
@@ -274,7 +274,7 @@ export function WorkflowEditor({
                     value={node.data.error_mode ?? 'stop'}
                     onChange={(e) => patch({ error_mode: e.target.value as 'stop' | 'fallback' })}
                   >
-                    <option value="stop">Dừng workflow</option>
+                    <option value="stop">Dừng quy trình</option>
                     <option value="fallback">Dùng giá trị thay thế</option>
                   </select>
                 </label>

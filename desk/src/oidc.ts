@@ -47,11 +47,22 @@ export interface AuthRequest {
 export type AuthStatus = "unauthenticated" | "authenticating" | "authenticated" | "error";
 export interface AuthState {
   status: AuthStatus;
-  error?: string;
+  error?: string; // câu tiếng Việt cho người dùng
+  detail?: string; // mã/lý do kỹ thuật, chỉ để tooltip và chẩn đoán
 }
 
+/** Lỗi đăng nhập: `message` là câu cho người dùng, `detail` giữ mã kỹ thuật. */
+export class LoginFailure extends Error {
+  constructor(message: string, readonly detail: string) {
+    super(message);
+    this.name = "LoginFailure";
+  }
+}
+const LOGIN_AGAIN = "Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại.";
+const errorState = (status: AuthStatus, e: unknown): AuthState => ({ status, error: (e as Error).message, ...(e instanceof LoginFailure ? { detail: e.detail } : {}) });
+
 export class AuthRequiredError extends Error {
-  constructor(msg = "Chưa đăng nhập: Desk chỉ gọi MCP/LLM bằng token của chính người dùng (Keycloak, client xt-desk-agent).") {
+  constructor(msg = "Chưa đăng nhập: Desk chỉ truy cập dữ liệu bằng tài khoản của chính bạn.") {
     super(msg);
     this.name = "AuthRequiredError";
   }
@@ -196,7 +207,7 @@ export class OidcSession {
       if (organization !== undefined && this.cfg.organizationParam) u.searchParams.set(this.cfg.organizationParam, organization);
       this.d.navigate(u.toString());
     } catch (e) {
-      if (epoch === this.epoch) this.set({ status: "error", error: (e as Error).message });
+      if (epoch === this.epoch) this.set(errorState("error", e));
     }
   }
 
@@ -208,7 +219,7 @@ export class OidcSession {
     this.d.session.removeItem(PKCE_KEY); // dùng một lần
     this.set({ status: "authenticating" });
     try {
-      if (q.get("error")) throw new Error(`Keycloak từ chối đăng nhập: ${q.get("error")}`);
+      if (q.get("error")) throw new LoginFailure("Đăng nhập không thành công, vui lòng thử lại.", `Keycloak từ chối đăng nhập: ${q.get("error")}`);
       const code = q.get("code");
       if (!raw || !code) throw new Error("Thiếu phiên đăng nhập đang chờ hoặc thiếu code");
       const pending = JSON.parse(raw) as { state: string; verifier: string; nonce: string };
@@ -238,7 +249,7 @@ export class OidcSession {
     } catch (e) {
       if (epoch !== this.epoch) return false;
       this.tokens = null;
-      this.set({ status: "error", error: (e as Error).message });
+      this.set(errorState("error", e));
       return false;
     }
   }
@@ -250,7 +261,7 @@ export class OidcSession {
     const r = await this.d.fetch(disc.token_endpoint, { method: "POST", headers, body });
     const j = await r.json().catch(() => ({}));
     if (epoch !== this.epoch) throw new AuthRequiredError();
-    if (!r.ok || !j.access_token) throw new Error(`Đổi token thất bại (${j.error ?? r.status})`);
+    if (!r.ok || !j.access_token) throw new LoginFailure(LOGIN_AGAIN, `Đổi token thất bại (${j.error ?? r.status})`);
     return j;
   }
 
@@ -307,7 +318,7 @@ export class OidcSession {
       if (epoch !== this.epoch) return null;
       this.epoch++;
       this.tokens = null;
-      this.set({ status: "unauthenticated", error: `Phiên đã hết hạn: ${(e as Error).message}` });
+      this.set({ status: "unauthenticated", error: "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.", detail: `Phiên đã hết hạn: ${(e as Error).message}` });
       return null;
     }
   }
@@ -317,7 +328,7 @@ export class OidcSession {
     this.clearLocal();
     const epoch = this.epoch;
     this.loggingOut = this.endSession(idToken, epoch).then(() => undefined).catch(e => {
-      if (epoch === this.epoch) this.set({ status: "unauthenticated", error: (e as Error).message });
+      if (epoch === this.epoch) this.set(errorState("unauthenticated", e));
     });
   }
 
@@ -340,7 +351,7 @@ export class OidcSession {
     this.loggingOut = this.endSession(idToken, epoch, true).then(() => undefined).catch(e => {
       if (epoch !== this.epoch) return;
       this.d.session.removeItem(TENANT_KEY);
-      this.set({ status: "error", error: (e as Error).message });
+      this.set(errorState("error", e));
     });
     await this.loggingOut;
   }

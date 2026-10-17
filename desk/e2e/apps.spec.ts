@@ -104,7 +104,7 @@ test("approval-card: chỉ mở confirm_url đúng origin xT; không có nút du
   const card = page.locator("[data-testid=confirm-card]").first();
   await expect(card).toBeVisible();
   await expect(card.locator("a")).toHaveAttribute("href", new RegExp(`^${XT}/desk/confirm/`));
-  await page.locator(".chip", { hasText: "decide_request" }).first().click();
+  await page.locator(".chip", { hasText: "Duyệt yêu cầu" }).first().click();
   const detailText = await page.locator(".tool-detail").first().innerText();
   const confirmUrl = /"confirm_url\\?":\s*\\?"([^"\\]+)/.exec(detailText)?.[1] ?? "";
   expect(confirmUrl.startsWith(`${XT}/desk/confirm/`)).toBe(true);

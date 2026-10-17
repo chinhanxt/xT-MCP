@@ -54,7 +54,8 @@ describe.each(cases)('%s panel', (name, area, tool, act2) => {
     const alert = scoped('[role="alert"]')!;
     expect(alert.getAttribute('data-state')).toBe('expired');
     expect(alert.textContent).toContain('Phiên đã hết hạn');
-    expect(alert.textContent).toContain('Token hết hạn');
+    expect(alert.textContent).toContain('Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại');
+    expect(alert.getAttribute('title')).toBe('Token hết hạn');
   });
   it('shows forbidden for access_denied', async () => {
     await mount(area, tool, err('access_denied', 'Không có quyền'));

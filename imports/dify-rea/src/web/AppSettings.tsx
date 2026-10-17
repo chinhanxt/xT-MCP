@@ -39,9 +39,9 @@ export function AppSettings({
       {app.kind === 'workflow' && <InputDefinitions fields={config.inputs ?? []} onChange={(inputs) => patch({ inputs })} />}
       <>
         <label>
-          Model chat
+          Mô hình trò chuyện
           <select value={config.model_id} onChange={(e) => patch({ model_id: e.target.value })}>
-            <option value="">Chọn model</option>
+            <option value="">Chọn mô hình</option>
             {models
               .filter((m) => m.kind === 'chat')
               .map((m) => (

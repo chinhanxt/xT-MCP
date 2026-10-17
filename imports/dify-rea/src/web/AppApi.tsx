@@ -25,9 +25,9 @@ export function AppApi({ app }: { app: StudioApp }) {
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">PUBLISH & TÍCH HỢP</span>
+          <span className="eyebrow">XUẤT BẢN & TÍCH HỢP</span>
           <h1>Đưa ứng dụng vào hệ thống của bạn</h1>
-          <p>API luôn dùng cấu hình đã publish. Các thay đổi bản nháp có hiệu lực sau lần publish tiếp theo.</p>
+          <p>API luôn dùng cấu hình đã xuất bản. Các thay đổi bản nháp có hiệu lực sau lần xuất bản tiếp theo.</p>
         </div>
         <button
           className="primary"
@@ -46,11 +46,11 @@ export function AppApi({ app }: { app: StudioApp }) {
         </button>
       </div>
       <ErrorBox error={error} />
-      {!app.published && <div className="onboarding">Publish ứng dụng trước để sử dụng API.</div>}
+      {!app.published && <div className="onboarding">Xuất bản ứng dụng trước để sử dụng API.</div>}
       <div className="panel">
         <h2>Trang ứng dụng chia sẻ</h2>
         <p className="hint">
-          Ai có link đều có thể chạy ứng dụng đã publish, đọc kiến thức đính kèm và gọi các tool đã chọn bằng kết nối của workspace. Mỗi
+          Ai có link đều có thể chạy ứng dụng đã xuất bản, đọc kiến thức đính kèm và gọi các tool đã chọn bằng kết nối của không gian làm việc. Mỗi
           trình duyệt có phiên hội thoại riêng.
         </p>
         {share ? (

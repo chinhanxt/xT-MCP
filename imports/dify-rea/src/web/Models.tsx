@@ -20,7 +20,7 @@ export function Models({ models, reload, notify }: { models: Model[]; reload: ()
       await api(current ? `/models/${current.id}` : '/models', current ? 'PUT' : 'POST', data);
       setEdit(null);
       await reload();
-      notify('Đã lưu model');
+      notify('Đã lưu mô hình');
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -32,8 +32,8 @@ export function Models({ models, reload, notify }: { models: Model[]; reload: ()
       <div className="page-heading">
         <div>
           <span className="eyebrow">KẾT NỐI</span>
-          <h1>Model AI</h1>
-          <p>Chọn bộ não cho ứng dụng. Cấu hình được dùng trong workspace này.</p>
+          <h1>Mô hình AI</h1>
+          <p>Chọn bộ não cho ứng dụng. Cấu hình được dùng trong không gian này.</p>
         </div>
         <button
           className="primary"
@@ -42,7 +42,7 @@ export function Models({ models, reload, notify }: { models: Model[]; reload: ()
             setEdit('new');
           }}
         >
-          + Thêm model
+          + Thêm mô hình
         </button>
       </div>
       <ErrorBox error={error} />
@@ -51,7 +51,7 @@ export function Models({ models, reload, notify }: { models: Model[]; reload: ()
           <article className="model-card" key={m.id}>
             <div className="row spread">
               <span className="app-icon model">◈</span>
-              <span className="pill">{m.kind === 'chat' ? 'Chat' : 'Embedding'}</span>
+              <span className="pill">{m.kind === 'chat' ? 'Trò chuyện' : 'Nhúng văn bản'}</span>
             </div>
             <h3>{m.name}</h3>
             <p>{m.model}</p>
@@ -72,7 +72,7 @@ export function Models({ models, reload, notify }: { models: Model[]; reload: ()
                   setError('');
                   try {
                     const r = await api(`/models/${m.id}/test`, 'POST', {});
-                    notify(r.dimensions ? `Kết nối tốt · ${r.dimensions} chiều` : 'Model đã phản hồi thành công');
+                    notify(r.dimensions ? `Kết nối tốt · ${r.dimensions} chiều` : 'Mô hình đã phản hồi thành công');
                   } catch (e) {
                     setError((e as Error).message);
                   } finally {
@@ -85,7 +85,7 @@ export function Models({ models, reload, notify }: { models: Model[]; reload: ()
               <button
                 className="danger text-btn"
                 onClick={async () => {
-                  if (!confirm('Xóa cấu hình model này?')) return;
+                  if (!confirm('Xóa cấu hình mô hình này?')) return;
                   try {
                     await api(`/models/${m.id}`, 'DELETE');
                     await reload();
@@ -103,16 +103,16 @@ export function Models({ models, reload, notify }: { models: Model[]; reload: ()
       {!models.length && (
         <div className="empty">
           <span>◈</span>
-          <h2>Thêm model để bắt đầu</h2>
+          <h2>Thêm mô hình để bắt đầu</h2>
           <p>
-            Ollama: URL http://127.0.0.1:11434, tên model ví dụ qwen3.5:4b.
+            Ollama: URL http://127.0.0.1:11434, tên mô hình ví dụ qwen3.5:4b.
             <br />
-            OpenAI: URL https://api.openai.com/v1, tên model theo tài khoản của bạn.
+            OpenAI: URL https://api.openai.com/v1, tên mô hình theo tài khoản của bạn.
           </p>
         </div>
       )}
       {edit && (
-        <Modal title={current ? 'Chỉnh sửa model' : 'Thêm model'} close={() => setEdit(null)}>
+        <Modal title={current ? 'Chỉnh sửa mô hình' : 'Thêm mô hình'} close={() => setEdit(null)}>
           <form key={current?.id ?? 'new'} onSubmit={save}>
             <label>
               Tên hiển thị
@@ -130,8 +130,8 @@ export function Models({ models, reload, notify }: { models: Model[]; reload: ()
               <label>
                 Loại
                 <select name="kind" defaultValue={current?.kind ?? 'chat'}>
-                  <option value="chat">Chat</option>
-                  <option value="embedding">Embedding</option>
+                  <option value="chat">Trò chuyện</option>
+                  <option value="embedding">Nhúng văn bản</option>
                 </select>
               </label>
             </div>
@@ -141,7 +141,7 @@ export function Models({ models, reload, notify }: { models: Model[]; reload: ()
               <small>Claude native: https://api.anthropic.com/v1</small>
             </label>
             <label>
-              Tên model
+              Tên mô hình
               <input name="model" required defaultValue={current?.model ?? 'qwen3.5:4b'} />
             </label>
             <label>
@@ -155,7 +155,7 @@ export function Models({ models, reload, notify }: { models: Model[]; reload: ()
             </label>
             <ErrorBox error={error} />
             <button className="primary full" disabled={!!busy}>
-              {busy === 'save' ? 'Đang lưu…' : 'Lưu model'}
+              {busy === 'save' ? 'Đang lưu…' : 'Lưu mô hình'}
             </button>
           </form>
         </Modal>

@@ -47,7 +47,7 @@ export function McpConnectors({
         <div>
           <span className="eyebrow">CÔNG CỤ</span>
           <h1>Kết nối MCP</h1>
-          <p>Kết nối server công cụ và chọn quyền sử dụng trong từng Agent.</p>
+          <p>Kết nối server công cụ và chọn quyền sử dụng trong từng trợ lý tự động.</p>
         </div>
         <button
           className="primary"
@@ -156,7 +156,7 @@ export function McpConnectors({
               </label>
             )}
             <p className="hint">
-              Kết nối và lấy danh sách công cụ trước khi lưu. Khi schema thay đổi, chọn lại công cụ trong Agent rồi publish lại.
+              Kết nối và lấy danh sách công cụ trước khi lưu. Khi schema thay đổi, chọn lại công cụ trong trợ lý tự động rồi xuất bản lại.
             </p>
             <ErrorBox error={error} />
             <button className="primary full" disabled={busy}>
