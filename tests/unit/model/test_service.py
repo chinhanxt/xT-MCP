@@ -15,6 +15,7 @@ from xt.application.model_engine.operations import apply_operations
 from xt.application.model_engine.ports import (
     ApplyOutcome,
     ConstraintViolated,
+    DisabledApps,
     JobStats,
     Page,
     StoredProposal,
@@ -41,6 +42,9 @@ class FakeCatalogs:
 
     def current(self, actor: ModelActor) -> tuple[int, Catalog] | None:
         return (self.cat.version, self.cat) if self.cat else None
+
+    def disabled(self, actor: ModelActor) -> DisabledApps:
+        return DisabledApps()
 
 
 class FakeMigrator:

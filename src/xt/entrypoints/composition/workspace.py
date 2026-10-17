@@ -8,6 +8,7 @@ from typing import Any
 from uuid import UUID
 
 from xt.adapters.db.workflow_bridge import PgWorkflowStore
+from xt.application.model_engine.service import APP_ADMIN_ROLE
 from xt.application.tools.context import CallContext, iso
 from xt.application.tools.dispatcher import GATED_CAPABILITIES, ToolSettings
 from xt.application.tools.ports import Args, CommitResult, Data, MutationPlan
@@ -57,9 +58,10 @@ class Workspace:
         bindings = self.rt.store.bindings(caller.actor)
         if "models" in want or "task_types" in want:
             current = self.rt.catalogs.current(caller.actor)
+            off = self.rt.catalogs.disabled(caller.actor).models
             models = []
             for m in current[1].models if current else []:
-                if not any(r in m.permissions for r in caller.actor.roles):
+                if m.name in off or not any(r in m.permissions for r in caller.actor.roles):
                     continue
                 b = bindings.get(m.name)
                 models.append(
@@ -104,11 +106,14 @@ class Workspace:
         return out
 
     def _apps(self, caller: Caller) -> list[Data]:
-        """Ứng dụng Tầng 3 đã cài (gói có khối `app`), theo thứ tự tên gói."""
+        """Ứng dụng Tầng 3 đã cài (gói có khối `app`), theo thứ tự tên gói. Ứng dụng đang tắt chỉ
+        hiện cho admin (để bật lại); người dùng khác không thấy."""
+        admin = APP_ADMIN_ROLE in caller.actor.roles
         apps: list[Data] = []
         for p in self.rt.store.packs(caller.actor):
             app = p.get("app")
-            if not app:
+            status = p.get("status") or "enabled"
+            if not app or (status != "enabled" and not admin):
                 continue
             apps.append(
                 {
@@ -116,7 +121,7 @@ class Workspace:
                     "pack": p["pack"],
                     "title": app["title"],
                     "group": app["group"],
-                    "status": p.get("status") or "enabled",
+                    "status": status,
                     "version": p["version"],
                     "ui": [
                         {"kind": u["kind"], **({"path": u["path"]} if u.get("path") else {})}

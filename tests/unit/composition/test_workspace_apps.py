@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 
 from jsonschema import Draft202012Validator
 
+from xt.application.model_engine.ports import DisabledApps
 from xt.application.tools.context import ClientClass
 from xt.contracts.tools import BY_NAME
 from xt.domain.model.context import ModelActor, TenantRef
@@ -40,6 +41,11 @@ def _model(name: str) -> dict[str, Any]:
 
 
 def _rt(roles: tuple[str, ...], packs: list[dict[str, Any]]) -> Any:
+    off = [p for p in packs if p["status"] == "disabled"]
+    disabled = DisabledApps(
+        models={m: p["pack"] for p in off for m in p["models"]},
+        packs=frozenset(p["pack"] for p in off),
+    )
     actor = ModelActor(TENANT, uuid4(), roles)
     caller = SimpleNamespace(
         person=SimpleNamespace(id=uuid4(), name="Lan"),
@@ -58,7 +64,7 @@ def _rt(roles: tuple[str, ...], packs: list[dict[str, Any]]) -> Any:
             definitions=lambda a: [],
             active_policy=lambda a: None,
         ),
-        catalogs=SimpleNamespace(current=lambda a: (1, cat), disabled_models=lambda a: {}),
+        catalogs=SimpleNamespace(current=lambda a: (1, cat), disabled=lambda a: disabled),
     )
 
 
@@ -109,3 +115,19 @@ def test_apps_in_default_sections_and_include_enum() -> None:
     assert "apps" in enum
     out = _inspect(("staff",), [_row("kho-hang", "enabled", KHO_APP, ["stock_item"])], [])
     assert [a["id"] for a in out["apps"]] == ["kho-hang"]
+
+
+def test_disabled_app_hidden_from_models_and_launcher_except_admin() -> None:
+    packs = [
+        _row("kho-hang", "disabled", KHO_APP, ["stock_item"]),
+        _row("crm", "enabled", {**KHO_APP, "id": "crm", "group": "trai-nghiem-thue-bao"}, ["lead"]),
+    ]
+    staff = _inspect(("staff",), packs, ["models", "apps"])
+    assert [m["id"] for m in staff["models"]] == ["lead"]  # stock_item ẩn
+    assert [a["id"] for a in staff["apps"]] == ["crm"]
+    admin = _inspect(("admin",), packs, ["models", "apps"])
+    assert [m["id"] for m in admin["models"]] == ["lead"]
+    assert {a["id"]: a["status"] for a in admin["apps"]} == {
+        "kho-hang": "disabled",
+        "crm": "enabled",
+    }

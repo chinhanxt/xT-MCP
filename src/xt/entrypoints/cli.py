@@ -25,7 +25,9 @@ def _help_parser() -> argparse.ArgumentParser:
     subcommands.add_parser("db", help="migration nền tảng (xt db migrate)")
     subcommands.add_parser("tenant", help="đăng ký tenant (xt tenant create)")
     subcommands.add_parser("org", help="nạp sơ đồ tổ chức (xt org import)")
-    subcommands.add_parser("pack", help="cài gói nghiệp vụ có xác nhận (xt pack install)")
+    subcommands.add_parser(
+        "pack", help="cài/tắt/bật gói nghiệp vụ có xác nhận (xt pack install|disable|enable)"
+    )
     return parser
 
 

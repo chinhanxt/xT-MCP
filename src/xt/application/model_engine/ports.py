@@ -119,8 +119,18 @@ class RecordRepository(Protocol):
     ) -> AggregatePage: ...
 
 
+@dataclass(frozen=True)
+class DisabledApps:
+    """Gói ứng dụng Tầng 3 đang tắt của tenant gọi: `models` model -> gói (G8 / D-UNI-T3-1)."""
+
+    models: Mapping[str, str] = field(default_factory=dict)
+    packs: frozenset[str] = frozenset()
+
+
 class CatalogReader(Protocol):
     def current(self, actor: ModelActor) -> tuple[int, Catalog] | None: ...
+
+    def disabled(self, actor: ModelActor) -> DisabledApps: ...
 
 
 # ---------------------------------------------------------------------- migration ----
