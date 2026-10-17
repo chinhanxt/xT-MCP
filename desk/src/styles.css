@@ -32,3 +32,5 @@ form input { flex: 1; padding: 8px; }
 
 .portal form{flex-wrap:wrap;align-items:center;margin-bottom:16px}.portal form h3{flex-basis:100%;margin:8px 0}.portal form input{min-width:140px}.portal form select{max-width:100%}.portal label{display:flex;align-items:center;gap:6px}.portal a{display:inline-block;margin:8px}.portal button:disabled{opacity:.55;cursor:default}
 [hidden] { display: none !important; }
+.portal-forbidden{border-left:4px solid #b26a00}.portal-expired,.portal-error{border-left:4px solid #b00020}.portal textarea{width:100%;max-width:40rem}
+@media (max-width:600px){.portal form input,.portal form select,.portal form textarea{flex:1 1 100%;min-width:0}.portal-frame{height:60vh}}
