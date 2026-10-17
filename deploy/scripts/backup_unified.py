@@ -17,6 +17,9 @@ Một bản lưu là một tệp tar 0600 gồm các thành phần (chọn bằn
 checksum cả tệp. Khôi phục kiểm checksum, giải nén vào thư mục tạm, kiểm lại từng tệp rồi
 mới ghi vào đích; đích không rỗng bị từ chối nếu thiếu ``--force``.
 
+pg_dump/pg_restore phải có major >= major của server (stack dùng postgres:17, client mặc định của
+Ubuntu 24.04 là 16 và sẽ bị từ chối): trỏ tới client 17 bằng --pg-dump / --pg-restore / --psql.
+
 Role của cụm (xt_app, xt_migrator, ...) không nằm trong dump: phải tồn tại trước khi restore
 (pg_restore giữ owner/ACL, không dùng --no-owner).
 
