@@ -4,7 +4,7 @@
 """Audit Model Engine vòng 4 (docs/audit-model-engine.md "Vòng 4") trên Postgres 17 thật.
 
 Dùng lại cụm của vòng 3 (một container `postgres:17-alpine`, tên/cổng ngẫu nhiên, `docker rm -f
--v`; CSDL `xt` cài mới và `xt_up` nâng cấp từ 98e1a1b). Mục tiêu: các bề mặt mới sau sửa vòng 3
+-v`; CSDL `xt` cài mới và `xt_up` nâng cấp từ 07bf5f5). Mục tiêu: các bề mặt mới sau sửa vòng 3
 (`xt_audit.set_policies`, chặn hàm ngữ cảnh RLS theo oid) và các đường khác để `xt_migrator` chạy
 mã dưới role app / đổi ngữ cảnh RLS (CHECK, DEFAULT, cột generated, trigger trên bảng ngữ cảnh,
 hàm trigger được phép, DROP … CASCADE), event trigger, độ phủ `functions_changed`.

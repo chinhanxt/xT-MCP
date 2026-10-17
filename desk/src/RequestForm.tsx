@@ -17,11 +17,11 @@ function safeUrl(raw: unknown): string {
   try { const url = new URL(String(raw)); return url.origin === config.xtOrigin && url.protocol === 'https:' ? url.href : ''; } catch { return ''; }
 }
 
-type Props = { mcp: McpConnection | null; tools: McpTool[]; models: Data[] | null; onDone?: () => void };
+type Props = { mcp: McpConnection | null; tools: McpTool[]; models: Data[] | null; onDone?: () => void; primitives?: readonly string[]; heading?: string };
 
 /** P: biểu mẫu sinh từ describe_model cho model có primitive=request. create_record rồi submit_request. */
-export function RequestForm({ mcp, tools, models, onDone }: Props) {
-  const requestModels = (models || []).filter((row) => row.primitive === 'request');
+export function RequestForm({ mcp, tools, models, onDone, primitives = ['request'], heading = 'Tạo yêu cầu' }: Props) {
+  const requestModels = (models || []).filter((row) => primitives.includes(String(row.primitive)));
   const [modelId, setModelId] = useState(''), [fields, setFields] = useState<FieldSpec[] | null>(null);
   const [raw, setRaw] = useState<Record<string, string>>({}), [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState(''), [kind, setKind] = useState<ErrorKind>('error'), [confirmUrl, setConfirmUrl] = useState(''), [done, setDone] = useState('');
@@ -29,6 +29,7 @@ export function RequestForm({ mcp, tools, models, onDone }: Props) {
   const attempt = useRef<Attempt | null>(null), working = useRef(false), live = useRef(true), seq = useRef(0);
   const allowed = new Set(tools.map((tool) => tool.name));
   const chosen = modelId || String(requestModels[0]?.id || '');
+  const needsSubmit = requestModels.find((row) => String(row.id) === chosen)?.primitive === 'request'; // record/document chỉ cần create_record
   useEffect(() => { live.current = true; return () => { live.current = false; seq.current++; }; }, []);
 
   async function call(name: string, args: Data): Promise<ToolResult> {
@@ -59,6 +60,7 @@ export function RequestForm({ mcp, tools, models, onDone }: Props) {
         const record = obj(obj(read(await call('create_record', { model_id: chosen, values, idempotency_key: current.createKey }))).record);
         const ref = String(record.ref || '');
         if (!ref) throw new Error('Máy chủ không trả về mã phiếu nháp');
+        if (!needsSubmit) { attempt.current = null; if (live.current) { setDone(ref); setRaw({}); setErrors({}); } onDone?.(); return; }
         let revision = record.revision;
         if (typeof revision !== 'number') revision = obj(obj(read(await call('get_record', { ref }))).record).revision;
         if (typeof revision !== 'number') throw new Error('Không đọc được phiên bản của phiếu nháp');
@@ -98,19 +100,19 @@ export function RequestForm({ mcp, tools, models, onDone }: Props) {
     </div>;
   };
   const blocked = !!fields?.some((f) => f.required && !isSupported(f));
-  return <section className="portal-request" aria-label="Tạo yêu cầu">
-    <h3>Tạo yêu cầu</h3>
+  return <section className="portal-request" aria-label={heading}>
+    <h3>{heading}</h3>
     {models === null ? <p role="status">Đang tải danh mục quy trình…</p> : !requestModels.length ? <p role="status">Doanh nghiệp chưa có loại yêu cầu nào bạn được tạo.</p> : <form noValidate onSubmit={(e) => { e.preventDefault(); void send(); }}>
       <div className="req-field"><label htmlFor="req-model">Loại yêu cầu</label>
         <select id="req-model" value={chosen} disabled={busy || !!pending} onChange={(e) => setModelId(e.target.value)}>{requestModels.map((row) => <option key={String(row.id)} value={String(row.id)}>{String(row.label || row.name || row.id)}</option>)}</select></div>
       {fields === null && <p role="status">Đang tải biểu mẫu…</p>}
       {fields?.length === 0 && !message && <p role="status">Loại yêu cầu này chưa khai báo trường nào.</p>}
       {fields?.map(field)}
-      <button disabled={!mcp || busy || !fields?.length || blocked}>{pending ? 'Gửi lại' : 'Tạo và gửi duyệt'}</button>
+      <button disabled={!mcp || busy || !fields?.length || blocked}>{pending ? 'Gửi lại' : needsSubmit ? 'Tạo và gửi duyệt' : 'Tạo'}</button>
       {pending && <button type="button" disabled={busy} onClick={() => { attempt.current = null; setPending(''); setMessage(''); }}>Làm lại từ đầu</button>}
     </form>}
     {busy && <p role="status">Đang gửi…</p>}
-    {done && <p role="status" data-testid="request-done">Đã gửi duyệt {done}.</p>}
+    {done && <p role="status" data-testid="request-done">{needsSubmit ? 'Đã gửi duyệt' : 'Đã tạo'} {done}.</p>}
     <PortalAlert text={message} kind={kind}>{confirmUrl && <> <a href={confirmUrl} target="_blank" rel="noopener noreferrer">Mở trang xác nhận</a></>}</PortalAlert>
   </section>;
 }

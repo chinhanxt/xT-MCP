@@ -117,6 +117,11 @@ _tool(
                     },
                     "client": {"type": "string"},
                     "client_class": {"enum": ["cloud", "local", "human"]},
+                    "roles": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Caller's own effective roles (org roles + active role grants).",
+                    },
                 },
                 ["ref", "name", "kind", "autonomy_ceiling"],
             ),

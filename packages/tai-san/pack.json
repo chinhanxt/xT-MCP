@@ -23,5 +23,28 @@
     "step_actions": {"*": "record.approve"},
     "simulation": "Nguồn mo-phong là dữ liệu giả lập, hiển thị nhãn MÔ PHỎNG; sự kiện chỉ là dữ liệu, không tự ghi tình trạng tài sản.",
     "tenant_demo": "binhminh"
+  },
+  "app": {
+    "id": "tai-san",
+    "title": "Tài sản · Bảo trì",
+    "group": "tai-san-khong-gian",
+    "depends_on": [],
+    "ui": [
+      {
+        "kind": "generic"
+      }
+    ],
+    "tools": [
+      "describe_model",
+      "search_records",
+      "aggregate_records",
+      "get_record",
+      "get_history",
+      "create_record",
+      "update_record",
+      "submit_request",
+      "decide_request",
+      "get_inbox"
+    ]
   }
 }

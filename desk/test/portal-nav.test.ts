@@ -36,8 +36,8 @@ it('opens the area in the hash, pushes history on navigate and follows the brows
   await act(async () => api.navigate('P'));
   expect(api.area).toBe('P');
   expect(location.hash).toBe('#/P');
-  await act(async () => api.navigate('Kho'));
-  expect(location.hash).toBe('#/Kho');
+  await act(async () => api.navigate('T3'));
+  expect(location.hash).toBe('#/T3');
   await act(async () => { history.back(); }); await settle();
   expect(api.area).toBe('P');
   await act(async () => { history.back(); }); await settle();

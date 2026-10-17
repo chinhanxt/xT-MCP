@@ -128,9 +128,11 @@ export async function retrieve(
     }
   }
   // xT-sourced chunks are cited only if the caller can still read the same revision in xT.
+  // A check means integrated mode: chunks without an xT source (legacy/mapped workspaces) are never cited.
   const accepted: Citation[] = [];
   for (const candidate of results.sort((a, b) => b.score - a.score)) {
     if (accepted.length >= limit) break;
+    if (candidate.xt_ref === undefined && check) continue;
     if (candidate.xt_ref !== undefined) {
       if (!check) throw new HttpError(503, 'Không kiểm tra nguồn xT được cho tài liệu này.');
       if ((await check(candidate.xt_ref, signal)) !== candidate.xt_revision) continue;

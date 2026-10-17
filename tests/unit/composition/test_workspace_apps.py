@@ -131,3 +131,9 @@ def test_disabled_app_hidden_from_models_and_launcher_except_admin() -> None:
         "kho-hang": "disabled",
         "crm": "enabled",
     }
+
+
+def test_me_includes_caller_effective_roles() -> None:
+    out = _inspect(("staff", "admin", "staff"), [], ["me"])
+    assert out["me"]["roles"] == ["admin", "staff"]
+    Draft202012Validator(BY_NAME["inspect_workspace"].output_schema).validate(out)
