@@ -1,13 +1,10 @@
-// SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2026 NguyenThong251 and xT contributors
-// Top bar (SPEC §2.1): logo, global search, site selector (› next / ⌄ dropdown), simulation clock + mode badge,
+// Top bar (SPEC §2.1): logo, global search, site selector (› next / ⌄ dropdown), live clock,
 // notifications, user menu. The DOM is built once; store / bus changes only patch text nodes and
 // small sections, so the focused search input is never destroyed.
 import { store, bus } from '../state/store.js'
 import { db } from '../data/db.js'
 import { search, siteSelectorSub, siteMenuSub, siteStats } from '../data/selectors.js'
 import { fmtTime } from '../data/format.js'
-import { MODES, MODE_BADGE, diagramLabel } from '../state/mode.js'
 import { icon, avatar } from './icons.js'
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
@@ -126,9 +123,10 @@ function template() {
       <div class="wt-pop tb-sitemenu" role="listbox" aria-label="Sites"></div>
     </div>
 
-    <div class="tb-live" role="status" aria-live="off">
-      <span class="tb-live__label"></span>
-      <span class="tb-live__clock" title="Đồng hồ mô phỏng"></span>
+    <div class="tb-live" role="status" aria-live="off" title="Live simulation clock">
+      <span class="dot live-dot"></span>
+      <span class="tb-live__label">Live</span>
+      <span class="tb-live__clock"></span>
     </div>
 
     <div class="tb-bell" data-menu="notifications">
@@ -376,21 +374,13 @@ function createSiteSelector(root) {
   }
 }
 
-// ───────────────────────────── simulation clock + mode badge ─────────────────────────────
+// ───────────────────────────── live clock ─────────────────────────────
 
 function createLiveClock(root) {
   const clock = root.querySelector('.tb-live__clock')
-  const label = root.querySelector('.tb-live__label')
   return {
     render(minutes = store.state.simMinutes) {
       setText(clock, fmtTime(minutes))
-    },
-    /** Huy hiệu cố định: luôn nói rõ đang xem mô phỏng hay dữ liệu nghiệp vụ. */
-    renderMode(mode = store.state.mode) {
-      setText(label, MODE_BADGE[mode])
-      root.title = mode === MODES.SIMULATION ? diagramLabel(false) : ''
-      root.classList.toggle('tb-live--simulation', mode === MODES.SIMULATION)
-      root.classList.toggle('tb-live--business', mode === MODES.BUSINESS)
     },
   }
 }
@@ -516,14 +506,12 @@ export function mountTopbar(el) {
 
   site.render()
   live.render()
-  live.renderMode()
   searchBox.render()
   applyMenu(store.state.menu)
 
   const unsub = store.subscribe((state, prev, changed) => {
     if (changed.includes('siteId')) site.render()
     if (changed.includes('simMinutes')) { live.render(); notes.tick() }
-    if (changed.includes('mode')) live.renderMode(state.mode)
     if (changed.includes('searchQuery')) searchBox.render()
     if (changed.includes('menu') || changed.includes('searchQuery')) applyMenu(state.menu)
   })

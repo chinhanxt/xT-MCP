@@ -7,7 +7,7 @@ Bản dựng lại web app trong video tham chiếu (`docs/ref/reference_video.m
 
 Toàn bộ dữ liệu là dữ liệu giả lập.
 
-Bản demo trực tuyến của upstream (không thuộc xT) không được triển khai từ kho này; workflow GitHub Pages của upstream đã bị gỡ khỏi bản nhập.
+**Demo trực tuyến:** https://nguyenthong251.github.io/waretrack-3d/ — mỗi lần push lên `main`, GitHub Actions tự build và deploy lại (`.github/workflows/deploy.yml`).
 
 ## Chạy
 
@@ -16,7 +16,7 @@ npm install
 npm run dev
 ```
 
-Mở http://localhost:5173. Bản build production: `npm run build`, rồi `npm run preview`. Test lớp dữ liệu: `npm test` (`node --test`, không thêm dependency).
+Mở http://localhost:5173. Bản build production: `npm run build`, rồi `npm run preview`.
 
 Link sâu (mở thẳng một kho / một đối tượng):
 `/?site=WH-04&select=truck:TRK-2205&tab=trucks` · `/?site=ALL` (tổng quan mạng lưới) · `/?select=forklift:FL-01`
