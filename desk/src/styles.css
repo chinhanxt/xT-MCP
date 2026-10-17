@@ -36,3 +36,4 @@ form input { flex: 1; padding: 8px; }
 @media (max-width:600px){.portal form input,.portal form select,.portal form textarea{flex:1 1 100%;min-width:0}.portal-frame{height:60vh}}
 .portal-doclist{list-style:none;padding:0;display:grid;gap:6px}.portal-doclist li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;border:1px solid #8886;border-radius:8px;padding:6px 10px}
 .req-field{display:flex;flex-direction:column;gap:4px;flex:1 1 100%}.req-field label{display:block}.field-error{color:#b00020}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.report-result{overflow-x:auto}.report-result table{border-collapse:collapse;min-width:50%}.report-result th,.report-result td{border:1px solid #8886;padding:4px 8px;text-align:left}.portal pre{white-space:pre-wrap;overflow-wrap:anywhere}
