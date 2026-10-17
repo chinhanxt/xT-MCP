@@ -206,6 +206,16 @@ Mỗi giai đoạn chỉ hoàn thành khi có đầu ra và bằng chứng nghi�
 - Nghiệm thu này dành cho bản tích hợp/demo. Cam kết production cần đánh giá riêng về tải, quota, job bền vững, TLS/secret, giám sát, sao lưu và yêu cầu HA thực tế.
 - Deploy public, commit/push/release là bước riêng theo chỉ đạo của chủ dự án; kế hoạch này không thực hiện các bước đó.
 
+### G8 — Tầng 3: Nền tảng Kinh doanh số cắm-rút
+
+Căn cứ đề thi (Tầng Nền tảng Kinh doanh số: ứng dụng chuyên ngành cắm-rút linh hoạt, 4 nhóm mô hình) và quyết định D-UNI-T3-1.
+
+- Ứng dụng chuyên ngành = gói nghiệp vụ (model, quy trình, quyền) + manifest ứng dụng (nhóm, gói phụ thuộc, giao diện chung sinh từ `describe_model` hoặc module riêng `/apps/<id>/`, tool được phép).
+- Cắm-rút ở lõi: cài, tắt (disable) và bật lại gói theo tenant qua cùng luồng đề xuất → duyệt → audit; tắt thì ẩn ứng dụng và chặn ghi, giữ nguyên dữ liệu; ứng dụng khác và lõi không bị ảnh hưởng.
+- Cổng có trang "Nền tảng Kinh doanh số" chia 4 nhóm: Dòng chảy Hàng hóa, Thời gian & Dự án, Trải nghiệm & Thuê bao, Tài sản & Không gian; hiện ứng dụng đã cài/có thể cài; quản trị đề xuất cài/tắt.
+- Mỗi nhóm có ít nhất một ứng dụng mẫu chạy được: WMS (kho-hang + WareTrack 3D), Timesheet/PSA nhẹ, CRM nhẹ, Quản lý tài sản/bảo trì với nguồn IoT mô phỏng có nhãn (sự kiện chỉ tạo phiếu, không tự ghi nghiệp vụ).
+- **Gate:** cài ứng dụng → xuất hiện trên web và dùng được qua ChatGPT/MCP; tắt → biến mất, dữ liệu còn, ứng dụng khác chạy bình thường; tenant khác không bị ảnh hưởng.
+
 ## 7. Phụ thuộc và chia việc
 
 Đường phụ thuộc chính: `G0 → G1 → G2 → G3 → G4 → G5 → G6 → G7`.
@@ -241,6 +251,7 @@ Chỉ chạy một stack nặng mỗi lần; kiểm tra tài nguyên trước kh
 | U12 | API/LLM lỗi, mất mạng hoặc phiên hết hạn | UI báo đúng; không thành công giả, không tự gửi lại giao dịch gây trùng |
 | U13 | Backup/restore và doanh nghiệp mới | Dữ liệu/credential đọc lại được; không nhầm tenant hoặc seed đè |
 | U14 | Build sạch và tài liệu cài đặt | Người khác tái hiện được; không cần cookie/token cá nhân của người phát triển |
+| U15 | Cài rồi tắt một ứng dụng Tầng 3 | Ứng dụng xuất hiện/biến mất trên web và MCP; dữ liệu giữ nguyên; ứng dụng khác và tenant khác không đổi |
 
 Kiểm thử theo thứ tự: unit cho validation/authorization/transaction logic → integration với DB/SSO thật → browser e2e → ChatGPT live. Fixture model provider không được ghi thành live provider pass.
 

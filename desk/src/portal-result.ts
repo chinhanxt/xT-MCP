@@ -2,6 +2,23 @@
 import type { ToolResult } from './types';
 type Data = Record<string, unknown>;
 function obj(value: unknown): Data { return value && typeof value === 'object' && !Array.isArray(value) ? value as Data : {}; }
+
+/** Lỗi nghiệp vụ từ tool: giữ mã lỗi để UI phân biệt thiếu quyền, hết phiên và lỗi thường. */
+export class ToolError extends Error {
+  constructor(message: string, readonly code: string, readonly requestId: string) { super(message); this.name = 'ToolError'; }
+}
+
+function requestIdOf(result: ToolResult, value: Data, error: Data): string {
+  const meta = obj(result._meta), details = obj(error.details), envelope = obj(value.meta);
+  for (const source of [error, details, value, meta, envelope]) {
+    for (const key of ['request_id', 'x-request-id', 'x_request_id', 'trace_id']) {
+      const found = source[key];
+      if (typeof found === 'string' && found.trim()) return found.trim().slice(0, 100);
+    }
+  }
+  return '';
+}
+
 export function readToolResult(result: ToolResult): Data {
   let raw = result.structuredContent;
   if (raw === undefined && result.content?.[0]?.type === 'text') {
@@ -11,7 +28,9 @@ export function readToolResult(result: ToolResult): Data {
   const value = obj(raw);
   if (result.isError || value.error) {
     const error = obj(value.error);
-    throw new Error(String(error.message || value.message || error.code || 'Thao tác bị từ chối'));
+    const message = String(error.message || value.message || error.code || 'Thao tác bị từ chối');
+    const requestId = requestIdOf(result, value, error);
+    throw new ToolError(requestId ? `${message} (mã yêu cầu: ${requestId})` : message, String(error.code || ''), requestId);
   }
   return obj(value.data || value);
 }

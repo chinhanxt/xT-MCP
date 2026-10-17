@@ -2,6 +2,10 @@
 import type { AuthHeaders, McpConnection } from './mcp';
 import type { ToolResult } from './types';
 
+/** Chỉ công cụ đọc được đi qua cầu nối cho khung nhúng (Studio, WareTrack); mọi tool ghi bị từ chối ở đây. */
+export const BRIDGE_READ_TOOLS = Object.freeze(['search_records', 'get_record', 'aggregate_records', 'get_history', 'inspect_workspace']);
+export const BRIDGE_STOCK_MODELS = Object.freeze(['warehouse', 'warehouse_location', 'stock_item', 'stock_request', 'stock_balance', 'stock_movement', 'stock_level']);
+
 export interface PortalBridge {
   request(path: string, init?: RequestInit): Promise<Response>;
   callTool(name: string, args: Record<string, unknown>): Promise<ToolResult>;
@@ -48,8 +52,8 @@ export function createPortalBridge(auth: AuthHeaders, mcp: McpConnection | null)
       } catch (error) { controllers.delete(controller); throw error; }
     },
     async callTool(name, args) {
-      if (!active || !mcp || !['search_records', 'get_record', 'aggregate_records', 'get_history', 'inspect_workspace'].includes(name)) throw new Error('Công cụ không được phép');
-      if (name === 'search_records' && !['warehouse', 'warehouse_location', 'stock_item', 'stock_request', 'stock_balance', 'stock_movement'].includes(String(args.model_id))) throw new Error('Chỉ hỗ trợ dữ liệu kho');
+      if (!active || !mcp || !BRIDGE_READ_TOOLS.includes(name)) throw new Error('Công cụ không được phép');
+      if ((name === 'search_records' || name === 'aggregate_records') && !BRIDGE_STOCK_MODELS.includes(String(args.model_id))) throw new Error('Chỉ hỗ trợ dữ liệu kho');
       const result = await mcp.client.callTool({ name, arguments: args }) as ToolResult;
       if (!active) throw new Error('Phiên đã kết thúc');
       return result;
