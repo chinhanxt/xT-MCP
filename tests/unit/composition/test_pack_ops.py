@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -65,3 +66,51 @@ def test_record_id_validation() -> None:
         record_id(f"employee:{u}", "task")
     with pytest.raises(OpInputError):
         record_id("'; DROP TABLE x; --", "task")
+
+
+def test_sync_access_grants_op(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Op chạy ngay sau bước `it`: người duyệt = actor của bước, người đề nghị = initiated_by."""
+    from tests.unit.iam.test_role_grants import HR, IT, NEW, T_A, FakeStore, _actor
+    from xt.entrypoints.composition import pack_ops
+
+    case, emp = str(uuid.uuid4()), str(uuid.uuid4())
+    grants: list[dict[str, Any]] = [
+        {"id": "g1", "system": "keycloak", "role": "employee", "revoked_on": None},
+        {"id": "g2", "system": "keycloak", "role": "hr", "revoked_on": "2026-10-17"},
+    ]
+    rows = {"lifecycle_case": {"id": case, "employee": emp, "initiated_by": str(HR)},
+            "employee": {"id": emp, "user_id": str(NEW), "emp_no": "NV-1"}}  # fmt: skip
+
+    class FakeData:
+        def __init__(self, pc: object) -> None: ...
+
+        def get(self, model: str, rid: uuid.UUID) -> dict[str, Any]:
+            return rows[model]
+
+        def rows(self, model: str, where: object) -> list[dict[str, Any]]:
+            return grants
+
+    store = FakeStore(people={T_A.id: {HR, IT, NEW}})
+    monkeypatch.setattr(pack_ops, "_Data", FakeData)
+    pc: Any = SimpleNamespace(rt=SimpleNamespace(store=store), actor=_actor())
+    op = pack_ops.sync_access_grants(pc, _definition("nhan-su-vong-doi", "employee_onboarding"))
+    with pytest.raises(OpInputError):  # không có bước người đang hoàn thành -> fail closed
+        op(case_id=case, allowed_roles="employee,hr")
+    saved, grants[:] = list(grants), []  # nhân viên không có quyền SSO xT: no-op
+    assert op(case_id=case, allowed_roles="employee") == dict.fromkeys(
+        ("applied", "already", "revoked", "skipped"), 0
+    )
+    grants[:] = saved
+    token = pack_ops.ACTING.set(("i1", "t1"))
+    try:
+        assert op(case_id=case, allowed_roles="employee,hr") == {
+            "applied": 1, "already": 1, "revoked": 0, "skipped": 0,
+        }  # fmt: skip
+        assert store.effective(T_A, NEW) == {"employee"}
+        assert op(case_id=case, allowed_roles="employee,hr")["already"] == 2
+        with pytest.raises(OpInputError):
+            op(case_id=case, allowed_roles="hr")  # employee ngoài allow-list
+        with pytest.raises(OpInputError):
+            op(case_id=case, allowed_roles="")
+    finally:
+        pack_ops.ACTING.reset(token)

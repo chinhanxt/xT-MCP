@@ -1,7 +1,7 @@
 {
   "id": "employee_onboarding",
   "name": "Tiếp nhận nhân sự mới (HR, IT, Kế toán, Quản lý)",
-  "version": 5,
+  "version": 6,
   "roles": [
     "hr",
     "it_admin",
@@ -90,6 +90,16 @@
               "writable_fields": [
                 "note"
               ]
+            }
+          },
+          {
+            "id": "it_grants",
+            "type": "service",
+            "name": "Áp quyền SSO xT đã cấp (access_grant keycloak)",
+            "op": "sync_access_grants",
+            "params": {
+              "case_id": "case_id",
+              "allowed_roles": "'employee,hr,it_admin,payment_accountant,dept_head'"
             }
           }
         ],
