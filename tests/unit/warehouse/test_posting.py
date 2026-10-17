@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from xt.application.warehouse.posting import post_stock
+from xt.application.warehouse.posting import MAX_SCAN, post_stock, scan_pages
 from xt.application.warehouse.validation import validate_write
 from xt.domain.model.context import ModelActor, TenantRef
 from xt.domain.model.errors import ModelError
@@ -34,12 +34,22 @@ class Data:
     def get(self, model, rid):
         return deepcopy(self.rows_by_model[model][str(rid)])
 
+    @staticmethod
+    def _match(row, where):
+        value = row.get(where["field"])
+        if where["op"] == "is_null":
+            return value is None
+        if where["op"] == ">":
+            return value is not None and Decimal(str(value)) > Decimal(str(where["value"]))
+        return str(value) == str(where["value"])
+
     def rows(self, model, where):
-        return [
-            deepcopy(r)
-            for r in self.rows_by_model[model].values()
-            if str(r.get(where["field"])) == str(where["value"])
-        ]
+        where = {"op": "=", **where}
+        return [deepcopy(r) for r in self.rows_by_model[model].values() if self._match(r, where)]
+
+    def scan(self, model, where):
+        matched = self.rows(model, where)  # pages of 2 so callers cross page boundaries
+        return scan_pages(lambda n, o: (matched[o : o + n], o + n < len(matched)), 2)
 
     def create(self, model, values):
         row = {"id": str(uuid4()), "revision": 1, **values}
@@ -49,6 +59,8 @@ class Data:
 
     def write(self, model, row, patch):
         saved = self.rows_by_model[model][str(row["id"])]
+        if row["revision"] != saved["revision"]:
+            raise AssertionError(f"stale write to {model}")
         saved.update(patch, revision=saved["revision"] + 1)
         self.writes += 1
         return deepcopy(saved)
@@ -388,3 +400,112 @@ def test_generic_writes_cannot_touch_stock_level(previous):
     actor = ModelActor(TenantRef(1, uuid4()), uuid4(), ("admin", "warehouse_manager"))
     with pytest.raises(ModelError, match="chỉ được ghi"):
         validate_write(None, actor, "stock_level", {}, previous=previous)
+
+
+def legacy_rows(db, rid):
+    """A movement and a balance posted before `warehouse` existed, on another item."""
+    request = db.get("stock_request", rid)
+    location = request["lines"][0]["location"]
+    old = db.create("stock_item", {})
+    db.create(
+        "stock_movement",
+        {"key": f"{uuid4()}:0", "request": str(uuid4()), "item": old["id"],
+         "location": location, "quantity_milli": 5},
+    )  # fmt: skip
+    db.create(
+        "stock_balance",
+        {"key": f"{old['id']}:{location}", "item": old["id"], "location": location,
+         "quantity_milli": 5},
+    )  # fmt: skip
+    db.writes = 0
+    return request["warehouse"]
+
+
+def test_posting_backfills_legacy_warehouse_once(monkeypatch):
+    import xt.application.warehouse.posting as posting
+
+    db, rid, manager = fixture()
+    warehouse = legacy_rows(db, rid)
+    monkeypatch.setattr(posting, "BACKFILL_BATCH", 1)
+    post_stock(db, rid, manager)
+    for model in ("stock_movement", "stock_balance"):
+        assert all(r.get("warehouse") == warehouse for r in db.rows_by_model[model].values())
+    revisions = {r["id"]: r["revision"] for r in db.rows_by_model["stock_movement"].values()}
+    request = db.get("stock_request", rid)
+    again = db.create(
+        "stock_request", {k: v for k, v in request.items() if k not in ("id", "revision")}
+    )
+    post_stock(db, UUID(again["id"]), manager)
+    for movement_id, revision in revisions.items():
+        assert db.rows_by_model["stock_movement"][movement_id]["revision"] == revision
+
+
+def test_failed_issue_with_legacy_rows_writes_nothing():
+    db, rid, manager = fixture("issue", 1000)
+    legacy_rows(db, rid)
+    with pytest.raises(ModelError, match="Không đủ tồn"):
+        post_stock(db, rid, manager)
+    assert db.writes == 0
+
+
+class Locations:
+    def __init__(self, warehouse):
+        self.warehouse = warehouse
+
+    def get(self, actor, model, rid):
+        assert model == "warehouse_location"
+        return {"record": {"id": str(rid), "warehouse": self.warehouse}}
+
+
+def test_movement_edit_allowed_only_as_warehouse_backfill():
+    actor = ModelActor(TenantRef(1, uuid4()), uuid4(), ("xt_workflow",))
+    wh = str(uuid4())
+    old = {"id": str(uuid4()), "location": str(uuid4()), "quantity_milli": 5, "warehouse": None}
+    service = Locations(wh)
+    validate_write(service, actor, "stock_movement", {**old, "warehouse": wh},
+                   previous=old, workflow=True)  # fmt: skip
+    for row, previous in (
+        ({**old, "warehouse": str(uuid4())}, old),  # not the location's warehouse
+        ({**old, "warehouse": wh, "quantity_milli": 6}, old),  # other fields changed
+        ({**old, "warehouse": wh}, {**old, "warehouse": str(uuid4())}),  # already set
+    ):
+        with pytest.raises(ModelError, match="Không được sửa"):
+            validate_write(service, actor, "stock_movement", row, previous=previous,
+                           workflow=True)  # fmt: skip
+    with pytest.raises(ModelError, match="Không được sửa"):
+        validate_write(service, actor, "stock_movement", {**old, "warehouse": wh},
+                       previous=old)  # fmt: skip
+
+
+def test_reorder_tracked_items_get_levels_without_postings():
+    db, rid, manager = fixture()
+    request = db.get("stock_request", rid)
+    warehouse, location = request["warehouse"], request["lines"][0]["location"]
+    idle = db.create("stock_item", {"reorder_level_milli": 300})
+    stocked = db.create("stock_item", {"reorder_level_milli": 100})
+    db.create(
+        "stock_balance",
+        {"key": f"{stocked['id']}:{location}", "item": stocked["id"], "location": location,
+         "warehouse": warehouse, "quantity_milli": 250},
+    )  # fmt: skip
+    post_stock(db, rid, manager)
+    levels = {r["item"]: r for r in db.rows_by_model["stock_level"].values()}
+    assert (levels[idle["id"]]["on_hand_milli"], levels[idle["id"]]["below_reorder"]) == (0, True)
+    assert (levels[stocked["id"]]["on_hand_milli"], levels[stocked["id"]]["below_reorder"]) == (
+        250,
+        False,
+    )
+    db.rows_by_model["stock_item"][stocked["id"]]["reorder_level_milli"] = 400
+    again = db.create(
+        "stock_request", {k: v for k, v in request.items() if k not in ("id", "revision")}
+    )
+    post_stock(db, UUID(again["id"]), manager)
+    level = next(r for r in db.rows_by_model["stock_level"].values() if r["item"] == stocked["id"])
+    assert (level["reorder_level_milli"], level["below_reorder"]) == (400, True)
+
+
+def test_scan_fails_closed_past_offset_cap():
+    rows = scan_pages(lambda n, o: ([{"o": o}] * n, True), 200)
+    with pytest.raises(ModelError, match=str(MAX_SCAN)):
+        for _ in rows:
+            pass

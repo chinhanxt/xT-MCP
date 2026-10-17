@@ -112,7 +112,8 @@
     "xt_workflow": {
       "actions": [
         "create",
-        "read"
+        "read",
+        "update"
       ],
       "scope": "all"
     }
