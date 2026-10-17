@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from xt.adapters.db.connection import AuditKey
 from xt.adapters.db.integration import (
@@ -35,6 +35,7 @@ from xt.adapters.db.integration import (
 )
 from xt.adapters.db.migrator import PgMigrator
 from xt.adapters.workflow.bpmn.spiff import SpiffProcessEngine
+from xt.contracts.tools import BY_NAME
 from xt.domain.iam import PolicyDocument, loads_policy_json, policy_digest
 from xt.domain.model.context import TenantRef
 from xt.domain.model.ident import SYSTEM_COLUMNS
@@ -64,9 +65,49 @@ class BindingSpec(_Strict):
     priorities: dict[Literal["low", "normal", "high", "urgent"], str] = {}
 
 
+PACK_NAME = r"^[a-z0-9][a-z0-9-]{0,63}$"
+AppGroup = Literal["hang-hoa", "thoi-gian-du-an", "trai-nghiem-thue-bao", "tai-san-khong-gian"]
+
+
+class AppUi(_Strict):
+    """`generic`: giao diện chung sinh từ describe_model (không path). `module`: giao diện riêng
+    phục vụ cùng origin ở `path` (tuyệt đối, kết thúc `/`, không `..`, không scheme)."""
+
+    kind: Literal["generic", "module"]
+    path: str | None = Field(None, pattern=r"^/(?:[a-z0-9_-]+/)+$", max_length=128)
+
+    @model_validator(mode="after")
+    def _path_matches_kind(self) -> AppUi:
+        if (self.kind == "module") != (self.path is not None):
+            raise ValueError("ui module cần path; ui generic không có path")
+        return self
+
+
+class AppManifest(_Strict):
+    """Ứng dụng Tầng 3 (D-UNI-T3-1): một gói nghiệp vụ + nhóm, giao diện và tool được phép."""
+
+    id: str = Field(pattern=PACK_NAME)
+    title: str = Field(min_length=1, max_length=120)
+    group: AppGroup
+    depends_on: list[str] = []
+    ui: list[AppUi] = Field(min_length=1, max_length=2)
+    tools: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _check(self) -> AppManifest:
+        if len({u.kind for u in self.ui}) != len(self.ui):
+            raise ValueError("ui: mỗi loại (generic/module) tối đa một lần")
+        unknown = [t for t in self.tools if t not in BY_NAME]
+        if unknown:
+            raise ValueError(f"tools: không có trong catalog {unknown}")
+        if len(set(self.tools)) != len(self.tools):
+            raise ValueError("tools: trùng tên")
+        return self
+
+
 class PackManifest(_Strict):
     format: Literal["xt-pack/1"]
-    pack: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,63}$")
+    pack: str = Field(pattern=PACK_NAME)
     version: str = Field(pattern=r"^\d+\.\d+\.\d+$")
     title: str
     depends_on: list[str] = []
@@ -76,6 +117,25 @@ class PackManifest(_Strict):
     allowed_ops: dict[str, list[str]] = {}
     bindings: dict[str, BindingSpec] = {}
     notes: dict[str, Any] = {}
+    app: AppManifest | None = None
+
+    @model_validator(mode="after")
+    def _app_matches_pack(self) -> PackManifest:
+        if self.app is None:
+            return self
+        if self.app.id != self.pack:
+            raise ValueError(f"app.id phải trùng tên gói {self.pack!r}")
+        extra = [d for d in self.app.depends_on if d not in self.depends_on]
+        if extra:
+            raise ValueError(f"app.depends_on {extra} không nằm trong depends_on của gói")
+        return self
+
+    def install_view(self) -> dict[str, Any]:
+        """Bản dump đi vào digest cài; không có `app` thì giữ nguyên dạng cũ (digest không đổi)."""
+        out = self.model_dump(mode="json", by_alias=True)
+        if self.app is None:
+            out.pop("app")
+        return out
 
 
 def _priority_binding_problems(
@@ -163,7 +223,7 @@ class InstallPlan:
     @property
     def digest(self) -> str:
         body = {
-            "pack": self.pack.manifest.model_dump(mode="json", by_alias=True),
+            "pack": self.pack.manifest.install_view(),
             "tenant": str(self.tenant.id),
             "models": self.model_plan_hash,
             "processes": [(p[0], p[1], p[3]) for p in self.processes],
@@ -454,5 +514,8 @@ def install(
             policy=plan.policy,
             processes=plan.processes,
             bindings=plan.bindings,
+            models=[str(x["name"]) for x in pack.models],
+            depends_on=pack.manifest.depends_on,
+            app=pack.manifest.app.model_dump(mode="json") if pack.manifest.app else None,
         )
     return plan

@@ -93,6 +93,7 @@ _tool(
                         "processes",
                         "task_types",
                         "policies",
+                        "apps",
                         "tools",
                         "limits",
                     ]
@@ -168,6 +169,40 @@ _tool(
                         "label": {"type": "string"},
                     },
                     ["id", "kind"],
+                ),
+            },
+            "apps": {
+                "type": "array",
+                "description": "Installed Tier-3 apps (business packs with an app manifest) for the launcher.",
+                "items": out(
+                    {
+                        "id": {"type": "string"},
+                        "pack": {"type": "string"},
+                        "title": {"type": "string"},
+                        "group": {
+                            "enum": [
+                                "hang-hoa",
+                                "thoi-gian-du-an",
+                                "trai-nghiem-thue-bao",
+                                "tai-san-khong-gian",
+                            ]
+                        },
+                        "status": {"enum": ["enabled", "disabled"]},
+                        "version": {"type": "string"},
+                        "ui": {
+                            "type": "array",
+                            "items": out(
+                                {
+                                    "kind": {"enum": ["generic", "module"]},
+                                    "path": {"type": "string"},
+                                },
+                                ["kind"],
+                            ),
+                        },
+                        "tools": {"type": "array", "items": {"type": "string"}},
+                        "models": {"type": "array", "items": {"type": "string"}},
+                    },
+                    ["id", "pack", "title", "group", "status"],
                 ),
             },
             "tools": {
