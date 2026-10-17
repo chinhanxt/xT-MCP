@@ -112,7 +112,11 @@ def aggregate_records(adapter: RecordServiceAdapter, ctx: CallContext, args: Arg
     group_by = tuple(str(g) for g in args.get("group_by", ()))
     bucket = (str(args["time_bucket"]), date_field, tz) if args.get("time_bucket") else None
     query = AggregateQuery(group_by, sums, bucket)
-    out = engine_call(lambda: adapter.rt.records.aggregate(caller.actor, model.name, where, query))
+    out = engine_call(
+        lambda: adapter.rt.records.aggregate(
+            caller.actor, model.name, where, query, max_groups=adapter.max_aggregate_groups
+        )
+    )
     key_names = [*group_by, *([f"{date_field}:{bucket[0]}"] if bucket else [])]
     fields = with_system_fields(model)
 

@@ -814,6 +814,9 @@ def test_settings_validation() -> None:
     assert (
         ToolSettings(confirm_base_url="http://127.0.0.1:8080").confirm_url("c").startswith("http")
     )
+    assert ToolSettings(confirm_base_url="https://x").max_aggregate_groups == 1000
+    with pytest.raises(ValueError):
+        ToolSettings(confirm_base_url="https://x", max_aggregate_groups=0)
     s = ToolSettings(confirm_base_url="https://xt.example.vn/")
     assert s.confirm_url("cf_1") == "https://xt.example.vn/desk/confirm/cf_1"
     assert replace(s, channels=("desk", "telegram")).channels == ("desk", "telegram")

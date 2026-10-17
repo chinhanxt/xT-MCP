@@ -138,6 +138,7 @@ class RecordServiceAdapter:
         model_changes: ModelChangeDecisions | None = None,
         step_transitions: Callable[[CallContext, Caller, str, UUID, Mapping[str, Any]], list[Data]]
         | None = None,
+        max_aggregate_groups: int | None = None,
     ) -> None:
         if len(cursor_key) < 32:
             raise ValueError("cursor signing key must contain at least 32 bytes")
@@ -148,6 +149,7 @@ class RecordServiceAdapter:
         self.transition_commit = transition_commit
         self.model_changes = model_changes
         self.step_transitions = step_transitions
+        self.max_aggregate_groups = max_aggregate_groups
 
     # ---- tiện ích ----------------------------------------------------------------------------
     def _model(self, actor: ModelActor, name: str) -> tuple[int, ModelSpec]:

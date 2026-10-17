@@ -82,7 +82,9 @@ def _row(pack: str, status: str, app: dict[str, Any] | None, models: list[str]) 
 
 
 def _inspect(roles: tuple[str, ...], packs: list[dict[str, Any]], include: list[str]) -> Any:
-    settings = SimpleNamespace(confirmation_ttl=timedelta(minutes=10), available=lambda n: True)
+    settings = SimpleNamespace(
+        confirmation_ttl=timedelta(minutes=10), max_aggregate_groups=10**6, available=lambda n: True
+    )
     ws = Workspace(_rt(roles, packs), settings)  # type: ignore[arg-type]
     return ws.inspect(SimpleNamespace(client_class=ClientClass.HUMAN), {"include": include})  # type: ignore[arg-type]
 
@@ -137,3 +139,8 @@ def test_me_includes_caller_effective_roles() -> None:
     out = _inspect(("staff", "admin", "staff"), [], ["me"])
     assert out["me"]["roles"] == ["admin", "staff"]
     Draft202012Validator(BY_NAME["inspect_workspace"].output_schema).validate(out)
+
+
+def test_limits_report_group_cap_bounded_by_hard_cap() -> None:
+    out = _inspect(("staff",), [], ["limits"])
+    assert out["limits"]["max_aggregate_groups"] == 5000

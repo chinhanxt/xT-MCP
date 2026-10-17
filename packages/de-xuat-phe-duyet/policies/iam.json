@@ -251,6 +251,7 @@
         "process.read",
         "person.read",
         "record.search",
+        "record.aggregate",
         "inbox.read",
         "history.read"
       ],
@@ -349,6 +350,7 @@
         "process.read",
         "person.read",
         "record.search",
+        "record.aggregate",
         "inbox.read",
         "history.read",
         "request.submit",
