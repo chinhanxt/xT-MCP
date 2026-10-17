@@ -3,11 +3,22 @@
 import { readLines } from '../streams.ts';
 import type { RunResult, StreamEvent } from '../contracts.ts';
 const integrated = new URLSearchParams(location.search).get('integrated') === '1';
-type XtPortal = { request: (path: string, init?: RequestInit) => Promise<Response> };
+type StudioBridge = { request: (path: string, init?: RequestInit) => Promise<Response> };
+type XtPortalHost = { connect?: (win: Window) => Partial<StudioBridge> | null };
+// Khung Studio nhận cầu nối riêng (chỉ `request`) từ cổng: parent.xtPortal.connect(window).
+function portalBridge(): StudioBridge | null {
+  try {
+    const host = (window.parent as Window & { xtPortal?: XtPortalHost }).xtPortal;
+    const bridge = host?.connect?.(window);
+    return typeof bridge?.request === 'function' ? (bridge as StudioBridge) : null;
+  } catch {
+    return null;
+  }
+}
 function request(path: string, init: RequestInit): Promise<Response> {
   if (!integrated) return fetch(path, init);
-  const portal = (window.parent as Window & { xtPortal?: XtPortal }).xtPortal;
-  if (!portal?.request) throw new Error('Cổng xT chưa sẵn sàng.');
+  const portal = portalBridge();
+  if (!portal) throw new Error('Cổng xT chưa sẵn sàng.');
   if (!path.startsWith('/api/')) throw new Error('Đường dẫn Studio không hợp lệ.');
   return portal.request('/studio-api/' + path.slice(5), init);
 }

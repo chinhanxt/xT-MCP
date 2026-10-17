@@ -19,4 +19,4 @@ declare const __DESK_CONFIG__: {
   appGlobalBurst: number;
 };
 
-interface Window { xtPortal?: import("./portal").PortalBridge }
+interface Window { xtPortal?: import("./portal").PortalHost }

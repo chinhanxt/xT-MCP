@@ -29,6 +29,7 @@ it('embeds WareTrack same-origin in Kho and removes it when the session ends', a
   await render('Kho');
   const frame = container.querySelector<HTMLIFrameElement>('iframe[title="xT WareTrack"]')!;
   expect(frame.getAttribute('src')).toBe('/waretrack/?integrated=1');
+  expect(frame.dataset.xtScope).toBe('waretrack');
   expect(container.querySelector('.portal-waretrack')?.textContent).toContain('không đổi tồn kho');
   expect(container.querySelector('a[href="/waretrack/"]')?.getAttribute('rel')).toBe('noopener noreferrer');
   await render('H');
