@@ -9,6 +9,7 @@ import hmac
 import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import Mock
 
 from starlette.applications import Starlette
@@ -71,6 +72,36 @@ def test_delegated_tool_calls_cannot_change_actor_or_escape_lifetime() -> None:
         tools.release(key)
         assert signed(client, {"action": "list"}).status_code == 401
         dispatcher.call.assert_called_once()
+
+
+def test_revocation_mid_run_blocks_the_next_tool_call_before_dispatch() -> None:
+    dispatcher = Mock(call=Mock(return_value=SimpleNamespace(envelope={"ok": True, "data": {}})))
+    guard = Mock()
+    ctx = CallContext(
+        actor=Actor("tenant-a", "user", PrincipalKind.AGENT, "xt-desk-agent", "user"),
+        client_class=ClientClass.CLOUD,
+        trace_id="run",
+        now=datetime.now(UTC),
+        ensure_active=guard,
+    )
+    tools = StudioTools(dispatcher, SECRET)
+    key = tools.register(ctx)
+    app = Starlette(routes=[Route("/tools", tools.endpoint, methods=["POST"])])
+
+    def call(client: TestClient, name: str) -> Any:
+        raw = json.dumps({"name": name, "arguments": {"ref": "stock_item:one"}}).encode()
+        signature = hmac.new(SECRET, key.encode() + b"\n" + raw, hashlib.sha256).hexdigest()
+        return client.post(
+            "/tools", content=raw, headers={"x-xt-capability": key, "x-xt-signature": signature}
+        )
+
+    with TestClient(app) as client:
+        assert call(client, "get_record").status_code == 200
+        guard.side_effect = InvalidTokenError("revoked during the agent run")
+        assert call(client, "create_record").status_code == 401
+        assert call(client, "get_record").status_code == 401
+    dispatcher.call.assert_called_once()
+    assert dispatcher.call.call_args.args[0] == "get_record"
 
 
 def test_bad_signature_expiry_and_budget_are_enforced() -> None:

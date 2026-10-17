@@ -107,3 +107,30 @@ test('tenant mapping survives a Studio restart without claiming legacy workspace
   store.close();
   rmSync(dir, { recursive: true, force: true });
 });
+
+test('one assertion replayed in parallel on a body-carrying POST creates exactly one resource', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'xt-studio-replay-'));
+  const store = new Store(dir);
+  const secret = randomBytes(32);
+  const server = createStudio(store, { integrated: true, secret });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    const payload = JSON.stringify({ name: 'Replay probe', kind: 'chat' });
+    const claim = { v: 1, tenant: randomUUID(), person: randomUUID(), name: 'Alice', workspace_name: 'Acme', roles: ['studio_editor'],
+      method: 'POST', path: '/api/apps', body_sha256: createHash('sha256').update(payload).digest('hex'),
+      iat: Math.floor(Date.now() / 1000), nonce: randomUUID() };
+    const encoded = Buffer.from(JSON.stringify(claim)).toString('base64url');
+    const headers = { 'x-xt-assertion': encoded, 'x-xt-signature': createHmac('sha256', secret).update(encoded).digest('hex'),
+      'content-type': 'application/json' };
+    const statuses = await Promise.all(Array.from({ length: 12 }, async () =>
+      (await fetch(origin + '/api/apps', { method: 'POST', headers, body: payload })).status));
+    assert.deepEqual(statuses.sort(), [201, ...Array(11).fill(401)]);
+    assert.equal(store.db.prepare('SELECT count(*) AS n FROM apps').get()!.n, 1);
+    assert.equal(store.db.prepare('SELECT count(*) AS n FROM xt_workspace_map').get()!.n, 1);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
