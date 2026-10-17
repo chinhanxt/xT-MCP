@@ -75,8 +75,20 @@ def test_sync_access_grants_op(monkeypatch: pytest.MonkeyPatch) -> None:
 
     case, emp = str(uuid.uuid4()), str(uuid.uuid4())
     grants: list[dict[str, Any]] = [
-        {"id": "g1", "system": "keycloak", "role": "employee", "revoked_on": None},
-        {"id": "g2", "system": "keycloak", "role": "hr", "revoked_on": "2026-10-17"},
+        {
+            "id": "g1",
+            "system": "keycloak",
+            "role": "employee",
+            "revoked_on": None,
+            "created_by": str(HR),
+        },
+        {
+            "id": "g2",
+            "system": "keycloak",
+            "role": "hr",
+            "revoked_on": "2026-10-17",
+            "created_by": str(HR),
+        },
     ]
     rows = {"lifecycle_case": {"id": case, "employee": emp, "initiated_by": str(HR)},
             "employee": {"id": emp, "user_id": str(NEW), "emp_no": "NV-1"}}  # fmt: skip
@@ -112,5 +124,11 @@ def test_sync_access_grants_op(monkeypatch: pytest.MonkeyPatch) -> None:
             op(case_id=case, allowed_roles="hr")  # employee ngoài allow-list
         with pytest.raises(OpInputError):
             op(case_id=case, allowed_roles="")
+        # it_admin vừa tạo bản ghi grant vừa hoàn thành bước `it` -> tự duyệt, từ chối
+        grants.append({"id": "g3", "system": "keycloak", "role": "hr", "revoked_on": None,
+                       "created_by": str(IT)})  # fmt: skip
+        with pytest.raises(OpInputError, match="người tạo"):
+            op(case_id=case, allowed_roles="employee,hr")
+        assert store.effective(T_A, NEW) == {"employee"}
     finally:
         pack_ops.ACTING.reset(token)

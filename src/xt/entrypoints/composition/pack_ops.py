@@ -487,7 +487,8 @@ def sync_access_grants(pc: ProcessContext, d: ProcessDefinition) -> ServiceFn:
     `access_grant` system `keycloak` của nhân viên thành vai trò hiệu lực của person (bản đã có
     `revoked_on` -> gỡ).
     Người duyệt = người đang hoàn thành bước (ngữ cảnh đã xác thực), người đề nghị =
-    `lifecycle_case.initiated_by`; `allowed_roles` = allow-list của tenant khai trong quy trình."""
+    `lifecycle_case.initiated_by`, người tạo bản ghi grant (`created_by`) không được là người duyệt;
+    `allowed_roles` = allow-list của tenant khai trong quy trình."""
 
     def op(case_id: str, allowed_roles: str) -> dict[str, int]:
         db = _Data(pc)
@@ -512,6 +513,7 @@ def sync_access_grants(pc: ProcessContext, d: ProcessDefinition) -> ServiceFn:
             grant = AccessGrant(
                 f"{GRANT}:{g['id']}", str(g["system"]), str(g.get("role") or ""), grantee,
                 UUID(str(requester)) if requester else None, bool(g.get("revoked_on")),
+                UUID(str(g["created_by"])) if g.get("created_by") else None,
             )  # fmt: skip
             try:
                 out[svc.apply(pc.actor, grant, allowed=allowed)] += 1
