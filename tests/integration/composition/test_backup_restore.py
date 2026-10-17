@@ -26,13 +26,12 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from psycopg import sql
 
 from tests.integration.composition import pgfixture
-from tests.integration.composition.test_warehouse import (  # noqa: F401  (stock dùng chung)
+from tests.integration.composition.shared_tenants import (
     Warehouse,
     balance,
     confirm,
     install_warehouse,
     movements,
-    stock,
 )
 from xt.application.tools.ports import PendingStatus
 from xt.entrypoints import audit_cli
@@ -51,8 +50,7 @@ spec.loader.exec_module(bu)
 
 @pytest.fixture(scope="module")
 def warehouse(stack_base, mcp_port, tmp_path_factory):
-    """Tenant riêng (`backupit`): cùng cách dựng với test_warehouse nhưng không trùng alias, vì
-    fixture module-scope của module kia sẽ được dựng lại ở đây và `tenant create` không lặp được."""
+    """Tenant riêng (`backupit`) để backup/restore độc lập với các test kho khác."""
     alias = "backupit"
     tenant = install_warehouse(stack_base.env, tmp_path_factory, alias)
     prepared = prepare(
@@ -98,7 +96,7 @@ def fingerprint(conn: psycopg.Connection[Any], schema: str) -> dict[str, tuple[i
 
 def test_pg_dump_restore_into_fresh_database_keeps_ledger_and_audit(
     warehouse,
-    stock,  # noqa: F811
+    stock,
     pg,
     tmp_path,
     monkeypatch,

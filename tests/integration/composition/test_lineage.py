@@ -9,11 +9,9 @@ from typing import Any, cast
 import pytest
 from jsonschema import Draft202012Validator
 
-from tests.integration.composition.test_warehouse import (  # noqa: F401 (shared fixtures)
+from tests.integration.composition.shared_tenants import (
     confirm,
     movements,
-    stock,
-    warehouse,
 )
 from xt.application.tools.ports import PendingStatus
 from xt.contracts.tools import BY_NAME
@@ -21,7 +19,7 @@ from xt.contracts.tools import BY_NAME
 pytestmark = pytest.mark.integration
 
 
-def test_aggregate_lineage_replays_posted_movement_refs(warehouse: Any, stock: Any) -> None:  # noqa: F811
+def test_aggregate_lineage_replays_posted_movement_refs(warehouse: Any, stock: Any) -> None:
     w = warehouse
     dated = {**stock, "doc_date": "2026-09-15"}
     receive = w.request(dated)

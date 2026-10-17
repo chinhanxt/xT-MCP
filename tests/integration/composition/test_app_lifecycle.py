@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 
 from tests.integration.composition.fixtures import run_admin
-from tests.integration.composition.test_warehouse import Warehouse, install_warehouse
+from tests.integration.composition.shared_tenants import Warehouse, install_warehouse
 from xt.entrypoints.serve import prepare
 
 pytestmark = pytest.mark.integration

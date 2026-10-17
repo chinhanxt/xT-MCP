@@ -17,7 +17,7 @@ import pytest
 
 from tests.integration.composition.fixtures import PACK, ROOT, StackBase, run_admin
 from tests.integration.composition.idp import AGENT_CLIENT, DESK_CLIENT
-from tests.integration.composition.test_pack_ops import Ops
+from tests.integration.composition.shared_tenants import Ops
 from xt.adapters.db.integration import connect, tenant_of_alias
 from xt.application.tools.context import Actor
 from xt.domain.identity import PrincipalKind
@@ -157,8 +157,7 @@ def test_onboarding_steps_completed_by_right_department_people(
         e for e in hr["employees"] if e["active"] and e["roles"] == ["employee"] and e["manager_id"]
     ]
     newbie = newbies[1]
-    depts = ops.search("department", {"field": "code", "op": "=", "value": "KD"})
-    dept = depts[0] if depts else ops.create(hr0, "department", {"code": "KD", "name": "KD"})
+    dept = ops.create(hr0, "department", {"code": "KDTOOL", "name": "KD"})
     emp = ops.create(
         hr0, "employee",
         {"emp_no": newbie["id"], "user_id": ops.pid(newbie["id"]), "full_name": newbie["full_name"],
