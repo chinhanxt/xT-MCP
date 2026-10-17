@@ -6,6 +6,7 @@ import type { McpTool, ToolResult } from './types';
 import { readToolResult } from './portal-result';
 import { PortalAlert } from './PortalAlert';
 import { classifyError, type ErrorKind } from './portal-state';
+import { fieldLabel, hiddenFields, valueLabel } from './portal-labels';
 
 type Data = Record<string, unknown>;
 const PAGE = 20;
@@ -63,7 +64,7 @@ export function DocumentsPanel({ mcp, tools, models, primitives = ['document'], 
   useEffect(() => { if (chosen && rows === null && mcp) void search(null); }, [chosen, rows === null, mcp]); // eslint-disable-line
   useEffect(() => { live.current = true; return () => { live.current = false; seq.current++; }; }, []);
 
-  const details = detail ? Object.entries({ ...obj(detail.values), ...Object.fromEntries(Object.entries(detail).filter(([key]) => !['values', 'ref', 'id', 'title', 'name'].includes(key))) }) : [];
+  const details = detail ? Object.entries({ ...obj(detail.values), ...Object.fromEntries(Object.entries(detail).filter(([key]) => !['values', 'ref', 'id', 'title', 'name'].includes(key))) }).filter(([key]) => !hiddenFields.has(key)) : [];
   return <section className="portal-docs" aria-label={Noun}>
     <h3>{Noun}</h3>
     {models === null ? <p role="status">{`Đang tải danh mục ${noun}…`}</p> : !docModels.length ? <p role="status">{`Doanh nghiệp chưa có loại ${noun} nào mà bạn được xem.`}</p> : <>
@@ -82,7 +83,7 @@ export function DocumentsPanel({ mcp, tools, models, primitives = ['document'], 
       })}</ul>}
       {cursor && <button disabled={loading} onClick={() => void search(cursor)}>Tải thêm</button>}
       {detail && <article className="portal-entry" aria-label={`Chi tiết ${noun}`}><strong>{title(detail)}</strong>
-        <dl>{details.map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{text(value)}</dd></div>)}</dl>
+        <dl>{details.map(([key, value]) => <div key={key}><dt>{fieldLabel(key)}</dt><dd>{typeof value === 'string' ? valueLabel(key, value) : text(value)}</dd></div>)}</dl>
         <button onClick={() => setDetail(null)}>{`Đóng ${noun}`}</button></article>}
     </>}
     <PortalAlert text={error} kind={kind}/>

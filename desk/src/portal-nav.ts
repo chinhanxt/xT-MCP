@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 export const AREAS = ['H', 'P', 'D', 'I', 'T3', 'Desk'] as const;
 export type Area = (typeof AREAS)[number];
+/** Tên hiển thị ngắn của từng không gian (nút điều hướng chỉ mang mã H/P/D/I/T3 làm tên truy cập). */
+export const areaNames: Record<Area, string> = { H: 'Con người', P: 'Quy trình', D: 'Dữ liệu', I: 'Trí tuệ', T3: 'Kinh doanh số', Desk: 'Trợ lý' };
 
 /** `#/H` -> `H`; mọi giá trị khác (kể cả lạ) -> Desk. Hash không chạm tới đường dẫn /auth/callback. */
 export function areaFromHash(hash: string): Area {

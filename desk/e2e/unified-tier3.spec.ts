@@ -78,7 +78,8 @@ test('T3 admin: disabled app greyed with `xt pack enable` CLI hint, enabled app 
   await expect(disabled).toContainText('Đã tắt');
   await expect(disabled).toContainText('Không mở được khi đã tắt');
   await expect(disabled.getByRole('button',{name:'Mở Bảo hành'})).toHaveCount(0);
-  expect(await disabled.evaluate(el=>getComputedStyle(el).opacity)).toBe('0.55');
+  expect(await disabled.locator('> span').first().evaluate(el=>getComputedStyle(el).opacity)).toBe('0.65');
+  expect(await disabled.evaluate(el=>getComputedStyle(el).opacity)).toBe('1'); // gợi ý CLI của quản trị viên không bị làm mờ
   await disabled.locator('summary').click();
   await expect(disabled.locator('code')).toContainText('xt pack enable --tenant');
   await expect(disabled.locator('code')).toHaveText("xt pack enable --tenant 'Doanh nghiệp mẫu' bao-hanh --proposed-by <người đề xuất> --approved-by <người duyệt>");

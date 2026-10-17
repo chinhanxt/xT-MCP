@@ -14,7 +14,8 @@ import { ToolItem } from "./ToolItem";
 import { Portal } from "./Portal";
 import { Tier3 } from "./Tier3";
 import { PortalBoundary, PortalPending } from "./PortalBoundary";
-import { AREAS, useAreaRoute } from "./portal-nav";
+import { AREAS, areaNames, useAreaRoute } from "./portal-nav";
+import { classifyError, type ErrorKind } from "./portal-state";
 import { createPortalBridge, createPortalHost } from "./portal";
 import { applyAgentEvent, type Item } from "./items";
 import type { ChatMessage, McpTool } from "./types";
@@ -38,7 +39,7 @@ export function App() {
   const [items, setItems] = useState<Item[]>([]);
   const [busy, setBusy] = useState(false);
   const [area, navigate, resetArea] = useAreaRoute();
-  const [connectError, setConnectError] = useState("");
+  const [connectError, setConnectError] = useState(""), [connectKind, setConnectKind] = useState<ErrorKind>("error");
   const [input, setInput] = useState("");
   const history = useRef<ChatMessage[]>([{ role: "system", content: SYSTEM }]);
   const idempotencyKeys = useRef(new Map<string, string>());
@@ -69,7 +70,7 @@ export function App() {
     idempotencyKeys.current.clear();
     idempotencyKeys.current = new Map();
     history.current = [{ role: "system", content: SYSTEM }];
-    setMcp(null); setTools([]); setItems([]); setInput(""); setBusy(false); setConnectError("");
+    setMcp(null); setTools([]); setItems([]); setInput(""); setBusy(false); setConnectError(""); setConnectKind("error");
   }, [resetArea, closeConnection]);
   const [session, sessionErr] = useMemo<[OidcSession | null, string | null]>(() => {
     try {
@@ -151,8 +152,9 @@ export function App() {
       })
       .catch((e: Error) => {
         if (dead || epoch !== generation.current) return;
-        const text = e instanceof AuthRequiredError ? e.message : `Không kết nối được MCP: ${e.message}`;
-        setConnectError(text);
+        const kind = e instanceof AuthRequiredError ? "expired" : classifyError(e);
+        const text = e instanceof AuthRequiredError ? e.message : kind === "expired" ? "Máy chủ xT từ chối phiên đăng nhập hiện tại." : `Không kết nối được MCP: ${e.message}`;
+        setConnectError(text); setConnectKind(kind);
         setItems([{ kind: "note", id: nid(), text }]);
       });
     return () => {
@@ -248,13 +250,15 @@ export function App() {
             Đăng xuất
           </button>
         )}
-        <span className="meta">
-          {config.model} · hồ sơ {config.toolProfile} · {tools.length} tool
-        </span>
+        {authState.status === "authenticated" && (
+          <span className="meta">
+            {config.model} · hồ sơ {config.toolProfile} · {tools.length} công cụ
+          </span>
+        )}
       </header>
-      {authState.status === "authenticated" && <nav className="portal-nav" aria-label="Không gian xT">{AREAS.map(x=><button key={x} title={areaTitle[x]} aria-current={area===x ? "page" : undefined} onClick={()=>navigate(x)}>{x}</button>)}</nav>}
-      {authState.status === "authenticated" && area !== "Desk" && !mcp && <PortalPending label={area} error={connectError}/>}
-      {authState.status === "authenticated" && area !== "Desk" && mcp && <PortalBoundary key={`${sessionEpoch}:${area}`} label={area}>{area === "T3" ? <Tier3 mcp={mcp} tools={mcp.tools} renderWarehouse={() => <Portal area="Kho" mcp={mcp} tools={mcp.tools} sandboxUrl={sandboxUrl} onOpenLink={openLink} revealDpop={revealDpop}/>}/> : <Portal area={area} mcp={mcp} tools={mcp?.tools || []} sandboxUrl={sandboxUrl} onOpenLink={openLink} revealDpop={revealDpop} onNavigate={navigate}/>}</PortalBoundary>}
+      {authState.status === "authenticated" && <nav className="portal-nav" aria-label="Không gian xT">{AREAS.map(x=><button key={x} title={areaTitle[x]} aria-current={area===x ? "page" : undefined} onClick={()=>navigate(x)}>{x}<small aria-hidden="true">{areaNames[x]}</small></button>)}</nav>}
+      {authState.status === "authenticated" && area !== "Desk" && !mcp && <PortalPending label={areaNames[area]} error={connectError} kind={connectKind}/>}
+      {authState.status === "authenticated" && area !== "Desk" && mcp && <PortalBoundary key={`${sessionEpoch}:${area}`} label={areaNames[area]}>{area === "T3" ? <Tier3 mcp={mcp} tools={mcp.tools} renderWarehouse={() => <Portal area="Kho" mcp={mcp} tools={mcp.tools} sandboxUrl={sandboxUrl} onOpenLink={openLink} revealDpop={revealDpop}/>}/> : <Portal area={area} mcp={mcp} tools={mcp?.tools || []} sandboxUrl={sandboxUrl} onOpenLink={openLink} revealDpop={revealDpop} onNavigate={navigate}/>}</PortalBoundary>}
       <main id="chat" aria-live="polite" hidden={authState.status === "authenticated" && area !== "Desk"}>
         {authState.status !== "authenticated" && (
           <div className="login" data-testid="login">

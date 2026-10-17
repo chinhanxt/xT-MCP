@@ -77,7 +77,7 @@ async function mount(area = 'H') {
   await act(async () => { root!.render(createElement(App)); });
 }
 async function click(text: string) {
-  const button = Array.from(container.querySelectorAll('button')).find(b => b.textContent === text);
+  const button = Array.from(container.querySelectorAll('button')).find(b => b.childNodes[0]?.textContent === text);
   expect(button, text).toBeTruthy(); await act(async () => button!.click());
 }
 async function switchToBeta() {
