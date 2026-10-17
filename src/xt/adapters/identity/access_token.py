@@ -34,6 +34,9 @@ from xt.domain.identity import (
 
 ACCESS_TOKEN_TYP = "Bearer"
 DPOP_TOKEN_TYP = "DPoP"  # Keycloak: token gắn DPoP có claim `typ=DPoP` + `cnf.jkt`
+# Scope mang mapper Organization (deploy/keycloak/provision.py `ensure_mcp_scope`): Keycloak cấp
+# dạng động `<scope>:<alias>` thay cho `<scope>` khi chọn tenant (docs/identity.md). Allow-list.
+ORGANIZATION_SCOPES = frozenset({"mcp-xt"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,7 +168,14 @@ class AccessTokenVerifier:
         # Keycloak Organizations: scope mang mapper tổ chức được xin dạng động
         # `<scope>:<alias>` (vd. `mcp-xt:binhminh`, docs/identity.md) và token chỉ chứa dạng đó.
         # Keycloak chỉ cấp khi user là thành viên `alias`, nên coi là đã có `<scope>`.
-        scopes |= {x.partition(":")[0] for x in scopes if ":" in x}
+        # Chỉ scope trong allow-list, alias khác rỗng và TRÙNG claim tổ chức duy nhất (tenant
+        # luôn lấy từ claim, không từ hậu tố scope).
+        organizations = _organizations(claims, s.idp.tenant_claim)
+        scopes |= {
+            base
+            for base, _, alias in (x.partition(":") for x in scopes)
+            if base in ORGANIZATION_SCOPES and alias and organizations == (alias,)
+        }
         need = s.required_scopes | required_scopes
         if not need <= scopes:
             raise InsufficientScopeError(need, scopes)
@@ -187,7 +197,7 @@ class AccessTokenVerifier:
             on_behalf_of=behalf,
             issuer=s.idp.issuer,
             username=string(claims, "preferred_username", required=False),
-            organizations=_organizations(claims, s.idp.tenant_claim),
+            organizations=organizations,
             roles=_realm_roles(claims),
             scopes=scopes,
             auth_time=numeric(claims, "auth_time", required=False),
