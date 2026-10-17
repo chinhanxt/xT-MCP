@@ -120,15 +120,21 @@ def test_sync_access_grants_op(monkeypatch: pytest.MonkeyPatch) -> None:
         }  # fmt: skip
         assert store.effective(T_A, NEW) == {"employee"}
         assert op(case_id=case, allowed_roles="employee,hr")["already"] == 2
-        with pytest.raises(OpInputError):
+        with pytest.raises(OpInputError) as rejected:
             op(case_id=case, allowed_roles="hr")  # employee ngoài allow-list
+        assert rejected.value.reason == "role_not_allowed"
         with pytest.raises(OpInputError):
             op(case_id=case, allowed_roles="")
         # it_admin vừa tạo bản ghi grant vừa hoàn thành bước `it` -> tự duyệt, từ chối
         grants.append({"id": "g3", "system": "keycloak", "role": "hr", "revoked_on": None,
                        "created_by": str(IT)})  # fmt: skip
-        with pytest.raises(OpInputError, match="người tạo"):
+        with pytest.raises(OpInputError, match="người tạo") as rejected:
             op(case_id=case, allowed_roles="employee,hr")
+        assert rejected.value.reason == "self_approval"
         assert store.effective(T_A, NEW) == {"employee"}
+        store.people[T_A.id].remove(NEW)
+        with pytest.raises(OpInputError) as rejected:
+            op(case_id=case, allowed_roles="employee,hr")
+        assert rejected.value.reason == "person_not_found"
     finally:
         pack_ops.ACTING.reset(token)

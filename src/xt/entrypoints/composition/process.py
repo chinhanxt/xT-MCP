@@ -75,7 +75,7 @@ from xt.entrypoints.composition.model_changes import (
     ModelChangeDecisions,
     ModelDecidePlan,
 )
-from xt.entrypoints.composition.pack_ops import ACTING, PACK_OPS
+from xt.entrypoints.composition.pack_ops import ACTING, PACK_OPS, OpInputError
 from xt.entrypoints.composition.runtime import Caller, Runtime, after_rollback
 from xt.entrypoints.composition.util import (
     engine_call,
@@ -93,6 +93,13 @@ DECISIONS = {
     "delegate": "delegate",
 }
 OPEN_STATES = ("draft", "returned")
+_OP_INPUT_MESSAGES = {
+    "role_not_allowed": "Vai trò không nằm trong danh sách được phép cấp.",
+    "self_approval": (
+        "Người duyệt phải khác người đề nghị, người được cấp quyền và người tạo bản ghi cấp quyền."
+    ),
+    "person_not_found": "Không thể xác minh người tham gia cấp quyền trong tổ chức.",
+}
 
 
 # ------------------------------------------------------------------------- tổ chức ----
@@ -1526,6 +1533,19 @@ class ProcessToolAdapter:
             )
         except EngineError as e:
             self._incident(caller, p.instance_id, e)
+            cause: BaseException | None = e.__cause__
+            seen: set[int] = set()
+            while cause is not None and id(cause) not in seen:
+                seen.add(id(cause))
+                if isinstance(cause, OpInputError) and cause.reason in _OP_INPUT_MESSAGES:
+                    # Chỉ thông điệp allow-list; str(cause) có thể chứa dữ liệu nội bộ.
+                    message = _OP_INPUT_MESSAGES[cause.reason]
+                    raise ToolError(
+                        ErrorCode.PRECONDITION_FAILED,
+                        message,
+                        details={"reason": cause.reason, "message": message},
+                    ) from e
+                cause = cause.__cause__
             raise ToolError(
                 ErrorCode.INTERNAL_ERROR, "Quy trình gặp sự cố; quản trị đã được ghi nhận."
             ) from e
