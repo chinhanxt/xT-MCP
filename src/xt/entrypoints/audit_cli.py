@@ -14,7 +14,8 @@ Biến môi trường (không có giá trị mặc định ngầm):
 
 Mã thoát: 0 toàn vẹn, 1 phát hiện sửa/xóa audit HOẶC catalog bảo mật (policy, trigger, rule,
 constraint, default, hàm, event trigger, role, membership, grant của schema xt*) đổi so với
-checkpoint (in đúng đối tượng), 2 lỗi cấu hình/checkpoint.
+checkpoint (in đúng đối tượng), 2 lỗi cấu hình/checkpoint hoặc checkpoint cũ (digest phiên bản
+trước) — cần neo lại; chuỗi audit vẫn được kiểm, chỉ bỏ so digest hàm/catalog.
 Worker gọi `checkpoint` định kỳ (ví dụ mỗi giờ); người kiểm chạy `verify` bằng khóa công khai.
 """
 
@@ -27,7 +28,9 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from xt.adapters.db.audit import (
+    DIGEST_VERSION,
     CheckpointError,
+    checkpoint_outdated,
     connect,
     diff_security_catalog,
     latest_checkpoint,
@@ -80,7 +83,12 @@ def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
     doc = load_checkpoint(path, pub)
     with connect(dsn) as conn:
         results = verify_against_checkpoint(conn, doc)
-        cat = diff_security_catalog(conn, doc) if doc.get("security_catalog") else None
+        outdated = checkpoint_outdated(doc)
+        cat = (
+            diff_security_catalog(conn, doc)
+            if doc.get("security_catalog") and not outdated
+            else None
+        )
     bad = [r for r in results if not r.ok]
     for r in results:
         print(f"{r.tenant_id} seq={r.seq} {r.status} events={r.events}")
@@ -95,7 +103,15 @@ def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
             else f"catalog bảo mật: {len(cat.changed)} đổi, {len(cat.added)} thêm,"
             f" {len(cat.removed)} mất kể từ checkpoint"
         )
-    return 1 if bad or (cat is not None and not cat.ok) else 0
+    if bad or (cat is not None and not cat.ok):
+        return 1
+    if outdated:
+        print(
+            f"checkpoint cũ — cần neo lại (digest v{doc.get('digest_version', 1)},"
+            f" hiện v{DIGEST_VERSION}): chưa so digest hàm/catalog bảo mật"
+        )
+        return 2
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:

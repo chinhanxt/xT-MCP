@@ -76,12 +76,15 @@ class AuditReader:
 
 
 __all__ = [
+    "DIGEST_VERSION",
     "AnchorResult",
     "AuditReader",
     "CatalogDiff",
     "ChainStatus",
     "CheckpointError",
     "audit_hmac",
+    "canonical_entry",
+    "checkpoint_outdated",
     "diff_security_catalog",
     "load_checkpoint",
     "security_catalog",
@@ -93,6 +96,11 @@ __all__ = [
 ]
 
 CHECKPOINT_FORMAT = "xt-audit-checkpoint/1"
+# Phiên bản cách tính digest hàm/catalog (trường `digest_version` được ký). v1 (không có trường):
+# ACL/role của policy theo thứ tự OID, ACL NULL ≠ ACL mặc định tường minh → lệch sau pg_restore.
+# v2: chuẩn hóa theo tên, sắp xếp, ACL NULL = acldefault. Checkpoint khác phiên bản không so được
+# digest: báo "cũ — cần neo lại", không coi là bị sửa (chuỗi audit vẫn được kiểm).
+DIGEST_VERSION = 2
 
 # Bảng xt_meta KHÔNG vào hash-chain, kèm lý do. Mọi bảng xt_meta khác PHẢI có trigger
 # xt_audit_meta (test kiểm theo catalog thật, không theo danh sách cứng của bảng có audit).
@@ -146,7 +154,8 @@ def _canon_json(payload: Mapping[str, Any]) -> bytes:
 
 AUDIT_FUNCTIONS_SQL = (
     "SELECT p.oid::regprocedure::text, pg_get_functiondef(p.oid),"
-    " pg_get_userbyid(p.proowner)::text, p.proacl::text, p.proleakproof, p.proisstrict,"
+    " pg_get_userbyid(p.proowner)::text, coalesce(p.proacl, acldefault('f', p.proowner))::text[],"
+    " p.proleakproof, p.proisstrict,"
     " p.proparallel, p.prosupport::regproc::text"
     " FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace"
     " WHERE (n.nspname IN ('xt', 'xt_audit', 'xt_meta')"
@@ -165,7 +174,10 @@ def audit_functions_digest(conn: psycopg.Connection[Any]) -> str:
     """sha256 của thân + chủ + SECURITY DEFINER của mọi hàm audit, hàm ngữ cảnh RLS (`xt.cur`…) và
     mọi hàm policy RLS tham chiếu (đọc thẳng pg_proc, không gọi hàm của audit). Checkpoint ghi lại;
     kiểm lại thấy khác → hàm đã bị thay (R3-05, quyết định 16/10 về xt.cur)."""
-    rows = sorted(tuple(str(x) for x in r) for r in conn.execute(AUDIT_FUNCTIONS_SQL).fetchall())
+    rows = sorted(
+        tuple(",".join(sorted(x)) if isinstance(x, list) else str(x) for x in r)
+        for r in conn.execute(AUDIT_FUNCTIONS_SQL).fetchall()
+    )
     h = hashlib.sha256()
     for r in rows:
         h.update("\x1f".join(r).encode() + b"\x1e")
@@ -178,85 +190,109 @@ SECURITY_CATALOG_SQL = """
 WITH ns AS (SELECT oid, nspname FROM pg_namespace
              WHERE nspname ~ '^(xt|xt_meta|xt_audit|xt_t[0-9]+|api_t[0-9]+)$'),
 rel AS (SELECT c.oid, n.nspname || '.' || c.relname AS name, c.relowner, c.relrowsecurity,
-               c.relforcerowsecurity, c.relacl, c.reloptions
+               c.relforcerowsecurity, c.relacl, c.reloptions, c.relkind
           FROM pg_class c JOIN ns n ON n.oid = c.relnamespace
          WHERE c.relkind IN ('r', 'p', 'v'))
-SELECT 'schema', n.nspname, concat_ws('|', pg_get_userbyid(s.nspowner), s.nspacl::text)
+SELECT 'schema', n.nspname, pg_get_userbyid(s.nspowner)::text,
+       coalesce(s.nspacl, acldefault('n', s.nspowner))::text[]
   FROM ns n JOIN pg_namespace s ON s.oid = n.oid
 UNION ALL
 SELECT 'function', p.oid::regprocedure::text,
-       concat_ws('|', pg_get_functiondef(p.oid), pg_get_userbyid(p.proowner), p.proacl::text,
-                 p.proleakproof, p.proisstrict, p.proparallel, p.prosupport::regproc::text)
+       concat_ws('|', pg_get_functiondef(p.oid), pg_get_userbyid(p.proowner), p.proleakproof,
+                 p.proisstrict, p.proparallel, p.prosupport::regproc::text),
+       coalesce(p.proacl, acldefault('f', p.proowner))::text[]
   FROM pg_proc p JOIN ns n ON n.oid = p.pronamespace
  WHERE p.prokind <> 'a'
 UNION ALL
 SELECT 'table', r.name, concat_ws('|', pg_get_userbyid(r.relowner), r.relrowsecurity,
-       r.relforcerowsecurity, r.relacl::text, r.reloptions::text) FROM rel r
+       r.relforcerowsecurity, r.reloptions::text),
+       coalesce(r.relacl, acldefault('r', r.relowner))::text[] FROM rel r
 UNION ALL
-SELECT 'view', r.name, pg_get_viewdef(r.oid) FROM rel r
- WHERE (SELECT relkind FROM pg_class WHERE oid = r.oid) = 'v'
+SELECT 'view', r.name, pg_get_viewdef(r.oid), NULL::text[] FROM rel r WHERE r.relkind = 'v'
 UNION ALL
 SELECT 'type', n.nspname || '.' || t.typname,
        concat_ws('|', t.typtype, format_type(t.typbasetype, t.typtypmod), t.typnotnull,
-                 t.typdefault, t.typacl::text, pg_get_userbyid(t.typowner))
+                 t.typdefault, pg_get_userbyid(t.typowner)),
+       coalesce(t.typacl, acldefault('T', t.typowner))::text[]
   FROM pg_type t JOIN ns n ON n.oid = t.typnamespace WHERE t.typtype IN ('d', 'e')
 UNION ALL
 SELECT 'constraint', n.nspname || '.' || t.typname || '.' || k.conname,
-       concat_ws('|', pg_get_constraintdef(k.oid), k.convalidated)
+       concat_ws('|', pg_get_constraintdef(k.oid), k.convalidated), NULL::text[]
   FROM pg_constraint k JOIN pg_type t ON t.oid = k.contypid
   JOIN ns n ON n.oid = t.typnamespace
 UNION ALL
 SELECT 'policy', r.name || '.' || p.polname,
-       concat_ws('|', p.polpermissive, p.polcmd, p.polroles::regrole[]::text,
-                 pg_get_expr(p.polqual, p.polrelid), pg_get_expr(p.polwithcheck, p.polrelid))
+       concat_ws('|', p.polpermissive, p.polcmd,
+                 pg_get_expr(p.polqual, p.polrelid), pg_get_expr(p.polwithcheck, p.polrelid)),
+       ARRAY(SELECT CASE WHEN x = 0 THEN 'public' ELSE pg_get_userbyid(x)::text END
+               FROM unnest(p.polroles) x)
   FROM pg_policy p JOIN rel r ON r.oid = p.polrelid
 UNION ALL
 SELECT 'trigger', r.name || '.' || g.tgname,
-       concat_ws('|', pg_get_triggerdef(g.oid), g.tgenabled)
+       concat_ws('|', pg_get_triggerdef(g.oid), g.tgenabled), NULL::text[]
   FROM pg_trigger g JOIN rel r ON r.oid = g.tgrelid WHERE NOT g.tgisinternal
 UNION ALL
-SELECT 'rule', r.name || '.' || w.rulename, pg_get_ruledef(w.oid)
+SELECT 'rule', r.name || '.' || w.rulename, pg_get_ruledef(w.oid), NULL::text[]
   FROM pg_rewrite w JOIN rel r ON r.oid = w.ev_class WHERE w.rulename <> '_RETURN'
 UNION ALL
 SELECT 'constraint', r.name || '.' || k.conname,
-       concat_ws('|', pg_get_constraintdef(k.oid), k.convalidated)
+       concat_ws('|', pg_get_constraintdef(k.oid), k.convalidated), NULL::text[]
   FROM pg_constraint k JOIN rel r ON r.oid = k.conrelid
 UNION ALL
 SELECT 'default', r.name || '.' || a.attname,
-       concat_ws('|', a.attgenerated, pg_get_expr(d.adbin, d.adrelid))
+       concat_ws('|', a.attgenerated, pg_get_expr(d.adbin, d.adrelid)), NULL::text[]
   FROM pg_attrdef d JOIN rel r ON r.oid = d.adrelid
   JOIN pg_attribute a ON a.attrelid = d.adrelid AND a.attnum = d.adnum
 UNION ALL
 SELECT 'column', r.name || '.' || a.attname,
-       concat_ws('|', format_type(a.atttypid, a.atttypmod), a.attnotnull, a.attacl::text)
+       concat_ws('|', format_type(a.atttypid, a.atttypmod), a.attnotnull),
+       coalesce(a.attacl, '{}'::aclitem[])::text[]
   FROM pg_attribute a JOIN rel r ON r.oid = a.attrelid
  WHERE a.attnum > 0 AND NOT a.attisdropped AND (a.attname = 'tenant_id' OR a.attacl IS NOT NULL)
 UNION ALL
-SELECT 'index', r.name || '.' || ic.relname, pg_get_indexdef(i.indexrelid)
+SELECT 'index', r.name || '.' || ic.relname, pg_get_indexdef(i.indexrelid), NULL::text[]
   FROM pg_index i JOIN rel r ON r.oid = i.indrelid JOIN pg_class ic ON ic.oid = i.indexrelid
 UNION ALL
 SELECT 'event_trigger', e.evtname,
-       concat_ws('|', e.evtevent, e.evtfoid::regprocedure::text, e.evtenabled, e.evttags::text,
-                 pg_get_userbyid(e.evtowner))
+       concat_ws('|', e.evtevent, e.evtfoid::regprocedure::text, e.evtenabled,
+                 pg_get_userbyid(e.evtowner)),
+       e.evttags
   FROM pg_event_trigger e
 UNION ALL
 SELECT 'role', a.rolname, concat_ws('|', a.rolsuper, a.rolbypassrls, a.rolcanlogin, a.rolinherit,
-       a.rolcreaterole, a.rolcreatedb, a.rolreplication)
+       a.rolcreaterole, a.rolcreatedb, a.rolreplication), NULL::text[]
   FROM pg_roles a WHERE a.rolname ~ '^xt_'
 UNION ALL
 SELECT 'membership', pg_get_userbyid(m.member) || '->' || pg_get_userbyid(m.roleid),
-       concat_ws('|', m.admin_option, m.inherit_option, m.set_option)
+       concat_ws('|', m.admin_option, m.inherit_option, m.set_option), NULL::text[]
   FROM pg_auth_members m
  WHERE pg_get_userbyid(m.roleid) ~ '^xt_' OR pg_get_userbyid(m.member) ~ '^xt_'
 """
 
 
+def canonical_entry(definition: object, members: Sequence[str] | None) -> str:
+    """Dạng chuẩn ổn định qua pg_dump/pg_restore: định nghĩa (chỉ tên, không OID) + tập phần tử
+    (mục ACL `grantee=quyền/grantor` theo TÊN role, role của policy, tag event trigger) đã sắp
+    xếp. Thứ tự gốc của các mảng này theo OID/thứ tự GRANT nên đổi khi khôi phục; ACL NULL đã
+    được SQL thay bằng `acldefault` nên tương đương với ACL tường minh bằng mặc định."""
+    text = str(definition or "")
+    if members is None:
+        return text
+    return text + "\x1f" + "\x1e".join(sorted(set(members)))
+
+
 def security_catalog(conn: psycopg.Connection[Any]) -> dict[str, str]:
     """{"<loại>:<tên>": sha256(định nghĩa)} cho toàn bộ catalog liên quan bảo mật của xt*."""
     out: dict[str, str] = {}
-    for kind, name, definition in conn.execute(SECURITY_CATALOG_SQL).fetchall():
-        out[f"{kind}:{name}"] = hashlib.sha256(str(definition or "").encode()).hexdigest()
+    for kind, name, definition, members in conn.execute(SECURITY_CATALOG_SQL).fetchall():
+        canon = canonical_entry(definition, members)
+        out[f"{kind}:{name}"] = hashlib.sha256(canon.encode()).hexdigest()
     return out
+
+
+def checkpoint_outdated(doc: Mapping[str, Any]) -> bool:
+    """Checkpoint ký với cách tính digest cũ: digest hàm/catalog không so được với hiện tại."""
+    return bool(doc.get("digest_version", 1) != DIGEST_VERSION)
 
 
 @dataclass(frozen=True)
@@ -286,6 +322,7 @@ def take_checkpoint(conn: psycopg.Connection[Any], *, label: str = "") -> dict[s
     rows = conn.execute("SELECT tenant_id, seq, hash FROM xt_audit.heads()").fetchall()
     return {
         "format": CHECKPOINT_FORMAT,
+        "digest_version": DIGEST_VERSION,
         "created_at": datetime.now(UTC).isoformat(),
         "label": label,
         "audit_functions": audit_functions_digest(conn),
@@ -385,8 +422,10 @@ def verify_against_checkpoint(
     """Kiểm ở CLIENT (không tin hàm kiểm trong DB, R3-05): đọc dòng thô của chuỗi, tự tính lại
     SHA-256 theo `canon`, rồi đối chiếu đầu chuỗi đã ký. Digest hàm audit khác checkpoint →
     `functions_changed` cho mọi tenant."""
-    changed = bool(doc.get("audit_functions")) and doc["audit_functions"] != audit_functions_digest(
-        conn
+    changed = (
+        bool(doc.get("audit_functions"))
+        and not checkpoint_outdated(doc)
+        and doc["audit_functions"] != audit_functions_digest(conn)
     )
     out: list[AnchorResult] = []
     for h in doc["heads"]:
