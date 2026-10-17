@@ -9,7 +9,7 @@ from typing import Any
 from uuid import UUID
 
 from xt.domain.model.errors import ModelError
-from xt.domain.warehouse import invalid, parse_lines, quantity
+from xt.domain.warehouse import REQUEST_KINDS, check_reversal, invalid, parse_lines, quantity
 
 WAREHOUSE_MODELS = frozenset(
     {
@@ -64,14 +64,19 @@ def validate_write(
         if not workflow and previous.get("state") not in ("draft", "returned"):
             raise invalid("Chỉ sửa được phiếu nháp hoặc phiếu được trả lại.")
     lines = parse_lines(row.get("lines"))
-    if row.get("kind") not in ("receive", "issue"):
-        raise invalid("Loại phiếu phải là receive hoặc issue.")
+    if row.get("kind") not in REQUEST_KINDS:
+        raise invalid("Loại phiếu phải là receive, issue hoặc reversal.")
+    if (row.get("kind") == "reversal") != bool(row.get("reverses")):
+        raise invalid("Phiếu đảo phải chỉ rõ phiếu gốc; phiếu khác không được có phiếu gốc.")
     service.get(actor, "warehouse", UUID(str(row["warehouse"])))
     for line in lines:
         service.get(actor, "stock_item", line.item)
         location = service.get(actor, "warehouse_location", line.location)["record"]
         if str(location["warehouse"]) != str(row["warehouse"]):
             raise invalid("Vị trí dòng hàng không thuộc kho của phiếu.")
+    if row.get("kind") == "reversal":
+        original = service.get(actor, "stock_request", UUID(str(row["reverses"])))["record"]
+        check_reversal(dict(row), dict(original))
     if workflow and row.get("state") == "approved":
         found = service.search(
             actor,
