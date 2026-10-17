@@ -88,6 +88,39 @@ test('integrated assertions bind tenant, person, path, body, role and nonce', as
   }
 });
 
+test('signed request_id is validated and written to the request log', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'xt-studio-rid-'));
+  const store = new Store(dir);
+  const secret = randomBytes(32);
+  const server = createStudio(store, { integrated: true, secret, log: true });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const lines: string[] = [];
+  const realLog = console.log;
+  console.log = (line: string) => { lines.push(line); };
+  const call = (requestId: unknown) => {
+    const claim = { v: 1, tenant: randomUUID(), person: randomUUID(), name: 'Alice', workspace_name: 'Acme', roles: ['studio_user'],
+      method: 'GET', path: '/api/session', body_sha256: createHash('sha256').update('').digest('hex'),
+      iat: Math.floor(Date.now() / 1000), nonce: randomUUID(), request_id: requestId };
+    const encoded = Buffer.from(JSON.stringify(claim)).toString('base64url');
+    return fetch(origin + '/api/session', { headers: { 'x-xt-assertion': encoded,
+      'x-xt-signature': createHmac('sha256', secret).update(encoded).digest('hex') } });
+  };
+  try {
+    const rid = randomBytes(16).toString('hex');
+    assert.equal((await call(rid)).status, 200);
+    assert.ok(lines.some((line) => line.startsWith('GET /api/session 200 ') && line.endsWith(` request_id=${rid}`)));
+    assert.equal((await call('bad id\nforged log line')).status, 401);
+    assert.equal((await call(42)).status, 401);
+    assert.ok(!lines.some((line) => line.includes('forged')));
+  } finally {
+    console.log = realLog;
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('tenant mapping survives a Studio restart without claiming legacy workspace', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'xt-studio-map-'));
   const tenant = randomUUID();

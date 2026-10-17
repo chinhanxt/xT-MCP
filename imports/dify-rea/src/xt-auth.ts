@@ -6,10 +6,11 @@ import type { IncomingMessage } from 'node:http';
 import { HttpError } from './validation.ts';
 
 export type StudioRole = 'admin' | 'editor' | 'viewer';
-export interface XtIdentity { tenant: string; person: string; name: string; workspace_name: string; role: StudioRole; capability?: string }
+export interface XtIdentity { tenant: string; person: string; name: string; workspace_name: string; role: StudioRole; capability?: string; request_id?: string }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const digest = /^[0-9a-f]{64}$/;
 const encoded = /^[A-Za-z0-9_-]+$/;
+const requestId = /^[0-9a-f]{32}$/;
 const roleRank: Record<StudioRole, number> = { viewer: 1, editor: 2, admin: 3 };
 
 export function studioRole(roles: string[]): StudioRole | undefined {
@@ -77,7 +78,8 @@ export function assertionVerifier(secret: Buffer) {
         typeof claim.method !== 'string' || claim.method !== req.method ||
         typeof claim.path !== 'string' || claim.path !== req.url || !claim.path.startsWith('/api/') ||
         typeof claim.body_sha256 !== 'string' || !digest.test(claim.body_sha256) ||
-        typeof claim.iat !== 'number' || !Number.isInteger(claim.iat) || Math.abs(now - claim.iat) > 30)
+        typeof claim.iat !== 'number' || !Number.isInteger(claim.iat) || Math.abs(now - claim.iat) > 30 ||
+        (claim.request_id !== undefined && (typeof claim.request_id !== 'string' || !requestId.test(claim.request_id))))
       throw new HttpError(401, 'Assertion xT không hợp lệ hoặc đã hết hạn.');
     const role = studioRole(claim.roles as string[]);
     if (!role) throw new HttpError(403, 'Chưa được cấp quyền Studio.');
@@ -95,6 +97,7 @@ export function assertionVerifier(secret: Buffer) {
     (req as IncomingMessage & { verifiedBody?: Buffer }).verifiedBody = rawBody;
     return { tenant: claim.tenant as string, person: claim.person as string, name: claim.name as string,
       workspace_name: claim.workspace_name as string, role,
-      ...(typeof claim.capability === 'string' ? { capability: claim.capability } : {}) };
+      ...(typeof claim.capability === 'string' ? { capability: claim.capability } : {}),
+      ...(typeof claim.request_id === 'string' ? { request_id: claim.request_id } : {}) };
   };
 }
