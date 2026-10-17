@@ -10,7 +10,8 @@
     "stock_item",
     "stock_request",
     "stock_balance",
-    "stock_movement"
+    "stock_movement",
+    "stock_level"
   ],
   "processes": [
     "stock_approval"
