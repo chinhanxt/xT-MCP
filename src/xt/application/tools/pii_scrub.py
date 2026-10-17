@@ -62,6 +62,43 @@ NUMERIC_BUSINESS_KEYS = frozenset(
     }
 )
 PROTOCOL_KEYS = frozenset({"code", "retryable", "explain_ref", "continuation"})
+# Opaque identifiers can contain phone/CCCD/account digits; preserve their scalar values only.
+SYSTEM_IDENTIFIER_KEYS = frozenset(
+    {
+        "confirmation_id",
+        "confirm_url",
+        "trace_id",
+        "ref",
+        "refs",
+        "record_refs",
+        "idempotency_key",
+        "operation_ref",
+        "lineage_ref",
+        "parent_ref",
+        "source_ref",
+        "subject_ref",
+        "plan_digest",
+        "id",
+        "record",
+        "instance",
+        "task",
+        "requester",
+        "assignee",
+        "delegate_to",
+        "plan_hash",
+        "confirmers",
+    }
+)
+# Model payloads may reuse identifier names, so exemptions apply only in protocol metadata.
+SYSTEM_METADATA_PATHS = frozenset(
+    {
+        ("details",),
+        ("details", "confirmer"),
+        ("details", "confirmers"),
+        ("details", "plan_summary"),
+        ("details", "plan_summary", "recipients"),
+    }
+)
 
 
 def normalize(text: str) -> str:
@@ -97,8 +134,18 @@ class ErrorScrubber:
             out = rx.sub(lambda m: self._hit(m.group(0)), out)
         return out
 
-    def value(self, node: Any, key: str | None = None) -> Any:
-        if key is not None and key in self._fields and node is not None:
+    def value(self, node: Any, key: str | None = None, *, path: tuple[str, ...] = ()) -> Any:
+        if path and path[:-1] in SYSTEM_METADATA_PATHS and path[-1] in SYSTEM_IDENTIFIER_KEYS:
+            if isinstance(node, str):
+                return node
+            if isinstance(node, list):
+                return [self.value(x, path=path) for x in node]
+        if (
+            key is not None
+            and key in self._fields
+            and node is not None
+            and path not in SYSTEM_METADATA_PATHS
+        ):
             return self._hit(str(node)) if not isinstance(node, Mapping | list) else self._all(node)
         if isinstance(node, str):
             return self.text(node)
@@ -116,7 +163,7 @@ class ErrorScrubber:
                 return self._hit(str(node))
             return node
         if isinstance(node, list):
-            return [self.value(x) for x in node]
+            return [self.value(x, path=path) for x in node]
         if isinstance(node, Mapping):
             # Vi phạm trên field PII: thông điệp thường echo giá trị -> che toàn bộ thông điệp.
             pii_violation = isinstance(node.get("field"), str) and node["field"] in self._fields
@@ -128,7 +175,7 @@ class ErrorScrubber:
                 elif k in PROTOCOL_KEYS:
                     out[nk] = v
                 else:
-                    out[nk] = self.value(v, k if isinstance(k, str) else None)
+                    out[nk] = self.value(v, k if isinstance(k, str) else None, path=(*path, k))
             return out
         return node
 
