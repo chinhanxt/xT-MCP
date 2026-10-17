@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { AppKind, ChatMessage, InputField } from '../contracts.ts';

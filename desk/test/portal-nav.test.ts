@@ -68,6 +68,7 @@ it('I space offers the Desk assistant and keeps Studio in the same-origin frame'
   root = createRoot(container);
   await act(async () => { root!.render(createElement(Portal, { area: 'I', mcp, tools: [], sandboxUrl: new URL('https://sandbox.test'), onOpenLink: () => true, revealDpop: undefined, onNavigate })); });
   expect(container.querySelector('iframe[title="xT Studio"]')?.getAttribute('src')).toBe('/studio/?integrated=1');
+  expect((container.querySelector('iframe[title="xT Studio"]') as HTMLElement).dataset.xtScope).toBe('studio');
   expect(container.querySelector('h2')?.getAttribute('tabindex')).toBe('-1');
   const button = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Mở trợ lý Desk')!;
   await act(async () => button.click());

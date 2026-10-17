@@ -1,0 +1,19 @@
+{
+  "id": "duyet_bang_cong",
+  "name": "Duyệt bảng chấm công tuần",
+  "version": 1,
+  "roles": ["project_manager", "director"],
+  "inputs": {"total_hours_milli": {"type": "int", "description": "Tổng giờ khai trong tuần (milli giờ)"}},
+  "fallback_assignee": "role(director)",
+  "steps": [
+    {"id": "pm", "type": "approve", "name": "Quản lý dự án duyệt bảng công", "assignee": "role(project_manager)", "outcomes": ["approve", "reject", "return_for_revision"]},
+    {
+      "id": "director",
+      "type": "approve",
+      "name": "Giám đốc duyệt bảng công trên 60 giờ/tuần",
+      "assignee": "role(director)",
+      "when": "total_hours_milli > 60000",
+      "outcomes": ["approve", "reject", "return_for_revision"]
+    }
+  ]
+}

@@ -41,7 +41,10 @@ def validate_write(
             raise ModelError(
                 "access_denied", "Tồn kho và biến động chỉ được ghi bởi quy trình duyệt."
             )
-        if previous is not None and (model == "stock_movement" or not workflow):
+        if previous is not None and (
+            not workflow
+            or (model == "stock_movement" and not _backfill(service, actor, row, previous))
+        ):
             raise ModelError("access_denied", "Không được sửa lịch sử kho hoặc ghi tồn trực tiếp.")
         if not row.get("warehouse"):
             raise invalid("Tồn kho và biến động phải gắn kho để đối soát và báo cáo.")
@@ -92,3 +95,14 @@ def validate_write(
         )
         if found["total"] != len(lines):
             raise invalid("Chưa ghi đủ biến động kho; không thể đánh dấu đã ghi nhận.")
+
+
+def _backfill(
+    service: Any, actor: Any, row: Mapping[str, Any], previous: Mapping[str, Any]
+) -> bool:
+    """The one allowed movement edit: fill a missing `warehouse` with the location's warehouse."""
+    changed = {k for k in row if row.get(k) != previous.get(k)}
+    if previous.get("warehouse") or changed != {"warehouse"}:
+        return False
+    location = service.get(actor, "warehouse_location", UUID(str(previous["location"])))
+    return str(location["record"]["warehouse"]) == str(row["warehouse"])

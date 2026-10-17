@@ -36,7 +36,10 @@ Dữ liệu AI mặc định ở `~/.local/state/xt-unified/studio`; secret ký 
 - Tạo kho → vị trí → hàng hóa → phiếu nhập/xuất → gửi duyệt → người có quyền xác nhận. Số lượng hiển thị theo đơn vị, backend dùng số nguyên phần nghìn.
 - Sửa phiếu đã ghi nhận bằng phiếu đảo: `kind=reversal`, `reverses` trỏ phiếu nhập/xuất gốc đã ghi nhận, dòng hàng trùng toàn bộ phiếu gốc. Phiếu đảo đi qua đúng quy trình duyệt, ghi biến động ngược dấu với khóa `<phiếu gốc>:<dòng>:rev`; mỗi phiếu gốc chỉ đảo được một lần, không đảo phiếu đảo, không làm âm kho. Biến động cũ không bị sửa hay xóa.
 - `stock_balance` và `stock_movement` mang ref `warehouse` do quy trình ghi kho điền, nên tồn theo kho và nhập/xuất theo kho lọc được bằng `search_records` (`where` trên `warehouse`). Tồn cũ chưa có kho được điền ở lần ghi kế tiếp.
-- `stock_level` là tồn theo hàng × kho, cập nhật trong cùng transaction ghi kho: `on_hand_milli`, `reorder_level_milli`, `below_reorder`, `last_movement` (biến động gần nhất). Hàng dưới ngưỡng là `search_records` với `where` `below_reorder = true`. Ngưỡng là giá trị của hàng tại lần ghi kho gần nhất; đổi `reorder_level_milli` của hàng chỉ có hiệu lực ở lần ghi kế tiếp.
+- `stock_level` là tồn theo hàng × kho, cập nhật trong cùng transaction ghi kho: `on_hand_milli`, `reorder_level_milli`, `below_reorder`, `last_movement` (biến động gần nhất). Hàng dưới ngưỡng là `search_records` với `where` `below_reorder = true`. Mỗi lần ghi kho vào một kho, mọi hàng có `reorder_level_milli > 0` đều có dòng `stock_level` cho kho đó (kể cả hàng chưa từng nhập), và ngưỡng được áp lại theo giá trị hiện tại của hàng. Giới hạn: kho chưa có lần ghi kho nào kể từ khi đổi ngưỡng thì cờ vẫn theo ngưỡng cũ hoặc chưa có dòng.
+- Tồn và biến động ghi trước khi có ref `warehouse` được điền dần (tối đa 100 dòng mỗi model cho mỗi lần ghi kho), lấy kho từ vị trí, có audit; biến động chỉ được sửa đúng trường này khi đang trống.
+- Thời gian nghiệp vụ và thời gian tiếp nhận tách riêng: `stock_request.doc_date` (ngày chứng từ, không bắt buộc) được chép sang `stock_movement.occurred_on`; `posted_at` là lúc hệ thống ghi nhận.
+- Nhập/xuất theo kỳ: `aggregate_records` trên `stock_movement`, `metrics ["count", "sum:quantity_milli"]`, `group_by ["warehouse"]` hoặc `["item"]`, `time_bucket` + `date_field "occurred_on"` (hoặc `posted_at`), `period`. Cùng quyền đọc, RLS và phạm vi như `search_records`; chỉ nhóm/cộng trường không chứa PII; tối đa 1000 nhóm; mỗi kết quả có `as_of`.
 - `approved` của phiếu kho là đã ghi nhận tồn và sổ biến động trong cùng giao dịch. Khi ghi kho lỗi, quyết định và biến động phải rollback để thử lại được.
 - Dữ liệu mô phỏng 3D nằm trong trình duyệt, không sửa tồn kho nghiệp vụ. Tải lại mô phỏng sẽ đặt lại hoạt cảnh.
 
@@ -52,5 +55,7 @@ Public share và API key độc lập đang tắt trong chế độ tích hợp.
 - `make unified-test`: test của Studio và Desk; WareTrack 3D chưa có test script nên kiểm tra production build và báo rõ giới hạn này. Test backend chạy riêng bằng `uv run pytest tests/unit --no-cov`.
 - `uv run pytest tests/integration/composition/test_warehouse.py -m integration --no-cov`: PostgreSQL thật, container fixture riêng, không dùng tenant thực. Chỉ chạy khi không có bài test stack nặng khác.
 - `uv run pytest tests/unit/http/test_studio_node.py --no-cov`: proxy Python gọi Node/SQLite thật, gồm danh tính tenant và callback công cụ; identity đầu vào là fixture, không thay thế nghiệm thu Keycloak thật.
+
+Sao lưu/khôi phục, health check và truy vết lỗi theo `trace_id`: [unified-ops.md](unified-ops.md). Ma trận quyền: [unified-role-matrix.md](unified-role-matrix.md).
 
 Tiến độ đầy đủ, bằng chứng và các mục chưa đạt nằm trong [nhật ký thực thi](plans/unified-execution.md). Build/test với fixture không phải bằng chứng đã cập nhật server public hoặc đã nghiệm thu ChatGPT live cho bản hợp nhất.

@@ -23,6 +23,7 @@ from pydantic import BaseModel, ValidationError
 
 from xt.application.model_engine.operations import apply_operations
 from xt.application.model_engine.ports import (
+    AggregateQuery,
     ApplyOutcome,
     Busy,
     CatalogReader,
@@ -52,6 +53,9 @@ from xt.domain.model.values import (
 )
 
 MAX_LIMIT, MAX_OFFSET = 200, 10_000
+MAX_GROUPS = 1000
+GROUP_TYPES = ("text", "enum", "ref", "user", "bool", "date")
+BUCKET_UNITS = ("day", "week", "month", "quarter", "year")
 Action = Literal["create", "read", "update", "delete"]
 
 
@@ -348,20 +352,7 @@ class RecordService(_CatalogMixin):
                 f"limit 1..{MAX_LIMIT}, offset 0..{MAX_OFFSET}",
                 details={"reason": "validation"},
             )
-        expr: Expr | None = None
-        if where:
-            from pydantic import TypeAdapter
-
-            try:
-                expr = TypeAdapter(Expr).validate_python(dict(where))
-                check_expr_types(expr, with_system_fields(m), for_filter=True)
-            except (ValidationError, ValueError) as e:
-                msg = e.errors()[0]["msg"] if isinstance(e, ValidationError) else str(e)
-                raise ModelError(
-                    "invalid_request",
-                    f"Bộ lọc không hợp lệ: {msg}",
-                    details={"reason": "validation", "valid_fields": sorted(with_system_fields(m))},
-                ) from e
+        expr = self._filter(m, where)
         by = with_system_fields(m)
         order: list[tuple[str, bool]] = []
         for s in sort[:3]:
@@ -373,15 +364,8 @@ class RecordService(_CatalogMixin):
                     details={"reason": "validation", "valid_fields": sorted(by)},
                 )
             order.append((col, s.startswith("-")))
-        scopes = {
-            m.permissions[r].scope
-            for r in actor.roles
-            if r in m.permissions and "read" in m.permissions[r].actions
-        }
         try:
-            page = self.repo.search(
-                actor, m, expr, order, limit, offset, "all" if "all" in scopes else "scoped"
-            )
+            page = self.repo.search(actor, m, expr, order, limit, offset, self._scope(actor, m))
         except StoreError as e:
             raise _store_error(m, cat, e, "read") from e
         return {
@@ -390,6 +374,85 @@ class RecordService(_CatalogMixin):
             "has_more": offset + len(page.rows) < page.total,
             "model_revision": ver,
         }
+
+    @staticmethod
+    def _filter(m: ModelSpec, where: Mapping[str, Any] | None) -> Expr | None:
+        if not where:
+            return None
+        from pydantic import TypeAdapter
+
+        try:
+            expr: Expr = TypeAdapter(Expr).validate_python(dict(where))
+            check_expr_types(expr, with_system_fields(m), for_filter=True)
+        except (ValidationError, ValueError) as e:
+            msg = e.errors()[0]["msg"] if isinstance(e, ValidationError) else str(e)
+            raise ModelError(
+                "invalid_request",
+                f"Bộ lọc không hợp lệ: {msg}",
+                details={"reason": "validation", "valid_fields": sorted(with_system_fields(m))},
+            ) from e
+        return expr
+
+    @staticmethod
+    def _scope(actor: ModelActor, m: ModelSpec) -> Literal["all", "scoped"]:
+        scopes = {
+            m.permissions[r].scope
+            for r in actor.roles
+            if r in m.permissions and "read" in m.permissions[r].actions
+        }
+        return "all" if "all" in scopes else "scoped"
+
+    def aggregate(
+        self,
+        actor: ModelActor,
+        model: str,
+        where: Mapping[str, Any] | None,
+        query: AggregateQuery,
+    ) -> dict[str, Any]:
+        """count/sum per group under the same read permission, filter and RLS as search."""
+        ver, cat = self._catalog(actor)
+        m = self._model(cat, model)
+        self._require(actor, m, "read")
+        expr = self._filter(m, where)
+        by = with_system_fields(m)
+
+        def field(name: str, types: tuple[str, ...], role: str) -> None:
+            f = by.get(name)
+            if f is None or f.type not in types or f.pii != "none":
+                raise ModelError(
+                    "invalid_request",
+                    f"Không dùng được '{name}' cho {role}: cần trường {'/'.join(types)}"
+                    " không chứa dữ liệu cá nhân",
+                    details={"reason": "validation", "field": name},
+                )
+
+        if len(set(query.group_by)) != len(query.group_by):
+            raise ModelError(
+                "invalid_request", "group_by bị trùng", details={"reason": "validation"}
+            )
+        for name in query.group_by:
+            field(name, GROUP_TYPES, "group_by")
+        for name in query.sums:
+            field(name, ("number", "money"), "sum")
+        if query.bucket is not None:
+            unit, name, _ = query.bucket
+            if unit not in BUCKET_UNITS:
+                raise ModelError(
+                    "invalid_request", f"time_bucket không hợp lệ: {unit}",
+                    details={"reason": "validation"},
+                )  # fmt: skip
+            field(name, ("date", "datetime"), "time_bucket")
+        try:
+            page = self.repo.aggregate(actor, m, expr, query, MAX_GROUPS, self._scope(actor, m))
+        except StoreError as e:
+            raise _store_error(m, cat, e, "read") from e
+        if page.truncated:
+            raise ModelError(
+                "resource_constraint",
+                f"Quá {MAX_GROUPS} nhóm; thu hẹp bộ lọc hoặc bớt group_by",
+                details={"reason": "too_many_groups", "max_groups": MAX_GROUPS},
+            )
+        return {"model_revision": ver, "as_of": page.as_of, "rows": page.rows}
 
 
 # ------------------------------------------------------------------ model engine ----

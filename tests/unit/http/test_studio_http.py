@@ -138,6 +138,21 @@ def test_fails_closed_on_redirect_html_and_network_error(relay: Any) -> None:
     assert relay.proxy.slots.value == 4
 
 
+def test_request_id_is_returned_and_bound_into_the_assertion(relay: Any) -> None:
+    ok = relay.browser.get("/studio-api/session", headers={"x-request-id": "client-chosen"})
+    rid = ok.headers["x-request-id"]
+    assert len(rid) == 32 and int(rid, 16) >= 0 and rid != "client-chosen"
+    encoded = relay.requests[0].headers["x-xt-assertion"]
+    payload = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+    assert payload["request_id"] == rid
+    denied = relay.browser.get("/studio-api/session", headers={"authorization": ""})
+    assert denied.status_code == 401 and len(denied.headers["x-request-id"]) == 32
+    relay.state["offline"] = True
+    failed = relay.browser.get("/studio-api/session")
+    assert failed.status_code == 502
+    assert len({rid, denied.headers["x-request-id"], failed.headers["x-request-id"]}) == 3
+
+
 def test_opt_in_and_invalid_configuration() -> None:
     app = Starlette()
     assert with_studio(None, {}, app) is app

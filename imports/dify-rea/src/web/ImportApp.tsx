@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { useState } from 'react';
 import type { Model, Knowledge, StudioApp, McpConnector } from '../contracts.ts';
 import { Modal, ErrorBox } from './ui.tsx';

@@ -29,7 +29,7 @@ class Workspace:
         caller = self.rt.caller(ctx)
         want = set(
             args.get("include")
-            or ("me", "models", "processes", "task_types", "policies", "tools", "limits")
+            or ("me", "models", "processes", "task_types", "policies", "apps", "tools", "limits")
         )
         me: Data = {
             "ref": f"person:{caller.person.id}",
@@ -84,6 +84,8 @@ class Workspace:
                 if pol
                 else []
             )
+        if "apps" in want:
+            out["apps"] = self._apps(caller)
         if "tools" in want:
             tools = []
             for c in CATALOG:
@@ -100,6 +102,31 @@ class Workspace:
                 "confirmation_ttl_seconds": int(self.settings.confirmation_ttl.total_seconds()),
             }
         return out
+
+    def _apps(self, caller: Caller) -> list[Data]:
+        """Ứng dụng Tầng 3 đã cài (gói có khối `app`), theo thứ tự tên gói."""
+        apps: list[Data] = []
+        for p in self.rt.store.packs(caller.actor):
+            app = p.get("app")
+            if not app:
+                continue
+            apps.append(
+                {
+                    "id": app["id"],
+                    "pack": p["pack"],
+                    "title": app["title"],
+                    "group": app["group"],
+                    "status": p.get("status") or "enabled",
+                    "version": p["version"],
+                    "ui": [
+                        {"kind": u["kind"], **({"path": u["path"]} if u.get("path") else {})}
+                        for u in app["ui"]
+                    ],
+                    "tools": list(app["tools"]),
+                    "models": list(p.get("models") or []),
+                }
+            )
+        return apps
 
 
 class History:

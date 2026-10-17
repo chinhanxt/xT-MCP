@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { setTimeout as delay } from 'node:timers/promises';
 import type { GraphNode } from './contracts.ts';
 export async function withNodePolicy(node: GraphNode, execute: () => Promise<void>, fallback: () => void, signal?: AbortSignal) {

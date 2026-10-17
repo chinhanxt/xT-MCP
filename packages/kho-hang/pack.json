@@ -1,7 +1,7 @@
 {
   "format": "xt-pack/1",
   "pack": "kho-hang",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "title": "Kho hàng: nhập xuất qua phê duyệt",
   "depends_on": [],
   "models": [
@@ -43,5 +43,32 @@
     "step_actions": {
       "manager": "record.approve"
     }
+  },
+  "app": {
+    "id": "kho-hang",
+    "title": "Kho hàng (WMS)",
+    "group": "hang-hoa",
+    "depends_on": [],
+    "ui": [
+      {
+        "kind": "module",
+        "path": "/waretrack/"
+      },
+      {
+        "kind": "generic"
+      }
+    ],
+    "tools": [
+      "describe_model",
+      "search_records",
+      "aggregate_records",
+      "get_record",
+      "get_history",
+      "create_record",
+      "update_record",
+      "submit_request",
+      "decide_request",
+      "get_inbox"
+    ]
   }
 }

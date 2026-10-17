@@ -55,6 +55,13 @@
       "required": true
     },
     {
+      "id": "doc_date",
+      "name": "doc_date",
+      "type": "date",
+      "label": "doc_date",
+      "pii": "none"
+    },
+    {
       "id": "lines",
       "name": "lines",
       "type": "json",

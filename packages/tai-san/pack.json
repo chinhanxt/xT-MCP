@@ -1,0 +1,27 @@
+{
+  "format": "xt-pack/1",
+  "pack": "tai-san",
+  "version": "0.1.0",
+  "title": "Tài sản và bảo trì: phiếu bảo trì qua phê duyệt, sự kiện cảm biến (mô phỏng) chỉ là dữ liệu",
+  "depends_on": [],
+  "models": ["tai_san", "phieu_bao_tri", "su_kien_cam_bien"],
+  "processes": ["duyet_bao_tri"],
+  "policies": ["iam"],
+  "allowed_ops": {},
+  "bindings": {"phieu_bao_tri": {"primitive": "request", "process": "duyet_bao_tri", "state_field": "state", "inputs": {"est_cost": {"field": "est_cost"}}}},
+  "notes": {
+    "group": "tai-san-khong-gian",
+    "roles": {
+      "employee": "Xem tài sản; báo sự cố bằng phiếu bảo trì của mình",
+      "technician": "Kỹ thuật viên: ghi sự kiện cảm biến, lập phiếu bảo trì",
+      "facility_manager": "Quản lý tài sản: tạo, sửa tài sản (kể cả tình trạng); duyệt phiếu bảo trì",
+      "director": "Đọc toàn bộ; duyệt phiếu bảo trì trên 20 triệu",
+      "admin": "Quản trị danh mục tài sản",
+      "agent": "Danh tính agent: đọc, ghi sự kiện cảm biến, soạn nháp phiếu; không ghi tài sản, không duyệt",
+      "xt_workflow": "Danh tính dịch vụ duy nhất ghi trạng thái phiếu bảo trì"
+    },
+    "step_actions": {"*": "record.approve"},
+    "simulation": "Nguồn mo-phong là dữ liệu giả lập, hiển thị nhãn MÔ PHỎNG; sự kiện chỉ là dữ liệu, không tự ghi tình trạng tài sản.",
+    "tenant_demo": "binhminh"
+  }
+}

@@ -15,7 +15,7 @@ import { Portal } from "./Portal";
 import { Tier3 } from "./Tier3";
 import { PortalBoundary, PortalPending } from "./PortalBoundary";
 import { AREAS, useAreaRoute } from "./portal-nav";
-import { createPortalBridge } from "./portal";
+import { createPortalBridge, createPortalHost } from "./portal";
 import { applyAgentEvent, type Item } from "./items";
 import type { AgentEvent, ChatMessage, McpTool } from "./types";
 
@@ -69,7 +69,7 @@ export function App() {
   }, [session]);
   useEffect(() => {
     if (authState.status !== "authenticated") return;
-    const bridge = createPortalBridge(auth, mcp);
+    const bridge = createPortalHost(createPortalBridge(auth, mcp));
     window.xtPortal = bridge;
     return () => { bridge.invalidate(); if (window.xtPortal === bridge) delete window.xtPortal; };
   }, [auth, mcp, authState.status]);
