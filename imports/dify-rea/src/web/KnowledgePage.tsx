@@ -17,7 +17,9 @@ export function KnowledgePage({
   models,
   reload,
   notify,
+  integrated = false,
 }: {
+  integrated?: boolean;
   items: Knowledge[];
   models: Model[];
   reload: () => Promise<void>;
@@ -58,7 +60,11 @@ export function KnowledgePage({
     setBusy(true);
     setError('');
     try {
-      await api(`/knowledge/${selected.id}/documents`, 'POST', { name: data.get('name'), content: data.get('content') });
+      await api(
+        `/knowledge/${selected.id}/documents`,
+        'POST',
+        integrated ? { xt_ref: data.get('xt_ref') } : { name: data.get('name'), content: data.get('content') },
+      );
       setUpload(false);
       await loadDocs(selected.id);
       await reload();
@@ -240,6 +246,13 @@ export function KnowledgePage({
           }}
         >
           <form onSubmit={addDocument}>
+            {integrated ? (
+              <label>
+                Ref bản ghi tài liệu xT (đọc theo quyền của bạn)
+                <input name="xt_ref" required maxLength={200} placeholder="document:sop-xuat-kho" autoFocus />
+              </label>
+            ) : (
+              <>
             <label>
               Chọn file TXT / Markdown / PDF / DOCX (tối đa 5 MB)
               <input
@@ -282,6 +295,8 @@ export function KnowledgePage({
               Nội dung
               <textarea name="content" required rows={9} maxLength={1000000} />
             </label>
+              </>
+            )}
             <ErrorBox error={error} />
             <button className="primary full" disabled={busy}>
               {busy ? 'Đang lập chỉ mục…' : 'Lưu và lập chỉ mục'}

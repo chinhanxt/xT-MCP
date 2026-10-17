@@ -4,6 +4,7 @@ import { embed, generate } from './models.ts';
 import { indexDocument, retrieve } from './knowledge.ts';
 import type { AppConfig } from './contracts.ts';
 import { extractDocument } from './documents.ts';
+import { fetchXtDocument, xtRef } from './xt-source.ts';
 function references(value: unknown, resource: 'model' | 'knowledge', id: string): boolean {
   if (!value) return false;
   const config = JSON.parse(String(value)) as AppConfig;
@@ -11,6 +12,7 @@ function references(value: unknown, resource: 'model' | 'knowledge', id: string)
     ? config.model_id === id || config.graph.nodes.some((n) => n.type === 'llm' && n.data.model_id === id)
     : config.knowledge_ids.includes(id) || config.graph.nodes.some((n) => n.type === 'retrieval' && n.data.knowledge_id === id);
 }
+const rawContent = () => new HttpError(403, 'Studio tích hợp chỉ lập chỉ mục tài liệu từ bản ghi xT (xt_ref).');
 export async function routeResources(ctx: RouteContext): Promise<boolean> {
   const { store, req, path, method, workspace, send } = ctx;
   if (path === '/api/models' && method === 'GET') {
@@ -93,6 +95,7 @@ export async function routeResources(ctx: RouteContext): Promise<boolean> {
   if (knowledgeMatch) {
     const id = knowledgeMatch[1];
     store.knowledge(workspace, id);
+    if (ctx.identity && method === 'POST' && knowledgeMatch[2] === 'extract') throw rawContent();
     if (method === 'POST' && knowledgeMatch[2] === 'extract') {
       const value = await body(req);
       send(await extractDocument(value.name, value.file_base64));
@@ -102,7 +105,7 @@ export async function routeResources(ctx: RouteContext): Promise<boolean> {
       send(
         store.db
           .prepare(
-            'SELECT d.id,d.name,d.status,d.error,d.enabled,length(d.content) AS characters,(SELECT count(*) FROM chunks c WHERE c.document_id=d.id) AS chunk_count FROM documents d WHERE knowledge_id=?',
+            'SELECT d.id,d.name,d.status,d.error,d.enabled,d.xt_ref,d.xt_revision,length(d.content) AS characters,(SELECT count(*) FROM chunks c WHERE c.document_id=d.id) AS chunk_count FROM documents d WHERE knowledge_id=?',
           )
           .all(id),
       );
@@ -110,6 +113,12 @@ export async function routeResources(ctx: RouteContext): Promise<boolean> {
     }
     if (method === 'POST' && knowledgeMatch[2] === 'documents') {
       const v = await body(req);
+      if (ctx.identity) {
+        if (v.content !== undefined || v.name !== undefined) throw rawContent();
+        const ref = xtRef(v.xt_ref), source = await fetchXtDocument(ctx.coreTools, ref);
+        send(await indexDocument(store, workspace, id, source.name, source.content, undefined, undefined, { ref, revision: source.revision }), 201);
+        return true;
+      }
       send(await indexDocument(store, workspace, id, text(v.name, 'Tên tài liệu', 200), text(v.content, 'Nội dung', 1000000)), 201);
       return true;
     }
@@ -131,7 +140,7 @@ export async function routeResources(ctx: RouteContext): Promise<boolean> {
   if (docMatch) {
     const doc = store.db
       .prepare(
-        'SELECT d.id,d.knowledge_id,d.name,d.content,d.status FROM documents d JOIN knowledge k ON k.id=d.knowledge_id WHERE d.id=? AND k.workspace_id=?',
+        'SELECT d.id,d.knowledge_id,d.name,d.content,d.status,d.xt_ref FROM documents d JOIN knowledge k ON k.id=d.knowledge_id WHERE d.id=? AND k.workspace_id=?',
       )
       .get(docMatch[1], workspace);
     if (!doc) throw new HttpError(404, 'Không tìm thấy tài liệu.');
@@ -151,6 +160,12 @@ export async function routeResources(ctx: RouteContext): Promise<boolean> {
     }
     if (method === 'PUT') {
       const v = await body(req);
+      if (ctx.identity) {
+        if (Object.keys(v).length || !doc.xt_ref) throw rawContent();
+        const ref = String(doc.xt_ref), source = await fetchXtDocument(ctx.coreTools, ref);
+        send(await indexDocument(store, workspace, String(doc.knowledge_id), source.name, source.content, undefined, docMatch[1], { ref, revision: source.revision }));
+        return true;
+      }
       send(
         await indexDocument(
           store,

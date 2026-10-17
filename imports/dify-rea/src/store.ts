@@ -50,6 +50,8 @@ export class Store {
         this.db.exec("ALTER TABLE conversations ADD COLUMN audience TEXT NOT NULL DEFAULT 'studio'");
       if (!this.db.prepare('PRAGMA table_info(runs)').all().some((c) => c.name === 'person_id'))
         this.db.exec("ALTER TABLE runs ADD COLUMN person_id TEXT NOT NULL DEFAULT ''");
+      if (!this.db.prepare('PRAGMA table_info(documents)').all().some((c) => c.name === 'xt_ref'))
+        this.db.exec('ALTER TABLE documents ADD COLUMN xt_ref TEXT; ALTER TABLE documents ADD COLUMN xt_revision INTEGER;');
       this.db.exec(
         'INSERT OR IGNORE INTO app_versions SELECT id,version,published,name,description,updated_at FROM apps WHERE published IS NOT NULL AND version>0; PRAGMA user_version=1;',
       );

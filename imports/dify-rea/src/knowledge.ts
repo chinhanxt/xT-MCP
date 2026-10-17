@@ -20,6 +20,7 @@ export async function indexDocument(
   content: string,
   signal?: AbortSignal,
   existingId?: string,
+  source?: { ref: string; revision: number },
 ) {
   const knowledge = store.knowledge(workspace, knowledgeId),
     id = existingId ?? store.id();
@@ -34,8 +35,8 @@ export async function indexDocument(
     store.db.prepare("UPDATE documents SET status='indexing',error=NULL WHERE id=?").run(id);
   } else
     store.db
-      .prepare('INSERT INTO documents(id,knowledge_id,name,content,status) VALUES(?,?,?,?,?)')
-      .run(id, knowledgeId, name, content, 'indexing');
+      .prepare('INSERT INTO documents(id,knowledge_id,name,content,status,xt_ref,xt_revision) VALUES(?,?,?,?,?,?,?)')
+      .run(id, knowledgeId, name, content, 'indexing', source?.ref ?? null, source?.revision ?? null);
   try {
     const vectors: number[][] = [];
     if (knowledge.embedding_model_id)
@@ -51,6 +52,7 @@ export async function indexDocument(
         store.db.prepare('INSERT INTO chunk_search(id,content) VALUES(?,?)').run(chunkId, chunks[i]);
       }
       store.db.prepare('UPDATE documents SET status=?,error=NULL,name=?,content=? WHERE id=?').run('ready', name, content, id);
+      if (source) store.db.prepare('UPDATE documents SET xt_ref=?,xt_revision=? WHERE id=?').run(source.ref, source.revision, id);
     });
     return { id, status: 'ready', chunk_count: chunks.length };
   } catch (error) {

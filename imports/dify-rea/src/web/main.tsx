@@ -281,7 +281,7 @@ function Studio() {
               </>
             )}
             {page === 'models' && <Models models={models} reload={reload} notify={setNotice} />}
-            {page === 'knowledge' && <KnowledgePage items={knowledge} models={models} reload={reload} notify={setNotice} />}
+            {page === 'knowledge' && <KnowledgePage items={knowledge} models={models} reload={reload} notify={setNotice} integrated={session.integrated} />}
             {page === 'mcp' && <McpConnectors items={connectors} reload={reload} notify={setNotice} />}
             {page === 'runs' && <Runs />}
           </div>
