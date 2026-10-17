@@ -1,0 +1,23 @@
+{
+  "id": "cc_cham_cong",
+  "name": "cham_cong",
+  "label": "Dòng chấm công",
+  "title_field": "date",
+  "fields": [
+    {"id": "f1", "name": "person", "type": "user", "label": "Người chấm công", "pii": "none", "required": true},
+    {"id": "f2", "name": "project", "type": "ref", "label": "Dự án", "pii": "none", "required": true, "ref": "du_an"},
+    {"id": "f3", "name": "date", "type": "date", "label": "Ngày làm việc", "pii": "none", "required": true},
+    {"id": "f4", "name": "hours_milli", "type": "number", "label": "Số giờ (milli giờ: 1 giờ = 1000)", "pii": "none", "required": true, "min": 0, "max": 24000},
+    {"id": "f5", "name": "note", "type": "text", "label": "Ghi chú công việc", "pii": "none", "max": 2000},
+    {"id": "f6", "name": "timesheet", "type": "ref", "label": "Bảng chấm công tuần", "pii": "none", "ref": "bang_cong_tuan"}
+  ],
+  "rules": [{"id": "r1", "message": "Số giờ một ngày không được vượt quá 24 giờ", "check": {"field": "hours_milli", "op": "<=", "value": 24000}}],
+  "indexes": [{"id": "i1", "fields": ["person", "project", "date"], "unique": true}],
+  "permissions": {
+    "employee": {"actions": ["create", "read", "update"], "scope": "own"},
+    "project_manager": {"actions": ["read"], "scope": "all"},
+    "director": {"actions": ["read"], "scope": "all"},
+    "admin": {"actions": ["read"], "scope": "all"},
+    "agent": {"actions": ["read"], "scope": "all"}
+  }
+}

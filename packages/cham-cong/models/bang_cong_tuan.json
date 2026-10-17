@@ -1,0 +1,49 @@
+{
+  "id": "cc_bang_cong",
+  "name": "bang_cong_tuan",
+  "label": "Bảng chấm công tuần",
+  "title_field": "week_start",
+  "fields": [
+    {"id": "f1", "name": "week_start", "type": "date", "label": "Tuần bắt đầu (thứ Hai)", "pii": "none", "required": true},
+    {"id": "f2", "name": "week_end", "type": "date", "label": "Tuần kết thúc (Chủ nhật)", "pii": "none", "required": true},
+    {
+      "id": "f3",
+      "name": "total_hours_milli",
+      "type": "number",
+      "label": "Tổng giờ khai trong tuần (milli giờ: 1 giờ = 1000)",
+      "pii": "none",
+      "required": true,
+      "default": 0,
+      "min": 0,
+      "max": 168000
+    },
+    {"id": "f4", "name": "note", "type": "text", "label": "Ghi chú", "pii": "none", "max": 2000},
+    {
+      "id": "f5",
+      "name": "state",
+      "type": "enum",
+      "label": "Trạng thái",
+      "pii": "none",
+      "required": true,
+      "default": "draft",
+      "managed_by": "workflow",
+      "options": [
+        {"value": "draft", "label": "Nháp"},
+        {"value": "in_review", "label": "Chờ duyệt"},
+        {"value": "returned", "label": "Trả lại"},
+        {"value": "approved", "label": "Đã duyệt"},
+        {"value": "rejected", "label": "Từ chối"},
+        {"value": "withdrawn", "label": "Đã rút"}
+      ]
+    }
+  ],
+  "rules": [{"id": "r1", "message": "'Tuần kết thúc' phải sau hoặc bằng 'Tuần bắt đầu'", "check": {"field": "week_end", "op": ">=", "other_field": "week_start"}}],
+  "permissions": {
+    "employee": {"actions": ["create", "read", "update"], "scope": "own"},
+    "project_manager": {"actions": ["read"], "scope": "all"},
+    "director": {"actions": ["read"], "scope": "all"},
+    "admin": {"actions": ["read"], "scope": "all"},
+    "agent": {"actions": ["create", "read", "update"], "scope": "own"},
+    "xt_workflow": {"actions": ["create", "read", "update"], "scope": "all"}
+  }
+}
