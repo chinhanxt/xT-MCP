@@ -43,7 +43,9 @@ def _sources(
         ]
     original = db.get("stock_request", UUID(str(row["reverses"])))
     check_reversal(row, original)
-    ledger = db.rows("stock_movement", {"field": "request", "op": "=", "value": original["id"]})
+    ledger = db.rows(
+        "stock_movement", {"field": "request", "op": "=", "value": str(original["id"])}
+    )
     if {r["key"] for r in ledger} != {f"{original['id']}:{i}" for i in range(len(lines))}:
         raise invalid("Sổ biến động của phiếu gốc không đầy đủ; cần đối soát trước khi đảo.")
     return [
