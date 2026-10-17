@@ -1,0 +1,19 @@
+{
+  "id": "duyet_bao_tri",
+  "name": "Phê duyệt phiếu bảo trì",
+  "version": 1,
+  "roles": ["facility_manager", "director"],
+  "inputs": {"est_cost": {"type": "int", "description": "Chi phí dự kiến (VND)"}},
+  "fallback_assignee": "role(director)",
+  "steps": [
+    {"id": "manager", "type": "approve", "name": "Quản lý tài sản duyệt", "assignee": "role(facility_manager)", "outcomes": ["approve", "reject", "return_for_revision"]},
+    {
+      "id": "director",
+      "type": "approve",
+      "name": "Giám đốc duyệt chi phí trên 20 triệu",
+      "assignee": "role(director)",
+      "when": "est_cost > 20000000",
+      "outcomes": ["approve", "reject", "return_for_revision"]
+    }
+  ]
+}
