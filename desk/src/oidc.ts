@@ -14,6 +14,13 @@ export interface OidcConfig {
   postLogoutRedirectUri?: string;
   /** Tùy chọn (mặc định tắt): tên query param gợi ý thêm cho IdP khác; Keycloak chọn tenant bằng scope organization:<alias>. */
   organizationParam?: string;
+  /**
+   * Client scope mang mapper Organization dùng để chọn tenant (mặc định `organization`). Keycloak coi MỌI scope có mapper
+   * `oidc-organization-membership-mapper` là scope tổ chức dạng động `<scope>:<alias>`; xin đồng thời hai scope như vậy
+   * (vd. `mcp-xt` trơn + `organization:<alias>`) thì kết quả phụ thuộc thứ tự nội bộ của Keycloak (khi sai: mất tenant hoặc
+   * hiện lại bộ chọn). xT đặt `mcp-xt` (scope mang mapper) để Desk xin duy nhất `mcp-xt:<alias>`.
+   */
+  organizationScope?: string;
 }
 
 export interface KvStorage {
@@ -72,6 +79,18 @@ interface TokenResponse {
 }
 const PKCE_KEY = "xt.desk.oidc.pending";
 const TENANT_KEY = "xt.desk.oidc.tenant-switch";
+/**
+ * Chọn tenant bằng scope: bỏ mọi scope tổ chức (`organization`, `organization:*`, `<mang>:*`), rồi hoặc đổi chính scope
+ * mang mapper (`mcp-xt` -> `mcp-xt:<alias>`) hoặc, nếu cấu hình không có scope đó, chèn `organization:<alias>` ngay sau `openid`.
+ */
+function organizationScope(scope: string, organization: string, carrier = "organization"): string {
+  const words = scope.split(/\s+/).filter(s => s && s !== "organization" && !s.startsWith("organization:") && !s.startsWith(`${carrier}:`));
+  const target = `${carrier}:${organization}`;
+  const at = words.indexOf(carrier);
+  if (at >= 0) words[at] = target;
+  else words.splice(words.indexOf("openid") + 1, 0, target);
+  return words.join(" ");
+}
 export const validOrganization = (alias: string) => !!alias && !/[\s\u0000-\u001f\u007f:*]/.test(alias);
 
 const b64url = (b: ArrayBuffer | Uint8Array) =>
@@ -92,6 +111,8 @@ export function validateConfig(c: Partial<OidcConfig>): OidcConfig {
   if (c.organizationParam && (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(c.organizationParam) ||
       ["response_type", "client_id", "redirect_uri", "scope", "state", "nonce", "code_challenge", "code_challenge_method"].includes(c.organizationParam)))
     throw new AuthRequiredError("OIDC organizationParam không hợp lệ");
+  if (c.organizationScope !== undefined && !/^[A-Za-z][A-Za-z0-9_.-]*$/.test(c.organizationScope))
+    throw new AuthRequiredError("OIDC organizationScope không hợp lệ");
   return c as OidcConfig;
 }
 
@@ -166,7 +187,7 @@ export class OidcSession {
         response_type: "code",
         client_id: this.cfg.clientId,
         redirect_uri: this.cfg.redirectUri,
-        scope: organization === undefined ? this.cfg.scope : [...this.cfg.scope.split(/\s+/).filter(s => s && s !== "organization" && !s.startsWith("organization:")), `organization:${organization}`].join(" "),
+        scope: organization === undefined ? this.cfg.scope : organizationScope(this.cfg.scope, organization, this.cfg.organizationScope),
         state,
         nonce,
         code_challenge: challenge,

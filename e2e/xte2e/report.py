@@ -47,6 +47,7 @@ SCENARIOS: dict[str, str] = {
     "E9": "Đăng nhập OIDC trên Desk (container xt-desk thật)",
     "E10": "Security smoke + auth âm + SoD",
     "E11": "Audit tamper",
+    "E12": "Đổi tenant trên Desk (Organization, đăng xuất RP, token tenant mới)",
 }
 
 

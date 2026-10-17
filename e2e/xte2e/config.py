@@ -30,6 +30,8 @@ HEADLESS_REDIRECT = "http://127.0.0.1:8765/callback"
 STACK_OVERRIDES = {
     "XT_MCP_LOCAL_CLIENTS": "",
     "XT_DATA_CLIENTS": HEADLESS_CLIENT,
+    # E12: bộ chọn tenant của Desk (nướng vào ảnh xt-desk) gợi ý đúng hai tenant của demo-seed.
+    "DESK_OIDC_ORGANIZATIONS": "binhminh,hoamai",
 }
 
 

@@ -5,6 +5,7 @@
 // LLM (chỉ chế độ chat): URL DESK_LLM_URL nướng trong ảnh Desk (http://ollama:11434/v1) -> Ollama host 127.0.0.1:11434.
 //   stdin JSON: ["oidc", user, password, totp_seed]
 //   stdin JSON: ["chat", user, password, totp_seed, prompt]
+//   stdin JSON: ["switch", user, password, totp_seed, {from, to, area, action, carrier, from_markers, to_markers}] (E12: đổi tenant bằng bộ chọn)
 // In JSON một dòng cuối: {"checks":[...], "fails":n, ...}. Mã thoát 1 khi có FAIL.
 import { createRequire } from "node:module";
 import http from "node:http";
@@ -17,6 +18,7 @@ const require = createRequire(path.resolve(here, "../../desk/package.json"));
 const { chromium } = require("@playwright/test");
 
 const [MODE, USER, PASS, SEED, PROMPT] = JSON.parse(readFileSync(0, "utf8"));
+const SW = MODE === "switch" ? PROMPT : null;
 const GW = process.env.GW || `127.0.0.1:${process.env.APISIX_HTTP_PORT || 9080}`;
 const LLM = process.env.LLM_HOST || "127.0.0.1:11434";
 const H = { desk: "xt.freepro.online", auth: "xt-auth.freepro.online", mcp: "xt-mcp.freepro.online", api: "xt-api.freepro.online" };
@@ -76,6 +78,33 @@ async function viaGateway(route, target, hostHeader) {
   return route.fulfill({ status: r.status, headers: hdr, body: r.buf });
 }
 
+// Đăng nhập Keycloak theo trạng thái trang (identity-first của Organizations: username -> password -> [OTP] -> [chọn tổ chức]).
+// Trả về các bước đã đi qua để E12 chứng minh Keycloak thật sự hỏi lại thông tin đăng nhập sau khi đổi tenant.
+async function kcLogin(page, org) {
+  const steps = [];
+  for (let i = 0; i < 12; i++) {
+    if (new URL(page.url()).host === H.desk) return steps;
+    const state = await Promise.race([
+      page.waitForURL(new RegExp(`^https://${H.desk}/`), { timeout: 15000 }).then(() => "desk"),
+      page.waitForSelector("#username:visible", { timeout: 15000 }).then(() => "username"),
+      page.waitForSelector("#password:visible", { timeout: 15000 }).then(() => "password"),
+      page.waitForSelector("#otp:visible", { timeout: 15000 }).then(() => "otp"),
+      page.waitForSelector('button[name="kc.org"]', { timeout: 15000 }).then(() => "org"),
+    ]).catch(() => "timeout");
+    if (state === "desk") return steps;
+    if (state === "timeout") throw new Error(`kcLogin kẹt ở ${page.url().slice(0, 100)}`);
+    steps.push(state);
+    if (state === "username") { await page.fill("#username", USER); await page.click("#kc-login"); }
+    else if (state === "password") { await page.fill("#password", PASS); await page.click("#kc-login"); }
+    else if (state === "otp") { await page.fill("#otp", totp(SEED || "")); await page.click("#kc-login"); }
+    else { await page.click(org ? `button[name="kc.org"][value="${org}"]` : 'button[name="kc.org"]'); }
+    await page.waitForLoadState("domcontentloaded").catch(() => {});
+  }
+  throw new Error("kcLogin: quá nhiều bước");
+}
+const orgClaim = (jwt) => [].concat(b64j(jwt).organization ?? []);
+const bodyText = (page) => page.evaluate(() => document.body.innerText);
+
 const browser = await chromium.launch({ headless: true });
 const ctx = await browser.newContext({ ignoreHTTPSErrors: true });
 await ctx.route(/^https:\/\/xt(-auth|-mcp|-api)?\.freepro\.online\//, async (route) => {
@@ -108,10 +137,101 @@ page.on("response", (r) => {
 let token = null;
 page.on("request", (r) => {
   const a = r.url().endsWith("/mcp") && r.headers()["authorization"];
-  if (a) { token = a.replace(/^(Bearer|DPoP) /, ""); out.scheme = a.split(" ")[0]; out.dpop_proof = !!r.headers()["dpop"]; }
+  if (a) { token = a.replace(/^(Bearer|DPoP) /, ""); out.scheme = a.split(" ")[0]; out.dpop_proof = !!r.headers()["dpop"]; (out.mcp_tokens ||= []).push(token); }
+  // E12: vết điều hướng OIDC (đăng xuất RP + authorize); id_token_hint không bao giờ ghi lại.
+  if (r.isNavigationRequest()) {
+    const u = new URL(r.url());
+    if (u.pathname.endsWith("/openid-connect/logout") || u.pathname.endsWith("/openid-connect/auth")) {
+      u.searchParams.delete("id_token_hint"); u.searchParams.delete("state"); u.searchParams.delete("nonce"); u.searchParams.delete("code_challenge");
+      (out.nav ||= []).push({ kind: u.pathname.split("/").pop(), params: Object.fromEntries(u.searchParams) });
+    }
+  }
 });
 
+async function switchTenant() {
+  const { from, to, area, action, carrier, from_markers: fromMarkers, to_markers: toMarkers } = SW;
+  out.sw = { from, to, area };
+  const res = await page.goto(`https://${H.desk}/`);
+  check(res && res.status() === 200, `Desk (container xt-desk qua APISIX) trả 200 (${res && res.status()})`);
+  await page.waitForSelector("#login", { timeout: 20000 });
+  await page.click("#login");
+  await page.waitForURL(new RegExp(`^https://${H.auth}/`), { timeout: 20000 });
+  out.sw.login_a = await kcLogin(page, from);
+  await page.waitForSelector(".logout", { timeout: 30000 });
+  for (let i = 0; i < 80 && !out.mcp.some((r) => r.auth && r.method === "tools/list"); i++) await page.waitForTimeout(250);
+  check(!!token, "đăng nhập tenant A: Desk gọi /mcp có token");
+  const oldToken = token;
+  const oldOrgs = oldToken ? orgClaim(oldToken) : [];
+  out.sw.old = { organization: oldOrgs, exp: oldToken ? b64j(oldToken).exp : null };
+  out.old_access = oldToken; // chỉ để harness introspect lại sau khi đổi; harness không ghi vào báo cáo
+  check(oldOrgs.length === 1 && oldOrgs[0] === from, `token trước khi đổi mang đúng một Organization = ${from} (${oldOrgs})`);
+  // Dữ liệu tenant A phải THẬT SỰ hiện trên màn hình trước khi đổi (nếu không, "không còn dữ liệu cũ" là vô nghĩa).
+  await page.getByRole("button", { name: area, exact: true }).click();
+  await page.getByRole("button", { name: action, exact: true }).click(); // vd. "Quản lý của tôi": truy vấn MCP thật của tenant hiện tại
+  let before = "";
+  for (let i = 0; i < 80; i++) { before = await bodyText(page); if (fromMarkers.some((m) => before.includes(m))) break; await page.waitForTimeout(250); }
+  const seenBefore = fromMarkers.filter((m) => before.includes(m));
+  out.sw.seen_before = seenBefore.length;
+  check(seenBefore.length > 0, `dữ liệu tenant ${from} hiện trên màn hình trước khi đổi (${seenBefore.length}/${fromMarkers.length} mốc)`);
+  await page.screenshot({ path: (process.env.SHOT || "/tmp/xt-e2e-desk-switch.png").replace(/\.png$/, "-before.png") }).catch(() => {});
+
+  const picker = page.getByLabel("Doanh nghiệp");
+  check(await picker.count() === 1, "Desk thật (ảnh container) hiện bộ chọn doanh nghiệp");
+  const options = await picker.locator("option").evaluateAll((o) => o.map((x) => x.value));
+  out.sw.options = options;
+  check(options.includes(from) && options.includes(to), `bộ chọn có cả hai alias (${options})`);
+  check(await picker.inputValue() === from, "bộ chọn đang ở tenant hiện tại");
+  const tokensBefore = (out.mcp_tokens || []).length;
+  const navBefore = (out.nav || []).length;
+  await picker.selectOption(to);
+  // RP-initiated logout -> trang gốc Desk (post_logout_redirect_uri) -> authorize có organization:<to> -> form đăng nhập lại.
+  for (let i = 0; i < 120 && !(out.nav || []).slice(navBefore).some((n) => n.kind === "auth"); i++) await page.waitForTimeout(250);
+  await page.waitForURL(new RegExp(`^https://${H.auth}/realms/[^/]+/(protocol/openid-connect/auth|login-actions)`), { timeout: 30000 });
+  const landed = (out.nav || []).slice(navBefore);
+  out.sw.nav = landed;
+  const logoutIdx = landed.findIndex((n) => n.kind === "logout");
+  const authIdx = landed.findIndex((n) => n.kind === "auth");
+  check(logoutIdx >= 0, "Desk gọi end_session (RP-initiated logout) của Keycloak");
+  check(landed[logoutIdx]?.params.post_logout_redirect_uri === `https://${H.desk}/`, `post_logout_redirect_uri = ${landed[logoutIdx]?.params.post_logout_redirect_uri}`);
+  check(authIdx > logoutIdx && logoutIdx >= 0, "sau đăng xuất mới mở authorize (không dùng lại phiên SSO)");
+  const scope = landed[authIdx]?.params.scope || "";
+  out.sw.authorize_scope = scope;
+  check(scope.split(" ").includes(`${carrier}:${to}`) && !scope.split(" ").includes(`${carrier}:${from}`) && !scope.split(" ").includes(carrier), `scope authorize chứa ${carrier}:${to}, không còn ${carrier}:${from} và không có ${carrier} trơn (${scope})`);
+  const gone = await bodyText(page);
+  check(!fromMarkers.some((m) => gone.includes(m)), "trang đăng nhập không còn dữ liệu tenant cũ");
+  out.sw.login_b = await kcLogin(page, null);
+  check(out.sw.login_b.some((x) => x === "username" || x === "password"), `Keycloak hỏi lại thông tin đăng nhập sau khi đổi tenant (${out.sw.login_b})`);
+  check(!out.sw.login_b.includes("org"), "đã chọn tenant ở authorize nên Keycloak không hỏi chọn tổ chức");
+  await page.waitForSelector(".logout", { timeout: 30000 });
+  for (let i = 0; i < 80 && (out.mcp_tokens || []).length === tokensBefore; i++) await page.waitForTimeout(250);
+  const newToken = token;
+  check(!!newToken && newToken !== oldToken, "token mới khác token cũ");
+  const newOrgs = newToken ? orgClaim(newToken) : [];
+  out.sw.new = { organization: newOrgs };
+  check(newOrgs.length === 1 && newOrgs[0] === to, `token mới mang đúng một Organization = ${to} (${newOrgs})`);
+  const after = (out.mcp_tokens || []).slice(tokensBefore);
+  check(after.length > 0 && after.every((t) => t !== oldToken && orgClaim(t).join() === to), `mọi request /mcp sau khi đổi đều dùng token tenant ${to} (${after.length} request)`);
+  await page.getByRole("button", { name: area, exact: true }).click();
+  await page.getByRole("button", { name: action, exact: true }).click();
+  let now = "";
+  for (let i = 0; i < 80; i++) { now = await bodyText(page); if (toMarkers.some((m) => now.includes(m))) break; await page.waitForTimeout(250); }
+  const leaked = fromMarkers.filter((m) => now.includes(m));
+  const seenAfter = toMarkers.filter((m) => now.includes(m));
+  out.sw.seen_after = seenAfter.length;
+  out.sw.leaked = leaked;
+  check(seenAfter.length > 0, `dữ liệu tenant ${to} hiện sau khi đổi (${seenAfter.length}/${toMarkers.length} mốc)`);
+  check(leaked.length === 0, `không còn dữ liệu tenant ${from} trên màn hình (${leaked.length} mốc rò rỉ)`);
+  const picked = await page.getByLabel("Doanh nghiệp").inputValue().catch(() => "");
+  check(picked === to, `bộ chọn đã ở tenant ${to} (${picked})`);
+  const ls = JSON.stringify(await page.evaluate(() => ({ ...localStorage, ...sessionStorage })));
+  check(!/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\./.test(ls), "local/sessionStorage không chứa JWT sau khi đổi tenant");
+  check(!ls.includes("tenant-switch"), "khóa chuyển tenant tạm đã bị xóa sau khi đăng nhập xong");
+  await page.screenshot({ path: (process.env.SHOT || "/tmp/xt-e2e-desk-switch.png").replace(/\.png$/, "-after.png") }).catch(() => {});
+  delete out.mcp_tokens;
+}
+
 try {
+  if (MODE === "switch") { await switchTenant(); await browser.close(); console.log("RESULT " + JSON.stringify(out)); process.exit(out.fails ? 1 : 0); }
   const res = await page.goto(`https://${H.desk}/`);
   check(res && res.status() === 200, `Desk (container xt-desk qua APISIX) trả 200 (${res && res.status()})`);
   check((await page.content()).length > 200 && !!(await page.$("#chat")), "trang Desk có khung chat");

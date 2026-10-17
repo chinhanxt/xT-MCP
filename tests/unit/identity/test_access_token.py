@@ -226,6 +226,45 @@ def test_insufficient_scope_is_403(verifier: AccessTokenVerifier, rsa_key: Signi
         verifier.verify(sign(rsa_key, access_claims(scope="mcp-xtx")))
 
 
+def test_dynamic_organization_scope_satisfies_base_scope(
+    verifier: AccessTokenVerifier, rsa_key: SigningKey
+) -> None:
+    """Desk đổi tenant xin `mcp-xt:<alias>` (Keycloak không kèm `mcp-xt` trơn): vẫn đủ scope MCP."""
+    claims = access_claims(scope="openid mcp-xt:hoamai email", organization=["hoamai"])
+    p = verifier.verify(sign(rsa_key, claims))
+    assert p.has_scopes({"mcp-xt"})
+    assert p.scopes == {"openid", "email", "mcp-xt:hoamai", "mcp-xt"}
+    assert p.organizations == ("hoamai",)
+    # Scope tham số của scope KHÁC không thay được `mcp-xt`; `mcp-xtx:a` cũng không.
+    for scope in ("openid organization:hoamai", "openid mcp-xtx:hoamai", "openid xt:mcp-xt"):
+        with pytest.raises(InsufficientScopeError):
+            verifier.verify(sign(rsa_key, access_claims(scope=scope, organization=["hoamai"])))
+
+
+@pytest.mark.parametrize(
+    ("scope", "organization", "required"),
+    [
+        ("openid mcp-xt:", ["hoamai"], "mcp-xt"),  # hậu tố rỗng
+        ("openid mcp-xt:other", ["hoamai"], "mcp-xt"),  # hậu tố khác claim tổ chức
+        ("openid mcp-xt:hoamai", None, "mcp-xt"),  # không có claim tổ chức
+        ("openid mcp-xt:hoamai", ["hoamai", "acme"], "mcp-xt"),  # nhiều tổ chức
+        ("openid mcp-xt:*", ["hoamai"], "mcp-xt"),
+        ("openid mcp-xt xt-data:hoamai", ["hoamai"], "xt-data"),  # ngoài allow-list
+        ("openid mcp-xt admin:hoamai", ["hoamai"], "admin"),
+    ],
+)
+def test_dynamic_scope_rejected_unless_allowlisted_and_matches_tenant(
+    verifier: AccessTokenVerifier,
+    rsa_key: SigningKey,
+    scope: str,
+    organization: list[str] | None,
+    required: str,
+) -> None:
+    claims = access_claims(scope=scope, organization=organization)
+    with pytest.raises(InsufficientScopeError):
+        verifier.verify(sign(rsa_key, claims), required_scopes=frozenset({required}))
+
+
 def test_algorithm_allowlist_from_settings(
     jwks: JwksCache, clock: FakeClock, ec_key: SigningKey
 ) -> None:

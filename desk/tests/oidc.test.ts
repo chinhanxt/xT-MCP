@@ -17,7 +17,7 @@ function mem(): KvStorage & { data: Map<string, string> } {
   return { data, getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v), removeItem: (k) => void data.delete(k) };
 }
 
-function setup(over: { token?: (form: URLSearchParams, n: number) => { status?: number; body: unknown }; issuer?: string; endpointOrigin?: string; dpop?: DpopSigner; endSession?: string; scope?: string; organizationParam?: string } = {}) {
+function setup(over: { token?: (form: URLSearchParams, n: number) => { status?: number; body: unknown }; issuer?: string; endpointOrigin?: string; dpop?: DpopSigner; endSession?: string; scope?: string; organizationParam?: string; organizationScope?: string } = {}) {
   const session = mem();
   let t = 1_000_000;
   const nav: string[] = [];
@@ -35,7 +35,7 @@ function setup(over: { token?: (form: URLSearchParams, n: number) => { status?: 
     const r = over.token?.(form, forms.length) ?? { body: { access_token: `at${++issued}`, refresh_token: `rt${issued}`, expires_in: 300 } };
     return new Response(JSON.stringify(r.body), { status: r.status ?? 200 });
   });
-  const s = new OidcSession({ ...CFG, scope: over.scope ?? CFG.scope, organizationParam: over.organizationParam, postLogoutRedirectUri: "https://desk.example/" }, { fetch: fetchMock as never, session, navigate: (u) => nav.push(u), now: () => t, dpop: over.dpop });
+  const s = new OidcSession({ ...CFG, scope: over.scope ?? CFG.scope, organizationParam: over.organizationParam, organizationScope: over.organizationScope, postLogoutRedirectUri: "https://desk.example/" }, { fetch: fetchMock as never, session, navigate: (u) => nav.push(u), now: () => t, dpop: over.dpop });
   return { s, session, nav, forms, tokenHeaders, fetchMock, advance: (ms: number) => (t += ms) };
 }
 
@@ -332,8 +332,17 @@ describe("đổi doanh nghiệp", () => {
       const q = new URL(h.nav.at(-1)!).searchParams;
       expect(q.has("organization")).toBe(false);
       if (organizationParam) expect(q.get(organizationParam)).toBe("binh-minh");
-      expect(q.get("scope")).toBe("openid mcp-xt organization:binh-minh");
+      expect(q.get("scope")).toBe("openid organization:binh-minh mcp-xt");
     }
+  });
+  it("selects the tenant on the scope that carries the organization mapper (mcp-xt:<alias>), never next to the bare scope", async () => {
+    const h = setup({ scope: "openid mcp-xt profile", organizationScope: "mcp-xt" });
+    await h.s.startLogin("binh-minh");
+    expect(new URL(h.nav.at(-1)!).searchParams.get("scope")).toBe("openid mcp-xt:binh-minh profile");
+    const again = setup({ scope: "openid mcp-xt:old organization organization:old2", organizationScope: "mcp-xt" });
+    await again.s.startLogin("second");
+    expect(new URL(again.nav.at(-1)!).searchParams.get("scope")).toBe("openid mcp-xt:second");
+    expect(() => setup({ organizationScope: "bad scope" })).toThrow(/organizationScope/);
   });
   it("rejects organization hints that can change scope selection", async () => {
     for (const alias of ["", "*", "alpha beta", "alpha\nadmin", "organization:*"]) {
@@ -360,7 +369,7 @@ describe("đổi doanh nghiệp", () => {
     expect(await resumed.resumeTenantSwitch()).toBe(true);
     const next = new URL(h.nav.at(-1)!).searchParams;
     expect(next.has("organization")).toBe(false);
-    expect(next.get("scope")).toBe("openid mcp-xt organization:second");
+    expect(next.get("scope")).toBe("openid organization:second mcp-xt");
     expect(next.get("state")).not.toBe(initial.get("state"));
     expect(next.get("code_challenge")).not.toBe(initial.get("code_challenge"));
     expect(await resumed.resumeTenantSwitch()).toBe(false);

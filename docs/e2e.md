@@ -3,6 +3,8 @@
 
 Định nghĩa: `docs/gap-review.md` §4.1. Tất cả chạy trên stack compose **thật** profile `minimal` (Postgres, Keycloak, APISIX, PostgREST, xt-api, xt-worker, xt-desk), volume mới, qua APISIX bằng hostname thật. Không mock OIDC, MCP, PII, LLM. Quyết định của harness: `docs/decisions.md` mục "Harness e2e E0–E11" (D-E2E-1..8).
 
+E12 (issue #7, `e2e/scenarios/test_e12_tenant_switch.py`) nằm ngoài bảng lịch sử bên dưới: đổi tenant trên Desk container thật với Keycloak thật (user hai tổ chức do kịch bản tự tạo và xóa), chạy trong `make e2e-run`. Kết quả đo và nguyên nhân gốc của scope tổ chức: `docs/identity.md` mục "Chuyển doanh nghiệp trong Desk".
+
 ## Kết quả tiếp tục phiên 16/10/2026
 
 Trên bản nguồn chưa commit `961dcc8893598a2f5c73b42d04c27c98375d37ddae12ec2d82c413bb1c4cb1cc` (digest bản đồ SHA256 các tệp, HEAD nền `2784151`), E0–E11 đạt **12/12** ở cả hai chế độ DPoP. Mỗi chế độ dựng ảnh và volume mới, chạy E1 trước E10 để không chịu trạng thái quota do test đối kháng cố ý tạo.
