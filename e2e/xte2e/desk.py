@@ -13,7 +13,11 @@ from xte2e.config import E2E, ROOT
 
 
 def run(
-    mode: str, user: dict[str, Any], prompt: str = "", timeout: float = 600
+    mode: str,
+    user: dict[str, Any],
+    prompt: str = "",
+    timeout: float = 600,
+    extra: dict[str, Any] | None = None,
 ) -> tuple[int, dict[str, Any], str]:
     if not (ROOT / "desk" / "node_modules" / "@playwright" / "test").exists():
         return (
@@ -30,6 +34,8 @@ def run(
     args = [mode, user["username"], user["password"], user.get("totp") or ""]
     if mode == "chat":
         args.append(prompt)
+    elif extra is not None:  # E12 (switch): cấu hình tenant nguồn/đích + mốc dữ liệu
+        args.append(extra)
     r = subprocess.run(
         ["bash", "-c", cmd],
         input=json.dumps(args),

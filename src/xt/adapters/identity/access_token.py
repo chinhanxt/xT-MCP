@@ -162,6 +162,10 @@ class AccessTokenVerifier:
         jkt = self._check_dpop(token, claims, azp, dpop)
         scope = string(claims, "scope", required=False) or ""
         scopes = frozenset(scope.split())
+        # Keycloak Organizations: scope mang mapper tổ chức được xin dạng động `<scope>:<alias>` (vd.
+        # `mcp-xt:binhminh`, docs/identity.md) và token chỉ chứa dạng đó. Keycloak chỉ cấp khi user là
+        # thành viên tổ chức `alias`, nên coi là đã có `<scope>`.
+        scopes |= {x.partition(":")[0] for x in scopes if ":" in x}
         need = s.required_scopes | required_scopes
         if not need <= scopes:
             raise InsufficientScopeError(need, scopes)

@@ -623,5 +623,34 @@ class DeskAgentRedirects(unittest.TestCase):
         self.assertEqual(r, [f"{self.DESK}/auth/callback", "http://localhost:3000/auth/callback"])
 
 
+class DeskTenantPickerWiring(unittest.TestCase):
+    """Issue #7: bộ chọn tenant của Desk chỉ hiện khi alias cấu hình + claim > 1. `DESK_OIDC_ORGANIZATIONS` đọc lúc
+    build (vite), nên phải đi từ compose -> build arg -> ENV của ảnh; thiếu mắt xích nào thì ảnh sản xuất
+    không bao giờ có bộ chọn (token MCP chỉ mang một Organization)."""
+
+    def test_env_reaches_vite_build(self):
+        dockerfile = (DEPLOY / "docker" / "desk.Dockerfile").read_text()
+        compose = (DEPLOY / "compose.yaml").read_text()
+        arg = re.search(r"^ARG(?:.*\\\n)*.*$", dockerfile, re.M).group(0)
+        self.assertIn("DESK_OIDC_ORGANIZATIONS", arg)
+        self.assertIn('DESK_OIDC_ORGANIZATIONS="$DESK_OIDC_ORGANIZATIONS"', dockerfile)
+        # Mặc định rỗng: sản xuất không có doanh nghiệp mẫu (docs/identity.md).
+        self.assertIn("DESK_OIDC_ORGANIZATIONS: ${DESK_OIDC_ORGANIZATIONS:-}", compose)
+        self.assertRegex((DEPLOY / ".env.example").read_text(), r"(?m)^DESK_OIDC_ORGANIZATIONS=$")
+
+    def test_org_scope_is_the_scope_that_carries_the_mapper(self):
+        """Desk chọn tenant bằng `<scope>:<alias>` của scope mang mapper Organization. Phải là `mcp-xt`: Keycloak coi mọi scope có
+        mapper này là scope tổ chức, nên `mcp-xt` trơn + `organization:<alias>` xung đột (kết quả theo thứ tự nội bộ,
+        e2e E12). Nếu provision.py đổi chỗ đặt mapper, hằng này phải đổi theo."""
+        dockerfile = (DEPLOY / "docker" / "desk.Dockerfile").read_text()
+        compose = (DEPLOY / "compose.yaml").read_text()
+        self.assertIn("DESK_OIDC_ORG_SCOPE", re.search(r"^ARG(?:.*\\\n)*.*$", dockerfile, re.M).group(0))
+        self.assertIn('DESK_OIDC_ORG_SCOPE="$DESK_OIDC_ORG_SCOPE"', dockerfile)
+        self.assertIn("DESK_OIDC_ORG_SCOPE: mcp-xt", compose)
+        src = (DEPLOY / "keycloak" / "provision.py").read_text()
+        mcp = src[src.index("def ensure_mcp_scope"):src.index("def upsert_client")]
+        self.assertIn("oidc-organization-membership-mapper", mcp)
+
+
 if __name__ == "__main__":
     unittest.main()

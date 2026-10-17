@@ -226,6 +226,19 @@ def test_insufficient_scope_is_403(verifier: AccessTokenVerifier, rsa_key: Signi
         verifier.verify(sign(rsa_key, access_claims(scope="mcp-xtx")))
 
 
+def test_dynamic_organization_scope_satisfies_base_scope(
+    verifier: AccessTokenVerifier, rsa_key: SigningKey
+) -> None:
+    """Desk đổi tenant xin `mcp-xt:<alias>` (Keycloak không kèm `mcp-xt` trơn): vẫn đủ scope MCP."""
+    p = verifier.verify(sign(rsa_key, access_claims(scope="openid mcp-xt:hoamai email")))
+    assert p.has_scopes({"mcp-xt"})
+    assert p.scopes == {"openid", "email", "mcp-xt:hoamai", "mcp-xt"}
+    # Scope tham số của scope KHÁC không thay được `mcp-xt`; `mcp-xtx:a` cũng không.
+    for scope in ("openid organization:hoamai", "openid mcp-xtx:hoamai", "openid xt:mcp-xt"):
+        with pytest.raises(InsufficientScopeError):
+            verifier.verify(sign(rsa_key, access_claims(scope=scope)))
+
+
 def test_algorithm_allowlist_from_settings(
     jwks: JwksCache, clock: FakeClock, ec_key: SigningKey
 ) -> None:
