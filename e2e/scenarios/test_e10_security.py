@@ -28,6 +28,33 @@ def _b64(d: bytes) -> str:
     return base64.urlsafe_b64encode(d).rstrip(b"=").decode()
 
 
+def test_llm_auth_boundary(ev: Evidence, world) -> None:  # type: ignore[no-untyped-def]
+    url = f"{world.s.desk}/llm/chat/completions"
+    # Invalid model proves authenticated requests reach validation without inference.
+    body = {
+        "model": "e2e-invalid-model",
+        "messages": [{"role": "user", "content": "auth boundary"}],
+        "stream": True,
+    }
+    session = world.session(world.by_key(A, REQUESTER))
+    with net.client() as client:
+        anonymous = client.post(url, json=body).status_code
+        authorized = client.post(url, json=body, headers=session.auth("POST", url)).status_code
+        results = {"anonymous": anonymous, "authenticated_invalid_model": authorized}
+        if session.dpop is not None:
+            missing_proof = client.post(
+                url, json=body, headers={"Authorization": f"Bearer {session.access()}"}
+            ).status_code
+            results["bound_token_without_proof"] = missing_proof
+    ev.step("LLM: real gateway and identity validation, no inference", results)
+    c = Checks(ev)
+    c.check(anonymous == 401, f"/llm không token -> 401 (thực tế {anonymous})")
+    c.check(authorized == 400, f"/llm có xác thực, model sai -> 400 (thực tế {authorized})")
+    if "bound_token_without_proof" in results:
+        c.check(results["bound_token_without_proof"] == 401, "/llm token gắn khóa thiếu proof -> 401")
+    c.done()
+
+
 def test_security_smoke(ev: Evidence) -> None:
     r = subprocess.run(
         ["bash", str(DEPLOY / "tests" / "security_smoke.sh")],

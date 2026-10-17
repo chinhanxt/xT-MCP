@@ -79,13 +79,47 @@ class ToolAccessGuard:
     ) -> tuple[str, dict[str, Any]]:
         ref = check.resource
         if ref is None:
-            model = str(check.attributes.get("model_id") or "workspace")
+            model = check.attributes.get("model_id")
+            if not model:
+                model = (
+                    check.attributes.get("task_type") or "task"
+                    if check.action == "task.create"
+                    else "workspace"
+                )
+            model = str(model)
             # Tạo mới: chủ sở hữu tương lai là người thật đứng sau lời gọi.
             res: dict[str, Any] = {
                 "owner": str(caller.person.id),
                 "creator": str(caller.person.id),
             }
-            if caller.person.unit_key:
+            values = check.attributes.get("values")
+            proposed = values if isinstance(values, Mapping) else {}
+            raw_owner = proposed.get("owner_id")
+            if raw_owner is not None:
+                try:
+                    proposed_owner_id = (
+                        caller.person.id if raw_owner == "me" else UUID(str(raw_owner))
+                    )
+                except ValueError as exc:
+                    raise invalid_request("Invalid owner_id.", "bad_reference") from exc
+                owner = self.rt.store.person(caller.actor, proposed_owner_id)
+                if owner is None:
+                    raise not_found(f"person:{proposed_owner_id}")
+                res["owner"] = str(proposed_owner_id)
+            if "department_id" in proposed and proposed["department_id"] is not None:
+                try:
+                    dept_id = UUID(str(proposed["department_id"]))
+                except ValueError as exc:
+                    raise invalid_request("Invalid department_id.", "bad_reference") from exc
+                unit = self.rt.store.unit(caller.actor, uid=dept_id)
+                if unit is None:
+                    raise not_found(f"department:{dept_id}")
+                res["department"] = unit.key
+            elif (
+                "department_id" not in proposed
+                and res["owner"] == str(caller.person.id)
+                and caller.person.unit_key
+            ):
                 res["department"] = caller.person.unit_key
             if model == "process" and isinstance(check.attributes.get("process_id"), str):
                 # start_process: tài nguyên là chính quy trình, người khởi tạo là chủ (owner).
@@ -117,7 +151,12 @@ class ToolAccessGuard:
             res["owner"] = str(owner) if owner else ""
             creator = row.get("created_by") or owner
             res["creator"] = str(creator) if creator else ""
-            if owner:
+            department = row.get("department_id")
+            if department is not None:
+                unit = self.rt.store.unit(caller.actor, uid=UUID(str(department)))
+                if unit is not None:
+                    res["department"] = unit.key
+            elif owner:  # legacy records created before department attribution
                 p = self.rt.store.person(caller.actor, UUID(str(owner)))
                 if p is not None and p.unit_key:
                     res["department"] = p.unit_key

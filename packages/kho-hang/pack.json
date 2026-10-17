@@ -1,0 +1,46 @@
+{
+  "format": "xt-pack/1",
+  "pack": "kho-hang",
+  "version": "0.1.0",
+  "title": "Kho hàng: nhập xuất qua phê duyệt",
+  "depends_on": [],
+  "models": [
+    "warehouse",
+    "warehouse_location",
+    "stock_item",
+    "stock_request",
+    "stock_balance",
+    "stock_movement"
+  ],
+  "processes": [
+    "stock_approval"
+  ],
+  "policies": [
+    "iam"
+  ],
+  "allowed_ops": {
+    "post_stock": [
+      "request_id"
+    ]
+  },
+  "bindings": {
+    "stock_request": {
+      "primitive": "request",
+      "process": "stock_approval",
+      "state_field": "state",
+      "inputs": {
+        "request_id": {
+          "field": "id"
+        }
+      }
+    }
+  },
+  "notes": {
+    "roles": {
+      "warehouse_manager": "Người duyệt kho, khác người tạo phiếu"
+    },
+    "step_actions": {
+      "manager": "record.approve"
+    }
+  }
+}

@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 xT contributors
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { CfWorkerJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/cfworker";
 import type { McpTool } from "./types";
 
 /**
@@ -16,7 +17,9 @@ export interface McpConnection {
 }
 
 export async function connectMcp(url: URL, authHeaders: AuthHeaders): Promise<McpConnection> {
-  const client = new Client({ name: "xt-desk", version: "0.1.0" });
+  const client = new Client({ name: "xt-desk", version: "0.1.0" }, {
+    jsonSchemaValidator: new CfWorkerJsonSchemaValidator(),
+  });
   const authedFetch: typeof fetch = async (input, init) => {
     // mỗi request HTTP một proof DPoP mới (htm/htu của chính request); ném lỗi (chưa đăng nhập) => request không được gửi
     const raw = input instanceof Request ? input.url : String(input);

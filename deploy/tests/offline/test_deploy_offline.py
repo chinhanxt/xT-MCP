@@ -408,7 +408,8 @@ class DeskNginx(unittest.TestCase):
         self.assertIn("frame-ancestors 'none'", conf)
         self.assertIn("nosniff", conf)
         df = (DEPLOY / "docker" / "desk.Dockerfile").read_text()
-        self.assertIn("COPY nginx.conf /etc/nginx/conf.d/default.conf", df)
+        self.assertIn("COPY --from=build /desk/nginx.rendered.conf /etc/nginx/conf.d/default.conf", df)
+        self.assertIn("node scripts/render-nginx.mjs", df)
 
 
 class ComposeDefaults(unittest.TestCase):

@@ -102,3 +102,20 @@ def test_protocol_fields_and_numeric_business_keys_are_kept() -> None:
     }
     out = scrub(err)
     assert out == err
+
+
+@pytest.mark.parametrize("field", [f"f{CCCD}", "phone0912345678", "acct1234567890123456"])
+@pytest.mark.parametrize("detail_key", ["field", "fields", "valid_fields", "writable_fields"])
+def test_pii_in_field_identifiers_is_masked(field: str, detail_key: str) -> None:
+    value: Any = field if detail_key == "field" else [field, "task_no", "f12"]
+    out = scrub({"message": f"Field '{field}' is not writable.", "details": {detail_key: value}})
+    assert field not in repr(out)
+    assert MASK in repr(out)
+    if detail_key != "field":
+        assert out["details"][detail_key][1:] == ["task_no", "f12"]
+
+
+def test_pii_in_mapping_keys_is_masked_without_changing_business_values() -> None:
+    out = scrub({"message": "Unknown fields.", "details": {f"f{CCCD}": 150000000}})
+    assert CCCD not in repr(out)
+    assert list(out["details"].values()) == [150000000]

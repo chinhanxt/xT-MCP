@@ -36,7 +36,11 @@ not +1, not model_revision). revision_conflict: retry with details.current_revis
 and stop. Do not call again until the user says they confirmed; then repeat the same call with \
 the same key. Never say it is done before that. Approve/reject always needs that confirmation.
 6. access_denied: tell the user; do not work around it. capability_unavailable: say it is not \
-available; never simulate it. unknown_field: use details.valid_fields.
+available; never simulate it. unknown_field/validation: use details.valid_fields and \
+details.field_contracts (types, required flags, enum options and reference targets), then \
+retry with the same key using the values the user supplied. An optional ref is a record UUID, \
+not a title; omit it unless you have looked up a matching record. Ask only for missing values \
+that the user actually needs to decide.
 7. Keep [PII:...] tokens exactly; never guess or write back the real value.
 """
 

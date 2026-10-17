@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Postgres 17 thật cho test tích hợp model engine (docker `postgres:17-alpine`, cổng 19700).
+"""Postgres 17 thật cho test tích hợp model engine (docker `postgres:17-alpine`, cổng ngẫu nhiên).
 
 Image phải có sẵn trên máy (không pull khi đĩa gần đầy). Mật khẩu/khóa HMAC sinh ngẫu nhiên mỗi
 lần chạy; container tự xóa khi xong.
@@ -9,6 +9,7 @@ lần chạy; container tự xóa khi xong.
 from __future__ import annotations
 
 import secrets
+import socket
 import subprocess
 import time
 from dataclasses import dataclass
@@ -17,8 +18,17 @@ from typing import Any
 import psycopg
 
 IMAGE = "postgres:17-alpine"
-CONTAINER = "xt-it-model-pg"
-PORT = 19700
+
+
+def _free_port() -> int:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+# Tên + cổng riêng mỗi tiến trình test: nhiều lượt chạy song song không xóa nhầm của nhau.
+CONTAINER = f"xt-it-model-pg-{secrets.token_hex(4)}"
+PORT = _free_port()
 DSN = f"host=localhost port={PORT} dbname=xt"
 
 
@@ -70,7 +80,7 @@ def start() -> Pg:
             "--name",
             CONTAINER,
             "-p",
-            f"{PORT}:5432",
+            f"127.0.0.1:{PORT}:5432",
             "-e",
             "POSTGRES_USER=xt_owner",
             "-e",

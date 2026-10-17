@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import difflib
+import json
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Annotated, Any, Literal
@@ -189,6 +190,7 @@ def translate_validation(m: ModelSpec, e: ValidationError, mode: Mode) -> ModelE
     names = [f.name for f in m.fields if mode == "workflow" or not f.managed_by]
     by = m.by_name()
     items: list[dict[str, Any]] = []
+    recovery: set[str] = set()
     unknown = False
     for err in e.errors():
         loc = err.get("loc") or ()
@@ -196,6 +198,8 @@ def translate_validation(m: ModelSpec, e: ValidationError, mode: Mode) -> ModelE
         typ = err["type"]
         ctx = {k: str(v) for k, v in (err.get("ctx") or {}).items()}
         fs = by.get(name)
+        if name in names:
+            recovery.add(name)
         label = fs.label if fs else name
         if typ == "literal_error" and fs is not None and fs.options:
             ctx["expected"] = ", ".join(f"{o.value} ({o.label})" for o in fs.options)
@@ -216,6 +220,7 @@ def translate_validation(m: ModelSpec, e: ValidationError, mode: Mode) -> ModelE
                 text = f"Trường '{label}' do quy trình (workflow) quản lý"
             elif sug:
                 text += f" — có phải ý bạn là '{sug[0]}'?"
+                recovery.update(sug)
             item["message"] = text
         else:
             item["message"] = f"'{label}' {msg}"
@@ -226,6 +231,28 @@ def translate_validation(m: ModelSpec, e: ValidationError, mode: Mode) -> ModelE
     }
     if unknown:
         details["valid_fields"] = names
+    # A compact profile may not advertise describe_model. Return catalog facts for the
+    # invalid/missing fields so a client can correct supplied values without guessing.
+    # Never echo user values or catalog defaults. Oversize metadata is explicitly omitted.
+    contracts, omitted = [], []
+    remaining = 16384
+    for name in sorted(recovery):
+        f = by[name]
+        contract = f.model_dump(
+            mode="json",
+            exclude_none=True,
+            include={"label", "type", "required", "min", "max", "regex", "options", "ref"},
+        )
+        contract["field"] = name
+        size = len(json.dumps(contract, ensure_ascii=False).encode()) + 2
+        if size > remaining:
+            omitted.append(name)
+        else:
+            contracts.append(contract)
+            remaining -= size
+    details["field_contracts"] = contracts
+    if omitted:
+        details["field_contracts_omitted"] = omitted
     return ModelError(
         "invalid_request",
         f"Dữ liệu '{m.label}' chưa hợp lệ ({len(items)} lỗi): "

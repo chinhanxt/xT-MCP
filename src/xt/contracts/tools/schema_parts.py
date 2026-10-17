@@ -40,7 +40,12 @@ def person(desc: str) -> Schema:
 SCALAR: Schema = {"type": ["string", "number", "boolean", "null"]}
 VALUE: Schema = {
     "type": ["string", "number", "boolean", "null", "array"],
-    "items": {"type": ["string", "number", "boolean"]},
+    "items": {
+        "type": ["string", "number", "boolean", "object"],
+        "propertyNames": {"pattern": FIELD_ID},
+        "additionalProperties": SCALAR,
+        "maxProperties": 200,
+    },
     "maxItems": 100,
 }
 

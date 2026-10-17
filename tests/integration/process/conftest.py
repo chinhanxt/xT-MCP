@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Postgres 17 thật (docker, cổng 19900) cho test tích hợp process; tự dọn container sau phiên."""
+"""Postgres 17 thật cho test process: cổng ngẫu nhiên, tự dọn container sau phiên."""
 
 from __future__ import annotations
 
 import os
 import secrets
 import shutil
+import socket
 import subprocess
 import time
 from collections.abc import Callable, Iterator
@@ -21,7 +22,15 @@ from xt.application.process.runtime import ProcessRuntime
 IMAGE = "postgres:17-alpine"
 # Tên container có hậu tố ngẫu nhiên: nhiều lượt chạy song song không xóa container của nhau.
 CONTAINER = f"xt-it-process-pg-{secrets.token_hex(4)}"
-PORT = int(os.environ.get("XT_IT_PROCESS_PG_PORT", "19900"))
+
+
+def _free_port() -> int:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+PORT = int(os.environ.get("XT_IT_PROCESS_PG_PORT") or _free_port())
 
 
 def _wait_ready(dsn: str, timeout: float = 60.0) -> None:
@@ -55,7 +64,7 @@ def pg_dsn() -> Iterator[str]:
         _wait_ready(dsn)
         yield dsn
     finally:
-        subprocess.run(["docker", "rm", "-f", CONTAINER], capture_output=True, check=False)
+        subprocess.run(["docker", "rm", "-f", "-v", CONTAINER], capture_output=True, check=False)
 
 
 @pytest.fixture

@@ -1435,10 +1435,10 @@ _tool(
     ui_resource="ui://xt/approval-card",
     description=(
         "Record the current user's decision on a request step assigned to them: approve, reject, return or delegate. "
-        "Not for sending (submit_request) or withdrawing (transition_record). Get expected_revision with get_record, then call this; "
-        "do not stop after reading. Human-only: it returns confirmation_required with confirm_url. Give the user that confirm_url "
-        "exactly and stop; call again (same arguments, same idempotency_key) only after the user says they confirmed. "
-        "reject/return need the user's own reason: if missing, ask; never write one. VD: 'Duyệt đề xuất của Việt'"
+        "Not for sending (submit_request) or withdrawing (transition_record). expected_revision is the revision from get_record. "
+        "Human-only: an authorized decision remains pending with confirmation_required and a confirm_url for the assigned "
+        "person's confirmation page. After that person confirms, a call with the same arguments and idempotency_key "
+        "returns the decision receipt. reject/return require the user's own reason. VD: 'Duyệt đề xuất của Việt'"
     ),
     errors=[
         "invalid_request",
@@ -1544,8 +1544,8 @@ _tool(
     iam=["task.create"],
     ui_resource="ui://xt/task-board",
     description=(
-        "Assign work to one responsible person with an optional deadline, subtasks (parent_ref), dependencies and weekly/monthly "
-        "recurrence. SLA defaults from the task type. Find the person's ref with find_people first. Change later with update_record / "
+        "Assign work to one responsible person. Use describe_model to supply required model fields in values; "
+        "a deadline is required unless the model defines a default. Find the person's ref with find_people first. Change later with update_record / "
         "transition_record. VD: 'Giao anh Bình làm báo cáo trước thứ 6'"
     ),
     errors=[
@@ -1568,7 +1568,7 @@ _tool(
             "due_at": {
                 "type": "string",
                 "pattern": DATE_OR_DT,
-                "description": "Deadline: YYYY-MM-DD or RFC 3339. Omit to use the task type SLA.",
+                "description": "Deadline: YYYY-MM-DD or RFC 3339. Required unless the task model defines a default.",
             },
             "task_type": {
                 "type": "string",

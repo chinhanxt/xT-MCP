@@ -53,7 +53,7 @@ createServer((req, res) => {
     req.on("end", () => {
       const body = JSON.parse(b);
       requests.push({ ...body, __auth: req.headers.authorization || null });
-      const last = body.messages.at(-1);
+      const last = body.messages.findLast((message) => message.role !== "system");
       if (last.role === "tool") {
         const parts = REPLY.match(/[^ ]+ ?/g);
         return sse(res, parts.map((content) => ({ content })));

@@ -56,6 +56,46 @@ routes:
     upstream:
       type: roundrobin
       nodes: {"xt-api:8000": 1}
+  - id: desk-llm
+    hosts: ["@@XT_DOMAIN_DESK@@"]
+    uri: "/llm/chat/completions"
+    methods: ["POST"]
+    priority: 10
+    plugins:
+      client-control:
+        max_body_size: 1048576
+      proxy-buffering:
+        disable_proxy_buffering: true
+      limit-req:
+        rate: 5
+        burst: 10
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+    upstream:
+      type: roundrobin
+      nodes: {"xt-api:8000": 1}
+      timeout: {connect: 5, send: 420, read: 420}
+  - id: desk-studio
+    hosts: ["@@XT_DOMAIN_DESK@@"]
+    uri: "/studio-api/*"
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"]
+    priority: 10
+    plugins:
+      client-control:
+        max_body_size: 8388608
+      proxy-buffering:
+        disable_proxy_buffering: true
+      limit-req:
+        rate: 10
+        burst: 20
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+    upstream:
+      type: roundrobin
+      nodes: {"xt-api:8000": 1}
+      timeout: {connect: 5, send: 420, read: 420}
   - id: desk-static
     hosts: ["@@XT_DOMAIN_DESK@@"]
     uri: "/*"

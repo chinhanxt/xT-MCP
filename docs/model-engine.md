@@ -133,6 +133,18 @@ Integration (`tests/integration/test_model_engine_pg.py` 12 test + `tests/integr
 - Pre-request PostgREST (`xt.pgrst_pre`) và cấu hình `db_schemas` động chưa nằm trong module này.
 
 
+## 7a. Mô hình đe dọa của `xt_migrator` (quyết định 16/10/2026: phòng ngừa + phát hiện)
+
+**Cô lập credential — mục tiêu chưa hoàn tất:**
+- Mục tiêu thiết kế: chỉ executor đặc quyền nhận mật khẩu `xt_migrator`; API và worker nghiệp vụ chỉ dùng `xt_app`. **Triển khai hiện tại chưa có ranh giới này:** Compose vẫn truyền DSN migrator cho API/worker. Các kiểm thử guard/checkpoint không chứng nhận cô lập credential.
+- Không thể chỉ gỡ biến Compose: API hiện cần migrator cho rehearsal/proposal/replan khi duyệt; worker dùng cho `model.apply` và phục hồi pha 2 trong relay. Công việc tiếp theo là tách executor nội bộ nhận tác vụ có kiểu (plan/rehearse/apply/run-jobs), giữ kiểm hash/phê duyệt/audit ở executor, chuyển đọc proposal sang transaction tenant của `xt_app`. Hàng đợi phải tách claim: hiện mọi `xt.dispatch` dùng chung queue `xt`, nên chỉ tách handler vẫn để worker thường nhận nhầm job đặc quyền. One-shot sau lúc khởi động cần launcher tin cậy bên ngoài; executor sống lâu cần quyết định thiết kế cập nhật rõ.
+- Tiêu chí đóng: API/worker chạy không có credential migrator; luồng propose → duyệt → apply/pha 2, xác nhận thay đổi phá hủy và từ chối plan cũ vẫn pass; worker thường không claim job đặc quyền; restart/retry executor không áp hai lần; kiểm chứng cấu hình render và mount secret của container thật.
+- Lộ credential migrator được coi tương đương lộ DBA: xoay mật khẩu, chạy `xt audit verify --against-checkpoint latest`, điều tra theo danh sách đối tượng mà lệnh in ra.
+
+**Phòng ngừa** (`sql/audit_meta.sql` v4, event trigger của superuser): trigger/RULE trên `xt_meta` chỉ trong allowlist; bảng ngữ cảnh `session_ctx`/`login_tenant` không đổi được; `tenant_id` và policy RESTRICTIVE theo tenant không gỡ được (kể cả CASCADE); mọi hàm `xt`/`xt_audit`/`xt_meta` chỉ superuser đổi (định nghĩa y hệt thì cho chạy lại); biểu thức trên bảng model chỉ dùng hàm `pg_catalog` + `xt.tenant()`/`xt.actor()`; `xt.set_context` chỉ nhận câu `SELECT xt.set_context(...)` gửi thẳng từ client, không có hàm nào khác trên ngăn xếp.
+
+**Phát hiện:** checkpoint (`xt audit checkpoint`) ký Ed25519 gồm đầu chuỗi audit, digest hàm và `security_catalog`: dấu vân tay của schema, hàm, bảng (chủ, RLS, ACL), policy, trigger, rule, constraint, default/generated, cột `tenant_id`/ACL cột, index, event trigger, role `xt_*` và membership. `xt audit verify --against-checkpoint latest` in từng dòng `catalog đổi|thêm|mất: <loại>:<tên>` và trả exit 1 nếu có. Sau mỗi migration/tenant mới đã duyệt, chạy lại `xt audit checkpoint` để lấy mốc mới.
+
 ## 8. Cấu hình Postgres khi triển khai (bắt buộc, để không log giá trị nhạy cảm)
 
 Khóa HMAC không bao giờ đi vào Postgres. Tuy vậy, chuỗi HMAC, mật khẩu `ALTER ROLE` của `bootstrap()` và `DETAIL` của lỗi CHECK/UNIQUE (có giá trị sensitive) vẫn có thể bị ghi ra log. Agent deploy áp đúng như sau.

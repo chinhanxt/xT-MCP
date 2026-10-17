@@ -19,7 +19,7 @@ from typing import Any
 import httpx
 import pytest
 
-from tests.integration.keycloak import RESOURCE, Admin, Realm
+from tests.integration.keycloak import BASE, RESOURCE, Admin, Realm
 from tests.unit.identity.dpop_client import DpopKey
 from xt.adapters.identity import (
     AccessTokenVerifier,
@@ -168,7 +168,7 @@ def test_keycloak_rejects_bad_token_endpoint_proofs(realm: Realm, desk: tuple[st
     token_url = f"{realm.oidc}/token"
     holder = DpopKey()
     for proof in (
-        holder.proof("POST", "http://localhost:19400/realms/other/protocol/openid-connect/token"),
+        holder.proof("POST", f"{BASE}/realms/other/protocol/openid-connect/token"),
         holder.proof("GET", token_url),
         holder.proof("POST", token_url, header={"typ": "JWT"}),
     ):

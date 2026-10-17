@@ -37,7 +37,10 @@ def test_desk_client_config(ev: Evidence) -> None:
 
 def test_desk_container_login(ev: Evidence, world) -> None:  # type: ignore[no-untyped-def]
     rc, res, log = desk.run("oidc", world.by_key(A, REQUESTER), timeout=240)
-    ev.step("desk_real.mjs oidc", {k: res.get(k) for k in ("checks", "claims", "http", "mcp")})
+    ev.step(
+        "desk_real.mjs oidc",
+        {k: res.get(k) for k in ("checks", "claims", "http", "mcp", "notes")},
+    )
     c = Checks(ev)
     for ch in res.get("checks", []):
         c.check(ch["ok"], ch["msg"])
@@ -49,4 +52,5 @@ def test_desk_container_login(ev: Evidence, world) -> None:  # type: ignore[no-u
         )
     if not res:
         c.check(False, f"desk_real.mjs không chạy được: {log[-400:]}")
+    c.check(rc == 0, f"desk_real.mjs thoát mã 0 (rc={rc}, notes={res.get('notes', [])})")
     c.done()

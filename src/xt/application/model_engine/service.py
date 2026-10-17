@@ -34,6 +34,7 @@ from xt.application.model_engine.ports import (
     SchemaMissing,
     StoreError,
 )
+from xt.application.warehouse.validation import validate_write as validate_warehouse_write
 from xt.contracts.model import ProposeModelChange, describe_model, propose_result
 from xt.domain.model.checks import constraint_map, fk_sources
 from xt.domain.model.context import ModelActor, TenantRef
@@ -201,6 +202,7 @@ class RecordService(_CatalogMixin):
         reject_managed(m, dict(values))
         vals = self._values(actor, ver, m, "create", values)
         row = {**self._defaults(m), **vals}
+        validate_warehouse_write(self, actor, model, row)
         bad = rule_violations(m, row)
         if bad:
             raise bad
@@ -258,6 +260,9 @@ class RecordService(_CatalogMixin):
             )
         if int(cur["revision"]) != expected_revision:
             raise self._conflict(int(cur["revision"]), expected_revision)
+        validate_warehouse_write(
+            self, actor, model, {**cur, **vals}, previous=cur, workflow=workflow
+        )
         bad = rule_violations(m, {**cur, **vals})
         if bad:
             raise bad

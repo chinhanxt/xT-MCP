@@ -69,8 +69,8 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION xt_meta.decision_sod_guard() FROM PUBLIC;
 
-DROP TRIGGER IF EXISTS decision_sod_guard ON xt_meta.decision;
-CREATE TRIGGER decision_sod_guard BEFORE INSERT OR UPDATE OR DELETE ON xt_meta.decision
+-- CREATE OR REPLACE (không DROP): trigger trên xt_meta không được xóa bởi role thường (R4-01)
+CREATE OR REPLACE TRIGGER decision_sod_guard BEFORE INSERT OR UPDATE OR DELETE ON xt_meta.decision
   FOR EACH ROW EXECUTE FUNCTION xt_meta.decision_sod_guard();
 
 ALTER TABLE xt_meta.decision ENABLE ROW LEVEL SECURITY;

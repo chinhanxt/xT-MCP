@@ -22,6 +22,14 @@ const errResult = (text: string): ToolResult => ({ isError: true, content: [{ ty
 
 /** Nội dung gửi lại cho model: ưu tiên structuredContent (envelope của xT), nếu không thì content. */
 export function resultForModel(r: ToolResult): string {
+  if (r.structuredContent === undefined && r.content?.length === 1 && r.content[0].type === "text") {
+    try {
+      const envelope: unknown = JSON.parse(r.content[0].text ?? "");
+      if (envelope && typeof envelope === "object" && "ok" in envelope && typeof envelope.ok === "boolean") {
+        return JSON.stringify(envelope);
+      }
+    } catch { /* Plain text and multimodal results retain their original representation. */ }
+  }
   return JSON.stringify(r.structuredContent ?? r.content ?? null);
 }
 
@@ -31,6 +39,8 @@ export interface RunAgentOptions {
   tools: McpTool[]; // đã lọc theo profile
   history: ChatMessage[]; // bị sửa tại chỗ (thêm assistant/tool)
   maxSteps: number;
+  continuationRules?: string; // trusted canonical skill, refreshed after untrusted tool data
+  idempotencyKeys?: Map<string, string>; // aliases scoped to this authenticated conversation
   onEvent?: (e: AgentEvent) => void;
   signal?: AbortSignal;
 }
@@ -38,12 +48,15 @@ export interface RunAgentOptions {
 export async function runAgent(o: RunAgentOptions): Promise<{ steps: number; stopped: "done" | "max_steps" | "aborted" }> {
   const emit = o.onEvent ?? (() => {});
   const allowed = new Set(o.tools.map((t) => t.name));
+  const schemas = new Map(o.tools.map((t) => [t.name, t.inputSchema]));
   const openaiTools = toOpenAITools(o.tools);
 
   for (let step = 1; step <= o.maxSteps; step++) {
     if (o.signal?.aborted) return { steps: step - 1, stopped: "aborted" };
     const reply = await o.llm.complete(
-      { messages: o.history, tools: openaiTools, signal: o.signal },
+      { messages: step > 1 && o.continuationRules
+        ? [...o.history, { role: "system", content: o.continuationRules }]
+        : o.history, tools: openaiTools, signal: o.signal },
       (text) => emit({ type: "assistant_delta", step, text }),
     );
     const calls: ToolCall[] = reply.tool_calls;
@@ -60,6 +73,22 @@ export async function runAgent(o: RunAgentOptions): Promise<{ steps: number; sto
         args = parsed as Record<string, unknown>;
       } catch (e) {
         result = errResult(`Tham số tool không hợp lệ: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      // Models can repeat predictable aliases in independent chats. Desk owns the
+      // transport key; keep aliases stable for retries/confirmation in this chat.
+      const properties = schemas.get(tc.function.name)?.properties as Record<string, unknown> | undefined;
+      if (!result && o.idempotencyKeys && properties?.idempotency_key &&
+          typeof args.idempotency_key === "string" && args.idempotency_key.length > 0) {
+        const alias = `${tc.function.name}\0${args.idempotency_key}`;
+        let actual = o.idempotencyKeys.get(alias);
+        if (!actual) {
+          actual = crypto.randomUUID();
+          o.idempotencyKeys.set(alias, actual);
+          o.idempotencyKeys.set(`${tc.function.name}\0${actual}`, actual);
+        }
+        args.idempotency_key = actual;
+        // The next model turn and tool chip must see the key actually sent.
+        tc.function.arguments = JSON.stringify(args);
       }
       emit({ type: "tool_start", id: tc.id, name: tc.function.name, args });
       if (!result) {

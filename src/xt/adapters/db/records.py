@@ -113,12 +113,7 @@ class PgRecordRepository:
 
     def insert(self, actor: ModelActor, m: ModelSpec, values: Mapping[str, Any]) -> dict[str, Any]:
         lay = Layout(actor.tenant.seq)
-        cols = list(values)
-        q = sql.SQL("INSERT INTO {} ({}) VALUES ({}) RETURNING *").format(
-            lay.table(m.name),
-            sql.SQL(", ").join(map(sql.Identifier, cols)),
-            sql.SQL(", ").join(sql.Placeholder() * len(cols)),
-        )
+        insert_values = dict(values)
         new = {
             f.name: values.get(f.name, f.coerced("default"))
             for f in m.fields
@@ -126,8 +121,20 @@ class PgRecordRepository:
         }
         hm = self._hmacs(m, new=new)
         with self._tx(actor) as cur:
+            if (
+                "department_id" not in insert_values
+                and len(actor.department_ids) == 1
+                and (insert_values.get("owner_id") or actor.actor_id) == actor.actor_id
+            ):
+                insert_values["department_id"] = actor.department_ids[0]
+            cols = list(insert_values)
+            q = sql.SQL("INSERT INTO {} ({}) VALUES ({}) RETURNING *").format(
+                lay.table(m.name),
+                sql.SQL(", ").join(map(sql.Identifier, cols)),
+                sql.SQL(", ").join(sql.Placeholder() * len(cols)),
+            )
             set_audit_hmacs(cur, hm)
-            row = cur.execute(q, [_param(values[c]) for c in cols]).fetchone()
+            row = cur.execute(q, [_param(insert_values[c]) for c in cols]).fetchone()
         assert row is not None
         return self._out(row, m)
 

@@ -59,7 +59,8 @@
       "actions": [
         "record.read",
         "record.create",
-        "record.update"
+        "record.update",
+        "task.create"
       ],
       "resources": [
         "xrn:binhminh:task:*",
@@ -176,7 +177,8 @@
       "actions": [
         "record.read",
         "record.create",
-        "record.update"
+        "record.update",
+        "task.create"
       ],
       "resources": [
         "xrn:binhminh:task:*",

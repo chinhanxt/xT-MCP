@@ -38,7 +38,7 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
 def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):  # type: ignore[no-untyped-def]
     outcome = yield
     rep = outcome.get_result()
-    if rep.when == "call" or (rep.when == "setup" and rep.outcome != "passed"):
+    if rep.when == "call" or (rep.when in ("setup", "teardown") and rep.outcome != "passed"):
         ev: Evidence | None = getattr(item, "_xt_ev", None)
         msg = ""
         if rep.outcome != "passed":

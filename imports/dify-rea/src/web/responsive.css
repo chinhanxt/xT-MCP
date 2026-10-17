@@ -1,0 +1,148 @@
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (min-width: 1700px) {
+  .editor-body.workflow {
+    grid-template-columns: minmax(0, 1fr) 440px;
+  }
+}
+@media (max-width: 1200px) {
+  :root {
+    --side: 205px;
+  }
+  .page {
+    padding: 28px;
+  }
+  .page-heading h1 {
+    font-size: 23px;
+  }
+  .editor-body {
+    grid-template-columns: 290px minmax(0, 1fr);
+  }
+  .editor-body.workflow {
+    grid-template-columns: minmax(0, 1fr) 330px;
+  }
+  .onboarding p {
+    max-width: 360px;
+  }
+  .knowledge-layout {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 850px) {
+  :root {
+    --side: 68px;
+  }
+  .sidebar {
+    padding: 22px 10px;
+  }
+  .sidebar > .brand {
+    font-size: 0;
+    justify-content: center;
+  }
+  .sidebar > .brand .brand-mark {
+    font-size: 20px;
+  }
+  .workspace,
+  .nav-label,
+  .sidebar-bottom {
+    display: none;
+  }
+  .sidebar nav {
+    margin-top: 35px;
+  }
+  .sidebar nav button {
+    font-size: 0;
+    padding: 14px;
+    gap: 0;
+  }
+  .sidebar nav button span {
+    font-size: 21px;
+  }
+  .topbar {
+    padding: 0 22px;
+  }
+  .page {
+    padding: 25px 20px;
+  }
+  .page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .page-heading h1 {
+    font-size: 23px;
+  }
+  .onboarding {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .onboarding button {
+    margin-left: 40px;
+  }
+  .editor-body,
+  .editor-body.workflow {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 0;
+  }
+  .config-panel {
+    border-bottom: 1px solid var(--line);
+    max-height: 420px;
+  }
+  .preview {
+    height: 650px;
+  }
+  .workflow-editor {
+    height: 550px;
+  }
+  .editor-header {
+    padding: 12px 14px;
+  }
+  .editor-header .row {
+    gap: 8px;
+  }
+  .editor-header button {
+    padding: 8px 10px;
+    font-size: 10px;
+  }
+  .editor-header .icon-btn {
+    width: 25px;
+    padding: 0;
+  }
+  .editor-header h2 {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .editor-tabs {
+    gap: 15px;
+    padding: 0 15px;
+  }
+  .editor-tabs > button {
+    font-size: 9px;
+  }
+  .stats {
+    gap: 15px;
+  }
+  .stats > div + div {
+    padding-left: 15px;
+  }
+  .model-grid,
+  .app-grid {
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  }
+  .workflow .preview {
+    border-top: 1px solid var(--line);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition: none !important;
+  }
+}

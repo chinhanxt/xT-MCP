@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 xT contributors
+node_modules
+dist
+test-results
+playwright-report
+.env
+.env.*
+!.env.example
+*.log

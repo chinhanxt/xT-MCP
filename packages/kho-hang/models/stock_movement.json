@@ -1,0 +1,105 @@
+{
+  "id": "wh_stock_movement",
+  "name": "stock_movement",
+  "label": "stock_movement",
+  "title_field": "key",
+  "fields": [
+    {
+      "id": "key",
+      "name": "key",
+      "type": "text",
+      "label": "key",
+      "pii": "none",
+      "required": true,
+      "unique": true,
+      "min": 1,
+      "max": 100
+    },
+    {
+      "id": "request",
+      "name": "request",
+      "type": "ref",
+      "label": "request",
+      "pii": "none",
+      "ref": "stock_request",
+      "required": true
+    },
+    {
+      "id": "item",
+      "name": "item",
+      "type": "ref",
+      "label": "item",
+      "pii": "none",
+      "ref": "stock_item",
+      "required": true
+    },
+    {
+      "id": "location",
+      "name": "location",
+      "type": "ref",
+      "label": "location",
+      "pii": "none",
+      "ref": "warehouse_location",
+      "required": true
+    },
+    {
+      "id": "quantity_milli",
+      "name": "quantity_milli",
+      "type": "number",
+      "label": "quantity_milli",
+      "pii": "none",
+      "required": true,
+      "min": -9000000000000000,
+      "max": 9000000000000000
+    },
+    {
+      "id": "posted_at",
+      "name": "posted_at",
+      "type": "datetime",
+      "label": "posted_at",
+      "pii": "none",
+      "required": true
+    },
+    {
+      "id": "approved_by",
+      "name": "approved_by",
+      "type": "user",
+      "label": "approved_by",
+      "pii": "none",
+      "required": true
+    }
+  ],
+  "permissions": {
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "warehouse_manager": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "admin": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "agent": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read"
+      ],
+      "scope": "all"
+    }
+  }
+}

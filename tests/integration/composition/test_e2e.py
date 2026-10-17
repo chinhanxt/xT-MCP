@@ -157,6 +157,10 @@ async def test_w1_advance_8m_end_to_end(stack: Stack) -> None:
     rec = created["data"]["record"]
     ref = rec["ref"]
     assert rec["state"] == "draft" and rec["values"]["amount"] in (8_000_000, "8000000")
+    draft = await s.call("acme", REQUESTER, "get_record", {"ref": ref})
+    assert draft["ok"] and {
+        t["to_state"] for t in draft["data"]["record"]["available_transitions"]
+    } == {"withdrawn"}
 
     # 2. Gửi duyệt (L1, đề nghị của chính người được đại diện): chạy ngay.
     sub_args = {"ref": ref, "idempotency_key": "it-key-w1-submit", "note": "Công tác Đà Nẵng"}
@@ -183,6 +187,15 @@ async def test_w1_advance_8m_end_to_end(stack: Stack) -> None:
     assert inbox["ok"], inbox
     item = next(i for i in inbox["data"]["items"] if i["ref"] == ref)
     revision = item["revision"]
+    head_read = await s.call("acme", DEPT_HEAD, "get_record", {"ref": ref})
+    assert head_read["ok"], head_read
+    assert all(
+        t["to_state"] != "withdrawn" for t in head_read["data"]["record"]["available_transitions"]
+    )
+    submitted_read = await s.call("acme", REQUESTER, "get_record", {"ref": ref})
+    assert submitted_read["ok"] and {
+        t["to_state"] for t in submitted_read["data"]["record"]["available_transitions"]
+    } == {"withdrawn"}
 
     # 4. Agent của trưởng phòng quyết định -> luôn phải xác nhận (HUMAN_ONLY).
     dec_args = {
@@ -229,6 +242,8 @@ async def test_w1_advance_8m_end_to_end(stack: Stack) -> None:
     final = await s.call("acme", DIRECTOR, "decide_request", dir_args)
     assert final["ok"] and final["data"]["outcome"] == "request_approved", final
     assert final["data"]["request"]["state"] == "approved"
+    terminal = await s.call("acme", REQUESTER, "get_record", {"ref": ref})
+    assert terminal["ok"] and terminal["data"]["record"]["available_transitions"] == []
     s.outputs["w1-final"] = json.dumps(final, ensure_ascii=False, indent=1)
 
     # 6. Audit hash-chain kiểm OK, dòng thời gian có sự kiện quy trình.

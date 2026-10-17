@@ -331,12 +331,12 @@ async def test_core10_profile_and_measured_size() -> None:
         "core10+out": _listing_bytes(core_tools, True),
     }
     print("tools/list bytes", sizes)
-    # Đo thật (10/2026): core-10 20.182 B, kèm outputSchema 44.034 B; v0.1-17: 37.367 / 81.251 B;
-    # 18 tool (+ start_process v1.0): 39.964 / 85.346 B (title, annotations, `_meta`, input đầy đủ
-    # có `default`). Ngân sách = số đo + 5%.
+    # 17/10/2026: bounded object rows in JSON values support warehouse request lines.
+    # Measured bytes: core10 21,501 / 45,353 with output; full 42,036 / 88,865.
+    # Keep a 5% drift budget against this feature's measured catalog, including metadata/defaults.
     assert sizes["core10"] < 0.6 * sizes["full"]
-    assert sizes["core10"] <= 21_200 and sizes["core10+out"] <= 46_300
-    assert sizes["full"] <= 42_000 and sizes["full+out"] <= 89_700
+    assert sizes["core10"] <= 22_580 and sizes["core10+out"] <= 47_620
+    assert sizes["full"] <= 44_140 and sizes["full+out"] <= 93_310
 
 
 # ---- verifier thật của lớp danh tính (khóa ký cục bộ, không mạng) -------------------------------

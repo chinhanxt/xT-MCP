@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
 // Chính sách của HOST cho mọi thứ MCP App (iframe không tin cậy) yêu cầu qua bridge.
-import { Ajv2020 } from "ajv/dist/2020.js";
+import { CfWorkerJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/cfworker";
+import type { JsonSchemaType, JsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/types.js";
 import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { normalizeVisibility } from "./profiles";
 import type { McpTool, ToolResult } from "./types";
@@ -88,8 +89,8 @@ export interface AppBridgeDeps {
 const deny = (msg: string) => new McpError(ErrorCode.InvalidParams, msg);
 
 export function createAppBridgeHandlers(d: AppBridgeDeps) {
-  const ajv = new Ajv2020({ strict: false });
-  const validators = new Map<string, ReturnType<typeof ajv.compile>>();
+  const schemas = new CfWorkerJsonSchemaValidator();
+  const validators = new Map<string, JsonSchemaValidator<object>>();
   const byName = new Map(d.tools.map((t) => [t.name, t]));
 
   return {
@@ -106,13 +107,14 @@ export function createAppBridgeHandlers(d: AppBridgeDeps) {
       let validate = validators.get(tool.name);
       if (!validate) {
         try {
-          validate = ajv.compile(closeSchema(tool.inputSchema) as object);
+          validate = schemas.getValidator<object>(closeSchema(tool.inputSchema) as JsonSchemaType);
         } catch {
           throw deny(`Không kiểm được schema của tool "${params.name}"`);
         }
         validators.set(tool.name, validate);
       }
-      if (!validate(args)) throw deny(`Tham số không hợp lệ cho "${params.name}": ${ajv.errorsText(validate.errors)}`);
+      const checked = validate(args);
+      if (!checked.valid) throw deny(`Tham số không hợp lệ cho "${params.name}": ${checked.errorMessage}`);
       if (!d.limiter.tryAcquire()) throw new McpError(ErrorCode.InvalidRequest, "Quá nhiều lời gọi tool từ App, thử lại sau");
       if (!d.globalLimiter.tryAcquire(tool.name)) {
         d.limiter.release();

@@ -1,0 +1,140 @@
+{
+  "id": "wh_stock_request",
+  "name": "stock_request",
+  "label": "stock_request",
+  "title_field": "code",
+  "fields": [
+    {
+      "id": "code",
+      "name": "code",
+      "type": "text",
+      "label": "code",
+      "pii": "none",
+      "required": true,
+      "unique": true,
+      "min": 1,
+      "max": 100
+    },
+    {
+      "id": "kind",
+      "name": "kind",
+      "type": "enum",
+      "label": "kind",
+      "pii": "none",
+      "required": true,
+      "options": [
+        {
+          "value": "receive",
+          "label": "Nhập kho"
+        },
+        {
+          "value": "issue",
+          "label": "Xuất kho"
+        }
+      ]
+    },
+    {
+      "id": "warehouse",
+      "name": "warehouse",
+      "type": "ref",
+      "label": "warehouse",
+      "pii": "none",
+      "ref": "warehouse",
+      "required": true
+    },
+    {
+      "id": "lines",
+      "name": "lines",
+      "type": "json",
+      "label": "lines",
+      "pii": "none",
+      "required": true
+    },
+    {
+      "id": "note",
+      "name": "note",
+      "type": "text",
+      "label": "note",
+      "pii": "none",
+      "max": 2000
+    },
+    {
+      "id": "state",
+      "name": "state",
+      "type": "enum",
+      "label": "state",
+      "pii": "none",
+      "required": true,
+      "default": "draft",
+      "managed_by": "workflow",
+      "options": [
+        {
+          "value": "draft",
+          "label": "Nháp"
+        },
+        {
+          "value": "in_review",
+          "label": "Chờ duyệt"
+        },
+        {
+          "value": "approved",
+          "label": "Đã ghi nhận"
+        },
+        {
+          "value": "rejected",
+          "label": "Từ chối"
+        },
+        {
+          "value": "returned",
+          "label": "Trả lại"
+        },
+        {
+          "value": "cancelled",
+          "label": "Đã hủy"
+        }
+      ]
+    }
+  ],
+  "permissions": {
+    "employee": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "own"
+    },
+    "warehouse_manager": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "admin": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "agent": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "own"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

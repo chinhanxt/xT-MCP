@@ -5,3 +5,10 @@ deployment:
   role: data_plane
   role_data_plane:
     config_provider: yaml
+
+# Keycloak reconnect sets an auth-session cookie containing the id_token_hint.
+nginx_config:
+  http_configuration_snippet: |
+    proxy_buffer_size 16k;
+    proxy_buffers 4 16k;
+    proxy_busy_buffers_size 32k;

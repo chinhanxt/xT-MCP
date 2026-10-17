@@ -426,7 +426,7 @@ async def test_pii_in_transition_record_step_errors_cloud(w: W) -> None:
     st = states[0]
     cases = [
         {"to_state": st, "values": {"deadline": f"{CCCD}"}},
-        {"to_state": st, "values": {"khong_ton_tai": EMAIL}},
+        {"to_state": st, "values": {f"f{CCCD}": PHONE, "khong_ton_tai": EMAIL}},
         {"to_state": st, "values": {"state": PHONE}},
         {"to_state": st, "expected_revision": rev + 7, "reason": f"{EMAIL}"},
         *({"to_state": x} for x in states[1:]),

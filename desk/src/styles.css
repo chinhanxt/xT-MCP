@@ -27,3 +27,8 @@ main { flex: 1; padding: 8px 0; }
 form { display: flex; gap: 8px; padding-top: 8px; }
 form input { flex: 1; padding: 8px; }
 .login{margin:16px 0}.logout{margin-left:auto}
+
+.portal-nav{display:flex;gap:6px;overflow-x:auto;padding:10px 0}.portal-nav button[aria-current=page]{font-weight:700;background:#dbe4ff;color:#111}.portal{flex:1}.portal h2{margin:12px 0}.portal button,.portal select{margin:4px;padding:6px}.portal-results{display:grid;gap:8px;margin:12px 0}.portal-entry{border:1px solid #8886;border-radius:8px;padding:10px;overflow-wrap:anywhere}.portal-entry small{display:block;opacity:.7}.portal-entry dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:5px}.portal-entry dt{font-size:12px;opacity:.7}.portal-entry dd{margin:0}.portal-frame{width:100%;height:70vh;border:1px solid #8886;border-radius:8px}.portal-actions{display:flex;flex-wrap:wrap}
+
+.portal form{flex-wrap:wrap;align-items:center;margin-bottom:16px}.portal form h3{flex-basis:100%;margin:8px 0}.portal form input{min-width:140px}.portal form select{max-width:100%}.portal label{display:flex;align-items:center;gap:6px}.portal a{display:inline-block;margin:8px}.portal button:disabled{opacity:.55;cursor:default}
+[hidden] { display: none !important; }

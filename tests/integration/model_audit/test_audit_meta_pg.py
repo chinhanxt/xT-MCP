@@ -9,6 +9,7 @@ Một container (`xt-audit-meta-pg`, cổng 20323), hai CSDL: `xt` (cài mới: 
 from __future__ import annotations
 
 import secrets
+import socket
 import subprocess
 import time
 import uuid
@@ -32,8 +33,17 @@ from xt.adapters.db.tenancy import (
 pytestmark = pytest.mark.integration
 
 IMAGE = "postgres:17-alpine"
-CONTAINER = "xt-audit-meta-pg"
-PORT = 20323
+
+
+def _free_port() -> int:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+# Tên + cổng riêng mỗi tiến trình test: nhiều lượt chạy song song không xóa nhầm của nhau.
+CONTAINER = f"xt-audit-meta-pg-{secrets.token_hex(4)}"
+PORT = _free_port()
 META_TABLES = (
     "iam_policy",
     "process_definition",

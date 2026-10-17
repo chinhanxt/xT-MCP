@@ -12,7 +12,9 @@ Biến môi trường (không có giá trị mặc định ngầm):
     XT_AUDIT_SIGNING_KEY_ID       mã khóa ghi vào checkpoint
     XT_AUDIT_VERIFY_KEY_FILE      khóa công khai Ed25519 (PEM hoặc 32 byte) — cho `verify`
 
-Mã thoát: 0 toàn vẹn, 1 phát hiện sửa/xóa audit, 2 lỗi cấu hình/checkpoint.
+Mã thoát: 0 toàn vẹn, 1 phát hiện sửa/xóa audit HOẶC catalog bảo mật (policy, trigger, rule,
+constraint, default, hàm, event trigger, role, membership, grant của schema xt*) đổi so với
+checkpoint (in đúng đối tượng), 2 lỗi cấu hình/checkpoint.
 Worker gọi `checkpoint` định kỳ (ví dụ mỗi giờ); người kiểm chạy `verify` bằng khóa công khai.
 """
 
@@ -27,6 +29,7 @@ from pathlib import Path
 from xt.adapters.db.audit import (
     CheckpointError,
     connect,
+    diff_security_catalog,
     latest_checkpoint,
     load_checkpoint,
     load_ed25519_private,
@@ -77,11 +80,22 @@ def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
     doc = load_checkpoint(path, pub)
     with connect(dsn) as conn:
         results = verify_against_checkpoint(conn, doc)
+        cat = diff_security_catalog(conn, doc) if doc.get("security_catalog") else None
     bad = [r for r in results if not r.ok]
     for r in results:
         print(f"{r.tenant_id} seq={r.seq} {r.status} events={r.events}")
     print(f"checkpoint {path.name}: {len(results) - len(bad)}/{len(results)} tenant toàn vẹn")
-    return 1 if bad else 0
+    if cat is not None:
+        for kind, items in (("đổi", cat.changed), ("thêm", cat.added), ("mất", cat.removed)):
+            for item in items:
+                print(f"catalog {kind}: {item}")
+        print(
+            "catalog bảo mật: không đổi"
+            if cat.ok
+            else f"catalog bảo mật: {len(cat.changed)} đổi, {len(cat.added)} thêm,"
+            f" {len(cat.removed)} mất kể từ checkpoint"
+        )
+    return 1 if bad or (cat is not None and not cat.ok) else 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:

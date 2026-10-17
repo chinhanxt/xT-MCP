@@ -25,13 +25,14 @@ def run(
             "",
         )
     nvm = os.path.expanduser("~/.nvm/nvm.sh")
-    # Mật khẩu/TOTP qua argv của tiến trình con cục bộ (không log, không vào báo cáo).
-    cmd = f'. "{nvm}" >/dev/null 2>&1 || true; exec node "{E2E / "desk" / "desk_real.mjs"}" "$@"'
+    # Keep credentials out of argv, including TimeoutExpired.cmd in pytest reports.
+    cmd = f'. "{nvm}" >/dev/null 2>&1 || true; exec node "{E2E / "desk" / "desk_real.mjs"}"'
     args = [mode, user["username"], user["password"], user.get("totp") or ""]
     if mode == "chat":
         args.append(prompt)
     r = subprocess.run(
-        ["bash", "-c", cmd, "desk", *args],
+        ["bash", "-c", cmd],
+        input=json.dumps(args),
         capture_output=True,
         text=True,
         timeout=timeout,

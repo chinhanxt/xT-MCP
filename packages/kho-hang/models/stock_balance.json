@@ -1,0 +1,83 @@
+{
+  "id": "wh_stock_balance",
+  "name": "stock_balance",
+  "label": "stock_balance",
+  "title_field": "key",
+  "fields": [
+    {
+      "id": "key",
+      "name": "key",
+      "type": "text",
+      "label": "key",
+      "pii": "none",
+      "required": true,
+      "unique": true,
+      "min": 1,
+      "max": 100
+    },
+    {
+      "id": "item",
+      "name": "item",
+      "type": "ref",
+      "label": "item",
+      "pii": "none",
+      "ref": "stock_item",
+      "required": true
+    },
+    {
+      "id": "location",
+      "name": "location",
+      "type": "ref",
+      "label": "location",
+      "pii": "none",
+      "ref": "warehouse_location",
+      "required": true
+    },
+    {
+      "id": "quantity_milli",
+      "name": "quantity_milli",
+      "type": "number",
+      "label": "quantity_milli",
+      "pii": "none",
+      "required": true,
+      "default": 0,
+      "min": 0,
+      "max": 9000000000000000,
+      "managed_by": "workflow"
+    }
+  ],
+  "permissions": {
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "warehouse_manager": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "admin": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "agent": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

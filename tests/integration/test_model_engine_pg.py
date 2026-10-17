@@ -539,7 +539,8 @@ def test_audit_chain_detects_tampering(env: Env) -> None:
             su.execute("UPDATE xt_audit.event SET diff = '{}' WHERE tenant_id = %s", (a.id,))
         seq = q1(
             su,
-            "SELECT seq FROM xt_audit.event WHERE tenant_id = %s ORDER BY seq OFFSET 1 LIMIT 1",
+            "SELECT seq FROM xt_audit.event WHERE tenant_id = %s AND diff ? 'new'"
+            " ORDER BY seq OFFSET 1 LIMIT 1",
             a.id,
         )
         su.execute("ALTER TABLE xt_audit.event DISABLE TRIGGER no_update_delete")

@@ -380,19 +380,22 @@ def test_spy_policy_sees_only_hmac_never_key(envs: dict[str, Env], tgt: str) -> 
                 f"CREATE POLICY r3_spy ON {s}.emp AS RESTRICTIVE FOR INSERT TO xt_app"
                 " WITH CHECK (xt.r3_spy())"
             )
-        m.execute(f"ALTER TABLE {s}.emp ADD CONSTRAINT r3_spy CHECK (xt.r3_spy()) NOT VALID")
+        # vòng 4: CHECK/DEFAULT gọi hàm ngoài pg_catalog trên bảng model cũng bị chặn (R4-02)
+        with pytest.raises(psycopg.errors.InsufficientPrivilege), m.transaction():
+            m.execute(f"ALTER TABLE {s}.emp ADD CONSTRAINT r3_spy CHECK (xt.r3_spy()) NOT VALID")
+        with pytest.raises(psycopg.errors.InsufficientPrivilege), m.transaction():
+            m.execute(f"ALTER TABLE {s}.emp ALTER COLUMN note SET DEFAULT (xt.r3_spy())::text")
     try:
         e.records.create(hr(t), "emp", {"code": "SPY", "salary": 31000000})
         with e.mig() as m:
             rows = m.execute("SELECT k, h FROM xt_meta.r3_spy").fetchall()
-        assert rows
+        # không còn đường gài mã: nếu có dòng gián điệp nào thì vẫn không được thấy khóa/giá trị
         for k, h in rows:
-            assert not k and h and e.c.pepper.hex() not in h and "31000000" not in h
+            assert not k and (not h or (e.c.pepper.hex() not in h and "31000000" not in h))
     finally:
-        with e.mig() as m:
-            m.execute(f"ALTER TABLE {s}.emp DROP CONSTRAINT r3_spy")
-            m.execute("DROP FUNCTION xt.r3_spy()")
-            m.execute("DROP TABLE xt_meta.r3_spy")
+        with e.su() as su:
+            su.execute("DROP FUNCTION xt.r3_spy()")
+            su.execute("DROP TABLE xt_meta.r3_spy")
 
 
 # ----------------------- 2. né audit bằng DDL ngoài tầm event trigger (lỗi vòng 3) ----
@@ -1047,8 +1050,9 @@ def test_rls_context_functions_and_policies_immutable_for_migrator(
             "CREATE OR REPLACE FUNCTION xt.has_role(r text) RETURNS boolean LANGUAGE sql STABLE"
             " AS $$ SELECT true $$",
             "ALTER FUNCTION xt.cur() RENAME TO cur_old",
-            "ALTER FUNCTION xt.tenant() SECURITY INVOKER",
-            "ALTER FUNCTION xt.has_role(text) OWNER TO xt_migrator",
+            # no-op (định nghĩa y hệt) được phép từ vòng 4; đổi thật thì bị chặn
+            "ALTER FUNCTION xt.tenant() SECURITY DEFINER",
+            "ALTER FUNCTION xt.has_role(text) SET search_path = public",
             "DROP FUNCTION xt.has_role(text) CASCADE",
             "DROP FUNCTION xt.in_departments(uuid) CASCADE",
             f"ALTER POLICY p_m2_tenant ON {s}.emp USING (true)",

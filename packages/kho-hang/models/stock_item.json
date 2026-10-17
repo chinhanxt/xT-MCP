@@ -1,0 +1,88 @@
+{
+  "id": "wh_stock_item",
+  "name": "stock_item",
+  "label": "stock_item",
+  "title_field": "sku",
+  "fields": [
+    {
+      "id": "sku",
+      "name": "sku",
+      "type": "text",
+      "label": "sku",
+      "pii": "none",
+      "required": true,
+      "unique": true,
+      "min": 1,
+      "max": 100
+    },
+    {
+      "id": "name",
+      "name": "name",
+      "type": "text",
+      "label": "name",
+      "pii": "none",
+      "required": true,
+      "min": 1,
+      "max": 200
+    },
+    {
+      "id": "unit",
+      "name": "unit",
+      "type": "text",
+      "label": "unit",
+      "pii": "none",
+      "required": true,
+      "min": 1,
+      "max": 30
+    },
+    {
+      "id": "reorder_level_milli",
+      "name": "reorder_level_milli",
+      "type": "number",
+      "label": "reorder_level_milli",
+      "pii": "none",
+      "required": true,
+      "default": 0,
+      "min": 0,
+      "max": 9000000000000000
+    }
+  ],
+  "permissions": {
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "warehouse_manager": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "admin": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "agent": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

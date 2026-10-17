@@ -56,7 +56,40 @@ CREATE TABLE IF NOT EXISTS xt_audit.protected_fn (
   fn oid PRIMARY KEY,
   sig text NOT NULL
 );
-REVOKE ALL ON xt_audit.policy_snapshot, xt_audit.policy_pass, xt_audit.protected_fn FROM PUBLIC;
+-- dấu vân tay định nghĩa: chạy lại migration với định nghĩa y hệt (idempotent) thì không bị chặn
+ALTER TABLE xt_audit.protected_fn ADD COLUMN IF NOT EXISTS fp text;
+CREATE OR REPLACE FUNCTION xt_audit.fn_fp(f oid) RETURNS text LANGUAGE sql STABLE
+SET search_path = pg_catalog, pg_temp AS $$
+  SELECT md5(concat_ws('|', p.proname, p.pronamespace, p.proowner, p.prolang, p.prosrc, p.probin,
+                       p.prosecdef, p.proleakproof, p.proisstrict, p.provolatile, p.proparallel,
+                       p.prokind, p.proargtypes::text, p.prorettype, p.proretset,
+                       p.proconfig::text, p.prosupport))
+    FROM pg_proc p WHERE p.oid = f
+$$;
+REVOKE ALL ON FUNCTION xt_audit.fn_fp(oid) FROM PUBLIC;
+-- Trigger nền tảng được phép trên bảng xt_meta (hàm của chúng nằm trong danh sách bảo vệ).
+CREATE TABLE IF NOT EXISTS xt_audit.allowed_trigger (
+  relname name NOT NULL,
+  tgname  name NOT NULL,
+  fn      text NOT NULL,
+  PRIMARY KEY (relname, tgname)
+);
+ALTER TABLE xt_audit.allowed_trigger ADD COLUMN IF NOT EXISTS tgtype int2 NOT NULL DEFAULT 31;
+-- Identity survives SET SCHEMA/RENAME, including session_ctx (which is deliberately unaudited).
+CREATE TABLE IF NOT EXISTS xt_audit.context_rel (
+  relid oid PRIMARY KEY,
+  relname name NOT NULL
+);
+INSERT INTO xt_audit.context_rel (relid, relname)
+SELECT c.oid, c.relname FROM pg_class c
+ WHERE c.relnamespace = 'xt_meta'::regnamespace AND c.relname IN ('session_ctx', 'login_tenant')
+ON CONFLICT (relid) DO NOTHING;
+REVOKE ALL ON xt_audit.context_rel FROM PUBLIC;
+INSERT INTO xt_audit.allowed_trigger (relname, tgname, fn) VALUES
+  ('decision', 'decision_sod_guard', 'xt_meta.decision_sod_guard()')
+ON CONFLICT DO NOTHING;
+REVOKE ALL ON xt_audit.policy_snapshot, xt_audit.policy_pass, xt_audit.protected_fn,
+  xt_audit.allowed_trigger FROM PUBLIC;
 CREATE UNLOGGED TABLE IF NOT EXISTS xt_audit.session_ctx (
   pid             int PRIMARY KEY,
   xid             xid8 NOT NULL,
@@ -403,12 +436,23 @@ GRANT SELECT, INSERT, UPDATE ON xt_meta.session_ctx TO xt_audit_owner;
 CREATE OR REPLACE FUNCTION xt.set_context(t uuid, a uuid, r text[], teams uuid[], depts uuid[],
                                           ea uuid, azp text, tr text)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE x text;
+DECLARE x text; stk text;
 BEGIN
   IF t IS NULL THEN RAISE EXCEPTION 'thiếu tenant'; END IF;
   FOREACH x IN ARRAY coalesce(r, '{}') LOOP
     IF x !~ '^[a-z][a-z0-9_]{0,62}$' THEN RAISE EXCEPTION 'tên vai trò không hợp lệ: %', x; END IF;
   END LOOP;
+  -- (R4-02) Chỉ nhận lời gọi từ đường kết nối của app: câu lệnh client gửi phải chính là
+  -- "SELECT xt.set_context(...)" (một câu duy nhất) và không có hàm/trigger nào khác trên ngăn xếp.
+  -- CHECK/DEFAULT/cột generated/domain/trigger/view do ai đó gài vào chạy BÊN TRONG câu lệnh khác
+  -- (INSERT/UPDATE/SELECT của app) hoặc bên trong hàm khác nên bị từ chối.
+  GET DIAGNOSTICS stk = PG_CONTEXT;
+  IF strpos(stk, E'\n') > 0
+     OR coalesce(current_query(), '') !~* '^\s*select\s+xt\.set_context\s*\('
+     OR current_query() ~ ';\s*\S' THEN
+    RAISE EXCEPTION 'xt.set_context chỉ được gọi trực tiếp từ kết nối của app'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
   INSERT INTO xt_meta.session_ctx AS c VALUES (pg_backend_pid(), pg_current_xact_id(), t, a,
          coalesce(r, '{}'), coalesce(teams, '{}'), coalesce(depts, '{}'), ea, azp, tr)
   ON CONFLICT (pid) DO UPDATE SET xid = EXCLUDED.xid, tenant_id = EXCLUDED.tenant_id,
@@ -483,6 +527,10 @@ BEGIN
   END LOOP;
   EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY, FORCE ROW LEVEL SECURITY', rel);
   DELETE FROM xt_audit.policy_pass WHERE xid = pg_current_xact_id() AND relid = rel;
+  -- mỗi lần đặt quyền RLS của model đều vào hash-chain của tenant
+  PERFORM xt_audit.append(xt_audit.schema_tenant(sch), 'xt_audit.policies:' || tbl,
+          md5('xt_audit.policies:' || rel::oid::text)::uuid, 'POLICY',
+          jsonb_build_object('model_id', mid, 'permissions', coalesce(perms, '{}')), rel::oid);
 END $$;
 REVOKE ALL ON FUNCTION xt_audit.set_policies(name, name, text, jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION xt_audit.set_policies(name, name, text, jsonb) TO xt_migrator;
@@ -492,12 +540,13 @@ GRANT EXECUTE ON FUNCTION xt_audit.set_policies(name, name, text, jsonb) TO xt_m
 -- REPLACE / ALTER / DROP), và nằm trong digest hàm của checkpoint. Chủ giữ nguyên để các migration
 -- vẫn GRANT EXECUTE được như trước.
 
-INSERT INTO xt_audit.protected_fn (fn, sig)
-SELECT p.oid, p.oid::regprocedure::text FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
- WHERE n.nspname = 'xt' AND p.proname IN ('set_context', 'cur', 'backend_cur', 'cur_meta', 'actor',
-       'tenant', 'has_role', 'in_teams', 'in_departments', 'tenant_seq', 'login_tenant', 'pgrst_pre',
-       'pgrst_gate', 'pgrst_config')
-ON CONFLICT (fn) DO NOTHING;
+INSERT INTO xt_audit.protected_fn (fn, sig, fp)
+SELECT p.oid, p.oid::regprocedure::text, xt_audit.fn_fp(p.oid)
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+ WHERE n.nspname IN ('xt', 'xt_audit', 'xt_meta')
+   AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass
+                    AND d.objid = p.oid AND d.deptype = 'e')
+ON CONFLICT (fn) DO UPDATE SET sig = EXCLUDED.sig, fp = EXCLUDED.fp;
 
 -- Registry cho bảng đã gắn trigger trước khi có registry (CSDL nâng cấp).
 INSERT INTO xt_audit.rel_registry (relid, kind, relname)
@@ -533,31 +582,29 @@ SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE r record; rel oid; nsp text; bad text; su boolean := xt_audit.is_su(); fnr record;
 BEGIN
   FOR r IN SELECT * FROM pg_event_trigger_ddl_commands() LOOP
-    -- 1) hàm audit/ngữ cảnh: chỉ superuser (cài/nâng cấp) đổi được
-    IF r.classid = 'pg_proc'::regclass AND su THEN
-      -- superuser cài/đổi hàm ngữ cảnh (vd postgrest.sql): ghi oid vào danh sách bảo vệ
-      INSERT INTO xt_audit.protected_fn (fn, sig)
-      SELECT p.oid, p.oid::regprocedure::text FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-       WHERE p.oid = r.objid AND n.nspname = 'xt' AND p.proname IN ('set_context', 'cur',
-             'backend_cur', 'cur_meta', 'actor', 'tenant', 'has_role', 'in_teams', 'in_departments',
-             'tenant_seq', 'login_tenant', 'pgrst_pre', 'pgrst_gate', 'pgrst_config')
-      ON CONFLICT (fn) DO UPDATE SET sig = EXCLUDED.sig;
-    END IF;
-    IF r.classid = 'pg_proc'::regclass AND NOT su THEN
+    -- 1) Hàm trong schema xt / xt_audit / xt_meta: một khi đã tồn tại thì chỉ superuser được
+    --    CREATE OR REPLACE / ALTER / DROP (theo oid, gồm xt.row_touch, xt.cur…). Role khác chỉ
+    --    được tạo hàm MỚI (migration nền tảng); hàm mới được ghi ngay vào danh sách bảo vệ.
+    IF r.classid = 'pg_proc'::regclass THEN
       SELECT p.proname, n.nspname INTO fnr FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
        WHERE p.oid = r.objid;
-      IF EXISTS (SELECT 1 FROM xt_audit.protected_fn x WHERE x.fn = r.objid)
-         OR fnr.nspname = 'xt_audit' OR (fnr.nspname = 'xt' AND fnr.proname IN ('set_context', 'cur',
-           'backend_cur', 'cur_meta', 'actor', 'tenant', 'has_role', 'in_teams', 'in_departments',
-           'tenant_seq', 'login_tenant', 'pgrst_pre', 'pgrst_gate', 'pgrst_config'))
+      IF NOT su AND NOT EXISTS (SELECT 1 FROM xt_audit.protected_fn x WHERE x.fn = r.objid
+                                  AND x.fp = xt_audit.fn_fp(r.objid))  -- y hệt: idempotent
+         AND (EXISTS (SELECT 1 FROM xt_audit.protected_fn x WHERE x.fn = r.objid)
+         OR fnr.nspname = 'xt_audit'
          OR EXISTS (SELECT 1 FROM pg_depend d JOIN pg_policy pp ON pp.oid = d.objid
                       JOIN pg_class pc ON pc.oid = pp.polrelid
                       JOIN pg_namespace pn ON pn.oid = pc.relnamespace
                      WHERE d.classid = 'pg_policy'::regclass AND d.refclassid = 'pg_proc'::regclass
                        AND d.refobjid = r.objid
-                       AND (pn.nspname ~ '^xt_t[0-9]+$' OR pn.nspname = 'xt_meta')) THEN
+                       AND (pn.nspname ~ '^xt_t[0-9]+$' OR pn.nspname = 'xt_meta'))) THEN
         RAISE EXCEPTION 'hàm %.% chỉ superuser được đổi', fnr.nspname, fnr.proname
           USING ERRCODE = 'insufficient_privilege';
+      END IF;
+      IF fnr.nspname IN ('xt', 'xt_audit', 'xt_meta') THEN
+        INSERT INTO xt_audit.protected_fn (fn, sig, fp)
+        VALUES (r.objid, r.objid::regprocedure::text, xt_audit.fn_fp(r.objid))
+        ON CONFLICT (fn) DO UPDATE SET sig = EXCLUDED.sig, fp = EXCLUDED.fp;
       END IF;
     END IF;
     -- 2) đổi tên/chủ schema chứa bảng audit hoặc schema nền tảng
@@ -577,6 +624,9 @@ BEGIN
     rel := NULL;
     IF r.classid = 'pg_class'::regclass THEN
       SELECT c.oid INTO rel FROM pg_class c WHERE c.oid = r.objid AND c.relkind IN ('r', 'p');
+      IF rel IS NULL THEN  -- index: kiểm bảng của nó (biểu thức index gọi hàm)
+        SELECT i.indrelid INTO rel FROM pg_index i WHERE i.indexrelid = r.objid;
+      END IF;
     ELSIF r.classid = 'pg_trigger'::regclass THEN  -- schema_name của trigger là NULL
       SELECT g.tgrelid INTO rel FROM pg_trigger g WHERE g.oid = r.objid;
     ELSIF r.classid = 'pg_rewrite'::regclass THEN
@@ -585,6 +635,49 @@ BEGIN
       SELECT p.polrelid INTO rel FROM pg_policy p WHERE p.oid = r.objid;
     END IF;
     IF rel IS NULL THEN CONTINUE; END IF;
+    IF NOT su AND EXISTS (
+         SELECT 1 FROM xt_audit.context_rel x JOIN pg_class c ON c.oid = x.relid
+          WHERE x.relid = rel AND (c.relnamespace <> 'xt_meta'::regnamespace
+                                   OR c.relname <> x.relname)) THEN
+      RAISE EXCEPTION 'không được đổi tên/dời bảng ngữ cảnh %', rel::regclass
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    -- (R4-01) Trên MỌI bảng xt_meta (kể cả bảng miễn audit như session_ctx, login_tenant): role
+    -- không phải superuser không được gắn trigger/rule (trừ trigger audit của xt_audit_owner và
+    -- trigger nền tảng trong allowlist), không được đổi bảng ngữ cảnh login_tenant/session_ctx.
+    IF NOT su AND (SELECT n.nspname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE c.oid = rel) = 'xt_meta' THEN
+      IF r.classid = 'pg_rewrite'::regclass THEN
+        RAISE EXCEPTION 'cấm RULE trên bảng xt_meta' USING ERRCODE = 'insufficient_privilege';
+      END IF;
+      IF r.classid = 'pg_trigger'::regclass AND NOT EXISTS (
+           SELECT 1 FROM pg_trigger g JOIN pg_proc p ON p.oid = g.tgfoid
+            WHERE g.oid = r.objid AND g.tgqual IS NULL AND g.tgattr = ''::int2vector
+              AND NOT g.tgdeferrable AND NOT g.tginitdeferred AND (
+                  (g.tgname = 'xt_audit_meta' AND g.tgtype = 29
+                   AND p.oid = 'xt_audit.log_meta()'::regprocedure)
+               OR (g.tgname = 'xt_audit_meta_truncate' AND g.tgtype = 32
+                   AND p.oid = 'xt_audit.log_meta_truncate()'::regprocedure)
+               OR EXISTS (SELECT 1 FROM xt_audit.allowed_trigger a
+                           WHERE a.relname = (SELECT relname FROM pg_class WHERE oid = g.tgrelid)
+                             AND a.tgname = g.tgname AND a.tgtype = g.tgtype AND g.tgnargs = 0
+                             AND a.fn = p.oid::regprocedure::text))) THEN
+        RAISE EXCEPTION 'cấm trigger lạ trên bảng xt_meta (%)', rel::regclass
+          USING ERRCODE = 'insufficient_privilege';
+      END IF;
+      IF (SELECT relname FROM pg_class WHERE oid = rel) IN ('login_tenant', 'session_ctx')
+         AND r.command_tag IN ('ALTER TABLE', 'CREATE RULE', 'CREATE POLICY',
+                               'ALTER POLICY', 'CREATE INDEX') THEN
+        -- CREATE TRIGGER đã qua allowlist ở trên (chỉ trigger audit của nền tảng)
+        RAISE EXCEPTION 'không được đổi bảng ngữ cảnh %', rel::regclass
+          USING ERRCODE = 'insufficient_privilege';
+      END IF;
+      IF EXISTS (SELECT 1 FROM pg_trigger g WHERE g.tgrelid = rel AND NOT g.tgisinternal
+                  AND g.tgenabled <> 'O') THEN
+        RAISE EXCEPTION 'trigger trên bảng xt_meta phải luôn bật (%)', rel::regclass
+          USING ERRCODE = 'insufficient_privilege';
+      END IF;
+    END IF;
     -- 0) policy RLS: bảng model chỉ đổi qua xt_audit.set_policies; bảng metadata đã đăng ký chỉ
     --    được giữ nguyên biểu thức / thêm policy RESTRICTIVE (siết)
     IF r.classid = 'pg_policy'::regclass AND NOT su THEN
@@ -649,6 +742,50 @@ BEGIN
       IF (SELECT relkind FROM pg_class WHERE oid = rel) = 'p' THEN
         RAISE EXCEPTION 'cấm bảng partition trong schema tenant' USING ERRCODE = 'insufficient_privilege';
       END IF;
+      -- (R4-03) cột tenant_id phải còn (uuid); bảng đã có policy thì phải còn policy RESTRICTIVE
+      -- theo tenant (DROP COLUMN … CASCADE không gỡ lén được)
+      IF NOT su AND r.command_tag = 'ALTER TABLE' THEN
+        IF NOT EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = rel AND a.attname = 'tenant_id'
+                        AND a.atttypid = 'uuid'::regtype AND NOT a.attisdropped) THEN
+          RAISE EXCEPTION 'bảng model % phải giữ cột tenant_id uuid', rel::regclass
+            USING ERRCODE = 'insufficient_privilege';
+        END IF;
+        IF EXISTS (SELECT 1 FROM pg_policy p WHERE p.polrelid = rel) AND NOT EXISTS (
+             SELECT 1 FROM pg_policy p WHERE p.polrelid = rel AND NOT p.polpermissive
+                AND p.polcmd = '*' AND pg_get_expr(p.polqual, p.polrelid) = '(tenant_id = xt.tenant())'
+                AND pg_get_expr(p.polwithcheck, p.polrelid) = '(tenant_id = xt.tenant())') THEN
+          RAISE EXCEPTION 'bảng model % mất policy RESTRICTIVE theo tenant', rel::regclass
+            USING ERRCODE = 'insufficient_privilege';
+        END IF;
+      END IF;
+      -- (R4-02) CHECK / DEFAULT / cột generated / index của bảng model chỉ được gọi hàm và toán tử
+      -- của pg_catalog (+ xt.tenant(), xt.actor() cho default); cấm cột kiểu domain.
+      IF NOT su THEN
+        SELECT string_agg(DISTINCT coalesce(pp.oid::regprocedure::text, po.oid::regoperator::text), ', ')
+          INTO bad
+          FROM pg_depend d
+          LEFT JOIN pg_proc pp ON d.refclassid = 'pg_proc'::regclass AND pp.oid = d.refobjid
+          LEFT JOIN pg_operator po ON d.refclassid = 'pg_operator'::regclass AND po.oid = d.refobjid
+         WHERE d.refclassid IN ('pg_proc'::regclass, 'pg_operator'::regclass)
+           AND ((d.classid = 'pg_constraint'::regclass
+                 AND d.objid IN (SELECT oid FROM pg_constraint WHERE conrelid = rel))
+             OR (d.classid = 'pg_attrdef'::regclass
+                 AND d.objid IN (SELECT oid FROM pg_attrdef WHERE adrelid = rel))
+             OR (d.classid = 'pg_class'::regclass
+                 AND d.objid IN (SELECT indexrelid FROM pg_index WHERE indrelid = rel)))
+           AND coalesce(pp.pronamespace, po.oprnamespace) <> 'pg_catalog'::regnamespace
+           AND coalesce(pp.oid, 0) NOT IN ('xt.tenant()'::regprocedure, 'xt.actor()'::regprocedure);
+        IF bad IS NOT NULL THEN
+          RAISE EXCEPTION 'biểu thức CHECK/DEFAULT/index của bảng model chỉ được dùng hàm pg_catalog: %', bad
+            USING ERRCODE = 'insufficient_privilege';
+        END IF;
+        IF EXISTS (SELECT 1 FROM pg_attribute a JOIN pg_type ty ON ty.oid = a.atttypid
+                    WHERE a.attrelid = rel AND a.attnum > 0 AND NOT a.attisdropped
+                      AND (ty.typtype IN ('d', 'c') OR ty.typnamespace <> 'pg_catalog'::regnamespace)) THEN
+          RAISE EXCEPTION 'cột bảng model chỉ được dùng kiểu dựng sẵn (không domain/kiểu tự định nghĩa)'
+            USING ERRCODE = 'insufficient_privilege';
+        END IF;
+      END IF;
       -- RLS luôn bật + FORCE: tự bật khi tạo bảng; ALTER TABLE làm tắt → chặn
       IF r.classid = 'pg_class'::regclass AND NOT (SELECT c.relrowsecurity AND c.relforcerowsecurity
                                                    FROM pg_class c WHERE c.oid = rel) THEN
@@ -662,7 +799,8 @@ BEGIN
       END IF;
       -- 5) mọi bảng thường trong schema tenant LUÔN có trigger audit (tự gắn nếu thiếu)
       --    (chỉ với lệnh trên bảng; lệnh CREATE TRIGGER lồng của chính install thì bỏ qua)
-      IF r.classid = 'pg_class'::regclass AND (
+      --    (schema xt_t* chưa gắn tenant nào thì không có chuỗi để ghi: chỉ RLS + FORCE)
+      IF r.classid = 'pg_class'::regclass AND xt_audit.schema_tenant(nsp::name) IS NOT NULL AND (
            NOT EXISTS (SELECT 1 FROM pg_trigger g WHERE g.tgrelid = rel AND g.tgname = 'xt_audit')
            OR NOT EXISTS (SELECT 1 FROM pg_trigger g WHERE g.tgrelid = rel
                            AND g.tgname = 'xt_audit_truncate')) THEN
@@ -725,7 +863,26 @@ BEGIN
       RAISE EXCEPTION 'không được xóa trigger audit %', r.object_identity
         USING ERRCODE = 'insufficient_privilege';
     END IF;
-    IF NOT su AND r.object_type = 'policy' AND r.original AND (
+    IF NOT su AND r.object_type = 'table column' AND split_part(r.object_identity, '.', 3) = 'tenant_id'
+       AND (r.schema_name ~ '^xt_t[0-9]+$' OR r.schema_name = 'xt_meta')
+       AND to_regclass(regexp_replace(r.object_identity, '\.tenant_id$', '')) IS NOT NULL THEN
+      RAISE EXCEPTION 'không được xóa cột tenant_id (%)', r.object_identity
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    IF NOT su AND r.object_type = 'table'
+       AND (EXISTS (SELECT 1 FROM xt_audit.context_rel x WHERE x.relid = r.objid)
+            OR r.object_identity IN ('xt_meta.session_ctx', 'xt_meta.login_tenant', 'xt_meta.tenant')) THEN
+      RAISE EXCEPTION 'không được xóa bảng ngữ cảnh %', r.object_identity
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    IF NOT su AND r.object_type = 'trigger' AND r.schema_name = 'xt_meta'
+       AND to_regclass(split_part(r.object_identity, ' on ', 2)) IS NOT NULL THEN
+      RAISE EXCEPTION 'không được xóa trigger trên bảng xt_meta %', r.object_identity
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    -- policy bị xóa (trực tiếp hoặc dây chuyền, vd DROP COLUMN … CASCADE) trong khi bảng còn
+    IF NOT su AND r.object_type = 'policy'
+       AND to_regclass(split_part(r.object_identity, ' on ', 2)) IS NOT NULL AND (
          (r.schema_name ~ '^xt_t[0-9]+$' AND NOT EXISTS (
             SELECT 1 FROM xt_audit.policy_pass x WHERE x.xid = pg_current_xact_id_if_assigned()
               AND x.relid = to_regclass(split_part(r.object_identity, ' on ', 2))))
@@ -761,5 +918,5 @@ DROP EVENT TRIGGER IF EXISTS xt_audit_drop_guard;
 CREATE EVENT TRIGGER xt_audit_ddl_guard ON ddl_command_end EXECUTE FUNCTION xt_audit.ddl_guard();
 CREATE EVENT TRIGGER xt_audit_drop_guard ON sql_drop EXECUTE FUNCTION xt_audit.drop_guard();
 
-INSERT INTO xt_meta.platform (key, value) VALUES ('audit_meta_version', '3')
+INSERT INTO xt_meta.platform (key, value) VALUES ('audit_meta_version', '4')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;

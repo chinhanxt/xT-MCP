@@ -1,0 +1,323 @@
+.editor-header {
+  height: 83px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 12px 26px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+.editor-header h2 {
+  font-size: 14px;
+}
+.editor-header small {
+  font-size: 9px;
+}
+.editor-header button {
+  font-size: 11px;
+}
+.editor-header .icon-btn {
+  font-size: 20px;
+}
+.editor-tabs {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  height: 49px;
+  padding: 0 30px;
+  background: white;
+  border-bottom: 1px solid var(--line);
+}
+.editor-tabs > button {
+  height: 49px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-size: 11px;
+  background: none;
+  color: #8b98aa;
+}
+.editor-tabs > button.active {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+.editor-tabs > .pill {
+  margin-left: auto;
+}
+.editor-body {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  height: calc(100vh - 202px);
+  min-height: 420px;
+}
+.editor-body.workflow {
+  grid-template-columns: minmax(0, 1fr) 360px;
+}
+.config-panel,
+.settings-panel {
+  background: white;
+  padding: 25px 26px;
+  overflow: auto;
+}
+.config-panel {
+  border-right: 1px solid var(--line);
+}
+.settings-panel {
+  max-width: 700px;
+  margin: 25px auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.config-panel label {
+  margin-top: 22px;
+}
+.config-panel textarea {
+  font-size: 12px;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  margin: 8px 0;
+  font-weight: 400;
+}
+.check input {
+  margin: 0;
+  display: inline-block;
+}
+.knowledge-checks {
+  padding: 5px 0;
+}
+.app-settings {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+  margin-top: 25px;
+  font-size: 12px;
+}
+.app-settings > summary {
+  color: #8894a7;
+}
+.app-settings .danger {
+  font-size: 11px;
+  margin-top: 15px;
+}
+.preview {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #fafbfd;
+  min-width: 0;
+}
+.preview-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  padding: 13px 21px;
+  background: #fff;
+}
+.preview-header strong {
+  font-size: 11px;
+  margin-right: auto;
+}
+.preview-header select {
+  width: auto;
+  max-width: 170px;
+  font-size: 10px;
+  padding: 6px 8px;
+}
+.preview-header .icon-btn {
+  font-size: 19px;
+}
+.conversation-select {
+  font-size: 10px;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--line);
+  padding: 8px 20px;
+  color: #8e9aac;
+  background: #f5f7fb;
+}
+.messages {
+  flex: 1;
+  min-height: 200px;
+  overflow: auto;
+  padding: 25px 25px 12px;
+  scrollbar-width: thin;
+}
+.chat-empty {
+  height: 100%;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  max-width: 380px;
+  margin: auto;
+}
+.chat-empty > span {
+  font-size: 42px;
+  color: #92ace6;
+}
+.chat-empty h2 {
+  font-size: 17px;
+  color: #7183a2;
+  margin-top: 18px;
+}
+.chat-empty p {
+  font-size: 11px;
+  margin-top: 8px;
+  line-height: 2;
+  color: #a0acc0;
+}
+.message {
+  padding: 18px 20px;
+  border-radius: 11px;
+  background: #fff;
+  border: 1px solid #e9edf4;
+  margin-bottom: 20px;
+  font-size: 12px;
+  line-height: 1.9;
+  overflow-wrap: anywhere;
+}
+.message.user {
+  background: #edf2ff;
+  border-color: #e3eafd;
+  margin-left: 35px;
+}
+.message > small {
+  display: block;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  margin-bottom: 7px;
+  color: #8393ad;
+}
+.message > div {
+  white-space: pre-wrap;
+}
+.message.user small {
+  color: #8e9fc7;
+}
+.composer {
+  margin: 10px 20px 20px;
+  border: 1px solid #dfe5f0;
+  border-radius: 11px;
+  background: #fff;
+  padding: 10px;
+  box-shadow: 0 3px 10px #283b6110;
+}
+.composer textarea {
+  border: 0;
+  box-shadow: none;
+  resize: none;
+  font-size: 12px;
+  min-height: 58px;
+}
+.composer textarea:focus {
+  box-shadow: none;
+}
+.composer .row {
+  padding: 4px 4px 0;
+}
+.composer small {
+  font-size: 9px;
+}
+.composer button {
+  padding: 6px 13px;
+  font-size: 11px;
+}
+.thinking {
+  font-size: 11px;
+  color: #9aabc4;
+  padding: 0 4px 15px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.thinking > span {
+  height: 8px;
+  width: 8px;
+  background: #7d9de9;
+  border-radius: 50%;
+  animation: pulse 1.2s infinite;
+}
+.citations {
+  margin-top: 15px;
+  font-size: 11px;
+}
+.citations summary {
+  color: #6481b8;
+  font-size: 10px;
+}
+.citations article {
+  padding: 12px;
+  background: #f6f8fc;
+  border: 1px solid #e8eef7;
+  border-radius: 6px;
+  margin-top: 8px;
+}
+.citations strong {
+  display: block;
+  font-size: 10px;
+  color: #5b7298;
+}
+.citations small {
+  font-size: 9px;
+}
+.citations p {
+  font-size: 11px;
+  color: #8190a7;
+  white-space: pre-wrap;
+  margin-top: 7px;
+}
+.trace-list {
+  margin-top: 14px;
+}
+.trace {
+  border: 1px solid #e2e8f1;
+  border-radius: 7px;
+  margin: 8px 0;
+  background: white;
+  font-size: 11px;
+  padding: 10px 12px;
+}
+.trace summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #63758f;
+}
+.trace summary > span {
+  color: #38a577;
+}
+.trace summary > small {
+  margin-left: auto;
+  font-size: 9px;
+}
+.trace.error summary > span {
+  color: #ca685f;
+}
+.trace.skipped {
+  opacity: 0.6;
+}
+.trace strong {
+  font-size: 9px;
+  display: block;
+  margin: 14px 0 5px;
+  color: #a1adc0;
+}
+.trace pre {
+  max-height: 220px;
+  overflow: auto;
+  font-size: 10px;
+  white-space: pre-wrap;
+}
+.execution > summary {
+  font-size: 10px;
+  color: #8c9bb2;
+}

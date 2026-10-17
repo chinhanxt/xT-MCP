@@ -9,7 +9,9 @@ tên `seaweedfs` không phân giải được (không chung mạng)."""
 
 from __future__ import annotations
 
+import importlib.util
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -31,7 +33,10 @@ SECRETS = (
 def compose(tmp_path_factory: pytest.TempPathFactory) -> dict:  # type: ignore[type-arg]
     if shutil.which("docker") is None:
         pytest.skip("không có docker CLI (docker compose config)")
-    env = tmp_path_factory.mktemp("env") / ".env"
+    temp = tmp_path_factory.mktemp("env")
+    env = temp / ".env"
+    secrets_dir = temp / "secrets"
+    secrets_dir.mkdir(mode=0o700)
     lines = []
     for line in (DEPLOY / ".env.example").read_text(encoding="utf-8").splitlines():
         key = line.split("=", 1)[0]
@@ -41,12 +46,20 @@ def compose(tmp_path_factory: pytest.TempPathFactory) -> dict:  # type: ignore[t
             and (key in SECRETS or key.endswith(("PASSWORD", "SECRET")))
         ):
             line = f"{key}=test-{key.lower()}-0123456789"
+        if key == "XT_SECRETS_DIR":
+            line = f"XT_SECRETS_DIR={secrets_dir}"
         lines.append(line)
     env.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("xt_test_envfile", DEPLOY / "scripts/envfile.py")
+    assert spec is not None and spec.loader is not None
+    envfile = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(envfile)
+    envfile.ensure_seaweed_configs(envfile.load_env(env))
     out = subprocess.run(
         ["docker", "compose", "--env-file", str(env), "-f", str(DEPLOY / "compose.yaml"),
          "--profile", "minimal", "--profile", "full", "config", "--format", "json"],
         capture_output=True, text=True, check=False, timeout=60,
+        env={**os.environ, "XT_SECRETS_DIR": str(secrets_dir)},
     )  # fmt: skip
     if out.returncode != 0 and "unknown flag" in out.stderr:
         pytest.skip("docker compose quá cũ")
@@ -72,13 +85,23 @@ def test_seaweed_hardened_and_jwt_enabled(compose: dict) -> None:  # type: ignor
     assert "@sha256:" in sw["image"]
     targets = {c["target"] for c in sw["configs"]}
     assert {"/etc/seaweedfs/security.toml", "/etc/xt-s3/s3.json"} <= targets
-    sec = compose["configs"]["seaweed-security"]["content"]
+    security_file = Path(compose["configs"]["seaweed-security"]["file"])
+    s3_file = Path(compose["configs"]["seaweed-s3"]["file"])
+    assert security_file.parent == s3_file.parent
+    assert security_file.parent.name == "seaweed"
+    for config in (security_file, s3_file):
+        assert config.stat().st_mode & 0o777 == 0o644
+    sec = security_file.read_text(encoding="utf-8")
     for section in ("jwt.signing", "jwt.signing.read", "jwt.filer_signing",
                     "jwt.filer_signing.read"):  # fmt: skip
         assert f"[{section}]" in sec
     assert 'key = ""' not in sec
-    s3 = json.loads(compose["configs"]["seaweed-s3"]["content"])
-    assert s3["identities"][0]["credentials"][0]["secretKey"]
+    for key in SECRETS[2:]:
+        assert f'key = "test-{key.lower()}-0123456789"' in sec
+    s3 = json.loads(s3_file.read_text(encoding="utf-8"))
+    credentials = s3["identities"][0]["credentials"][0]
+    assert credentials["accessKey"] == "test-xt_files_s3_access_key-0123456789"
+    assert credentials["secretKey"] == "test-xt_files_s3_secret_key-0123456789"
 
 
 def test_no_gateway_route_to_seaweed() -> None:

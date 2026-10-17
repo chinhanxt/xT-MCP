@@ -2,9 +2,9 @@
 # SPDX-FileCopyrightText: 2026 xT contributors
 """Vòng đời stack e2e: `python -m xte2e.stack up|down|status`.
 
-`up` = volume MỚI (down -v trước), render APISIX, build, khởi động các dịch vụ minimal (postgrest bật sau
-khi demo-seed có JWKS). Tuân quy tắc heavy-stack: chỉ chạy khi `free` báo available >= 4 GiB và không có
-stack Keycloak/Ollama nặng khác đang chạy.
+`up` = volume MỚI (down -v trước), render APISIX, build, khởi động dịch vụ minimal.
+postgrest bật sau khi demo-seed có JWKS. Chỉ chạy khi RAM available >= 4 GiB và
+không có stack Keycloak/Ollama nặng khác đang chạy.
 """
 
 from __future__ import annotations
@@ -22,17 +22,24 @@ MIN_AVAILABLE_GIB = 4.0
 
 
 def available_gib() -> float:
-    for line in open("/proc/meminfo", encoding="ascii"):
-        if line.startswith("MemAvailable:"):
-            return int(line.split()[1]) / 1024 / 1024
+    with open("/proc/meminfo", encoding="ascii") as meminfo:
+        for line in meminfo:
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1]) / 1024 / 1024
     return 0.0
 
 
 def other_heavy() -> list[str]:
     proj = settings().project
-    out = subprocess.run(
-        ["docker", "ps", "--format", "{{.Names}}\t{{.Image}}"], capture_output=True, text=True
-    ).stdout
+    result = subprocess.run(
+        ["docker", "ps", "--format", "{{.Names}}\t{{.Image}}"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        raise RuntimeError("[stack] docker ps failed; cannot verify the heavy-stack slot")
+    out = result.stdout
     return [
         ln.split("\t")[0]
         for ln in out.splitlines()
@@ -49,7 +56,8 @@ def preflight(wait: float = 600) -> None:
             return
         if time.time() > end:
             sys.exit(
-                f"[stack] không đủ điều kiện heavy-stack: available={avail:.1f} GiB, đang chạy: {heavy}"
+                f"[stack] không đủ điều kiện heavy-stack: available={avail:.1f} GiB, "
+                f"đang chạy: {heavy}"
             )
         print(f"[stack] chờ: available={avail:.1f} GiB, stack nặng khác: {heavy}")
         time.sleep(30)
@@ -57,19 +65,24 @@ def preflight(wait: float = 600) -> None:
 
 def up() -> None:
     preflight()
-    compose.dc(["--profile", "*", "down", "--remove-orphans", "--volumes"], check=False)
-    # `make -C deploy render` = env (sinh bí mật mới thêm vào .env.example: S3/SeaweedFS JWT...) + APISIX.
+    # Compose also parses required secrets for `down`, including on a first run.
+    # Render APISIX and generate any missing test secrets from .env.example.
     subprocess.run(["make", "-s", "render"], cwd=DEPLOY, check=True)
+    # A failed cleanup means the next run cannot claim fresh volumes.
+    compose.dc(["--profile", "*", "down", "--remove-orphans", "--volumes"])
     print("[stack] build + up (volume mới)")
     compose.dc(["build"], timeout=1800, capture=False)
     issues: list[str] = []
     compose.override_file().unlink(missing_ok=True)
     r = compose.dc(["up", "-d", *compose.CORE], timeout=900, check=False)
     print((r.stdout or "")[-1500:], (r.stderr or "")[-1500:])
-    issues_file().write_text(json.dumps(issues, ensure_ascii=False), encoding="utf-8")
     if r.returncode != 0:
-        # Không dừng: kịch bản E0 báo dịch vụ nào hỏng kèm log (báo cáo vẫn được sinh).
-        print(f"[stack] CẢNH BÁO: docker compose up rc={r.returncode}\n{compose.ps()}")
+        issues.append(f"docker compose up rc={r.returncode}")
+    issues_file().write_text(json.dumps(issues, ensure_ascii=False), encoding="utf-8")
+    if issues:
+        # Keep diagnostics, but never seed or test against an incomplete stack.
+        print(f"[stack] {issues[0]}\n{compose.ps()}")
+        raise RuntimeError(f"[stack] {issues[0]}")
 
 
 def issues_file() -> Path:
@@ -78,9 +91,7 @@ def issues_file() -> Path:
 
 
 def down() -> None:
-    compose.dc(
-        ["--profile", "*", "down", "--remove-orphans", "--volumes"], check=False, capture=False
-    )
+    compose.dc(["--profile", "*", "down", "--remove-orphans", "--volumes"], capture=False)
 
 
 def main(argv: list[str]) -> int:

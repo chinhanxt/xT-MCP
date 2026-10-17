@@ -452,3 +452,18 @@ Không gọi Bot API thật để đăng ký webhook trong triển khai/test t�
 | Policy RLS của bảng model `xt_t*`: chỉ qua `xt_audit.set_policies(schema, bảng, model_id, perms jsonb)`. Hàm này dùng mẫu cố định từ permissions của catalog và luôn có policy RESTRICTIVE theo tenant; compiler đã dùng nó. Mọi `CREATE/ALTER/DROP POLICY` khác trên `xt_t*` và `DISABLE/NO FORCE ROW LEVEL SECURITY` đều bị chặn với non-superuser. Bảng mới trong `xt_t*` tự bật RLS + FORCE | Không tạo policy tay trên bảng của schema tenant. `composition/test_fixtures.py` đã chuyển sang dựng bảng thử bằng superuser |
 | Bảng `xt_meta` có audit: policy được chụp lại lúc đăng ký. Đổi biểu thức, xóa policy, thêm policy PERMISSIVE hoặc tắt RLS đều bị chặn; được đổi danh sách role (như 0008) và thêm policy RESTRICTIVE | Migration nới quyền trên bảng `xt_meta` cũ phải chạy bằng superuser |
 | `ALTER SCHEMA` trên schema chứa hàm/bảng được bảo vệ bị chặn | — |
+
+### Model engine vòng 4 (16/10/2026, phòng ngừa + phát hiện)
+
+`sql/audit_meta.sql` phiên bản 4 (superuser, idempotent; CSDL cũ: chạy `install_meta_audit()` rồi lấy checkpoint mới).
+
+| Thay đổi | Ảnh hưởng cho module khác |
+|---|---|
+| Mọi hàm trong `xt`/`xt_audit`/`xt_meta` (kể cả hàm mới do migration tạo) vào `xt_audit.protected_fn` ngay khi tạo; sau đó role không phải superuser chỉ được chạy lại **định nghĩa y hệt** (so dấu vân tay), không đổi thân/thuộc tính/tên/chủ, không DROP | Muốn sửa hàm đã phát hành: file SQL chạy bằng superuser. Migration tạo hàm mới vẫn chạy bằng migrator |
+| Trigger trên bảng `xt_meta`: chỉ `xt_audit_meta*` và allowlist `xt_audit.allowed_trigger` (hiện có `decision.decision_sod_guard`); không được DROP trigger trên `xt_meta`; RULE bị cấm; trigger phải luôn bật | Dùng `CREATE OR REPLACE TRIGGER` thay cho `DROP TRIGGER IF EXISTS` + `CREATE` (đã sửa 0010). Trigger mới cần dòng allowlist do superuser thêm |
+| `xt_meta.login_tenant`/`session_ctx`: cấm ALTER TABLE, RULE, POLICY, INDEX; không xóa được bảng | — |
+| Bảng `xt_t*`: luôn phải có cột `tenant_id uuid` và policy RESTRICTIVE `tenant_id = xt.tenant()`; CHECK/DEFAULT/generated/index chỉ dùng hàm/toán tử `pg_catalog` + `xt.tenant()`/`xt.actor()`; cột không dùng domain/kiểu tự định nghĩa | Compiler đã tuân theo; bảng tay trong schema tenant cũng vậy |
+| `xt.set_context(8 tham số)` chỉ nhận lời gọi trực tiếp: câu lệnh client là đúng một `SELECT xt.set_context(...)` | Không gọi trong DO/hàm/CTE hay ghép nhiều câu |
+| `xt_audit.set_policies` ghi event `POLICY` (model `xt_audit.policies:<bảng>`) vào chuỗi của tenant | Đếm event theo tenant phải tính thêm event này |
+| Checkpoint có `security_catalog`; verify in đối tượng đổi/thêm/mất và exit 1 | Lấy checkpoint mới sau migration/tenant mới đã duyệt |
+| **TODO — cô lập credential chưa thực hiện:** Compose vẫn cấp `XT_DB_MIGRATOR_URL` cho API/worker để rehearsal và apply/pha 2 | Cần executor đặc quyền + tách claim queue; xem `docs/model-engine.md` §7a. Không có Helm chart trong repo hiện tại |

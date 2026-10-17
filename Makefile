@@ -5,6 +5,14 @@ VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -n1
 
 .PHONY: setup lint test test-integration boundaries reuse check release verify-clean
 
+.PHONY: unified-setup unified-build unified-test unified-check
+unified-setup unified-build unified-test unified-check:
+	$(NODE) node scripts/unified.mjs $(patsubst unified-%,%,$@)
+
+.PHONY: unified-start
+unified-start:
+	$(NODE) node scripts/unified-start.mjs
+
 setup:
 	uv sync
 
@@ -22,7 +30,7 @@ reuse:
 test:
 	uv run pytest
 
-# Keycloak 26.6.3 (cổng 19400) và postgres:17-alpine (cổng 19700, model engine) thật trong docker, tự dọn container sau khi chạy.
+# Keycloak 26.6.3 và postgres:17-alpine thật trong docker (tên container + cổng ngẫu nhiên mỗi lượt), tự dọn container sau khi chạy.
 test-integration:
 	uv run pytest -m integration tests/integration --no-cov
 
@@ -115,8 +123,17 @@ e2e-run:   # chạy kịch bản trên stack đang có (đã demo-seed)
 	$(E2E) pytest -c pytest.ini -m "e2e and not llm" $(E2E_ARGS)
 
 e2e:
-	@rc=0; $(MAKE) e2e-up; $(MAKE) demo-seed; $(MAKE) e2e-run || rc=$$?; \
-	  [ "$${E2E_KEEP:-0}" = 1 ] || $(MAKE) e2e-down; exit $$rc
+	@set -eu; \
+	  cleanup() { \
+	    rc=$$?; trap - EXIT HUP INT TERM; \
+	    if [ "$${E2E_KEEP:-0}" != 1 ]; then \
+	      $(MAKE) e2e-down || { cleanup_rc=$$?; [ "$$rc" -ne 0 ] || rc=$$cleanup_rc; }; \
+	    fi; \
+	    exit "$$rc"; \
+	  }; \
+	  trap cleanup EXIT; \
+	  trap 'exit 129' HUP; trap 'exit 130' INT; trap 'exit 143' TERM; \
+	  $(MAKE) e2e-up; $(MAKE) demo-seed; $(MAKE) e2e-run
 
 e2e-llm:   # E1: Desk + Ollama qwen3.5:4b (slot heavy riêng); cần stack đã up + demo-seed
 	$(E2E) python -m xte2e.stack preflight

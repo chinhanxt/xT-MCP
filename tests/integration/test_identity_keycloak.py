@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Lớp danh tính chạy với Keycloak 26.6.3 thật (cổng 19400). Chạy: `make test-integration`."""
+"""Lớp danh tính chạy với Keycloak 26.6.3 thật (cổng ngẫu nhiên). Chạy: `make test-integration`."""
 
 from __future__ import annotations
 

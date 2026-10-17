@@ -692,3 +692,49 @@ Còn mở:
 - **R4-05 (LOW):** độ phủ digest.
 
 Lõi model engine và audit trực tiếp **ĐẠT**.
+
+## Phản hồi tác giả, vòng 4 (16/10/2026)
+
+Theo quyết định "Mô hình đe dọa của `xt_migrator`: phòng ngừa + phát hiện" (`docs/decisions.md`). `sql/audit_meta.sql` lên phiên bản 4 (superuser, idempotent; CSDL nâng cấp chạy lại `install_meta_audit()`).
+
+**Phòng ngừa** (17 xfail của vòng 4 đã gỡ, đều PASS trên `xt` và `xt_up`):
+
+| Mã | Cách sửa |
+|---|---|
+| R4-01 | Mọi bảng `xt_meta` (kể cả bảng miễn audit): cấm RULE; trigger chỉ là `xt_audit_meta*` với hàm audit hoặc nằm trong `xt_audit.allowed_trigger`; trigger luôn bật, không DROP được. `login_tenant`/`session_ctx`: cấm ALTER TABLE (gồm DROP CONSTRAINT), POLICY, INDEX, RULE; không xóa được bảng |
+| R4-02 | `xt.set_context` chỉ nhận lời gọi trực tiếp từ kết nối app: `current_query()` phải là đúng một câu `SELECT xt.set_context(…)` và `PG_CONTEXT` chỉ có chính hàm này. CHECK/DEFAULT/generated/domain/trigger/view gài vào đều chạy bên trong câu lệnh khác nên bị từ chối. Thêm lớp thứ hai: trên `xt_t*`, CHECK/DEFAULT/generated/index chỉ được dùng hàm/toán tử `pg_catalog` + `xt.tenant()`/`xt.actor()` (theo `pg_depend`), cột không được dùng domain hay kiểu tự định nghĩa |
+| R4-03 | `drop_guard` chặn mọi policy bị xóa trên bảng còn tồn tại (kể cả CASCADE, bỏ điều kiện `original`) khi không có `policy_pass`, và chặn DROP cột `tenant_id`. `ddl_guard` sau mọi ALTER TABLE trên `xt_t*` đòi cột `tenant_id uuid` + policy RESTRICTIVE `tenant_id = xt.tenant()` |
+| R4-04 | Mọi hàm trong `xt`/`xt_audit`/`xt_meta` (gồm `xt.row_touch()`, cả hàm tạo sau này) vào `protected_fn` theo oid kèm dấu vân tay định nghĩa. Role không phải superuser chỉ được chạy lại định nghĩa y hệt (migration idempotent); đổi thân/thuộc tính/tên/chủ hay DROP đều 42501 |
+| R4-05 | Digest hàm của checkpoint gồm mọi hàm `xt`/`xt_audit`/`xt_meta` + hàm mà policy tham chiếu, nên superuser sửa `xt.row_touch()` thì báo `functions_changed` |
+| INFO `set_policies` | Mỗi lần gọi ghi event `POLICY` (model `xt_audit.policies:<bảng>`, diff `{model_id, permissions}`) vào chuỗi của tenant |
+
+**Phát hiện** cho mọi thứ còn lại: checkpoint Ed25519 có thêm `security_catalog`, là dấu vân tay từng đối tượng của các schema `xt*`: schema, hàm, bảng (chủ/RLS/ACL), policy, trigger, rule, constraint, default/generated, cột `tenant_id` và ACL cột, index, event trigger, role `xt_*`, membership. `xt audit verify --against-checkpoint` in `catalog đổi|thêm|mất: <loại>:<tên>` và trả exit 1. Test mới (`model_audit_r4`): `test_checkpoint_reports_exact_catalog_changes` (cài mới + nâng cấp; constraint/index/grant của migrator, trigger/hàm/proconfig/membership của superuser, policy tenant bị gỡ → báo đúng tên; dọn xong thì `ok`), `test_cli_verify_reports_catalog_objects`, `test_set_policies_emits_audit_event`.
+
+**Cô lập credential: CHƯA THỰC HIỆN.** Mục tiêu và tiêu chí đóng ở `docs/model-engine.md` §7a và `docs/integration-notes.md`. Thực tế: `deploy/compose.yaml` vẫn truyền `XT_DB_MIGRATOR_URL` cho `xt-api` và `xt-worker` (job `model.apply`). Cần chuyển `model.apply` sang job one-shot rồi gỡ biến; việc này nằm ngoài phạm vi engine nên chưa sửa.
+
+**Sửa test:** dọn hàm `xt.*` trong test bằng superuser. Test "gián điệp" (`model_audit`, `r3`) giờ khẳng định CHECK/DEFAULT gọi hàm ngoài `pg_catalog` bị 42501. Trong r3, hai tấn công no-op (`SECURITY INVOKER` trên hàm vốn đã INVOKER, `OWNER TO` chủ hiện tại) đổi thành thay đổi thật. Đếm seq trong `test_audit_chain_detects_tampering` bỏ qua event `POLICY`. Migration `0010` dùng `CREATE OR REPLACE TRIGGER`. Bảng trong schema `xt_t*` chưa gắn tenant chỉ bật RLS + FORCE, không tự gắn audit.
+
+### Kiểm lại bản vá R4 trong worktree cô lập (16/10/2026)
+
+Bộ 107 test audit hiện có xanh, nhưng probe bổ sung tìm được hai đường còn lọt: migrator dời
+`xt_meta.session_ctx` sang schema khác (bảng miễn audit nên kiểm theo tên sau DDL bỏ qua), và
+`CREATE OR REPLACE TRIGGER decision_sod_guard ... WHEN (false)` giữ nguyên tên/hàm nhưng vô hiệu
+kiểm SoD. Registry mới `xt_audit.context_rel` giữ oid/tên bảng ngữ cảnh qua rename/SET SCHEMA/drop.
+Allowlist trigger kiểm cả mặt nạ sự kiện/timing, không WHEN/UPDATE OF/deferral, và không tham số
+cho trigger SoD; trigger audit metadata cũng phải giữ đúng loại sự kiện.
+
+Checkpoint trước đó bỏ sót `STRICT` của hàm, định nghĩa view, `WHEN` của trigger và constraint
+của domain. Nay digest lấy `pg_get_functiondef` đầy đủ cùng thuộc tính/ACL, băm SHA-256 phía
+client (không băm MD5 trung gian); catalog bao gồm cả hàm extension trong schema xT,
+`pg_get_triggerdef`, định nghĩa/options của view và định nghĩa/constraint của domain.
+
+Bằng chứng: `test_r4_catalog_boundaries_pg.py` mới có 8 FAIL/2 PASS trước sửa và 10 PASS sau sửa.
+Lượt cuối `uv run pytest -q -m integration --no-cov tests/integration/test_model_engine_pg.py
+ tests/integration/model_audit tests/integration/model_audit_r3 tests/integration/model_audit_r4`:
+**130 passed trong 44,20 s**, gồm cài mới và nâng cấp từ `98e1a1b`; unit model **166 passed**;
+Ruff trên các file Python thay đổi đạt. Container riêng đã xóa cùng volume. Không đổi hoặc
+làm yếu test auditor cũ. CSDL đã có audit v4 cần chạy lại `install_meta_audit()` bằng superuser.
+
+Giới hạn giữ nguyên: credential migrator còn trong API/worker ở compose hiện tại; toàn bộ e2e
+và việc cô lập credential thuộc cổng tích hợp, chưa được lượt kiểm tập trung này chứng nhận.
+Checkpoint là phát hiện thay đổi từ neo đã ký, không thể chống superuser giả mọi đường đọc.

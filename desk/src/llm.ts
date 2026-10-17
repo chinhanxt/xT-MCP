@@ -6,7 +6,8 @@ export interface LlmOptions {
   baseUrl: string; // vd. "/llm" (proxy cùng origin) -> POST {baseUrl}/chat/completions
   model: string;
   reasoningEffort?: string; // "" = không gửi
-  authHeaders: () => Promise<Record<string, string>> | Record<string, string>; // token của người dùng; ném lỗi => không gọi
+  temperature?: number;
+  authHeaders: (req?: { method: string; url: string }) => Promise<Record<string, string>> | Record<string, string>; // proof gắn đúng request; ném lỗi => không gọi
 }
 
 interface Delta {
@@ -39,11 +40,12 @@ export class ToolCallAccumulator {
 export function createLlm(o: LlmOptions): LlmClient {
   return {
     async complete({ messages, tools, signal }, onDelta): Promise<LlmReply> {
-      const body: Record<string, unknown> = { model: o.model, messages: messages as ChatMessage[], stream: true };
+      const body: Record<string, unknown> = { model: o.model, messages: messages as ChatMessage[], stream: true, temperature: o.temperature ?? 0 };
       if (tools.length) body.tools = tools as OpenAITool[];
       if (o.reasoningEffort) body.reasoning_effort = o.reasoningEffort;
-      const auth = await o.authHeaders();
-      const r = await fetch(`${o.baseUrl}/chat/completions`, {
+      const url = `${o.baseUrl}/chat/completions`;
+      const auth = await o.authHeaders({ method: "POST", url: new URL(url, globalThis.location?.href).href });
+      const r = await fetch(url, {
         method: "POST",
         headers: { "content-type": "application/json", ...auth },
         body: JSON.stringify(body),

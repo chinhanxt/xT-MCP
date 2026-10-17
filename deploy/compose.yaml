@@ -222,6 +222,9 @@ services:
       XT_PII_KEY_FILE: /run/secrets/xt/pii.key
       XT_MCP_SERVICES: ${XT_MCP_SERVICES:-xt.entrypoints.composition:build}   # module:factory trả ToolServices/composition
       XT_DESK_URL: https://${XT_DOMAIN_DESK}
+      XT_DESK_LLM_URL: ${XT_DESK_LLM_URL:-${DESK_LLM_URL}}
+      XT_DESK_LLM_MODEL: ${DESK_LLM_MODEL}
+      XT_DESK_LLM_CLIENT_ID: ${XT_DESK_AGENT_CLIENT_ID:-xt-desk-agent}
       # Kênh người xem PII (/pii/reveal): CORS chỉ cho origin Desk; chỉ client Desk xin được vé
       XT_PII_REVEAL_ORIGINS: https://${XT_DOMAIN_DESK}
       XT_PII_REVEAL_CLIENTS: ${XT_DESK_AGENT_CLIENT_ID:-xt-desk-agent}
@@ -371,6 +374,8 @@ services:
     build:
       context: ../desk
       dockerfile: ../deploy/docker/desk.Dockerfile
+      additional_contexts:
+        xt-skills: ../skills
       args:
         DESK_MCP_URL: https://${XT_DOMAIN_MCP}/mcp
         DESK_LLM_URL: ${DESK_LLM_URL}

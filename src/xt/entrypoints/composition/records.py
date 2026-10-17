@@ -132,7 +132,7 @@ class RecordServiceAdapter:
         transitions: Callable[[CallContext, Args], MutationPlan] | None = None,
         transition_commit: Callable[[CallContext, MutationPlan], CommitResult] | None = None,
         model_changes: ModelChangeDecisions | None = None,
-        step_transitions: Callable[[Caller, str, UUID, Mapping[str, Any]], list[Data]]
+        step_transitions: Callable[[CallContext, Caller, str, UUID, Mapping[str, Any]], list[Data]]
         | None = None,
     ) -> None:
         if len(cursor_key) < 32:
@@ -260,7 +260,7 @@ class RecordServiceAdapter:
         rec = self.record_out(caller, model, raw, ver, args.get("fields"))
         if self.step_transitions is not None:
             # Bước quy trình người gọi đang giữ trên bản ghi (complete_via) -> transition_record.
-            rec["available_transitions"] = self.step_transitions(caller, name, rid, raw)
+            rec["available_transitions"] = self.step_transitions(ctx, caller, name, rid, raw)
         return {"record": rec}
 
     _OPS: ClassVar[dict[str, str]] = {
@@ -450,6 +450,10 @@ class RecordServiceAdapter:
         for arg in ("depends_on", "recurrence", "watchers", "source_ref"):
             if arg in args:
                 unavailable(f"create_task.{arg}")
+        priority_field = fmap.get("priority")
+        if priority_field and isinstance(values.get(priority_field), str):
+            priorities = binding.config.get("priorities", {})
+            values[priority_field] = priorities.get(values[priority_field], values[priority_field])
         due_field = fmap.get("due_at")
         if due_field and isinstance(values.get(due_field), str):
             values[due_field] = self._due(caller, model, due_field, values[due_field])
@@ -475,12 +479,15 @@ class RecordServiceAdapter:
     @staticmethod
     def _due(caller: Caller, model: ModelSpec, field: str, value: str) -> str:
         t = model.field(field).type
-        if t == "datetime" and len(value) == 10:
-            d = date.fromisoformat(value)
-            end = datetime.combine(d, time(23, 59, 59), ZoneInfo(caller.profile.timezone))
-            return end.isoformat()
-        if t == "date" and len(value) > 10:
-            return datetime.fromisoformat(value.replace("Z", "+00:00")).date().isoformat()
+        try:
+            if t == "datetime" and len(value) == 10:
+                d = date.fromisoformat(value)
+                end = datetime.combine(d, time(23, 59, 59), ZoneInfo(caller.profile.timezone))
+                return end.isoformat()
+            if t == "date" and len(value) > 10:
+                return datetime.fromisoformat(value.replace("Z", "+00:00")).date().isoformat()
+        except ValueError as exc:
+            raise invalid_request("Ngày hết hạn không hợp lệ.", "bad_date") from exc
         return value
 
     # ---- commit -------------------------------------------------------------------------------
@@ -523,6 +530,7 @@ class RecordServiceAdapter:
     def _task_out(self, caller: Caller, plan: MutationPlan, rec: Data) -> Data:
         binding = self.rt.store.bindings(caller.actor)[rec["model_id"]]
         fmap: Mapping[str, str] = binding.config.get("fields", {})
+        priorities = {v: k for k, v in binding.config.get("priorities", {}).items()}
         values = rec["values"]
         assignee = values.get(fmap.get("assignee", ""))
         person = None
@@ -536,7 +544,12 @@ class RecordServiceAdapter:
             "revision": rec["revision"],
             "assignee": person or {"ref": str(assignee), "name": ""},
             "due_at": values.get(fmap.get("due_at", "")),
-            "priority": str(values.get(fmap.get("priority", "")) or "normal"),
+            "priority": str(
+                priorities.get(
+                    values.get(fmap.get("priority", "")),
+                    values.get(fmap.get("priority", "")) or "normal",
+                )
+            ),
             "parent_ref": values.get(fmap.get("parent_ref", "")),
             "sla_policy": None,
             "recurrence": None,

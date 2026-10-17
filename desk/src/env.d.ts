@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
 declare const __DESK_CONFIG__: {
+  coreSkill: string;
   model: string;
   reasoningEffort: string;
   toolProfile: string;
@@ -17,3 +18,5 @@ declare const __DESK_CONFIG__: {
   appGlobalCallsPerSec: number;
   appGlobalBurst: number;
 };
+
+interface Window { xtPortal?: import("./portal").PortalBridge }

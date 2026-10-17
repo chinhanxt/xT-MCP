@@ -78,10 +78,13 @@ class AuditReader:
 __all__ = [
     "AnchorResult",
     "AuditReader",
+    "CatalogDiff",
     "ChainStatus",
     "CheckpointError",
     "audit_hmac",
+    "diff_security_catalog",
     "load_checkpoint",
+    "security_catalog",
     "sign_checkpoint",
     "take_checkpoint",
     "verify_against_checkpoint",
@@ -142,17 +145,17 @@ def _canon_json(payload: Mapping[str, Any]) -> bytes:
 
 
 AUDIT_FUNCTIONS_SQL = (
-    "SELECT p.oid::regprocedure::text, p.prosrc, pg_get_userbyid(p.proowner)::text,"
-    " p.prosecdef, coalesce(array_to_string(p.proconfig, ','), '')"
+    "SELECT p.oid::regprocedure::text, pg_get_functiondef(p.oid),"
+    " pg_get_userbyid(p.proowner)::text, p.proacl::text, p.proleakproof, p.proisstrict,"
+    " p.proparallel, p.prosupport::regproc::text"
     " FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace"
-    " WHERE (n.nspname = 'xt_audit' OR (n.nspname = 'xt' AND p.proname IN ('set_context', 'cur',"
-    " 'backend_cur', 'cur_meta', 'actor', 'tenant', 'has_role', 'in_teams', 'in_departments',"
-    " 'tenant_seq', 'login_tenant', 'pgrst_pre', 'pgrst_gate', 'pgrst_config'))"
+    " WHERE (n.nspname IN ('xt', 'xt_audit', 'xt_meta')"
     # mọi hàm mà policy RLS của bảng model/metadata tham chiếu (pg_depend)
     " OR p.oid IN (SELECT d.refobjid FROM pg_depend d JOIN pg_policy pp ON pp.oid = d.objid"
     " JOIN pg_class pc ON pc.oid = pp.polrelid JOIN pg_namespace pn ON pn.oid = pc.relnamespace"
     " WHERE d.classid = 'pg_policy'::regclass AND d.refclassid = 'pg_proc'::regclass"
     " AND (pn.nspname ~ '^xt_t[0-9]+$' OR pn.nspname = 'xt_meta')))"
+    " AND p.prokind <> 'a'"
     " AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass"
     " AND d.objid = p.oid AND d.deptype = 'e')"
 )
@@ -169,6 +172,115 @@ def audit_functions_digest(conn: psycopg.Connection[Any]) -> str:
     return h.hexdigest()
 
 
+# Catalog liên quan bảo mật của các schema xt* (quyết định "phòng ngừa + phát hiện", 16/10/2026):
+# mỗi dòng (loại, tên đối tượng, định nghĩa). Đọc thẳng catalog hệ thống, không gọi hàm của xT.
+SECURITY_CATALOG_SQL = """
+WITH ns AS (SELECT oid, nspname FROM pg_namespace
+             WHERE nspname ~ '^(xt|xt_meta|xt_audit|xt_t[0-9]+|api_t[0-9]+)$'),
+rel AS (SELECT c.oid, n.nspname || '.' || c.relname AS name, c.relowner, c.relrowsecurity,
+               c.relforcerowsecurity, c.relacl, c.reloptions
+          FROM pg_class c JOIN ns n ON n.oid = c.relnamespace
+         WHERE c.relkind IN ('r', 'p', 'v'))
+SELECT 'schema', n.nspname, concat_ws('|', pg_get_userbyid(s.nspowner), s.nspacl::text)
+  FROM ns n JOIN pg_namespace s ON s.oid = n.oid
+UNION ALL
+SELECT 'function', p.oid::regprocedure::text,
+       concat_ws('|', pg_get_functiondef(p.oid), pg_get_userbyid(p.proowner), p.proacl::text,
+                 p.proleakproof, p.proisstrict, p.proparallel, p.prosupport::regproc::text)
+  FROM pg_proc p JOIN ns n ON n.oid = p.pronamespace
+ WHERE p.prokind <> 'a'
+UNION ALL
+SELECT 'table', r.name, concat_ws('|', pg_get_userbyid(r.relowner), r.relrowsecurity,
+       r.relforcerowsecurity, r.relacl::text, r.reloptions::text) FROM rel r
+UNION ALL
+SELECT 'view', r.name, pg_get_viewdef(r.oid) FROM rel r
+ WHERE (SELECT relkind FROM pg_class WHERE oid = r.oid) = 'v'
+UNION ALL
+SELECT 'type', n.nspname || '.' || t.typname,
+       concat_ws('|', t.typtype, format_type(t.typbasetype, t.typtypmod), t.typnotnull,
+                 t.typdefault, t.typacl::text, pg_get_userbyid(t.typowner))
+  FROM pg_type t JOIN ns n ON n.oid = t.typnamespace WHERE t.typtype IN ('d', 'e')
+UNION ALL
+SELECT 'constraint', n.nspname || '.' || t.typname || '.' || k.conname,
+       concat_ws('|', pg_get_constraintdef(k.oid), k.convalidated)
+  FROM pg_constraint k JOIN pg_type t ON t.oid = k.contypid
+  JOIN ns n ON n.oid = t.typnamespace
+UNION ALL
+SELECT 'policy', r.name || '.' || p.polname,
+       concat_ws('|', p.polpermissive, p.polcmd, p.polroles::regrole[]::text,
+                 pg_get_expr(p.polqual, p.polrelid), pg_get_expr(p.polwithcheck, p.polrelid))
+  FROM pg_policy p JOIN rel r ON r.oid = p.polrelid
+UNION ALL
+SELECT 'trigger', r.name || '.' || g.tgname,
+       concat_ws('|', pg_get_triggerdef(g.oid), g.tgenabled)
+  FROM pg_trigger g JOIN rel r ON r.oid = g.tgrelid WHERE NOT g.tgisinternal
+UNION ALL
+SELECT 'rule', r.name || '.' || w.rulename, pg_get_ruledef(w.oid)
+  FROM pg_rewrite w JOIN rel r ON r.oid = w.ev_class WHERE w.rulename <> '_RETURN'
+UNION ALL
+SELECT 'constraint', r.name || '.' || k.conname,
+       concat_ws('|', pg_get_constraintdef(k.oid), k.convalidated)
+  FROM pg_constraint k JOIN rel r ON r.oid = k.conrelid
+UNION ALL
+SELECT 'default', r.name || '.' || a.attname,
+       concat_ws('|', a.attgenerated, pg_get_expr(d.adbin, d.adrelid))
+  FROM pg_attrdef d JOIN rel r ON r.oid = d.adrelid
+  JOIN pg_attribute a ON a.attrelid = d.adrelid AND a.attnum = d.adnum
+UNION ALL
+SELECT 'column', r.name || '.' || a.attname,
+       concat_ws('|', format_type(a.atttypid, a.atttypmod), a.attnotnull, a.attacl::text)
+  FROM pg_attribute a JOIN rel r ON r.oid = a.attrelid
+ WHERE a.attnum > 0 AND NOT a.attisdropped AND (a.attname = 'tenant_id' OR a.attacl IS NOT NULL)
+UNION ALL
+SELECT 'index', r.name || '.' || ic.relname, pg_get_indexdef(i.indexrelid)
+  FROM pg_index i JOIN rel r ON r.oid = i.indrelid JOIN pg_class ic ON ic.oid = i.indexrelid
+UNION ALL
+SELECT 'event_trigger', e.evtname,
+       concat_ws('|', e.evtevent, e.evtfoid::regprocedure::text, e.evtenabled, e.evttags::text,
+                 pg_get_userbyid(e.evtowner))
+  FROM pg_event_trigger e
+UNION ALL
+SELECT 'role', a.rolname, concat_ws('|', a.rolsuper, a.rolbypassrls, a.rolcanlogin, a.rolinherit,
+       a.rolcreaterole, a.rolcreatedb, a.rolreplication)
+  FROM pg_roles a WHERE a.rolname ~ '^xt_'
+UNION ALL
+SELECT 'membership', pg_get_userbyid(m.member) || '->' || pg_get_userbyid(m.roleid),
+       concat_ws('|', m.admin_option, m.inherit_option, m.set_option)
+  FROM pg_auth_members m
+ WHERE pg_get_userbyid(m.roleid) ~ '^xt_' OR pg_get_userbyid(m.member) ~ '^xt_'
+"""
+
+
+def security_catalog(conn: psycopg.Connection[Any]) -> dict[str, str]:
+    """{"<loại>:<tên>": sha256(định nghĩa)} cho toàn bộ catalog liên quan bảo mật của xt*."""
+    out: dict[str, str] = {}
+    for kind, name, definition in conn.execute(SECURITY_CATALOG_SQL).fetchall():
+        out[f"{kind}:{name}"] = hashlib.sha256(str(definition or "").encode()).hexdigest()
+    return out
+
+
+@dataclass(frozen=True)
+class CatalogDiff:
+    changed: list[str]
+    added: list[str]
+    removed: list[str]
+
+    @property
+    def ok(self) -> bool:
+        return not (self.changed or self.added or self.removed)
+
+
+def diff_security_catalog(conn: psycopg.Connection[Any], doc: Mapping[str, Any]) -> CatalogDiff:
+    """So catalog hiện tại với checkpoint: báo ĐÚNG đối tượng nào đổi / thêm / mất."""
+    then: Mapping[str, str] = doc.get("security_catalog") or {}
+    now = security_catalog(conn)
+    return CatalogDiff(
+        changed=sorted(k for k in then.keys() & now.keys() if then[k] != now[k]),
+        added=sorted(now.keys() - then.keys()),
+        removed=sorted(then.keys() - now.keys()),
+    )
+
+
 def take_checkpoint(conn: psycopg.Connection[Any], *, label: str = "") -> dict[str, Any]:
     """Đầu chuỗi audit của mọi tenant + digest các hàm audit (kết nối role xt_app)."""
     rows = conn.execute("SELECT tenant_id, seq, hash FROM xt_audit.heads()").fetchall()
@@ -177,6 +289,7 @@ def take_checkpoint(conn: psycopg.Connection[Any], *, label: str = "") -> dict[s
         "created_at": datetime.now(UTC).isoformat(),
         "label": label,
         "audit_functions": audit_functions_digest(conn),
+        "security_catalog": security_catalog(conn),
         "heads": [{"tenant_id": str(t), "seq": int(s), "hash": bytes(h).hex()} for t, s, h in rows],
     }
 

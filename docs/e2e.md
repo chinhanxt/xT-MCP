@@ -3,6 +3,17 @@
 
 Định nghĩa: `docs/gap-review.md` §4.1. Tất cả chạy trên stack compose **thật** profile `minimal` (Postgres, Keycloak, APISIX, PostgREST, xt-api, xt-worker, xt-desk), volume mới, qua APISIX bằng hostname thật. Không mock OIDC, MCP, PII, LLM. Quyết định của harness: `docs/decisions.md` mục "Harness e2e E0–E11" (D-E2E-1..8).
 
+## Kết quả tiếp tục phiên 16/10/2026
+
+Trên bản nguồn chưa commit `961dcc8893598a2f5c73b42d04c27c98375d37ddae12ec2d82c413bb1c4cb1cc` (digest bản đồ SHA256 các tệp, HEAD nền `2784151`), E0–E11 đạt **12/12** ở cả hai chế độ DPoP. Mỗi chế độ dựng ảnh và volume mới, chạy E1 trước E10 để không chịu trạng thái quota do test đối kháng cố ý tạo.
+
+| Chế độ | E1 (model thật + dữ liệu + hai cấp OTP) | E0, E2–E11 |
+|---|---|---|
+| DPoP bật | 2/3 hội thoại thành công, đạt ngưỡng ≥2/3 | 24 passed, 388.46 s |
+| DPoP tắt | 3/3 hội thoại thành công | 24 passed, 427.30 s |
+
+Kết quả trên được ghi từ output lệnh thành công trong hội thoại phát triển; log E2E chi tiết ở `/tmp` đã mất sau khi môi trường bị ngắt. Hash nguồn được đối chiếu lại và trùng hoàn toàn. Không tuyên bố đã chạy lại E2E sau lần ngắt; giới hạn lưu giữ bằng chứng và các kiểm tra vừa chạy lại ở [báo cáo xác minh](verification-20261016.md). Model 4B vẫn có lượt thất bại, không bảo đảm 100%.
+
 ## Cách chạy
 
 ```bash
@@ -11,6 +22,10 @@ make demo-seed    # chỉ seed trên stack đang chạy (idempotent)
 make e2e-run      # chỉ chạy kịch bản trên stack đã seed; E2E_ARGS="scenarios/test_e05_pii.py" để chạy riêng
 make e2e-llm      # E1: Desk + Ollama qwen3.5:4b (slot heavy riêng; cần stack đã up + seed)
 ```
+
+Để kiểm đủ 12 kịch bản trên cùng stack sạch, chạy theo thứ tự **e2e-up → demo-seed → e2e-llm → e2e-run → e2e-down**, một lượt với `XT_DPOP_REQUIRED=true`, một lượt với `false`. Runner phải dọn bằng EXIT trap và giữ mã lỗi như recipe `make e2e`. E10 cố ý lấp đầy quota 20 xác nhận chờ: chạy E1 sau E10 trên cùng dữ liệu sẽ nhận `rate_limited` đúng thiết kế; không tăng quota hay xóa hàng để làm xanh E1.
+
+E1 cần ít nhất ba hội thoại độc lập, đúng dữ liệu và thẻ gửi duyệt thật, tối thiểu 2/3 hoàn tất hai cấp OTP. Ollama phải có `qwen3.5:4b` và context ít nhất 16384; `/v1` không đặt context thay runtime. Harness mặc định dùng loopback 11434, có thể chọn runtime test riêng qua `XT_E2E_OLLAMA_PORT`. Chỉ một stack nặng tại một thời điểm.
 
 - `e2e-up` tuân quy tắc heavy-stack: chờ `MemAvailable >= 4 GiB` và không có Keycloak/Ollama container khác; project compose riêng `xt-e2e`.
 - Bằng chứng: `e2e/reports/<timestamp>/E<n>.json` + `E<n>.md` + `summary.md` (JWT, mật khẩu, vé bị redact). Thư mục bị gitignore.
@@ -31,7 +46,7 @@ make e2e-llm      # E1: Desk + Ollama qwen3.5:4b (slot heavy riêng; cần stack
 
 ## Kết quả lượt 2 (16/10/2026 ~09:40, `make e2e` volume mới, build lại ảnh, HEAD f95d0b1)
 
-Lượt `XT_DPOP_REQUIRED=false`: 19/23 test xanh; E7 chạy lại sau khi sửa truy vấn thông báo của harness (thông báo nay có `kind`): PASS. Lượt `XT_DPOP_REQUIRED=true` và `make e2e-llm` **chưa chạy**: lỗi gốc ở dòng E9 bên dưới khiến Keycloak từ chối mọi lần đổi code kèm proof DPoP của `xt-desk-agent` (đã tái hiện bằng harness), nên kết quả biết trước là đỏ. Giữ slot heavy cho agent khác.
+Lượt `XT_DPOP_REQUIRED=false`: 19/23 test xanh; E7 chạy lại sau khi sửa truy vấn thông báo của harness (thông báo nay có `kind`): PASS. Lượt `XT_DPOP_REQUIRED=true` và `make e2e-llm` **chưa chạy**: lỗi gốc ở dòng E9 bên dưới khiến Keycloak từ chối mọi lần đổi code kèm proof DPoP của `xt-desk-agent` (đã tái hiện bằng harness), nên kết quả biết trước là đỏ.
 
 | # | Kịch bản | DPoP tắt | Nguyên nhân gốc nếu đỏ |
 |---|---|---|---|
@@ -50,7 +65,7 @@ Lượt `XT_DPOP_REQUIRED=false`: 19/23 test xanh; E7 chạy lại sau khi sửa
 
 Tổng (DPoP tắt): **9/12 PASS**, E0 và E9 đỏ, E1 chưa chạy. Lượt DPoP bật cần sửa `X-Forwarded-Port` trước.
 
-## Việc chặn còn lại
+## Các việc chặn của lượt lịch sử bên trên
 
 1. ĐÃ SỬA (chưa chạy lại e2e): APISIX đặt `X-Forwarded-Port: "443"` cho 4 route Keycloak (test offline `SeaweedConfigsAndForwardedPort`).
 2. ĐÃ SỬA (chưa chạy lại e2e): seaweedfs dùng `configs.file` do `make env` render vào `${XT_SECRETS_DIR}/seaweed`; đường vòng `write_config_override` đã bỏ khỏi `e2e/xte2e/stack.py`, e2e chạy đúng đường sản phẩm.

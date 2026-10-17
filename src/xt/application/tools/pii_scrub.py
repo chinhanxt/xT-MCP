@@ -32,6 +32,12 @@ EMAIL = re.compile(r"[A-Za-z0-9._+-]+(?:@|%40)[A-Za-z0-9.-]+\.[A-Za-z]{2,}", re.
 # Số tài khoản/thẻ ngân hàng: 13-19 chữ số, không bắt đầu bằng 0 (tiền VND trong lỗi < 10^12).
 BANK = re.compile(rf"(?<![0-9A-Za-z])[1-9](?:{_SEP}{_D}){{12,18}}(?![0-9])", re.ASCII)
 RECOGNIZERS = (CCCD, PHONE, BANK, EMAIL)
+# Field names may prefix an identifier with letters (e.g. f079123456789). Relax only
+# that boundary for field identifiers; ordinary messages retain their ID/hash safeguards.
+FIELD_RECOGNIZERS = tuple(
+    re.compile(rx.pattern.replace("(?<![0-9A-Za-z])", "(?<![0-9])"), rx.flags) for rx in RECOGNIZERS
+)
+FIELD_NAME_KEYS = frozenset({"field", "fields", "valid_fields", "writable_fields"})
 
 # Số nguyên mất số 0 đầu khi lưu dạng int: SĐT 9 số, CCCD 11 số.
 _INT_PII = re.compile(r"[35789][0-9]{8}|[0-9]{11}", re.ASCII)
@@ -133,7 +139,32 @@ class ErrorScrubber:
             return [self._all(v) for v in node]
         return self._hit(str(node)) if node is not None else None
 
+    def _identifiers(self, node: Any, key: str | None = None) -> set[str]:
+        if isinstance(node, str):
+            if key in FIELD_NAME_KEYS and any(
+                rx.search(normalize(node)) for rx in FIELD_RECOGNIZERS
+            ):
+                return {normalize(node)}
+            return set()
+        if isinstance(node, list):
+            return set().union(*(self._identifiers(v, key) for v in node))
+        if isinstance(node, Mapping):
+            found = {
+                normalize(k)
+                for k in node
+                if isinstance(k, str)
+                and k not in PROTOCOL_KEYS
+                and any(rx.search(normalize(k)) for rx in FIELD_RECOGNIZERS)
+            }
+            for k, v in node.items():
+                if k not in PROTOCOL_KEYS:
+                    found.update(self._identifiers(v, k))
+            return found
+        return set()
+
     def error(self, error: Mapping[str, Any]) -> dict[str, Any]:
         """Quét object `error` (trừ khóa giao thức)."""
+        # Remember sensitive field identifiers so their echoes in messages are masked too.
+        self._known = sorted(set(self._known) | self._identifiers(error), key=len, reverse=True)
         out: dict[str, Any] = dict(self.value(dict(error)))
         return out

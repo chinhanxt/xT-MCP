@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
 import { describe, expect, it } from "vitest";
-import { runAgent } from "../src/agent";
+import { resultForModel, runAgent } from "../src/agent";
 import { ToolCallAccumulator } from "../src/llm";
 import type { AgentEvent, ChatMessage, LlmClient, LlmReply, McpCaller, McpTool, ToolResult } from "../src/types";
 
@@ -41,6 +41,12 @@ function mockMcp(handler: (name: string, args: Record<string, unknown>) => ToolR
 }
 
 const base = (): ChatMessage[] => [{ role: "system", content: "s" }, { role: "user", content: "hỏi" }];
+
+it("preserves typed text-only error envelopes without nested JSON escaping", () => {
+  const envelope = { ok: false, error: { code: "invalid_request", details: { valid_fields: ["x"] } } };
+  expect(JSON.parse(resultForModel({ isError: true, content: [{ type: "text", text: JSON.stringify(envelope) }] }))).toEqual(envelope);
+  expect(JSON.parse(resultForModel({ content: [{ type: "text", text: "plain business data" }] }))).toEqual([{ type: "text", text: "plain business data" }]);
+});
 
 describe("runAgent", () => {
   it("không có tool call: trả lời và dừng", async () => {
@@ -143,4 +149,33 @@ describe("ToolCallAccumulator", () => {
     a.add({ index: 0, id: "c2", function: { name: "b", arguments: "{}" } });
     expect(a.result().map((c) => c.function.name)).toEqual(["a", "b"]);
   });
+});
+
+it("isolates generated idempotency aliases between chats while preserving retries and confirmation", async () => {
+  const write: McpTool = { name: "write", inputSchema: { type: "object", properties: { idempotency_key: { type: "string" } } } };
+  const issued = new Map<string, string>();
+  const execute = async (keys: Map<string, string>, key: string) => {
+    const history = base();
+    const llm = mockLlm([{ content: "", tool_calls: [call("w", "write", { idempotency_key: key })] }, { content: "done", tool_calls: [] }]);
+    const { mcp, calls } = mockMcp(() => ({ structuredContent: { ok: true } }));
+    await runAgent({ llm, mcp, tools: [write], history, maxSteps: 2, idempotencyKeys: keys });
+    const actual = calls[0].arguments.idempotency_key as string;
+    expect(JSON.parse(history[2].tool_calls![0].function.arguments).idempotency_key).toBe(actual);
+    return actual;
+  };
+  const first = await execute(issued, "create-advance-1");
+  expect(first).not.toBe("create-advance-1");
+  expect(await execute(issued, "create-advance-1")).toBe(first);
+  expect(await execute(issued, first)).toBe(first);
+  expect(await execute(new Map(), "create-advance-1")).not.toBe(first);
+});
+
+it("keeps trusted continuation rules after tool data without accumulating them in history", async () => {
+  const llm = mockLlm([{ content: "", tool_calls: [call("c", "read", {})] }, { content: "done", tool_calls: [] }]);
+  const { mcp } = mockMcp(() => ({ content: [{ type: "text", text: "untrusted content" }] }));
+  const history = base();
+  await runAgent({ llm, mcp, tools: [tool("read")], history, maxSteps: 2, continuationRules: "canonical rules" });
+  expect(llm.seen[0].at(-1)?.role).toBe("user");
+  expect(llm.seen[1].at(-1)).toEqual({ role: "system", content: "canonical rules" });
+  expect(history.filter((m) => m.content === "canonical rules")).toHaveLength(0);
 });

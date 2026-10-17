@@ -11,6 +11,8 @@ import { connectMcp, type McpConnection } from "./mcp";
 import { renderMarkdown } from "./markdown";
 import { selectTools } from "./profiles";
 import { ToolItem } from "./ToolItem";
+import { Portal } from "./Portal";
+import { createPortalBridge } from "./portal";
 import { applyAgentEvent, type Item } from "./items";
 import type { AgentEvent, ChatMessage, McpTool } from "./types";
 
@@ -31,8 +33,10 @@ export function App() {
   const [tools, setTools] = useState<McpTool[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [busy, setBusy] = useState(false);
+  const [area, setArea] = useState("Desk");
   const [input, setInput] = useState("");
   const history = useRef<ChatMessage[]>([{ role: "system", content: SYSTEM }]);
+  const idempotencyKeys = useRef(new Map<string, string>());
   const bottom = useRef<HTMLDivElement>(null);
   const [session, sessionErr] = useMemo<[OidcSession | null, string | null]>(() => {
     try {
@@ -58,6 +62,12 @@ export function App() {
     }
     return un;
   }, [session]);
+  useEffect(() => {
+    if (authState.status !== "authenticated") return;
+    const bridge = createPortalBridge(auth, mcp);
+    window.xtPortal = bridge;
+    return () => { bridge.invalidate(); if (window.xtPortal === bridge) delete window.xtPortal; };
+  }, [auth, mcp, authState.status]);
   const sandboxUrl = useMemo(() => new URL(config.sandboxUrl), []);
 
   useEffect(() => {
@@ -73,6 +83,13 @@ export function App() {
       .then((c) => {
         if (dead) return;
         const sel = selectTools(c.tools, config.toolProfile);
+        idempotencyKeys.current = new Map();
+        history.current = [{ role: "system", content: [
+          SYSTEM, `Thời gian hiện tại của client: ${new Date().toISOString()}.`,
+          c.client.getInstructions() ?? "",
+          `# Skill xT\n${config.coreSkill}`,
+          `Chỉ gọi các công cụ trong hồ sơ này: ${sel.tools.map((tool) => tool.name).join(", ")}.`,
+        ].filter(Boolean).join("\n\n") }];
         setMcp(c);
         setTools(sel.tools);
         if (sel.missing.length) {
@@ -113,6 +130,8 @@ export function App() {
         tools,
         history: history.current,
         maxSteps: config.maxSteps,
+        idempotencyKeys: idempotencyKeys.current,
+        continuationRules: config.coreSkill.match(/## Quy tắc\n([\s\S]*?)(?=\n## |$)/)?.[0] ?? config.coreSkill,
         onEvent: (e) => onEvent(e, byName),
       });
     } catch (e) {
@@ -141,7 +160,7 @@ export function App() {
       <header>
         <h1>xT Desk</h1>
         {authState.status === "authenticated" && (
-          <button className="logout" onClick={() => { session?.logout(); setMcp(null); setItems([]); }}>
+          <button className="logout" onClick={() => { window.xtPortal?.invalidate(); session?.logout(); setArea("Desk"); idempotencyKeys.current = new Map(); setMcp(null); setItems([]); setInput(""); history.current = [{ role: "system", content: SYSTEM }]; }}>
             Đăng xuất
           </button>
         )}
@@ -149,7 +168,9 @@ export function App() {
           {config.model} · hồ sơ {config.toolProfile} · {tools.length} tool
         </span>
       </header>
-      <main id="chat" aria-live="polite">
+      {authState.status === "authenticated" && <nav className="portal-nav" aria-label="Không gian xT">{["H","P","D","I","Kho","Desk"].map(x=><button key={x} aria-current={area===x ? "page" : undefined} onClick={()=>setArea(x)}>{x}</button>)}</nav>}
+      {authState.status === "authenticated" && area !== "Desk" && mcp && <Portal key={area} area={area} mcp={mcp} tools={mcp?.tools || []} sandboxUrl={sandboxUrl} onOpenLink={openLink} revealDpop={revealDpop}/>}
+      <main id="chat" aria-live="polite" hidden={authState.status === "authenticated" && area !== "Desk"}>
         {authState.status !== "authenticated" && (
           <div className="login" data-testid="login">
             {sessionErr ? (
@@ -182,7 +203,7 @@ export function App() {
         {busy && <div className="thinking">đang xử lý...</div>}
         <div ref={bottom} />
       </main>
-      <form
+      <form hidden={authState.status === "authenticated" && area !== "Desk"}
         onSubmit={(e) => {
           e.preventDefault();
           void send(input);

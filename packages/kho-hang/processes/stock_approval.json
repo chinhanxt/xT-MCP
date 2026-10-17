@@ -1,0 +1,35 @@
+{
+  "id": "stock_approval",
+  "name": "Phê duyệt và ghi nhận kho",
+  "version": 1,
+  "roles": [
+    "warehouse_manager"
+  ],
+  "inputs": {
+    "request_id": {
+      "type": "str"
+    }
+  },
+  "fallback_assignee": "role(warehouse_manager)",
+  "steps": [
+    {
+      "id": "manager",
+      "name": "Quản lý kho duyệt",
+      "type": "approve",
+      "assignee": "role(warehouse_manager)",
+      "outcomes": [
+        "approve",
+        "reject"
+      ]
+    },
+    {
+      "id": "post",
+      "name": "Ghi nhận tồn và biến động",
+      "type": "service",
+      "op": "post_stock",
+      "params": {
+        "request_id": "request_id"
+      }
+    }
+  ]
+}

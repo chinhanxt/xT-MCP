@@ -1,7 +1,7 @@
 {
   "format": "xt-pack/1",
   "pack": "giao-viec-sla",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "title": "Giao việc có SLA, leo thang và bản tin tuần",
   "depends_on": [],
   "models": [
@@ -36,7 +36,21 @@
       "to_roles"
     ]
   },
-  "bindings": {},
+  "bindings": {
+    "task": {
+      "primitive": "task",
+      "fields": {
+        "title": "title",
+        "assignee": "assignee",
+        "description": "description",
+        "due_at": "deadline",
+        "priority": "priority"
+      },
+      "priorities": {
+        "normal": "medium"
+      }
+    }
+  },
   "notes": {
     "tenant_demo": "binhminh",
     "roles": {

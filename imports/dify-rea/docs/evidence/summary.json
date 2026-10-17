@@ -1,0 +1,391 @@
+{
+  "schema": "xt-studio.reconstruction-receipt.v2",
+  "recorded_at": "2026-10-17T03:24:05.720Z",
+  "project_root": "/home/chinhan/projects/reclaw/repos/dify-rea",
+  "status": "working feature prototype; full Dify reconstruction incomplete",
+  "source": {
+    "sha256": "91fd129484c5408c3b947d8a69fb51dcc46c233a30553db2d73a731b9858297c",
+    "files": [
+      {
+        "path": "config/build.mjs",
+        "sha256": "91a599cf55e9b133a8434c39af4c3ba5c751b432a6a262a53bcfc3a73456cd63"
+      },
+      {
+        "path": "config/prettier.json",
+        "sha256": "d98036716df828cb69c97f9e59286b534248f8fc312624ad4e2910905d76a4b4"
+      },
+      {
+        "path": "package-lock.json",
+        "sha256": "8c792a49b58b01ab46ed5cfcbc1197f7741ecf8fa453be1486e7d190a0d648ec"
+      },
+      {
+        "path": "package.json",
+        "sha256": "5ca9bd0affbf227b95117d7ab0663a49f23fe0cb0cdba775f352b7b6e0bdbf45"
+      },
+      {
+        "path": "src/agent.ts",
+        "sha256": "ed09c7ec6b6bce50638e32256f8d49cb519833321a66c61c9d01f4f4b9c7b138"
+      },
+      {
+        "path": "src/app-management.ts",
+        "sha256": "43bf3bd7af27bec1674d94ebfcd28bee570ccdb480e490bcee9df5290d615765"
+      },
+      {
+        "path": "src/apps.ts",
+        "sha256": "1f4b921069a2375d696fc04fbf7a74617ce3e558986465e4225f91358017e408"
+      },
+      {
+        "path": "src/contracts.ts",
+        "sha256": "c283324a21626cf0a11ea3318ec3a7ca13b96136f7ccf46bd884d2026286c299"
+      },
+      {
+        "path": "src/documents.ts",
+        "sha256": "dc28d21b370cfef5ecb7a5b6eb196d6c89cefaec414f2faca58b158027cc2890"
+      },
+      {
+        "path": "src/http-node.ts",
+        "sha256": "83ace12f3aa9289e55817a3ba5a749aa23920e59b0015397749c28b00ed923de"
+      },
+      {
+        "path": "src/http.ts",
+        "sha256": "a954f8ec7dcfaf86685ccc7b50f9f21aa1e6311a4ca096e86a7b5089cd1ac00a"
+      },
+      {
+        "path": "src/input-fields.ts",
+        "sha256": "84a633df409b19f44fd4a98a1cdccdd3eb24fbbd356645a65b13ff2c8e3d7c4b"
+      },
+      {
+        "path": "src/knowledge.ts",
+        "sha256": "d10c68aa52fc3d3f12c02e3e9329118be605ced3a231784c16f2cc9b234f31d9"
+      },
+      {
+        "path": "src/mcp-routes.ts",
+        "sha256": "ec70869af02d4b61bc41d03019125a2fee5ad3d062b3c0e83fd3e0e026a6b89a"
+      },
+      {
+        "path": "src/mcp.ts",
+        "sha256": "338b6505e4da2cd1c0fb32289272acb31bd1fe5d171a1287ecd888cc820134d9"
+      },
+      {
+        "path": "src/models.ts",
+        "sha256": "66ec743dd01967d79a1e4747399cab455bccbdd8fa771bf9f128f233ed2790f3"
+      },
+      {
+        "path": "src/node-policy.ts",
+        "sha256": "90a4befa9bfb17a3e4ceb18bcf6453d37944196d5cfa1326ba1eae1ab3e32116"
+      },
+      {
+        "path": "src/provider-wire.ts",
+        "sha256": "9027cf5bfeed8d2b5cf44876ea4922273713d125d4feee16f95d7077b9459999"
+      },
+      {
+        "path": "src/public-app.ts",
+        "sha256": "4f3080c1365b600d7e953a765c6560db6f9d67f65eae0d612eba4723332b9b86"
+      },
+      {
+        "path": "src/resources.ts",
+        "sha256": "012b96b068d104325d034773bd65f0a232118d2cae0558f75cc6aafca632700e"
+      },
+      {
+        "path": "src/server.ts",
+        "sha256": "c0201ddb107a615a0412c439f770f64b9747dcc875390da200499946eaa03269"
+      },
+      {
+        "path": "src/store.ts",
+        "sha256": "1a3d78b57d76c8a0297556b48f76a17a53e8d9be9735d43a3c7c6d30f7407482"
+      },
+      {
+        "path": "src/streams.ts",
+        "sha256": "1aa760ebb4af1d02fc9db64c34042747cb67761e40bed18c73688040677f7795"
+      },
+      {
+        "path": "src/validation.ts",
+        "sha256": "730c6cc65a0bf6d9f7e2c12acabc6f67693a61ee002e8aae31ded346ad029b2d"
+      },
+      {
+        "path": "src/web/AppApi.tsx",
+        "sha256": "70779e96aaeaeeebde669b14e2f42bf3adfb7d1c513d5b8d7356ffc429a5ccd6"
+      },
+      {
+        "path": "src/web/AppEditor.tsx",
+        "sha256": "1e260c6ff6e4a5b0087816cb8958189f6b44cab0e992a50a2cdc70a80f351aec"
+      },
+      {
+        "path": "src/web/AppSettings.tsx",
+        "sha256": "c649686c4253aaed49f46e8d053f20aad6bfb53c9cca4ee02b3ff0a2ce979eb1"
+      },
+      {
+        "path": "src/web/AppVersions.tsx",
+        "sha256": "bb58ef02b4de21b31d07cb2273fe2a0a745c6c842ff2e5591b506353db18f5d4"
+      },
+      {
+        "path": "src/web/DocumentDetails.tsx",
+        "sha256": "7f23c5aa47cb5ea362e736bae931f5da552cf7a0e54c79f50189018987789e3c"
+      },
+      {
+        "path": "src/web/GenerationSettings.tsx",
+        "sha256": "cc6fe29c103080ccff8a1e92fadbfeb3d5686da595386463e9167f4b5ca13e49"
+      },
+      {
+        "path": "src/web/ImportApp.tsx",
+        "sha256": "43359e2be78789b7a4aa339953a56b850a6a9336236890ba94bdbb05cf9c6c2e"
+      },
+      {
+        "path": "src/web/KnowledgePage.tsx",
+        "sha256": "4c016ed84f851a521adced06db386efb7dd85ff2eb263e19eb61d487ef752e49"
+      },
+      {
+        "path": "src/web/McpConnectors.tsx",
+        "sha256": "3a6f415e327a7e37bfcd8840fcc33b5155fe1a4d0fb7b9cc6e4be26853352fb8"
+      },
+      {
+        "path": "src/web/MessageContent.tsx",
+        "sha256": "9364a7448df85610de362cca0ea5f2c4c0a5a661d3832d88629ee33874d9ae13"
+      },
+      {
+        "path": "src/web/Models.tsx",
+        "sha256": "5b72a9ff11cf8d07ede1f2d14a0d769821562a4d0d192bdd0c03dbeaaaa0746d"
+      },
+      {
+        "path": "src/web/Runs.tsx",
+        "sha256": "52f1e66e7aacb79214a59f406e16bd2ef98f9f8520b24a242fb6114a96b382b1"
+      },
+      {
+        "path": "src/web/SharedApp.tsx",
+        "sha256": "7fdd73249c00b566c2258c788867012af5a7ec56a38fd86f52ab65dcb2f8de87"
+      },
+      {
+        "path": "src/web/TypedInputs.tsx",
+        "sha256": "5d2f2fe3a21e4e28589378855a96af08e4cc97a4ce6554f81941c56d989cedd2"
+      },
+      {
+        "path": "src/web/WorkflowEditor.tsx",
+        "sha256": "1f25ed339549320735356e91525d501439e9068738972799b1fb706a1d3141a6"
+      },
+      {
+        "path": "src/web/api.ts",
+        "sha256": "6418ad564ae619108ab07684d58c30459c2053c7bec05a0494528cc859a413a3"
+      },
+      {
+        "path": "src/web/base.css",
+        "sha256": "387cb1a004a4acfcd162b61f5001d1da1d7a18d00413c01c422bf098082bb588"
+      },
+      {
+        "path": "src/web/editor.css",
+        "sha256": "fd1fe69253249e7c8b60ddc60e267e76a9d4fbb4649801d65eb9117c4f85f01e"
+      },
+      {
+        "path": "src/web/extended.css",
+        "sha256": "e913995d8fff5d29a7b71ce54e2703764e4a74c4a7f55918a8aaa2d100a0af4e"
+      },
+      {
+        "path": "src/web/forms.css",
+        "sha256": "18f01acfd4d0c7624b7abb5e7afd7d484617b4394335932f8f3190fb18973259"
+      },
+      {
+        "path": "src/web/index.html",
+        "sha256": "92d72dae5c2bf366fd455c4fb518d91a0b4ce107545b51793f7848a64586cf7a"
+      },
+      {
+        "path": "src/web/input-values.ts",
+        "sha256": "d8e2fb2b5173bfaa0c4fe8c474795c7337b4b20f2b04b1a2f1a9c73083b40700"
+      },
+      {
+        "path": "src/web/main.tsx",
+        "sha256": "085fc05ae2ead5f74d0e775a5085866bcd7262e6f6b671f4b08278c1072b9ff8"
+      },
+      {
+        "path": "src/web/responsive.css",
+        "sha256": "9cd28c48f2c9ae8dc5559cf9576918636ffd5f69bd70a2413c74fe2999ad58dc"
+      },
+      {
+        "path": "src/web/style.css",
+        "sha256": "86959d3eacd8462d269c4f9eced6c2a48b4eb54547abfd93a81e63f1c14cf327"
+      },
+      {
+        "path": "src/web/ui.tsx",
+        "sha256": "72764f23b3c52cfe6a81831229e3dba22b2a935dc89953fac0624470f8c793f6"
+      },
+      {
+        "path": "src/web/workflow.css",
+        "sha256": "f829ffc5fb6e0368c8eca7ca7943d164b8e5a73a51eddcf4da04af0efb3b5da1"
+      },
+      {
+        "path": "src/web/workspace.css",
+        "sha256": "55cd355799dad9671c9a20a4527da3a0bfd3a5803cc1dd5fa24a891e27003332"
+      },
+      {
+        "path": "src/workflow.ts",
+        "sha256": "da5a70dd49cd1405c8c5eb2f95a0f81b698e9a0caa8e07b36a4eddde071a3511"
+      },
+      {
+        "path": "tests/documents.test.ts",
+        "sha256": "5dd69966c3cc3aaa9e5df855ee3e8c5fa6d9c4cc4b17f4a34b80c52daab29827"
+      },
+      {
+        "path": "tests/extended.test.ts",
+        "sha256": "1b00298dd984a9c75674b0a98e8dc11fa87c01aa300db469ba8d083ba37424d4"
+      },
+      {
+        "path": "tests/live-mcp.ts",
+        "sha256": "d4f78a48992826329987f7f4c61979bce7160397e5edcfcb28e6f641b7f7d211"
+      },
+      {
+        "path": "tests/live-smoke.ts",
+        "sha256": "494ee84a0d4d1c06e73c103c21a818f17cbf1bb23b88aaf4e32f99ac1e265f58"
+      },
+      {
+        "path": "tests/mcp-session.test.ts",
+        "sha256": "e1388f503bd445ddbd832493b31998ba608e5995ec668882eabca87ff57551cc"
+      },
+      {
+        "path": "tests/mcp.test.ts",
+        "sha256": "1ae82a085f79fd2f6608d5e509024aec06520979c0af8fb792009717053e6212"
+      },
+      {
+        "path": "tests/node-policy.test.ts",
+        "sha256": "8bc01bc2e46ad98303c066e7e1c0f1171d84b9cbe19074ed0990fd6bea4784d3"
+      },
+      {
+        "path": "tests/studio.test.ts",
+        "sha256": "f90a9cfb07fa96064128daa98756168f8d32a4a9b1a571f6370151370ab59136"
+      },
+      {
+        "path": "tsconfig.json",
+        "sha256": "e9f21f755cac7790e8fc22cb2f86689516227ec9c970c72e21b107e315d9f793"
+      }
+    ]
+  },
+  "runtime_source_sha256": "254976e6ebf42b892adf1b23438d5f6a517b1a650ea0e83f9e50383e20837e22",
+  "artifacts": [
+    {
+      "path": "dist/app.js",
+      "sha256": "43dd0de320dc12a5e236eafc1ffd746df9ce7aeca6cf59f020063ac86e47e0fb"
+    },
+    {
+      "path": "dist/app.css",
+      "sha256": "3c750ddeabb5c5b5e87bac57fee38b4ce79b753e5ae725b1e494897805a2c558"
+    },
+    {
+      "path": "dist/index.html",
+      "sha256": "92d72dae5c2bf366fd455c4fb518d91a0b4ce107545b51793f7848a64586cf7a"
+    }
+  ],
+  "policy": {
+    "authorization": "User requested continued local implementation of all five Dify product groups using REA; root AGENTS authorizes swarm for multi-file changes.",
+    "allowed_scope": "Independent local project, local QA servers/workspaces, public documentation, installed Ollama; main agent is sole writer; three read-only Sol 6 low agents reviewed.",
+    "decision": "proceed with local development and checks",
+    "release_authorized": false,
+    "existing_xt_and_rea_repos_modified": false
+  },
+  "validation": {
+    "build": {
+      "command": "npm run build",
+      "status": "pass",
+      "log_sha256": "7413d968bb29577d2ed2a32ec112c62a8eac7ee6e59b215aafa3476b2a51c4df"
+    },
+    "integration": {
+      "command": "npm test",
+      "passed": 44,
+      "failed": 0,
+      "source_sha256": "91fd129484c5408c3b947d8a69fb51dcc46c233a30553db2d73a731b9858297c",
+      "log_sha256": "a4a1324deef5427aa7c5052358875f5148d56370b737a0d314e9f6a68fdc7530"
+    },
+    "live_models": {
+      "command": "LIVE_PORT=4320 node tests/live-smoke.ts",
+      "status": "pass",
+      "source_sha256": "91fd129484c5408c3b947d8a69fb51dcc46c233a30553db2d73a731b9858297c",
+      "models": [
+        "qwen3.5:4b",
+        "bge-m3:latest"
+      ],
+      "cases": [
+        "vector indexing/retrieval",
+        "RAG answer/citations persistence",
+        "chat streaming",
+        "shared app isolation",
+        "three-step LLM workflow",
+        "calculator agent",
+        "Qwen agent calling MCP fixture",
+        "published typed workflow",
+        "portable MCP app export/import"
+      ],
+      "mcp_target": "Local read-only SDK fixture, not an enterprise deployment",
+      "evidence": "live-smoke.json",
+      "sha256": "116e049bb2e45c380098dca4ddb62bb7a7c07543d185949340046584ccaf257b"
+    },
+    "browser": [
+      {
+        "case": "rea-chat-final.json",
+        "evidence_id": "ev_cf0f6dc6ebc98bf90c099a81fede86d65f14905a6358ef10a2cca31f83302252",
+        "status": "pass",
+        "page_errors": 0,
+        "cleanup": "terminated-owned-process",
+        "sha256": "e8d834b00f9a2ebb0f3babe3a4dc8b96cf033e04521f99ac7e52dee77dbde67b"
+      },
+      {
+        "case": "rea-typed-final.json",
+        "evidence_id": "ev_563b55228f649d74740f3581eaafa8f5fb968d383c676398b89cc7171045758d",
+        "status": "pass",
+        "page_errors": 0,
+        "cleanup": "terminated-owned-process",
+        "sha256": "718f94080f06a10f34b801bcc22a0601a674d1d6b4850f9569123952e24713c8"
+      },
+      {
+        "case": "rea-mcp-final-repeat.json",
+        "evidence_id": "ev_a7df8d15d46a5cebd901130a9ea4e41842738a1547356332eb8e0b1cb2cfbc1d",
+        "status": "pass",
+        "page_errors": 0,
+        "cleanup": "terminated-owned-process",
+        "sha256": "584d360b5571c47a719a96c2e87e0873c6b18a87f626c24aa5b0277e8c228b9d"
+      }
+    ],
+    "supporting_browser": {
+      "provider": "local Playwright",
+      "script": "browser-journeys.mjs",
+      "script_sha256": "689f2afc76970c65308fc4fe80f108bf5ec612b9d97333f584f2ed2560541ebe",
+      "evidence": "browser-journeys.json",
+      "sha256": "b02e747e1de53da1bd646ec3e3c39f9d83548705e57018cb967cb6600ccbde26",
+      "cases": [
+        {
+          "name": "PDF upload/extraction preview, indexing, chunk preview, edit/reindex and search",
+          "status": "pass"
+        },
+        {
+          "name": "UI publish v2, restore v1 to draft preserving published v2, JSON download",
+          "status": "pass"
+        },
+        {
+          "name": "UI import JSON with model/knowledge bindings into fresh draft",
+          "status": "pass"
+        }
+      ],
+      "page_errors": [],
+      "binding": "Runtime implementation unchanged; only the stateful MCP test was added and its TypeScript annotations corrected after capture."
+    }
+  },
+  "tooling_limitations": [
+    "Current Codex registry exposes no REA MCP tools; local REA CLI used for this round, without claiming MCP was reconnected.",
+    "Initial final MCP browser scenario had a non-unique .execution summary locator; corrected .execution > summary replay passed. Product execution had completed in the first capture.",
+    "Dify reference evidence is anonymous sign-in only; no authenticated parity comparison."
+  ],
+  "remaining": [
+    "Authenticated Dify comparison and full parity",
+    "Durable indexing jobs, hybrid/rerank and large vector index",
+    "Advanced workflow loop/iteration, code sandbox, scheduling",
+    "Multi-tenant UI, membership/RBAC/SSO, quotas and production load tests",
+    "Paid provider live checks; plugin marketplace and MCP OAuth/stdio; integration with existing xT MCP"
+  ],
+  "runtime": {
+    "url": "http://127.0.0.1:4317",
+    "binding": "loopback",
+    "needs_setup": true,
+    "qa_url": "http://127.0.0.1:4318",
+    "database_backup": "Private SQLite backup and credential key copied together before server restart"
+  },
+  "release": {
+    "committed": false,
+    "pushed": false,
+    "deployed": false
+  }
+}

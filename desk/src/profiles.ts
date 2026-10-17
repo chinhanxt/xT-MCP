@@ -16,6 +16,9 @@ export const CORE_10 = [
   "decide_request",
 ] as const;
 
+/** Standalone Desk discovers tenant schemas before calling the fixed business primitives. */
+export const STANDARD = ["inspect_workspace", "describe_model", ...CORE_10] as const;
+
 const KNOWN_VISIBILITY = new Set(["model", "app"]);
 
 /** visibility hợp lệ = mảng chuỗi thuộc {"model","app"}; thiếu => mặc định ["model","app"]; kiểu khác/giá trị lạ => null (từ chối). */
@@ -35,7 +38,7 @@ export function selectTools(all: McpTool[], profile: string): { tools: McpTool[]
   const visible = all.filter(isModelVisible);
   const p = profile.trim();
   if (p === "all") return { tools: visible, missing: [] };
-  const names = p === "core-10" ? [...CORE_10] : p.split(",").map((s) => s.trim()).filter(Boolean);
+  const names = p === "standard" ? [...STANDARD] : p === "core-10" ? [...CORE_10] : p.split(",").map((s) => s.trim()).filter(Boolean);
   if (!names.length) throw new Error(`Hồ sơ tool rỗng: "${profile}"`);
   const byName = new Map(visible.map((t) => [t.name, t]));
   const tools: McpTool[] = [];

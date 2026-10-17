@@ -7,10 +7,17 @@ Các thay đổi đáng chú ý của xT được ghi trong tệp này.
 
 ## [Unreleased]
 
-Trạng thái kiểm: mục nào chưa chạy e2e trên stack compose thật ghi "chờ e2e" (`docs/e2e.md`: 6/12 PASS ở lần chạy đầy đủ gần nhất).
+- 17/10/2026: sửa thuộc tính phòng ban/quyền đọc của người duyệt, bổ sung metadata `withdrawn` cho chủ giấy, binding `create_task` và ánh xạ priority trên gói `giao-viec-sla` 0.3.4. Kiểm lại bằng ChatGPT thật, xác nhận Desk password/TOTP, 19 test tích hợp tập trung và `make check` (1.789 Python, 154 Vitest, 19 Playwright). [Báo cáo và giới hạn](docs/mcp-chatgpt-20261017.md); mô tả tool đã làm gọn nhưng host vẫn có lúc cảnh báo “Suspicious Instruction”.
+
+- Kiểm thử MCP thật trên Claude/ChatGPT và SDK: [báo cáo kết quả, lỗi và giới hạn](docs/mcp-live-20261016.md). Sửa APISIX response header buffer để reconnect OAuth có `id_token_hint` không trả 502; xác minh URL lỗi trước đó trả 200 sau sửa, 53 test triển khai offline đạt.
+
+Trạng thái kiểm và giới hạn bằng chứng: `docs/verification-20261016.md` và `docs/mcp-chatgpt-20261017.md`. Catalog hiện có 19 model tool + 3 app-only, gồm `notify` với inbox nội bộ. E0–E11 đã đạt ở hai chế độ DPoP; các số liệu và ghi chú “chờ e2e”, “đang làm” bên dưới là lịch sử trước các lượt kiểm này.
 
 ### Added
 
+- Model engine vòng 4 (mô hình đe dọa `xt_migrator`: phòng ngừa + phát hiện): chặn trigger/RULE lạ trên mọi bảng `xt_meta` (kể cả `session_ctx`, `login_tenant`), chặn đổi bảng ngữ cảnh; chặn DROP/ALTER `tenant_id` và mọi đường (kể cả CASCADE) gỡ policy RESTRICTIVE theo tenant; mọi hàm `xt`/`xt_audit`/`xt_meta` (gồm `xt.row_touch()`) chỉ superuser đổi được (chạy lại định nghĩa y hệt vẫn được); CHECK/DEFAULT/index/cột trên bảng model chỉ dùng hàm `pg_catalog` + `xt.tenant()`/`xt.actor()`, cấm domain; `xt.set_context` chỉ nhận lời gọi trực tiếp từ kết nối app; `set_policies` ghi event `POLICY` vào hash-chain; checkpoint Ed25519 mang digest toàn bộ catalog bảo mật `xt*` và `xt audit verify --against-checkpoint` in đúng đối tượng đổi/thêm/mất (exit 1). Migration `0010` dùng `CREATE OR REPLACE TRIGGER`.
+- Ngữ cảnh RLS bất biến với `xt_migrator`: hàm `xt.cur()`/`xt.tenant()`/`xt.has_role()`… và mọi hàm policy tham chiếu chỉ superuser đổi được (theo oid, có trong digest checkpoint); policy bảng model chỉ qua `xt_audit.set_policies` (mẫu cố định, luôn RESTRICTIVE theo tenant), RLS + FORCE luôn bật; policy bảng `xt_meta` có audit chỉ được siết.
+- Model engine vòng 3 (audit R3-01…07): mọi bảng trong schema tenant luôn có trigger audit (tự gắn), chặn SET SCHEMA/ALTER SCHEMA/INHERITS/partition/RULE; actor của audit lấy từ ngữ cảnh do `xt_audit_owner` giữ; registry cột sensitive chỉ mở rộng (hạ nhãn cần superuser `declassify`); ràng record ↔ bảng chống event giả; checkpoint kiểm chuỗi ở client + digest hàm audit; audit cho bảng quyền/danh tính/catalog (migration 0016, `install_meta2`); regex cấm lượng từ không toán hạng; fixture test xóa container kèm volume.
 **Tầng 1 (headless)**
 
 - Dịch vụ dữ liệu `/data` (PostgREST đọc view theo tenant, JWT `aud=xt-data`, `db-schemas` động) và `docs/headless-demo.sh`. Trạng thái: `docs/headless-data.md`.
@@ -60,6 +67,11 @@ Trạng thái kiểm: mục nào chưa chạy e2e trên stack compose thật ghi
 - Contract import-linter: chỉ `xt.adapters.workflow` import SpiffWorkflow/lxml; chỉ `adapters.db` và `adapters.queue` import psycopg.
 
 ### Fixed
+
+- Desk production có proxy LLM xác thực bằng token/DPoP thật; không chuyển credential người dùng tới model, có hạn payload/token/concurrency/thời gian tuyệt đối và giải phóng request khi hủy.
+- Desk chạy dưới CSP không cần unsafe-eval, sandbox có header ancestor riêng; profile standard khám phá schema, dùng skill chuẩn lúc build và phản hồi validation có metadata kiểu để phục hồi lỗi.
+- Model audit R4 ràng bảng ngữ cảnh theo OID, kiểm đầy đủ trigger SoD; checkpoint bao phủ định nghĩa/thuộc tính hàm, view, trigger và domain/constraint.
+- Harness E2E giữ lỗi dựng/dọn stack, bảo vệ bí mật khỏi argv, kiểm thư mục secret riêng tư; fixture integration dùng tài nguyên riêng và dọn cả volume. Lỗi PII có identifier gắn tiền tố được che đồng nhất.
 
 Kiểm thử đối kháng nội bộ do agent độc lập với tác giả thực hiện; mỗi lỗi có test hồi quy. Tổng hợp theo thành phần ở `docs/gap-review.md` mục 0.3 (13 báo cáo `docs/audit-*.md`).
 

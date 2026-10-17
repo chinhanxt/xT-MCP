@@ -3,24 +3,25 @@
 // Desk THẬT (container xt-desk sau APISIX) + Keycloak thật + xT thật, Chromium headless của Playwright.
 // Không phục vụ bản build qua route: mọi https://xt*.freepro.online đều đi APISIX 127.0.0.1:9080 với Host gốc.
 // LLM (chỉ chế độ chat): URL DESK_LLM_URL nướng trong ảnh Desk (http://ollama:11434/v1) -> Ollama host 127.0.0.1:11434.
-//   node desk_real.mjs oidc <user> <pass> [totp_seed]
-//   node desk_real.mjs chat <user> <pass> [totp_seed] "<câu chat>"
+//   stdin JSON: ["oidc", user, password, totp_seed]
+//   stdin JSON: ["chat", user, password, totp_seed, prompt]
 // In JSON một dòng cuối: {"checks":[...], "fails":n, ...}. Mã thoát 1 khi có FAIL.
 import { createRequire } from "node:module";
 import http from "node:http";
 import crypto from "node:crypto";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(path.resolve(here, "../../desk/package.json"));
 const { chromium } = require("@playwright/test");
 
-const [MODE, USER, PASS, SEED, PROMPT] = process.argv.slice(2);
+const [MODE, USER, PASS, SEED, PROMPT] = JSON.parse(readFileSync(0, "utf8"));
 const GW = process.env.GW || "127.0.0.1:9080";
 const LLM = process.env.LLM_HOST || "127.0.0.1:11434";
 const H = { desk: "xt.freepro.online", auth: "xt-auth.freepro.online", mcp: "xt-mcp.freepro.online", api: "xt-api.freepro.online" };
 const ip = `203.0.113.${1 + Math.floor(Math.random() * 250)}`;
-const out = { mode: MODE, checks: [], fails: 0, mcp: [], tools: [], http: [] };
+const out = { mode: MODE, checks: [], fails: 0, mcp: [], llm: [], tools: [], http: [] };
 const check = (ok, msg) => { out.checks.push({ ok: !!ok, msg }); if (!ok) out.fails++; console.log(`  ${ok ? "PASS" : "FAIL"}  ${msg}`); };
 const b64j = (s) => JSON.parse(Buffer.from(s.split(".")[1], "base64url").toString());
 
@@ -48,6 +49,21 @@ function forward(target, req, hostHeader) {
 async function viaGateway(route, target, hostHeader) {
   const req = route.request();
   const r = await forward(target, req, hostHeader);
+  if (new URL(req.url()).pathname === "/mcp" && req.method() === "POST") {
+    try {
+      const call = JSON.parse(req.postData() || "{}");
+      if (call.method === "tools/call") {
+        const raw = r.buf.toString();
+        const data = raw.split("\n").find((s) => s.startsWith("data:"));
+        const value = JSON.parse(data ? data.slice(5) : raw);
+        const result = value.result;
+        const envelope = result?.structuredContent || JSON.parse(result?.content?.[0]?.text || "{}");
+        (out.tool_outcomes ||= []).push({ name: call.params?.name, ok: envelope.ok, code: envelope.error?.code,
+          reason: envelope.error?.details?.reason, missing: envelope.error?.details?.missing,
+          fields: envelope.error?.details?.fields, valid_fields: envelope.error?.details?.valid_fields });
+      }
+    } catch { /* Diagnostics must not change the real protocol response. */ }
+  }
   const hdr = {};
   for (const [k, v] of Object.entries(r.raw)) if (!["content-encoding", "content-length", "transfer-encoding", "set-cookie", "connection"].includes(k)) hdr[k] = Array.isArray(v) ? v.join(", ") : v;
   if (r.raw["set-cookie"]) hdr["set-cookie"] = r.raw["set-cookie"].join("\n");
@@ -77,6 +93,17 @@ await ctx.route(/^https:\/\/xt(-auth|-mcp|-api)?\.freepro\.online\//, async (rou
 await ctx.route(/^http:\/\/ollama:11434\//, (route) => viaGateway(route, LLM, LLM));
 const page = await ctx.newPage();
 page.on("pageerror", (e) => out.http.push(`pageerror ${e.message.slice(0, 200)}`));
+page.on("response", (r) => {
+  if (new URL(r.url()).pathname === "/mcp" && r.request().method() === "POST") {
+    let method = "unknown";
+    try { method = JSON.parse(r.request().postData() || "{}").method; } catch {}
+    out.http.push(`${r.status()} POST /mcp ${method}`);
+  }
+  if (new URL(r.url()).pathname === "/llm/chat/completions") {
+    const headers = r.request().headers();
+    out.llm.push({ status: r.status(), scheme: (headers.authorization || "").split(" ")[0], proof: !!headers.dpop });
+  }
+});
 
 let token = null;
 page.on("request", (r) => {
@@ -113,6 +140,7 @@ try {
     }
   }
   const enabled = await page.waitForSelector("#box:not([disabled])", { timeout: 15000 }).catch(() => null);
+  out.notes = (await page.locator(".note").allTextContents()).map((s) => s.slice(0, 800));
   check(!!enabled, "ô chat bật (kết nối MCP thật thành công)");
   const ls = JSON.stringify(await page.evaluate(() => ({ ...localStorage, ...sessionStorage })));
   check(!/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\./.test(ls), "local/sessionStorage không chứa JWT");
@@ -121,14 +149,38 @@ try {
     const t0 = Date.now();
     await page.fill("#box", PROMPT);
     await page.click("#send");
-    await page.waitForFunction(() => { const b = document.querySelector("#send"); return b && !b.disabled; }, null, { timeout: 420000, polling: 1000 }).catch(() => {});
+    const agentDeadline = Date.now() + 420000;
+    while (Date.now() < agentDeadline) {
+      if (out.http.some((s) => s.startsWith("pageerror "))) {
+        check(false, "lỗi JavaScript trong lượt agent");
+        break;
+      }
+      if (await page.locator("#send").isEnabled().catch(() => false)) break;
+      await page.waitForTimeout(250);
+    }
+    check(await page.locator("#send").isEnabled().catch(() => false), "lượt agent hoàn tất trong thời hạn");
     out.seconds = (Date.now() - t0) / 1000;
-    out.answer = (await page.getByTestId("msg-assistant").last().innerText().catch(() => "")).slice(0, 800);
+    check(out.llm.some((r) => r.status === 200), "Desk gọi LLM thật qua gateway và proxy xác thực -> 200");
+    if (process.env.XT_DPOP_REQUIRED === "true") check(out.llm.some((r) => r.status === 200 && r.scheme === "DPoP" && r.proof), "request LLM có DPoP proof");
+    out.notes = (await page.locator(".note").allTextContents()).map((s) => s.slice(0, 800));
+    const answers = page.getByTestId("msg-assistant");
+    out.answer = (await answers.count() ? await answers.last().innerText() : "").slice(0, 800);
     check(out.tools.includes("create_record") || out.tools.includes("submit_request"), `LLM gọi tool ghi (tools: ${out.tools.join(",")})`);
     check(out.tools.includes("submit_request"), "LLM gửi duyệt (submit_request)");
     let card = false;
-    for (const f of page.frames()) if (f !== page.mainFrame() && (await f.locator("body").innerText().catch(() => "")).length > 20) card = true;
-    check(card, "MCP App (ui://xt/approval-card) render trong khung sandbox");
+    const until = Date.now() + 15000;
+    while (!card && Date.now() < until) {
+      for (const f of page.frames()) {
+        if (f === page.mainFrame()) continue;
+        const content = await f.evaluate(() => ({
+          title: document.querySelector("#card #title")?.textContent || "",
+          body: document.querySelector("#card #body")?.textContent || "",
+        })).catch(() => ({ title: "", body: "" }));
+        if (content.title === "Đề xuất đã gửi duyệt" && content.body.includes("in_review")) card = true;
+      }
+      if (!card) await page.waitForTimeout(100);
+    }
+    check(card, "MCP App approval-card hiển thị đề xuất đã gửi duyệt (in_review)");
     await page.screenshot({ path: process.env.SHOT || "/tmp/xt-e2e-desk-chat.png" }).catch(() => {});
   }
 } catch (e) {

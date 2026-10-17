@@ -3,6 +3,8 @@
 // Proxy chỉ chuyển tiếp: KHÔNG gắn bearer tĩnh. Header Authorization của người dùng (từ trình duyệt) đi nguyên vẹn tới upstream.
 import { defineConfig, loadEnv, type ProxyOptions } from "vite";
 import react from "@vitejs/plugin-react";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 const REQUIRED = [
   "DESK_MCP_URL",
@@ -42,12 +44,18 @@ export default defineConfig(({ mode }) => {
     return n;
   };
   const maxSteps = posInt("DESK_MAX_STEPS");
+  const coreSkill = readFileSync(path.resolve(process.cwd(), "../skills/xt-core/SKILL.md"), "utf8")
+    .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "").replace(/<!--[\s\S]*?-->/g, "").trim();
   const xtOrigin = new URL(env.DESK_XT_ORIGIN).origin;
   new URL(env.DESK_OIDC_ISSUER); // phải là URL hợp lệ
   if (!env.DESK_OIDC_SCOPE.split(/\s+/).includes("openid")) throw new Error("xT Desk: DESK_OIDC_SCOPE phải có openid");
 
   const llmBase = llm.pathname.replace(/\/$/, "");
   const proxy: Record<string, ProxyOptions> = {
+    "/studio-api": {
+      target: mcp.origin,
+      changeOrigin: true,
+    },
     "/mcp": {
       target: mcp.origin,
       changeOrigin: true,
@@ -66,6 +74,7 @@ export default defineConfig(({ mode }) => {
     define: {
       __DESK_CONFIG__: JSON.stringify({
         model: env.DESK_LLM_MODEL,
+        coreSkill,
         reasoningEffort: env.DESK_LLM_REASONING_EFFORT || "",
         toolProfile: env.DESK_TOOL_PROFILE,
         maxSteps,

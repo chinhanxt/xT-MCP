@@ -247,7 +247,7 @@ class Composition:
             transitions=process.plan_transition,
             transition_commit=process.commit,
             model_changes=model_changes,
-            step_transitions=process.available_steps,
+            step_transitions=process.available_transitions,
         )
         process.record_view = records
         return ToolServices(

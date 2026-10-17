@@ -1,0 +1,162 @@
+.workflow-editor {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.react-flow__node-output {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  width: auto;
+}
+.graph-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #f9fafe;
+  flex-wrap: wrap;
+}
+.graph-toolbar > span {
+  font-size: 9px;
+  color: #98a6bc;
+  margin-right: 4px;
+}
+.graph-toolbar button {
+  font-size: 9px;
+  padding: 5px 8px;
+}
+.graph-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.graph-canvas {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  background: #f8faff;
+}
+.graph-card {
+  border: 1px solid #dbe3f1;
+  background: #fff;
+  min-width: 190px;
+  min-height: 77px;
+  padding: 15px 35px 12px 17px;
+  border-radius: 10px;
+  box-shadow: 0 3px 8px #38548a08;
+  position: relative;
+}
+.graph-card.selected {
+  outline: 2px solid #7097f0;
+  outline-offset: 2px;
+}
+.graph-card > strong {
+  font-size: 11px;
+  display: inline-block;
+  margin-left: 9px;
+  font-weight: 600;
+}
+.graph-card > small {
+  font-size: 8px;
+  display: block;
+  color: #a6b2c6;
+  margin: 5px 0 0 32px;
+}
+.node-symbol {
+  display: inline-grid;
+  place-items: center;
+  font-size: 16px;
+  height: 23px;
+  width: 23px;
+  background: #ecf1fd;
+  color: #6e8dcc;
+  border-radius: 6px;
+}
+.node-symbol.condition {
+  color: #b48bcd;
+  background: #f6effa;
+}
+.node-symbol.output {
+  color: #6aa88b;
+  background: #edf8f3;
+}
+.react-flow__handle {
+  height: 9px;
+  width: 9px;
+  border: 2px solid #fff;
+  background: #8ca7dd;
+}
+.branch-label {
+  position: absolute;
+  right: 13px;
+  font-size: 7px;
+  color: #9aa9c1;
+}
+.branch-label.yes {
+  top: 19px;
+}
+.branch-label.no {
+  bottom: 14px;
+}
+.node-inspector {
+  width: 265px;
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  bottom: 12px;
+  overflow: auto;
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 7px 25px #2c46661a;
+  z-index: 5;
+}
+.node-inspector strong {
+  font-size: 11px;
+}
+.node-inspector .icon-btn {
+  height: 24px;
+  width: 24px;
+  font-size: 20px;
+}
+.node-inspector label {
+  font-size: 10px;
+}
+.node-inspector input,
+.node-inspector select,
+.node-inspector textarea {
+  font-size: 11px;
+}
+.node-inspector .danger {
+  font-size: 10px;
+  margin-top: 20px;
+}
+.node-inspector .hint {
+  font-size: 9px;
+}
+.react-flow__attribution {
+  font-size: 7px;
+}
+.react-flow__controls button {
+  border-radius: 0;
+}
+.workflow .preview {
+  border-left: 1px solid var(--line);
+}
+.workflow .messages {
+  padding: 20px 16px;
+}
+.workflow .message.user {
+  margin-left: 15px;
+}
+.workflow .composer {
+  margin: 10px 12px 16px;
+}
+.workflow .preview-header {
+  padding: 13px 15px;
+}

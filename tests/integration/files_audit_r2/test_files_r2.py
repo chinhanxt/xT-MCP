@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import runpy
 import secrets
 import socket
 import subprocess
@@ -318,13 +319,21 @@ def test_finalize_between_purge_check_and_delete_keeps_bytes(
 COMPOSE = ROOT / "deploy" / "compose.yaml"
 
 
-def _compose_config(name: str) -> str:
-    """`configs.<name>.content` (block `|`) trong deploy/compose.yaml (không cần PyYAML)."""
+def _compose_config(name: str, tmp_path: Path) -> str:
+    """Read the actual generated configs.file using isolated test secrets."""
     text = COMPOSE.read_text(encoding="utf-8")
-    m = re.search(rf"^  {re.escape(name)}:\n    content: \|\n((?:      .*\n|\s*\n)+)", text, re.M)
-    need(m, f"không tìm thấy configs.{name} trong compose")
+    m = re.search(rf"^  {re.escape(name)}:\n    file: ([^\n]+)", text, re.M)
+    need(m, f"không tìm thấy configs.{name}.file trong compose")
     assert m is not None
-    return "\n".join(line[6:] for line in m.group(1).splitlines())
+    prefix = "${XT_SECRETS_DIR:-${HOME}/.config/xt}/"
+    need(m.group(1).startswith(prefix), "config phải nằm trong XT_SECRETS_DIR")
+    config = (tmp_path / m.group(1).removeprefix(prefix)).resolve()
+    need(config.is_relative_to(tmp_path.resolve()), "config nằm ngoài secrets test")
+    generator = runpy.run_path(str(ROOT / "deploy/scripts/envfile.py"))
+    env = {key: secrets.token_urlsafe(24) for key in generator["SECRET_KEYS"]}
+    env["XT_SECRETS_DIR"] = str(tmp_path)
+    generator["ensure_seaweed_configs"](env)
+    return config.read_text(encoding="utf-8")
 
 
 def _toml_sections(text: str) -> set[str]:
@@ -343,22 +352,22 @@ def test_compose_seaweed_only_on_internal_files_network() -> None:
     assert re.search(r"^  files:\n    internal: true$", text, re.M)
 
 
-def test_compose_seaweed_master_has_guard_whitelist() -> None:
+def test_compose_seaweed_master_has_guard_whitelist(tmp_path: Path) -> None:
     """security.toml của compose phải có `[guard] white_list` (chỉ 127.0.0.1 / tiến trình S3 cùng
     container): master :9333 bọc `/dir/assign`, `/col/delete`, `/vol/grow`, `/vol/vacuum` bằng
     `guard.WhiteList`; white_list rỗng = cho mọi IP. JWT `[jwt.signing]` KHÔNG che master: master
     chính là nơi CẤP JWT ghi qua `/dir/assign`."""
-    sec = _compose_config("seaweed-security")
+    sec = _compose_config("seaweed-security", tmp_path)
     assert "guard" in _toml_sections(sec), sorted(_toml_sections(sec))
     m = re.search(r"^\[guard\]\n(?:.*\n)*?\s*white_list\s*=\s*\"([^\"]*)\"", sec + "\n", re.M)
     assert m and m.group(1).strip(), "white_list của [guard] rỗng = không chặn ai"
 
 
-def test_seaweed_harness_mirrors_compose_security(xstack: Stack, sw: Any) -> None:
+def test_seaweed_harness_mirrors_compose_security(xstack: Stack, sw: Any, tmp_path: Path) -> None:
     """SeaweedFS của test (tests/integration/seaweed.py) phải dùng cùng các mục security.toml như
     compose, để test sống dưới đây phản ánh đúng cấu hình triển khai."""
     harness = (Path(sw.config_dir) / "security.toml").read_text(encoding="utf-8")
-    assert _toml_sections(harness) == _toml_sections(_compose_config("seaweed-security"))
+    assert _toml_sections(harness) == _toml_sections(_compose_config("seaweed-security", tmp_path))
 
 
 def _peer_get(sw: Any, paths: list[str]) -> list[tuple[str, str]]:

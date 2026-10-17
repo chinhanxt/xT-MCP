@@ -38,7 +38,7 @@ from xt.adapters.workflow.bpmn.spiff import SpiffProcessEngine
 from xt.domain.iam import PolicyDocument, loads_policy_json, policy_digest
 from xt.domain.model.context import TenantRef
 from xt.domain.model.plan import RiskClass
-from xt.domain.model.spec import Catalog, load_spec_json
+from xt.domain.model.spec import Catalog, FieldSpec, load_spec_json
 from xt.domain.process.errors import SpecError
 from xt.domain.process.spec import parse_spec
 from xt.entrypoints.composition.process import check_pack_ops
@@ -60,6 +60,7 @@ class BindingSpec(_Strict):
     state_field: str = "state"
     inputs: dict[str, InputSource] = {}
     fields: dict[str, str] = {}
+    priorities: dict[Literal["low", "normal", "high", "urgent"], str] = {}
 
 
 class PackManifest(_Strict):
@@ -74,6 +75,24 @@ class PackManifest(_Strict):
     allowed_ops: dict[str, list[str]] = {}
     bindings: dict[str, BindingSpec] = {}
     notes: dict[str, Any] = {}
+
+
+def _priority_binding_problems(
+    model: str, binding: BindingSpec, fields: Mapping[str, FieldSpec]
+) -> list[str]:
+    if not binding.priorities:
+        return []
+    problems = []
+    if len(set(binding.priorities.values())) != len(binding.priorities):
+        problems.append(f"ràng buộc {model}: priorities phải ánh xạ một-một")
+    priority = fields.get(binding.fields.get("priority", ""))
+    if priority is None or priority.type != "enum":
+        problems.append(f"ràng buộc {model}: priorities cần trường priority kiểu enum")
+    elif any(
+        v not in {o.value for o in priority.options or []} for v in binding.priorities.values()
+    ):
+        problems.append(f"ràng buộc {model}: priorities chứa giá trị không có trong enum")
+    return problems
 
 
 @dataclass(frozen=True)
@@ -276,6 +295,7 @@ def plan_install(
             for arg, f in b.fields.items():
                 if f not in fields:
                     problems.append(f"ràng buộc {model}: {arg} -> trường lạ {f!r}")
+            problems += _priority_binding_problems(model, b, fields)
         bindings.append(
             (model, b.primitive, b.model_dump(mode="json", by_alias=True, exclude_none=True))
         )

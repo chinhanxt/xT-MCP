@@ -54,10 +54,18 @@ from xt.application.tools.errors import (
     precondition_failed,
     revision_conflict,
 )
-from xt.application.tools.ports import Args, CommitResult, Data, MutationPlan
+from xt.application.tools.ports import (
+    AccessCheck,
+    AccessDecision,
+    Args,
+    CommitResult,
+    Data,
+    MutationPlan,
+)
 from xt.contracts.tools import ErrorCode
 from xt.domain.autonomy import RiskLevel
 from xt.domain.model.context import ModelActor
+from xt.domain.model.errors import ModelError
 from xt.domain.process.assignment import OrgUser
 from xt.domain.process.errors import EngineError
 from xt.domain.process.expr import evaluate
@@ -76,6 +84,7 @@ from xt.entrypoints.composition.util import (
     signed_page,
     unavailable,
 )
+from xt.entrypoints.composition.warehouse import WAREHOUSE_OPS
 
 DECISIONS = {
     "approve": "approve",
@@ -170,6 +179,7 @@ OPS: Mapping[str, tuple[tuple[str, ...], OpFactory]] = {
     "check_overdue_advances": (("requester",), _check_overdue_advances),
     "notify": (("msg",), _notify),
     **PACK_OPS,
+    **WAREHOUSE_OPS,
 }
 
 
@@ -533,6 +543,8 @@ class DelegatePolicy(Protocol):
     """PEP cho đích ủy quyền (`ToolAccessGuard.person_allowed`)."""
 
     def person_allowed(self, ctx: CallContext, person: Any, action: str, ref: str) -> bool: ...
+
+    def check(self, ctx: CallContext, check: AccessCheck) -> AccessDecision: ...
 
 
 class ProcessToolAdapter:
@@ -1177,6 +1189,17 @@ class ProcessToolAdapter:
                 lambda: svc.act(p.instance_id, p.task_id, p.person, p.outcome, p.comment, **kw)
             )
         except EngineError as e:
+            if p.model == "stock_request":
+                cause = e.__cause__
+                while cause is not None:
+                    if isinstance(cause, ModelError):
+                        raise ToolError(
+                            ErrorCode(cause.code),
+                            cause.message,
+                            remediation=cause.remediation,
+                            details=cause.details,
+                        ) from e
+                    cause = cause.__cause__
             self._incident(caller, p.instance_id, e)
             raise ToolError(
                 ErrorCode.INTERNAL_ERROR, "Quy trình gặp sự cố; quản trị đã được ghi nhận."
@@ -1293,6 +1316,30 @@ class ProcessToolAdapter:
                     }
                 )
         return out
+
+    def available_transitions(
+        self, ctx: CallContext, caller: Caller, model: str, rid: UUID, row: Mapping[str, Any]
+    ) -> list[Data]:
+        """Transitions the caller may currently ask to perform on this record."""
+        ref = f"{model}:{rid}"
+        if (
+            self.access is None
+            or not self.access.check(
+                ctx, AccessCheck("transition_record", "record.transition", ref)
+            ).allowed
+        ):
+            return []
+        binding = self.rt.store.bindings(caller.actor).get(model)
+        if binding is not None and binding.primitive == "request":
+            state = row.get(str(binding.config.get("state_field", "state")))
+            if (
+                str(row.get("owner_id")) == str(caller.person.id)
+                and state in ("draft", "returned", "in_review")
+                and (state != "in_review" or PgWorkflowStore(self.rt.uow).instance_for(ref))
+            ):
+                return [{"to_state": "withdrawn", "label": "Rút đề nghị", "level": "L1"}]
+            return []
+        return self.available_steps(caller, model, rid, row)
 
     def _readable(self, caller: Caller, model: str, rid: UUID) -> bool:
         try:

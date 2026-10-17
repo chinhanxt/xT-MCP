@@ -26,6 +26,7 @@ from tests.integration.model_audit_r3.test_model_engine_audit_r3_pg import (  # 
     _checkpoint,
     _status,
     cluster,
+    emp_model,
     envs,
     events_for,
     hr,
@@ -155,11 +156,6 @@ def test_protected_functions_alter_variants_blocked(envs: dict[str, Env], db: st
 
 
 # --------- 4. R4-01: migrator đổi ngữ cảnh RLS của xt_app qua bảng ngữ cảnh (session_ctx) ----
-@pytest.mark.xfail(
-    strict=True,
-    reason="R4-01: trigger của migrator trên xt_meta.session_ctx"
-    " viết lại tenant/roles của mọi phiên xt_app (đọc chéo tenant)",
-)
 @pytest.mark.parametrize("db", DBS)
 def test_r4_01_migrator_cannot_rewrite_app_context_via_session_ctx_trigger(
     envs: dict[str, Env], db: str
@@ -184,19 +180,12 @@ def test_r4_01_migrator_cannot_rewrite_app_context_via_session_ctx_trigger(
     try:
         assert _cross_read(e, me, victim) == 0
     finally:
-        if planted:
-            with e.mig() as m:
-                m.execute("DROP TRIGGER r4_ctx ON xt_meta.session_ctx; DROP FUNCTION xt.r4_ctx()")
-        else:
-            with e.mig() as m:
-                m.execute("DROP FUNCTION IF EXISTS xt.r4_ctx()")
+        with e.su() as su:
+            if planted:
+                su.execute("DROP TRIGGER r4_ctx ON xt_meta.session_ctx")
+            su.execute("DROP FUNCTION IF EXISTS xt.r4_ctx()")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R4-01: migrator gỡ CHECK login !~ '^xt_' rồi gắn xt_app vào"
-    " login_tenant → mọi phiên xt_app mang ngữ cảnh tenant nạn nhân",
-)
 @pytest.mark.parametrize("db", DBS)
 def test_r4_01_migrator_cannot_bind_xt_app_in_login_tenant(envs: dict[str, Env], db: str) -> None:
     e = envs[db]
@@ -270,11 +259,6 @@ UNPLANT = {
 }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="R4-02: CHECK/DEFAULT/domain của migrator gọi xt.set_context"
-    " dưới xt_app → giả actor trong audit + nâng vai trò giữa transaction",
-)
 @pytest.mark.parametrize("how", list(PLANT))
 @pytest.mark.parametrize("db", DBS)
 def test_r4_02_planted_expression_cannot_forge_audit_actor(
@@ -293,25 +277,22 @@ def test_r4_02_planted_expression_cannot_forge_audit_actor(
         try:
             m.execute(PLANT[how].format(s=s))
         except psycopg.Error:
-            m.execute(UNPLANT[how].format(s=s))
-            m.execute("DROP FUNCTION xt.r4_forge()")
+            # dọn bằng superuser: hàm trong schema xt chỉ superuser được xóa (quyết định 16/10)
+            with e.su() as su:
+                su.execute(UNPLANT[how].format(s=s))
+                su.execute("DROP FUNCTION xt.r4_forge()")
             return  # bị chặn: đúng
     try:
         rid = e.records.create(hr(t), "emp", {"code": "FORGE"})["record"]["id"]
         actors = [ev[1] for ev in events_for(e, t, rid)]
         assert actors == [uuid.UUID(int=7)], actors
     finally:
-        with e.mig() as m:
-            m.execute(UNPLANT[how].format(s=s))
-            m.execute("DROP FUNCTION xt.r4_forge()")
+        with e.su() as su:
+            su.execute(UNPLANT[how].format(s=s))
+            su.execute("DROP FUNCTION xt.r4_forge()")
 
 
 # ------------- 6. R4-03: DROP COLUMN … CASCADE gỡ policy RESTRICTIVE theo tenant ----
-@pytest.mark.xfail(
-    strict=True,
-    reason="R4-03: drop_guard chỉ chặn policy bị xóa trực tiếp"
-    " (original); DROP COLUMN tenant_id CASCADE gỡ p_*_tenant → đọc chéo tenant",
-)
 @pytest.mark.parametrize("db", DBS)
 def test_r4_03_cascade_cannot_drop_tenant_policy(envs: dict[str, Env], db: str) -> None:
     e = envs[db]
@@ -339,11 +320,6 @@ def test_r4_03_cascade_cannot_drop_tenant_policy(envs: dict[str, Env], db: str) 
 
 
 # ----------- 7. R4-04: hàm trigger được phép (xt.row_touch) không được bảo vệ ----
-@pytest.mark.xfail(
-    strict=True,
-    reason="R4-04: migrator CREATE OR REPLACE xt.row_touch() (oid"
-    " giữ nguyên, vẫn qua whitelist trigger) → mã chạy trên mọi lần ghi của xt_app",
-)
 @pytest.mark.parametrize("db", DBS)
 def test_r4_04_row_touch_immutable_for_migrator(envs: dict[str, Env], db: str) -> None:
     e = envs[db]
@@ -373,10 +349,6 @@ def test_r4_04_row_touch_immutable_for_migrator(envs: dict[str, Env], db: str) -
 
 
 # ----------- 8. functions_changed: hàm chạy trong đường ghi có audit phải nằm trong digest ----
-@pytest.mark.xfail(
-    strict=True,
-    reason="R4-05: digest checkpoint không gồm xt.row_touch (trigger BEFORE trên mọi bảng model)",
-)
 def test_r4_05_checkpoint_covers_row_touch(envs: dict[str, Env]) -> None:
     e = envs["xt"]
     t = new_tenant(e)
@@ -405,3 +377,164 @@ def test_checkpoint_detects_protected_function_config_change(envs: dict[str, Env
         with e.su() as su:
             su.execute("ALTER FUNCTION xt.tenant() RESET search_path")
     assert _status(e, doc, t) == "ok"
+
+
+# ----------- 9. Phát hiện (quyết định "phòng ngừa + phát hiện"): checkpoint ký Ed25519 mang digest
+# toàn bộ catalog bảo mật của xt*; verify báo ĐÚNG đối tượng nào đổi/thêm/mất ----
+def _catalog_diff(e: Env, doc: dict[str, Any]) -> Any:
+    from xt.adapters.db.audit import diff_security_catalog
+
+    with e.c.app(e.db) as c:
+        return diff_security_catalog(c, doc)
+
+
+@pytest.mark.parametrize("db", DBS)
+def test_checkpoint_reports_exact_catalog_changes(envs: dict[str, Env], db: str) -> None:
+    e = envs[db]
+    t = new_tenant(e)
+    e.records.create(hr(t), "emp", {"code": "CAT"})
+    s = f"xt_t{t.seq}"
+    doc = _checkpoint(e)
+    assert doc["security_catalog"] and _catalog_diff(e, doc).ok
+    with e.su() as su:
+        meta = str(
+            q1(
+                su,
+                "SELECT relname FROM xt_audit.rel_registry WHERE kind = 'meta'"
+                " ORDER BY relname LIMIT 1",
+            )
+        )
+    with e.mig() as m:  # các thay đổi migrator vẫn làm được (không thuộc nhóm bị chặn)
+        m.execute(f"ALTER TABLE {s}.emp ADD CONSTRAINT r4_cat CHECK (length(code) < 999)")
+        m.execute(f"CREATE INDEX r4_cat_ix ON {s}.emp (code)")
+        m.execute(f"GRANT SELECT ON xt_meta.{meta} TO xt_web")
+    with e.su() as su:  # superuser: phòng ngừa không áp dụng, chỉ còn phát hiện
+        su.execute(
+            "CREATE FUNCTION xt.r4_cat() RETURNS trigger LANGUAGE plpgsql"
+            " AS $$BEGIN RETURN NEW; END$$"
+        )
+        su.execute(
+            f"CREATE TRIGGER r4_cat BEFORE UPDATE ON xt_meta.{meta}"
+            " FOR EACH ROW EXECUTE FUNCTION xt.r4_cat()"
+        )
+        su.execute("ALTER FUNCTION xt.tenant() SET work_mem = '8MB'")
+        su.execute("GRANT xt_app TO xt_web")
+    try:
+        d = _catalog_diff(e, doc)
+        assert {
+            f"constraint:{s}.emp.r4_cat",
+            f"index:{s}.emp.r4_cat_ix",
+            f"trigger:xt_meta.{meta}.r4_cat",
+            "function:xt.r4_cat()",
+            "membership:xt_web->xt_app",
+        } <= set(d.added), d
+        assert {f"table:xt_meta.{meta}", "function:xt.tenant()"} <= set(d.changed), d
+        assert not d.removed, d
+        assert _status(e, doc, t) == "functions_changed"
+    finally:
+        with e.su() as su:
+            su.execute("REVOKE xt_app FROM xt_web")
+            su.execute("ALTER FUNCTION xt.tenant() RESET work_mem")
+            su.execute(f"DROP TRIGGER r4_cat ON xt_meta.{meta}")
+            su.execute("DROP FUNCTION xt.r4_cat()")
+            su.execute(f"REVOKE SELECT ON xt_meta.{meta} FROM xt_web")
+            su.execute(f"DROP INDEX {s}.r4_cat_ix")
+            su.execute(f"ALTER TABLE {s}.emp DROP CONSTRAINT r4_cat")
+    d = _catalog_diff(e, doc)
+    assert d.ok, d
+    with e.su() as su:  # gỡ cũng bị báo: policy RESTRICTIVE theo tenant "mất"
+        pol = str(
+            q1(
+                su,
+                "SELECT polname FROM pg_policy WHERE polrelid = %s::regclass AND NOT polpermissive",
+                f"{s}.emp",
+            )
+        )
+        polsql = su.execute(
+            "SELECT format('CREATE POLICY %%I ON %%s AS RESTRICTIVE FOR ALL TO %%s USING (%%s)"
+            " WITH CHECK (%%s)', polname, polrelid::regclass,"
+            " array_to_string(polroles::regrole[], ','), pg_get_expr(polqual, polrelid),"
+            " pg_get_expr(polwithcheck, polrelid)) FROM pg_policy WHERE polrelid = %s::regclass"
+            " AND polname = %s",
+            (f"{s}.emp", pol),
+        ).fetchone()[0]
+        su.execute(f"DROP POLICY {pol} ON {s}.emp")
+    try:
+        assert f"policy:{s}.emp.{pol}" in _catalog_diff(e, doc).removed
+    finally:
+        with e.su() as su:
+            su.execute(polsql)
+    assert _catalog_diff(e, doc).ok
+
+
+def test_cli_verify_reports_catalog_objects(
+    envs: dict[str, Env], tmp_path: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from xt.entrypoints import audit_cli
+
+    e = envs["xt"]
+    t = new_tenant(e)
+    e.records.create(hr(t), "emp", {"code": "CLI"})
+    sk = Ed25519PrivateKey.generate()
+    (tmp_path / "sk.pem").write_bytes(
+        sk.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+    (tmp_path / "pk.pem").write_bytes(
+        sk.public_key().public_bytes(
+            serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+    )
+    env = {
+        "XT_DB_APP_URL": e.c.dsn(e.db, "xt_app", e.c.app_pw),
+        "XT_AUDIT_CHECKPOINT_DIR": str(tmp_path / "cp"),
+        "XT_AUDIT_SIGNING_KEY_FILE": str(tmp_path / "sk.pem"),
+        "XT_AUDIT_SIGNING_KEY_ID": "r4",
+        "XT_AUDIT_VERIFY_KEY_FILE": str(tmp_path / "pk.pem"),
+    }
+    assert audit_cli.run(["checkpoint"], env) == 0
+    assert audit_cli.run(["verify", "--against-checkpoint", "latest"], env) == 0
+    assert "catalog bảo mật: không đổi" in capsys.readouterr().out
+    s = f"xt_t{t.seq}"
+    with e.mig() as m:
+        m.execute(f"ALTER TABLE {s}.emp ALTER COLUMN code SET DEFAULT 'x'")
+    try:
+        assert audit_cli.run(["verify", "--against-checkpoint", "latest"], env) == 1
+        out = capsys.readouterr().out
+        assert f"catalog thêm: default:{s}.emp.code" in out, out
+    finally:
+        with e.mig() as m:
+            m.execute(f"ALTER TABLE {s}.emp ALTER COLUMN code DROP DEFAULT")
+
+
+@pytest.mark.parametrize("db", DBS)
+def test_set_policies_emits_audit_event(envs: dict[str, Env], db: str) -> None:
+    """INFO vòng 4: đổi quyền model (xt_audit.set_policies) để lại sự kiện trong chuỗi audit."""
+    e = envs[db]
+    t = new_tenant(e)
+    s = f"xt_t{t.seq}"
+    mid, perms = (
+        "m2",
+        {**emp_model()["permissions"], "staff": {"actions": ["read"], "scope": "own"}},
+    )
+    with e.mig() as m:
+        m.execute(
+            "SELECT xt_audit.set_policies(%s, 'emp', %s, %s::jsonb)",
+            (s, mid, psycopg.types.json.Jsonb(perms)),
+        )
+    with e.su() as su:
+        rows = su.execute(
+            "SELECT op, model, diff FROM xt_audit.event WHERE tenant_id = %s AND op = 'POLICY'"
+            " ORDER BY seq",
+            (t.id,),
+        ).fetchall()
+        broken = su.execute("SELECT * FROM xt_audit.verify(%s)", (t.id,)).fetchone()[1]
+    assert rows and rows[-1][1] == "xt_audit.policies:emp", rows
+    assert rows[-1][2]["model_id"] == str(mid), rows[-1]
+    assert broken is None

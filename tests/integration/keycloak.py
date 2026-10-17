@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import json
 import secrets
+import socket
 import struct
 import subprocess
 import time
@@ -23,8 +24,17 @@ from typing import Any
 import httpx
 
 IMAGE = "quay.io/keycloak/keycloak:26.6.3"
-CONTAINER = "xt-it-identity-kc"
-PORT = 19400
+
+
+def _free_port() -> int:
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+# Tên + cổng riêng mỗi tiến trình test: nhiều lượt chạy song song không xóa nhầm Keycloak của nhau.
+CONTAINER = f"xt-it-identity-kc-{secrets.token_hex(4)}"
+PORT = _free_port()
 BASE = f"http://localhost:{PORT}"
 RESOURCE = "http://localhost:19401/mcp"
 CONFIRM_CB = "http://localhost:19402/confirm/cb"
@@ -50,7 +60,7 @@ def start_container(admin_password: str) -> None:
             "--name",
             CONTAINER,
             "-p",
-            f"{PORT}:8080",
+            f"127.0.0.1:{PORT}:8080",
             "-e",
             "KC_BOOTSTRAP_ADMIN_USERNAME=admin",
             "-e",
@@ -70,6 +80,7 @@ def start_container(admin_password: str) -> None:
             pass
         time.sleep(1)
     logs = subprocess.run(["docker", "logs", "--tail", "50", CONTAINER], capture_output=True)
+    stop_container()
     raise RuntimeError("Keycloak không lên trong 180 s:\n" + logs.stdout.decode(errors="replace"))
 
 

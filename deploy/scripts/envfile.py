@@ -82,11 +82,20 @@ def secrets_dir(env: dict[str, str]) -> Path:
     return Path(env.get("XT_SECRETS_DIR") or Path.home() / ".config" / "xt")
 
 
+def private_secrets_dir(env: dict[str, str]) -> Path:
+    root = secrets_dir(env)
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if root.stat().st_mode & 0o777 != 0o700:
+        # Never chmod an existing shared directory chosen by mistake (e.g. /tmp).
+        raise SystemExit("XT_SECRETS_DIR must be a dedicated private directory with mode 0700")
+    return root
+
+
 def ensure_app_secrets(env: dict[str, str]) -> Path:
     """Khóa tệp của xt-api/xt-worker ở `<XT_SECRETS_DIR>/app` (ngoài repo): audit/cursor/pii (hex 32 byte) và
     khóa ký biên nhận Ed25519 (PKCS#8 PEM, openssl). Không bao giờ ghi đè. Container chạy uid 10001 nên
     thư mục 0755, tệp 0644 (thư mục cha vẫn 0700 nên người dùng khác trên host không đọc được)."""
-    d = secrets_dir(env) / "app"
+    d = private_secrets_dir(env) / "app"
     d.mkdir(parents=True, exist_ok=True)
     d.chmod(0o755)
     for name in ("audit.key", "cursor.key", "pii.key"):
@@ -132,7 +141,7 @@ def ensure_seaweed_configs(env: dict[str, str]) -> Path:
     missing = [k for k in keys if not env.get(k)]
     if missing:
         raise SystemExit(f"thiếu {', '.join(missing)} trong .env (chạy make env)")
-    d = secrets_dir(env) / "seaweed"
+    d = private_secrets_dir(env) / "seaweed"
     d.mkdir(parents=True, exist_ok=True)
     d.chmod(0o755)
     s3 = {"identities": [{"name": "xt-api",
