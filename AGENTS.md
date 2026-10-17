@@ -1,1 +1,99 @@
-CLAUDE.md
+# xT — Agent-native DX-OS (OLP PMNM 2026)
+
+## Sản phẩm
+xT là MCP server đa năng cho mọi doanh nghiệp. Lõi headless (Tầng 1) gồm SSO Keycloak, API Gateway APISIX, Postgres + RLS, object storage, workflow engine. Lõi được lộ ra qua MCP; agent (ChatGPT / Claude / LLM local) chính là giao diện.
+- **Bộ tool cố định, nghiệp vụ là dữ liệu.** v0.1 có 17 tool, v1.0 có 21 tool (xem `docs/tool-contracts-v1.md`). Model và process do agent đề xuất, con người duyệt rồi mới áp dụng.
+- **Workflow lõi mà doanh nghiệp nào cũng có:** đề xuất & phê duyệt, giao việc + SLA, vòng đời nhân sự, thu–chi, bán hàng, văn bản, helpdesk.
+- **Giải các pain point chung của doanh nghiệp,** không gắn với một ngành cụ thể.
+
+## Quyết định đã chốt
+- **Ngôn ngữ lõi:** Python. **Giấy phép:** Apache-2.0. **Repo:** `/home/chinhan/xT`.
+- **Mốc OLP:** nộp bài 17:00 06/12/2026, chung kết 10/12/2026.
+- **Tài liệu tham chiếu:**
+  - Đề thi: `research/de_thi_OLP2026.txt`
+  - Sơ đồ kiến trúc: `/home/chinhan/xT_DXOS_OLP2026.drawio`
+  - Kết quả nghiên cứu: `research/*.md`
+  - Hostname công khai qua Cloudflare Tunnel `xt`: `xt.freepro.online` (Desk), `xt-mcp.freepro.online` (MCP), `xt-api.freepro.online` (Tầng 1), `xt-auth.freepro.online` (Keycloak), tất cả đi qua APISIX `127.0.0.1:9080`. Chi tiết: `docs/deployment-public.md`. Bí mật nằm trong `~/.config/xt/` (không commit).
+- **Bám đề thi:**
+  - Tầng 1 headless bắt buộc đủ 4 dịch vụ: SSO, API Gateway, Data, Workflow.
+  - Tầng 2: ít nhất 1 ứng dụng có giao diện (MCP Apps hiển thị trong chat).
+  - Checklist PoF: header giấy phép trong từng file, LICENSE toàn văn, release `.tar.gz` có số phiên bản, README, CHANGELOG, bug tracker, hướng dẫn build.
+- **Chỉ dùng phụ thuộc có giấy phép OSI.** Tránh n8n (fair-code), Redpanda (BSL), và mọi thứ SSPL/BSL.
+
+## Quy tắc làm việc (bắt buộc)
+- **Luôn có >5 agent chạy song song,** chia việc rõ ràng theo năng lực từng model.
+- **Task khó → Opus 5.5. Task nhỏ/vừa → Sonnet 5.5 hoặc Opus 4.6.**
+- **Codex CLI** (tận dụng tối đa):
+  - `codex exec --skip-git-repo-check -C <dir> -m gpt-6.1-sol -c model_reasoning_effort=high "..."` cho code nặng.
+  - `-m gpt-6-astra -c model_reasoning_effort=low` cho việc nhanh.
+- **agyxt CLI:** `agyxt -p "..." --model gemini-3.8-flash-high --dangerously-skip-permissions` (tự bật proxy cổng 8899).
+  - **Hay bịa**, nên chỉ giao việc tìm repo hữu ích và các task nhỏ nhất, đơn giản nhất.
+  - Nếu mất kết nối (proxy 8899 báo `connection refused`), chạy lệnh `agyxt` trên terminal để mở lại kết nối rồi thử lại.
+  - Kết quả luôn phải được kiểm chứng.
+- **Khi agyxt hoặc codex không kết nối được** (lỗi auth, mạng, hết quota, treo quá timeout, output rỗng/hỏng): lập tức giao lại đúng task đó cho model Claude tương ứng, không chờ, không dừng tiến trình.
+  - Thay codex sol → Opus 5.5.
+  - Thay codex astra → Sonnet 5.5.
+  - Thay agyxt → Sonnet 5.5 hoặc Haiku 5.5. Kết quả vẫn phải kiểm chứng.
+  - Ghi lại sự cố, sau đó thử lại CLI ở task kế tiếp.
+- **Cấm chụp màn hình hoặc điều khiển display thật của user** (`:0`, `:1`). Test GUI chỉ được chạy headless hoặc trong Xvfb riêng.
+- **Ổ đĩa `/` gần đầy:** trước mỗi lần pull image > 1 GB phải kiểm tra `df -h /`. Xong việc thì xóa image/artifact do chính mình tạo ra.
+- **Chế độ tự vận hành (từ 16/10/2026):** làm liên tục, chỉ bàn giao cho user khi **toàn bộ e2e đã xanh**.
+  - Câu hỏi cần chủ dự án quyết: giao một agent **Opus 5.5 "decision"** chọn phương án, ghi quyết định và lý do vào `docs/decisions.md`. Không chờ user.
+- **Nhường tài nguyên cho session khác của user:**
+  - Mỗi lúc chỉ chạy **1 stack nặng** (docker compose nhiều container, Keycloak, Ollama/LLM).
+  - Trước khi chạy, kiểm `free -g`. Cột available phải ≥ 4 GB; nếu thiếu thì chờ rồi kiểm lại.
+  - Agent chỉ đọc/viết code (không chạy docker/LLM) thì vẫn chạy song song nhiều.
+  - Container dùng tên duy nhất, xong việc phải dọn ngay.
+  - Một lượt `make test-integration` TOÀN BỘ tính là 1 stack nặng: mỗi lúc chỉ 1 agent chạy toàn bộ; agent khác chỉ chạy bộ test của mình. Fixture không được dùng tên container/cổng cố định.
+  - Fixture/test tạo container phải xóa bằng `docker rm -f -v`; không để lại volume ẩn danh (đã từng đầy ổ vì 165 volume sót).
+- **Bắt buộc có 1 agent Opus chuyên kiểm tra + test.** Các agent phải debate/phản biện nhau trước khi chốt.
+- **Không xây từ đầu:** thu thập repo nguồn mở (giấy phép OSI) rồi phát triển trên đó.
+- **Luôn học từ hai nguồn để làm MCP tốt:**
+  - REA: `/home/chinhan/projects/reclaw/repos/rea`
+  - sklite: `/home/chinhan/Downloads/sklite-main.zip`, bản giải nén ở `/tmp/sklite_src/sklite-main`. Repo này không có LICENSE nên chỉ học pattern, không copy code.
+- **Sản phẩm dùng thật:** không hard-code, không fallback giả. Viết skill cho sản phẩm thay vì cài cứng logic.
+- **Test thật kỹ trước khi bàn giao.**
+- **Tư tưởng chung:** làm tốt để đạt giải. Sản phẩm phải đa năng.
+
+<!-- super-board:begin v3.1.2 (managed; edits inside are overwritten on upgrade) -->
+## Super Board
+
+Board: Backlog · Ready · Building · QA · Review · Blocked · Done. Labels route: `qa` skips Building · `bug`, `feature`, none → built first.
+
+| When | Use | NEVER |
+|---|---|---|
+| Set up / repair the board | `/super-board onboard` | DON'T hand-edit config mid-run |
+| Check tickets before a run | `/super-board lint` | NEVER run with AC-less tickets |
+| Drain the board | `/super-board run` | NEVER build, test or merge from the orchestrator |
+| Board state / halt | `/super-board status` · `/super-board stop` | |
+| Build one ticket | `/super-build` | NEVER build outside the card's worktree |
+| QA a branch, or a live URL alone | `/super-qa` · `/super-qa <url>` | NEVER mark QA pass without evidence |
+| Review a PR, merge | `/super-review` | NEVER `gh pr merge` direct — merge gate only |
+| File bugs from Sentry, PostHog, PRs | `/super-collect` | DON'T file without a verifier pass |
+| UI polish | `/ui-refine-loop` (human runs it) | board NEVER runs it |
+| Diagram / explainer page | `/visual` | |
+| Commit, pull, push this branch | `/git-sync` | NEVER force push or rebase shared history |
+
+| Rule | Value |
+|---|---|
+| Config | `.claude/super-board/configs/<slug>.json` |
+| Isolation | 1 card · 1 worktree · 1 branch |
+| Merge | auto for normal changes · money, auth, destructive schema (DROP/TRUNCATE/RENAME) → human · PR > 400 changed lines → human |
+| Migrations | additive → robot migrates allowed DBs only · live DB ALWAYS → 🙋 needs you |
+| Blocked card | block-template comment · last line `blocked-by:` · 🙋 = needs you |
+| Secrets | NEVER read `.env`; key names via `.claude/bin/super-board-env-check.sh` |
+
+## Writing (super-board)
+
+| Thing | Format → `.claude/skills/super-board/references/writing-standard.md` |
+|---|---|
+| Commit, PR title | `<emoji> [type] scope: subject` + short bullets · ✨ feat 🐛 fix 🔧 chore ♻️ refactor 🧪 test 📝 docs |
+| PR body | blocks: status · Problem · Solution · AC + proof · history · Before\|After · Risk — `super-board-pr-body.sh` |
+| Ticket | Problem · Context · Fix · AC · Risk · Blocked by → `docs/agents/issue-tracker.md` |
+| Comment | `[role] [label] status` · Did · ✅ Done · ❌ Not done · Next · ≤ 8 lines |
+| PR author notes | file + critical inline review comments: Purpose · What changed · Why it matters → `pr-author-notes.md` |
+
+- NEVER chain steps with arrows. One step per line, lettered under Where.
+- NEVER link screenshots. Embed a raw URL pinned to a sha.
+- DON'T repeat file lists in status comments. DON'T write "Not verified" or "Next" in a PR body.
+<!-- super-board:end -->
