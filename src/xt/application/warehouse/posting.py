@@ -16,6 +16,7 @@ from xt.domain.warehouse import (
     check_reversal,
     invalid,
     parse_lines,
+    quantity,
     reversal_key,
 )
 
@@ -74,23 +75,35 @@ def post_stock(db: StockData, request_id: UUID, approver: UUID) -> dict[str, Any
         return {"request": str(request_id), "posted": len(sources), "already": True}
     if row["state"] != "in_review":
         raise invalid("Chỉ ghi nhận phiếu đang chờ duyệt.")
-    db.get("warehouse", UUID(str(row["warehouse"])))
+    warehouse = str(row["warehouse"])
+    db.get("warehouse", UUID(warehouse))
     planned = []
+    items: dict[UUID, dict[str, Any]] = {}
+    level_delta: dict[UUID, int] = {}
     for key, item, location_id, delta in sources:
         if db.rows("stock_movement", {"field": "key", "op": "=", "value": key}):
             raise invalid("Phiếu gốc đã được đảo; không đảo lần thứ hai.")
-        db.get("stock_item", item)
+        items[item] = db.get("stock_item", item)
         location = db.get("warehouse_location", location_id)
-        if str(location["warehouse"]) != str(row["warehouse"]):
+        if str(location["warehouse"]) != warehouse:
             raise invalid("Vị trí không thuộc kho của phiếu.")
         balance_key = f"{item}:{location_id}"
         balances = db.rows("stock_balance", {"field": "key", "op": "=", "value": balance_key})
         balance = balances[0] if balances else None
         total = after_post(Decimal(str(balance["quantity_milli"])) if balance else 0, delta)
         planned.append((key, item, location_id, delta, balance_key, balance, total))
+        level_delta[item] = level_delta.get(item, 0) + delta
+    levels = []
+    for item, delta in level_delta.items():
+        level_key = f"{item}:{warehouse}"
+        found = db.rows("stock_level", {"field": "key", "op": "=", "value": level_key})
+        current = found[0]["on_hand_milli"] if found else _opening(db, item, warehouse)
+        on_hand = after_post(Decimal(str(current)), delta)
+        reorder = quantity(Decimal(str(items[item].get("reorder_level_milli") or 0)))
+        levels.append((item, level_key, found[0] if found else None, on_hand, reorder))
     posted_at = datetime.now(UTC).isoformat()
     # Validate every line before the first write. Outer UoW also rolls back late DB failures.
-    warehouse = str(row["warehouse"])
+    last_movement: dict[UUID, str] = {}
     for key, item, location_id, delta, balance_key, balance, total in planned:
         if balance is None:
             balance = db.create(
@@ -104,7 +117,7 @@ def post_stock(db: StockData, request_id: UUID, approver: UUID) -> dict[str, Any
             )
         # Also backfills balances created before the warehouse reference existed.
         db.write("stock_balance", balance, {"quantity_milli": total, "warehouse": warehouse})
-        db.create(
+        movement = db.create(
             "stock_movement",
             {
                 "key": key,
@@ -117,4 +130,32 @@ def post_stock(db: StockData, request_id: UUID, approver: UUID) -> dict[str, Any
                 "approved_by": str(approver),
             },
         )
+        last_movement[item] = str(movement["id"])
+    for item, level_key, level, on_hand, reorder in levels:
+        if level is None:
+            level = db.create(
+                "stock_level", {"key": level_key, "item": str(item), "warehouse": warehouse}
+            )
+        db.write(
+            "stock_level",
+            level,
+            {
+                "on_hand_milli": on_hand,
+                "reorder_level_milli": reorder,
+                "below_reorder": on_hand < reorder,
+                "last_movement": last_movement[item],
+            },
+        )
     return {"request": str(request_id), "posted": len(planned), "already": False}
+
+
+def _opening(db: StockData, item: UUID, warehouse: str) -> int:
+    """On-hand of an item in a warehouse before its stock_level row existed (older postings)."""
+    total = 0
+    for balance in db.rows("stock_balance", {"field": "item", "op": "=", "value": str(item)}):
+        where = balance.get("warehouse")
+        if not where:
+            where = db.get("warehouse_location", UUID(str(balance["location"])))["warehouse"]
+        if str(where) == warehouse:
+            total += quantity(Decimal(str(balance["quantity_milli"])))
+    return total

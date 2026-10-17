@@ -304,6 +304,9 @@ def test_reversal_posts_once_through_approval(warehouse, stock):
     assert int(ledger[0]["quantity_milli"]) == -1000
     assert ledger[0]["warehouse"] == stock["warehouse"]
     assert balance(w, stock)[0]["warehouse"] == stock["warehouse"]
+    key = f"{stock['lines'][0]['item']}:{stock['warehouse']}"
+    (level,) = w.search("stock_level", {"field": "key", "op": "=", "value": key})
+    assert int(level["on_hand_milli"]) == 0 and level["last_movement"] == ledger[0]["id"]
     assert len(movements(w, original["ref"])) == 1
     second = w.request(undo)
     result, _, _ = confirm(w, second)

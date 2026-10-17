@@ -26,6 +26,7 @@ class Data:
                 "warehouse_location",
                 "stock_balance",
                 "stock_movement",
+                "stock_level",
             )
         }
         self.writes = 0
@@ -37,7 +38,7 @@ class Data:
         return [
             deepcopy(r)
             for r in self.rows_by_model[model].values()
-            if str(r[where["field"]]) == str(where["value"])
+            if str(r.get(where["field"])) == str(where["value"])
         ]
 
     def create(self, model, values):
@@ -206,7 +207,12 @@ def posted(kind="receive", amount=1000, stock=0):
     if stock:
         db.create(
             "stock_balance",
-            {"key": f"{line['item']}:{line['location']}", "quantity_milli": stock},
+            {
+                "key": f"{line['item']}:{line['location']}",
+                "item": line["item"],
+                "location": line["location"],
+                "quantity_milli": stock,
+            },
         )
     post_stock(db, rid, manager)
     db.rows_by_model["stock_request"][str(rid)]["state"] = "approved"
@@ -302,3 +308,70 @@ def test_reverses_only_on_reversal_slips():
     ):
         with pytest.raises(ModelError, match="phiếu gốc"):
             validate_write(None, actor, "stock_request", values)
+
+
+def level(db):
+    (row,) = db.rows_by_model["stock_level"].values()
+    return row
+
+
+def test_stock_level_tracks_on_hand_and_reorder_flag():
+    db, rid, manager = fixture("receive", 1000)
+    request = db.get("stock_request", rid)
+    line = request["lines"][0]
+    db.rows_by_model["stock_item"][line["item"]]["reorder_level_milli"] = 1500
+    post_stock(db, rid, manager)
+    row = level(db)
+    (movement,) = db.rows_by_model["stock_movement"].values()
+    assert row["key"] == f"{line['item']}:{request['warehouse']}"
+    assert (row["item"], row["warehouse"]) == (line["item"], request["warehouse"])
+    assert (row["on_hand_milli"], row["reorder_level_milli"], row["below_reorder"]) == (
+        1000,
+        1500,
+        True,
+    )
+    assert row["last_movement"] == movement["id"]
+    copy = {k: v for k, v in request.items() if k not in ("id", "revision")}
+    again = UUID(db.create("stock_request", copy)["id"])
+    post_stock(db, again, manager)
+    assert (level(db)["on_hand_milli"], level(db)["below_reorder"]) == (2000, False)
+
+
+def test_stock_level_sums_locations_and_starts_from_existing_balances():
+    db, rid, manager = fixture("issue", 300)
+    request = db.rows_by_model["stock_request"][str(rid)]
+    line = request["lines"][0]
+    # Balances posted before stock_level existed, in two locations of the same warehouse.
+    db.create(
+        "stock_balance",
+        {"key": f"{line['item']}:{line['location']}", "item": line["item"],
+         "location": line["location"], "quantity_milli": 500},
+    )  # fmt: skip
+    other = db.create("warehouse_location", {"warehouse": request["warehouse"]})
+    db.create(
+        "stock_balance",
+        {"key": f"{line['item']}:{other['id']}", "item": line["item"],
+         "location": other["id"], "warehouse": request["warehouse"], "quantity_milli": 700},
+    )  # fmt: skip
+    foreign = db.create("warehouse_location", {"warehouse": str(uuid4())})
+    db.create(
+        "stock_balance",
+        {"key": f"{line['item']}:{foreign['id']}", "item": line["item"],
+         "location": foreign["id"], "quantity_milli": 9000},
+    )  # fmt: skip
+    post_stock(db, rid, manager)
+    assert level(db)["on_hand_milli"] == 900
+
+
+def test_failed_posting_leaves_stock_level_untouched():
+    db, rid, manager = fixture("issue", 1000)
+    with pytest.raises(ModelError):
+        post_stock(db, rid, manager)
+    assert db.rows_by_model["stock_level"] == {}
+
+
+@pytest.mark.parametrize("previous", [None, {"on_hand_milli": 0}])
+def test_generic_writes_cannot_touch_stock_level(previous):
+    actor = ModelActor(TenantRef(1, uuid4()), uuid4(), ("admin", "warehouse_manager"))
+    with pytest.raises(ModelError, match="chỉ được ghi"):
+        validate_write(None, actor, "stock_level", {}, previous=previous)

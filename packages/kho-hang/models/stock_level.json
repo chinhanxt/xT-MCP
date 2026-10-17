@@ -1,0 +1,114 @@
+{
+  "id": "wh_stock_level",
+  "name": "stock_level",
+  "label": "stock_level",
+  "description": "Tồn theo hàng × kho do quy trình ghi kho cập nhật; below_reorder so với ngưỡng của hàng tại lần ghi gần nhất.",
+  "title_field": "key",
+  "fields": [
+    {
+      "id": "key",
+      "name": "key",
+      "type": "text",
+      "label": "key",
+      "pii": "none",
+      "required": true,
+      "unique": true,
+      "min": 1,
+      "max": 100
+    },
+    {
+      "id": "item",
+      "name": "item",
+      "type": "ref",
+      "label": "item",
+      "pii": "none",
+      "ref": "stock_item",
+      "required": true
+    },
+    {
+      "id": "warehouse",
+      "name": "warehouse",
+      "type": "ref",
+      "label": "warehouse",
+      "pii": "none",
+      "ref": "warehouse",
+      "required": true
+    },
+    {
+      "id": "on_hand_milli",
+      "name": "on_hand_milli",
+      "type": "number",
+      "label": "on_hand_milli",
+      "pii": "none",
+      "required": true,
+      "default": 0,
+      "min": 0,
+      "max": 9000000000000000,
+      "managed_by": "workflow"
+    },
+    {
+      "id": "reorder_level_milli",
+      "name": "reorder_level_milli",
+      "type": "number",
+      "label": "reorder_level_milli",
+      "pii": "none",
+      "required": true,
+      "default": 0,
+      "min": 0,
+      "max": 9000000000000000,
+      "managed_by": "workflow"
+    },
+    {
+      "id": "below_reorder",
+      "name": "below_reorder",
+      "type": "bool",
+      "label": "below_reorder",
+      "pii": "none",
+      "required": true,
+      "default": false,
+      "managed_by": "workflow"
+    },
+    {
+      "id": "last_movement",
+      "name": "last_movement",
+      "type": "ref",
+      "label": "last_movement",
+      "pii": "none",
+      "ref": "stock_movement"
+    }
+  ],
+  "permissions": {
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "warehouse_manager": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "admin": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "agent": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}
