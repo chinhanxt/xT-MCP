@@ -69,3 +69,25 @@ def after_post(current: object, delta: int) -> int:
             details={"reason": "insufficient_stock"},
         )
     return quantity(result)
+
+
+REQUEST_KINDS = ("receive", "issue", "reversal")
+
+
+def reversal_key(movement_key: str) -> str:
+    # Unique movement key: the ledger itself refuses a second reversal of the same line.
+    return f"{movement_key}:rev"
+
+
+def check_reversal(row: dict[str, object], original: dict[str, object]) -> None:
+    """A reversal undoes one whole approved receive/issue slip of the same warehouse."""
+    if str(original.get("id")) == str(row.get("id")):
+        raise invalid("Phiếu đảo không được tự tham chiếu.")
+    if original.get("kind") not in ("receive", "issue"):
+        raise invalid("Chỉ đảo được phiếu nhập hoặc xuất; không đảo phiếu đảo.")
+    if original.get("state") != "approved":
+        raise invalid("Chỉ đảo được phiếu đã ghi nhận.")
+    if str(original.get("warehouse")) != str(row.get("warehouse")):
+        raise invalid("Phiếu đảo phải cùng kho với phiếu gốc.")
+    if set(parse_lines(row.get("lines"))) != set(parse_lines(original.get("lines"))):
+        raise invalid("Dòng hàng của phiếu đảo phải trùng toàn bộ dòng của phiếu gốc.")

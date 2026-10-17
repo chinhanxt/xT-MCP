@@ -30,8 +30,20 @@
         {
           "value": "issue",
           "label": "Xuất kho"
+        },
+        {
+          "value": "reversal",
+          "label": "Đảo phiếu"
         }
       ]
+    },
+    {
+      "id": "reverses",
+      "name": "reverses",
+      "type": "ref",
+      "label": "reverses",
+      "pii": "none",
+      "ref": "stock_request"
     },
     {
       "id": "warehouse",

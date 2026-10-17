@@ -290,6 +290,26 @@ def test_failed_issue_rolls_back_decision_and_workflow(warehouse, stock):
     assert int(balance(w, stock)[0]["quantity_milli"]) == 0
 
 
+def test_reversal_posts_once_through_approval(warehouse, stock):
+    w = warehouse
+    original = w.request(stock)
+    assert confirm(w, original)[0].status is PendingStatus.CONFIRMED
+    rid = original["ref"].split(":")[1]
+    undo = {**stock, "kind": "reversal", "reverses": rid}
+    first = w.request(undo)
+    assert confirm(w, first)[0].status is PendingStatus.CONFIRMED
+    assert int(balance(w, stock)[0]["quantity_milli"]) == 0
+    ledger = movements(w, first["ref"])
+    assert [r["key"] for r in ledger] == [f"{rid}:0:rev"]
+    assert int(ledger[0]["quantity_milli"]) == -1000
+    assert len(movements(w, original["ref"])) == 1
+    second = w.request(undo)
+    result, _, _ = confirm(w, second)
+    assert result.status is PendingStatus.INVALIDATED and result.error, result
+    assert movements(w, second["ref"]) == []
+    assert int(balance(w, stock)[0]["quantity_milli"]) == 0
+
+
 def test_competing_issues_cannot_overspend(warehouse, stock):
     w = warehouse
     assert confirm(w, w.request(stock))[0].status is PendingStatus.CONFIRMED

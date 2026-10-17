@@ -178,3 +178,107 @@ def test_request_owner_cannot_be_forged_or_changed():
             {"owner_id": str(uuid4())},
             previous={"owner_id": str(actor.actor_id), "state": "draft"},
         )
+
+
+def posted(kind="receive", amount=1000, stock=0):
+    db, rid, manager = fixture(kind, amount)
+    line = db.rows_by_model["stock_request"][str(rid)]["lines"][0]
+    if stock:
+        db.create(
+            "stock_balance",
+            {"key": f"{line['item']}:{line['location']}", "quantity_milli": stock},
+        )
+    post_stock(db, rid, manager)
+    db.rows_by_model["stock_request"][str(rid)]["state"] = "approved"
+    return db, rid, manager
+
+
+def reversal(db, original):
+    row = db.get("stock_request", original)
+    return UUID(
+        db.create(
+            "stock_request",
+            {
+                "owner_id": str(uuid4()),
+                "state": "in_review",
+                "kind": "reversal",
+                "reverses": str(original),
+                "warehouse": row["warehouse"],
+                "lines": list(reversed(row["lines"])),
+            },
+        )["id"]
+    )
+
+
+def on_hand(db):
+    return sum(int(r["quantity_milli"]) for r in db.rows_by_model["stock_balance"].values())
+
+
+@pytest.mark.parametrize(("kind", "stock", "after"), [("receive", 0, 0), ("issue", 1500, 1500)])
+def test_reversal_posts_opposite_movements_once(kind, stock, after):
+    db, original, manager = posted(kind, 1000, stock)
+    rev = reversal(db, original)
+    assert post_stock(db, rev, manager) == {"request": str(rev), "posted": 1, "already": False}
+    assert on_hand(db) == after
+    ledger = db.rows("stock_movement", {"field": "request", "value": str(rev)})
+    assert [r["key"] for r in ledger] == [f"{original}:0:rev"]
+    source = db.rows("stock_movement", {"field": "request", "value": str(original)})[0]
+    assert ledger[0]["quantity_milli"] == -source["quantity_milli"]
+    assert post_stock(db, rev, manager)["already"] is True
+    assert len(db.rows_by_model["stock_movement"]) == 2
+
+
+def test_second_reversal_rejected_without_writes():
+    db, original, manager = posted()
+    post_stock(db, reversal(db, original), manager)
+    second = reversal(db, original)
+    db.writes = 0
+    with pytest.raises(ModelError, match="đã được đảo"):
+        post_stock(db, second, manager)
+    assert db.writes == 0
+
+
+@pytest.mark.parametrize("state", ["draft", "in_review", "rejected", "cancelled"])
+def test_reversal_of_unposted_slip_rejected(state):
+    db, original, manager = fixture()
+    db.rows_by_model["stock_request"][str(original)]["state"] = state
+    rev = reversal(db, original)
+    db.writes = 0
+    with pytest.raises(ModelError, match="đã ghi nhận"):
+        post_stock(db, rev, manager)
+    assert db.writes == 0
+
+
+def test_reversal_of_reversal_and_mismatched_lines_rejected():
+    db, original, manager = posted()
+    rev = reversal(db, original)
+    post_stock(db, rev, manager)
+    db.rows_by_model["stock_request"][str(rev)]["state"] = "approved"
+    with pytest.raises(ModelError, match="không đảo phiếu đảo"):
+        post_stock(db, reversal(db, rev), manager)
+    other = reversal(db, original)
+    db.rows_by_model["stock_request"][str(other)]["lines"][0]["quantity_milli"] = 999
+    with pytest.raises(ModelError, match="trùng toàn bộ"):
+        post_stock(db, other, manager)
+
+
+def test_reversal_cannot_drive_stock_negative():
+    db, original, manager = posted("receive", 1000)
+    balance = next(iter(db.rows_by_model["stock_balance"].values()))
+    balance["quantity_milli"] = 400  # 600 already issued after the receipt
+    rev = reversal(db, original)
+    db.writes = 0
+    with pytest.raises(ModelError, match="Không đủ tồn"):
+        post_stock(db, rev, manager)
+    assert db.writes == 0
+
+
+def test_reverses_only_on_reversal_slips():
+    actor = ModelActor(TenantRef(1, uuid4()), uuid4(), ("employee",))
+    line = [{"item": str(uuid4()), "location": str(uuid4()), "quantity_milli": 1}]
+    for values in (
+        {"kind": "receive", "reverses": str(uuid4()), "lines": line},
+        {"kind": "reversal", "lines": line},
+    ):
+        with pytest.raises(ModelError, match="phiếu gốc"):
+            validate_write(None, actor, "stock_request", values)
