@@ -80,7 +80,7 @@ it('CRM preset sums value_milli by stage; the timesheet preset buckets hours by 
   await click('Mở CRM'); await click('Báo cáo');
   await click('Tổng Giá trị (milli) theo Giai đoạn');
   expect(calls('aggregate_records')[0].arguments).toEqual({ model_id: 'co_hoi', metrics: ['sum:value_milli'], group_by: ['stage'] });
-  expect(container.querySelector('.report-result')?.textContent).toContain('5000');
+  expect(container.querySelector('.report-result')?.textContent).toContain('5.000');
   await click('← Danh sách ứng dụng'); await click('Mở Chấm công'); await click('Báo cáo');
   await click('Tổng Số giờ (milli) theo Dự án theo tuần');
   expect(calls('aggregate_records')[1].arguments).toEqual({ model_id: 'cham_cong', metrics: ['sum:hours_milli'], group_by: ['project'], time_bucket: 'week', date_field: 'date' });

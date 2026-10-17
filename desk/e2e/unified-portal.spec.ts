@@ -101,7 +101,7 @@ test('unified built portal: H/P/D/Kho, actual Studio iframe and Response bridge,
   await page.getByRole('button',{name:'Tạo nháp',exact:true}).click();
   await expect(page.getByRole('button',{name:'Gửi phiếu đi duyệt',exact:true})).toBeEnabled();
   await page.getByRole('button',{name:'Gửi phiếu đi duyệt',exact:true}).click();
-  await expect(page.locator('.portal-results')).toContainText('in_review');
+  await expect(page.locator('.portal-results')).toContainText('Đang duyệt');
   const created=fixture.calls.find(call=>call.name==='create_record');
   expect(created?.arguments).toMatchObject({model_id:'stock_request',idempotency_key:expect.any(String),values:{warehouse,lines:[{item,location,quantity_milli:1001}]}});
   await nav.getByRole('button',{name:'I',exact:true}).click();

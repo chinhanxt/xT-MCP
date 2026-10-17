@@ -56,7 +56,7 @@ it('offers metrics and group-by from describe_model, renders rows/totals with as
   await click('Xem báo cáo');
   expect(calls('aggregate_records')[0].arguments).toEqual({ model_id: 'stock_level', metrics: ['count'], group_by: ['zone'] });
   const table = container.querySelector('.report-result table')!;
-  expect(Array.from(table.querySelectorAll('thead th')).map((t) => t.textContent)).toEqual(['zone', 'count']);
+  expect(Array.from(table.querySelectorAll('thead th')).map((t) => t.textContent)).toEqual(['Khu', 'Số bản ghi']);
   expect(Array.from(table.querySelectorAll('tbody tr')).map((r) => r.textContent)).toEqual(['a3', 'b2']);
   expect(table.querySelector('tfoot')?.textContent).toBe('Tổng5');
   const note = container.querySelector('.report-result small')!.textContent!;

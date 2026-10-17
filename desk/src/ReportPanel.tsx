@@ -6,6 +6,7 @@ import type { McpTool, ToolResult } from './types';
 import { readToolResult } from './portal-result';
 import { PortalAlert } from './PortalAlert';
 import { classifyError, type ErrorKind } from './portal-state';
+import { fieldLabel, groupDigits, valueLabel } from './portal-labels';
 import { BUCKETS, COUNT, reportOptions, type Bucket, type ReportOptions, type ReportPreset } from './report-presets';
 
 type Data = Record<string, unknown>;
@@ -90,6 +91,9 @@ export function ReportPanel({ mcp, tools, models }: Props) {
   const rows = Array.isArray(report?.rows) ? report!.rows as Data[] : [];
   const keyCols = [...new Set(rows.flatMap((row) => Object.keys(obj(row.keys))))];
   const valueCols = [...new Set([...rows.flatMap((row) => Object.keys(obj(row.values))), ...Object.keys(obj(report?.totals))])];
+  const keyLabel = (c: string) => opts.groups.find((g) => g.value === c)?.label ?? fieldLabel(c);
+  const metricLabel = (c: string) => opts.metrics.find((m) => (Array.isArray(m.arg.metrics) && m.arg.metrics[0] === c) || m.arg.metric === c)?.label ?? c;
+  const num = (value: unknown) => (typeof value === 'number' || typeof value === 'string') && value !== '' ? groupDigits(String(value)) : cell(value);
   const refs = Array.isArray(explain?.record_refs) ? explain!.record_refs as unknown[] : [];
   return <section className="portal-report" aria-label="Báo cáo">
     <h3>Báo cáo</h3>
@@ -108,21 +112,21 @@ export function ReportPanel({ mcp, tools, models }: Props) {
       {typeof report.summary === 'string' && <p>{report.summary}</p>}
       <p><small>Số liệu tại {when(report.as_of)} · chỉ gồm bản ghi bạn được xem{typeof report.model_revision === 'number' ? ` · phiên bản mô hình ${report.model_revision}` : ''}</small></p>
       {rows.length === 0 ? <p role="status">Không có số liệu trong phạm vi của bạn.</p> : <table><caption className="sr-only">Kết quả báo cáo</caption>
-        <thead><tr>{keyCols.map((c) => <th key={c} scope="col">{c}</th>)}{valueCols.map((c) => <th key={c} scope="col">{c}</th>)}</tr></thead>
-        <tbody>{rows.map((row, i) => <tr key={i}>{keyCols.map((c) => <td key={c}>{cell(obj(row.keys)[c])}</td>)}{valueCols.map((c) => <td key={c}>{cell(obj(row.values)[c])}</td>)}</tr>)}</tbody>
-        {Object.keys(obj(report.totals)).length > 0 && <tfoot><tr>{keyCols.map((c, i) => <th key={c} scope="row">{i === 0 ? 'Tổng' : ''}</th>)}{valueCols.map((c) => <td key={c}>{cell(obj(report.totals)[c])}</td>)}</tr></tfoot>}
+        <thead><tr>{keyCols.map((c) => <th key={c} scope="col">{keyLabel(c)}</th>)}{valueCols.map((c) => <th key={c} scope="col" className="num">{metricLabel(c)}</th>)}</tr></thead>
+        <tbody>{rows.map((row, i) => <tr key={i}>{keyCols.map((c) => <td key={c}>{cell(obj(row.keys)[c])}</td>)}{valueCols.map((c) => <td key={c} className="num">{num(obj(row.values)[c])}</td>)}</tr>)}</tbody>
+        {Object.keys(obj(report.totals)).length > 0 && <tfoot><tr>{keyCols.map((c, i) => <th key={c} scope="row">{i === 0 ? 'Tổng' : ''}</th>)}{valueCols.map((c) => <td key={c} className="num">{num(obj(report.totals)[c])}</td>)}</tr></tfoot>}
       </table>}
       {typeof report.lineage_ref === 'string' && <button disabled={loading} onClick={() => void why()}>Xem nguồn</button>}
     </div>}
     {explain && <article className="portal-entry" aria-label="Nguồn số liệu"><strong>{cell(explain.outcome)}</strong>
       {Array.isArray(explain.reasons) && (explain.reasons as unknown[]).map((r, i) => <p key={i}>{cell(obj(r).message)}</p>)}
       {obj(explain.query).replay === 'current_data' && <p role="note">Số liệu tại {when(report?.as_of)}; phần nguồn được đối chiếu theo dữ liệu hiện tại và quyền hiện tại của bạn, không phải ảnh chụp lịch sử tại thời điểm đó.</p>}
-      {explain.query !== undefined && <pre>{JSON.stringify(explain.query, null, 2)}</pre>}
+      {explain.query !== undefined && <details><summary>Chi tiết truy vấn</summary><pre>{JSON.stringify(explain.query, null, 2)}</pre></details>}
       {refs.length === 0 ? <p role="status">Máy chủ không trả về bản ghi nguồn.</p> : <ul className="portal-doclist">{refs.slice(0, 20).map((ref) => <li key={String(ref)}><span>{String(ref)}</span><button disabled={loading} onClick={() => void open(String(ref))}>{`Mở bản ghi ${String(ref)}`}</button></li>)}</ul>}
       {refs.length > 20 && <p>Hiển thị 20/{refs.length} bản ghi nguồn.</p>}
     </article>}
     {source && <article className="portal-entry" aria-label="Bản ghi nguồn"><strong>{cell(source.title || obj(source.values).name || source.ref)}</strong>
-      <dl>{Object.entries(obj(source.values)).map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{cell(v)}</dd></div>)}</dl>
+      <dl>{Object.entries(obj(source.values)).map(([k, v]) => <div key={k}><dt>{fieldLabel(k)}</dt><dd>{typeof v === 'string' ? valueLabel(k, v) : cell(v)}</dd></div>)}</dl>
       {typeof source.ref === 'string' && <button disabled={loading} onClick={() => void trail(String(source.ref))}>Lịch sử bản ghi</button>}
       {history && (history.length === 0 ? <p role="status">Chưa có lịch sử.</p> : <ol aria-label="Lịch sử">{history.map((ev, i) => <li key={i}>{when(ev.at)} · {cell(obj(ev.actor).name || obj(ev.actor).ref)} · {cell(ev.summary || ev.action)}</li>)}</ol>)}
     </article>}

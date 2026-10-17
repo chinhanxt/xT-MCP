@@ -55,7 +55,7 @@ it('opens an inbox request, preserves human confirmation and retries the exact i
     }
     throw new Error('Unexpected tool');
   });
-  expect(container.textContent).toContain('on_track');
+  expect(container.textContent).toContain('Đúng hạn');
   await click('Mở Nhập vật tư'); await click('Duyệt');
   expect(container.querySelector('[data-testid="confirm-card"] a')?.getAttribute('href')).toBe('https://xt.test/desk/confirm/decision-1');
   await click('Thử lại sau khi xác nhận');
@@ -102,7 +102,7 @@ it('creates a stock request using named pickers, exact milli quantities and the 
   expect(vi.mocked(mcp.client.callTool).mock.calls.some(call=>call[0].name==='create_record')).toBe(true);
   await click('Gửi phiếu đi duyệt');
   expect(vi.mocked(mcp.client.callTool).mock.calls.some(call=>call[0].name==='submit_request')).toBe(true);
-  expect(container.textContent).toContain('in_review');
+  expect(container.textContent).toContain('Đang duyệt');
 });
 it('remounts personal state when the MCP session changes and ignores late prior responses',async()=>{
   let finish!: (value:ToolResult)=>void;
