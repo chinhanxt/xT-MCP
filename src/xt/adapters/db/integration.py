@@ -373,7 +373,8 @@ class PgIntegrationStore:
     def packs(self, actor: ModelActor) -> list[dict[str, Any]]:
         with self.uow.tenant_tx(actor) as cur:
             rows = cur.execute(
-                "SELECT pack, version, digest, installed_at FROM xt_meta.pack_install ORDER BY pack"
+                "SELECT pack, version, digest, installed_at, status, app, models, depends_on"
+                " FROM xt_meta.pack_install ORDER BY pack"
             ).fetchall()
         return [dict(r) for r in rows]
 
@@ -928,8 +929,13 @@ def save_pack(
     policy: tuple[dict[str, Any], str] | None,
     processes: Sequence[tuple[str, int, dict[str, Any], str, dict[str, list[str]]]],
     bindings: Sequence[tuple[str, str, dict[str, Any]]],
+    models: Sequence[str] = (),
+    depends_on: Sequence[str] = (),
+    app: Mapping[str, Any] | None = None,
 ) -> None:
-    """Ghi phần không phải DDL của một gói trong MỘT transaction (DDL đã áp qua PgMigrator)."""
+    """Ghi phần không phải DDL của một gói trong MỘT transaction (DDL đã áp qua PgMigrator).
+
+    Cài lại không đổi `status` (gói đang tắt vẫn tắt; bật lại đi qua luồng vòng đời riêng)."""
     t = tenant.id
     with migrator.transaction():
         migrator.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"xt:pack:{t}",))
@@ -979,9 +985,21 @@ def save_pack(
             )
         migrator.execute(
             "INSERT INTO xt_meta.pack_install (tenant_id, pack, version, digest, proposed_by,"
-            " approved_by) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (tenant_id, pack) DO UPDATE"
+            " approved_by, models, depends_on, app) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+            " ON CONFLICT (tenant_id, pack) DO UPDATE"
             " SET version = EXCLUDED.version, digest = EXCLUDED.digest,"
             " proposed_by = EXCLUDED.proposed_by, approved_by = EXCLUDED.approved_by,"
+            " models = EXCLUDED.models, depends_on = EXCLUDED.depends_on, app = EXCLUDED.app,"
             " installed_at = clock_timestamp()",
-            (t, pack, version, digest, proposed_by, approved_by),
+            (
+                t,
+                pack,
+                version,
+                digest,
+                proposed_by,
+                approved_by,
+                list(models),
+                list(depends_on),
+                Jsonb(dict(app)) if app is not None else None,
+            ),
         )
