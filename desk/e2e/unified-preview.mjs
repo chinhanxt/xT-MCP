@@ -25,7 +25,7 @@ if (process.argv.includes('--serve')) {
   }).listen(port, '127.0.0.1');
 }
 export default defineConfig({
-  testDir:dirname(here), testMatch:/unified-portal\.spec\.ts/, workers:1, timeout:45_000,
+  testDir:dirname(here), testMatch:/unified-[a-z0-9-]+\.spec\.ts/, workers:1, timeout:45_000,
   reporter:[['list']], outputDir:join(tmpdir(),'xt-unified-browser-results'),
   use:{baseURL:`http://localhost:${port}`,headless:true,viewport:{width:1280,height:960},trace:'retain-on-failure'},
   webServer:{command:`node '${here.replaceAll("'", "'\\''")}' --serve`,url:`http://localhost:${port}`,timeout:10_000,reuseExistingServer:false},
