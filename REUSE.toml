@@ -67,3 +67,12 @@ path = [
 ]
 SPDX-FileCopyrightText = "2026 xT contributors"
 SPDX-License-Identifier = "Apache-2.0"
+
+# Công cụ điều phối agent (không thuộc sản phẩm): super-board (MIT, Eric Tech),
+# mattpocock/skills (MIT, Matt Pocock), obra/superpowers (MIT, Jesse Vincent).
+[[annotations]]
+path = [".claude/**", "skills-lock.json"]
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Eric Tech; Matt Pocock; Jesse Vincent"
+SPDX-License-Identifier = "MIT"
+

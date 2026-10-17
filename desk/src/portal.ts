@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import type { AuthHeaders, McpConnection } from './mcp';
 import type { ToolResult } from './types';
 

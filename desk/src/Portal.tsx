@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import { ToolItem, type ToolEntry } from './ToolItem';
 import type { McpConnection } from './mcp';
