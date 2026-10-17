@@ -320,15 +320,16 @@ export async function routeApps(ctx: RouteContext): Promise<boolean> {
         : store.db.prepare('SELECT r.*,a.name AS app_name FROM runs r JOIN apps a ON a.id=r.app_id WHERE r.workspace_id=? AND r.person_id=? AND a.published IS NOT NULL ORDER BY r.created_at DESC LIMIT 100').all(workspace, ctx.identity!.person));
       return true;
     }
-    send(
-      appId
-        ? store.db.prepare('SELECT * FROM runs WHERE workspace_id=? AND app_id=? ORDER BY created_at DESC LIMIT 100').all(workspace, appId)
-        : store.db
-            .prepare(
-              'SELECT r.*,a.name AS app_name FROM runs r JOIN apps a ON a.id=r.app_id WHERE r.workspace_id=? ORDER BY created_at DESC LIMIT 100',
-            )
-            .all(workspace),
-    );
+    const rows = appId
+      ? store.db.prepare('SELECT * FROM runs WHERE workspace_id=? AND app_id=? ORDER BY created_at DESC LIMIT 100').all(workspace, appId)
+      : store.db
+          .prepare(
+            'SELECT r.*,a.name AS app_name FROM runs r JOIN apps a ON a.id=r.app_id WHERE r.workspace_id=? ORDER BY created_at DESC LIMIT 100',
+          )
+          .all(workspace);
+    // Integrated editors see run metadata of colleagues, but only admins see other people's input and output.
+    const own = (r: Record<string, unknown>) => !ctx.identity || ctx.identity.role === 'admin' || r.person_id === ctx.identity.person;
+    send(rows.map((r) => (own(r) ? r : { ...r, input: '', result: null })));
     return true;
   }
 
