@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { McpConnection } from '../src/mcp';
 import type { McpTool, ToolResult } from '../src/types';
+vi.mock('../src/config', () => ({ config: { xtOrigin: 'https://xt.test', appGlobalCallsPerSec: 10, appGlobalBurst: 10 } }));
 import { Tier3 } from '../src/Tier3';
 import { areaFromHash } from '../src/portal-nav';
 import { BUILTIN_WMS, GROUPS, isAdmin, modulePath, parseApps, visibleApps } from '../src/tier3';

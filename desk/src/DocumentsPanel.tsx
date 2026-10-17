@@ -19,11 +19,12 @@ export function title(row: Data): string {
   return String(row.title || row.name || values.title || values.name || values.code || row.ref || 'Tài liệu');
 }
 
-type Props = { mcp: McpConnection | null; tools: McpTool[]; models: Data[] | null };
+type Props = { mcp: McpConnection | null; tools: McpTool[]; models: Data[] | null; primitives?: readonly string[]; noun?: string };
 
 /** H: tài liệu theo quyền. Loại tài liệu lấy từ inspect_workspace (primitive=document), không đặt cứng tên. */
-export function DocumentsPanel({ mcp, tools, models }: Props) {
-  const docModels = (models || []).filter((row) => row.primitive === 'document');
+export function DocumentsPanel({ mcp, tools, models, primitives = ['document'], noun = 'tài liệu' }: Props) {
+  const docModels = (models || []).filter((row) => primitives.includes(String(row.primitive)));
+  const Noun = noun.charAt(0).toUpperCase() + noun.slice(1);
   const [model, setModel] = useState(''), [query, setQuery] = useState('');
   const [rows, setRows] = useState<Data[] | null>(null), [cursor, setCursor] = useState<string | null>(null);
   const [detail, setDetail] = useState<Data | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(false);
@@ -61,26 +62,26 @@ export function DocumentsPanel({ mcp, tools, models }: Props) {
   useEffect(() => { live.current = true; return () => { live.current = false; seq.current++; }; }, []);
 
   const details = detail ? Object.entries({ ...obj(detail.values), ...Object.fromEntries(Object.entries(detail).filter(([key]) => !['values', 'ref', 'id', 'title', 'name'].includes(key))) }) : [];
-  return <section className="portal-docs" aria-label="Tài liệu">
-    <h3>Tài liệu</h3>
-    {models === null ? <p role="status">Đang tải danh mục tài liệu…</p> : !docModels.length ? <p role="status">Doanh nghiệp chưa có loại tài liệu nào mà bạn được xem.</p> : <>
+  return <section className="portal-docs" aria-label={Noun}>
+    <h3>{Noun}</h3>
+    {models === null ? <p role="status">{`Đang tải danh mục ${noun}…`}</p> : !docModels.length ? <p role="status">{`Doanh nghiệp chưa có loại ${noun} nào mà bạn được xem.`}</p> : <>
       <form onSubmit={(e) => { e.preventDefault(); setCursor(null); void search(null); }}>
-        <label>Loại tài liệu <select aria-label="Loại tài liệu" value={chosen} onChange={(e) => { setModel(e.target.value); setRows(null); setCursor(null); setDetail(null); }}>
+        <label>{`Loại ${noun}`} <select aria-label={`Loại ${noun}`} value={chosen} onChange={(e) => { setModel(e.target.value); setRows(null); setCursor(null); setDetail(null); }}>
           {docModels.map((row) => <option key={String(row.id)} value={String(row.id)}>{String(row.label || row.name || row.id)}</option>)}
         </select></label>
-        <input aria-label="Tìm tài liệu" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Từ khóa" maxLength={200} />
-        <button disabled={!mcp || loading}>Tìm tài liệu</button>
+        <input aria-label={`Tìm ${noun}`} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Từ khóa" maxLength={200} />
+        <button disabled={!mcp || loading}>{`Tìm ${noun}`}</button>
       </form>
       {loading && <p role="status">Đang tải…</p>}
-      {rows && !rows.length && !loading && !error && <p role="status">Không có tài liệu phù hợp.</p>}
+      {rows && !rows.length && !loading && !error && <p role="status">{`Không có ${noun} phù hợp.`}</p>}
       {rows && rows.length > 0 && <ul className="portal-doclist">{rows.map((row, i) => {
         const ref = typeof row.ref === 'string' ? row.ref : '';
         return <li key={ref || i}><span>{title(row)}</span>{ref && <button onClick={() => void open(ref)}>{`Mở ${title(row)}`}</button>}</li>;
       })}</ul>}
       {cursor && <button disabled={loading} onClick={() => void search(cursor)}>Tải thêm</button>}
-      {detail && <article className="portal-entry" aria-label="Chi tiết tài liệu"><strong>{title(detail)}</strong>
+      {detail && <article className="portal-entry" aria-label={`Chi tiết ${noun}`}><strong>{title(detail)}</strong>
         <dl>{details.map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{text(value)}</dd></div>)}</dl>
-        <button onClick={() => setDetail(null)}>Đóng tài liệu</button></article>}
+        <button onClick={() => setDetail(null)}>{`Đóng ${noun}`}</button></article>}
     </>}
     {error && <p role="alert" className="note portal-error" data-state="error">{error}</p>}
   </section>;
