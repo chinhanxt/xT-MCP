@@ -3,7 +3,7 @@
 
 # Vận hành bản tích hợp: sao lưu, khôi phục, health check, truy vết lỗi
 
-Áp dụng cho bản chạy local theo [unified-local.md](unified-local.md). Đây là hướng dẫn cho bản tích hợp/demo (G7), **không** phải cam kết production: chưa có HA, backup tự động hay giám sát liên tục.
+Áp dụng cho bản chạy local theo [unified-local.md](unified-local.md). **Trạng thái:** công cụ sao lưu/khôi phục `deploy/scripts/backup_unified.py` (mục 1) **đang làm**: nằm ở PR #30, chưa vào `staging`, nên lệnh ở mục 1 chưa chạy được trên nhánh này cho tới khi PR đó được duyệt. Đây là hướng dẫn cho bản tích hợp/demo (G7), **không** phải cam kết production: chưa có HA, backup tự động hay giám sát liên tục.
 
 ## 1. Sao lưu và khôi phục
 
@@ -17,7 +17,7 @@ Một bản lưu là tệp `xt-unified-<UTC>.tar` quyền 0600 kèm `<tệp>.sha
 | Tệp đối tượng | `--objects-dir DIR` | Cây tệp đối tượng trên host. SeaweedFS chạy trong Docker volume `seaweed` (`deploy/compose.yaml`): xuất volume ra một thư mục host trước, script không đọc volume trực tiếp |
 | Studio | `--studio-dir [DIR]` và `--studio-key [FILE]` (bắt buộc đi cùng nhau) | `studio.sqlite` chụp bằng `VACUUM INTO` (không chép `-wal`/`-shm`), `credential.key`, tệp còn lại trong thư mục Studio, và `studio.key` |
 
-Mặc định Studio: `$XT_UNIFIED_STATE_DIR/studio` (hoặc `~/.local/state/xt-unified/studio`) và `$XT_STUDIO_SECRET_FILE` (hoặc `<state>/studio.key`), trùng `scripts/unified-start.mjs`. **Hai khóa phải đi cùng database**: `credential.key` mã hóa credential model/connector (`imports/dify-rea/src/store.ts:14`); Studio từ chối mở database cũ khi thiếu nó (`store.ts:19`). `studio.key` là secret HMAC giữa lõi và Studio.
+Mặc định Studio: `$XT_UNIFIED_STATE_DIR/studio` (hoặc `~/.local/state/xt-unified/studio`) và `$XT_STUDIO_SECRET_FILE` (hoặc `<state>/studio.key`), trùng `scripts/unified-start.mjs`. **Hai khóa phải đi cùng database**: `credential.key` mã hóa credential model/connector (`imports/dify-rea/src/store.ts:16`); Studio từ chối mở database cũ khi thiếu nó (`store.ts:22`). `studio.key` là secret HMAC giữa lõi và Studio.
 
 ### Sao lưu
 
@@ -54,7 +54,7 @@ Quy tắc của `restore`:
 - `pg_dump`/`pg_restore` giữ owner và ACL; role cụm không nằm trong dump nên phải tồn tại trước.
 - Quyền sau khôi phục: tệp 0600, thư mục Studio 0700.
 
-Chưa kiểm: restore vào PostgreSQL thật và `xt audit verify` sau restore (có test tích hợp dành cho việc này, chưa chạy); khôi phục đồng bộ ba thành phần khi hệ thống đang ghi.
+Chưa kiểm: restore vào PostgreSQL thật và `xt audit verify` sau restore (test tích hợp cho việc này nằm ở PR #44, chưa vào `staging`, chưa chạy); khôi phục đồng bộ ba thành phần khi hệ thống đang ghi.
 
 ## 2. Health check
 
@@ -63,13 +63,13 @@ Chưa kiểm: restore vào PostgreSQL thật và `xt audit verify` sau restore (
 | Lõi `xt-api` | `GET /healthz` | 200 `{"status":"ok"}`; **chỉ chứng minh tiến trình sống**, không kiểm database/Keycloak | `src/xt/adapters/mcp/http_app.py:251`; healthcheck compose `deploy/compose.yaml:159` |
 | Lõi, quyền | `POST /mcp` không token | 401 kèm PRM | `http_app.py:229-257` |
 | Studio (Node) | `GET http://127.0.0.1:4327/` | 200 khi đã build; 503 `Chạy npm run build trước.` khi chưa | `imports/dify-rea/src/server.ts:77-92` |
-| Studio, quyền | `GET /api/session` không assertion | 401 (`Thiếu xác thực xT.`) | `imports/dify-rea/src/xt-auth.ts:57-60` |
-| Qua lõi | `GET /studio-api/session` không token | 401 `unauthenticated` | `src/xt/entrypoints/studio_http.py:209-232` |
+| Studio, quyền | `GET /api/session` không assertion | 401 (`Thiếu xác thực xT.`) | `imports/dify-rea/src/xt-auth.ts:62` |
+| Qua lõi | `GET /studio-api/session` không token | 401 `unauthenticated` | `src/xt/entrypoints/studio_http.py:101-102,209-232` |
 | Portal | `GET http://localhost:5173/`, `/studio/`, `/waretrack/` | 200 sau `unified-build` | `docs/unified-local.md` |
 | SeaweedFS | healthcheck compose | `cluster/healthz` + cổng S3 8333 | `deploy/compose.yaml:450` |
 | Cổng bị chiếm | launcher dừng thay vì giành cổng | báo lỗi khi 8010/4327/5173 đã có dịch vụ | `docs/unified-local.md` |
 
-Đề xuất `make unified-smoke` (gói riêng, không sửa Makefile ở đây) sẽ tự động hóa các kiểm tra trên và ghi bằng chứng JSON.
+`node scripts/unified-smoke.mjs --out build/unified-smoke.json` (script có trên `staging`, chưa nối vào Makefile) tự động hóa các dòng liveness và "401 không token" ở trên và ghi bằng chứng JSON; nó không chứng minh đăng nhập, tenant hay DPoP.
 
 ## 3. Truy vết lỗi theo mã yêu cầu (correlation ID)
 
@@ -90,5 +90,5 @@ Giới hạn đã biết (việc còn lại của G7, **chưa có**):
 
 - Không có header `X-Request-Id` đi xuyên APISIX → lõi → Studio; trình duyệt không nhận mã nếu lỗi xảy ra trước khi có envelope.
 - `/studio-api/*`: proxy tạo `trace_id` mới cho mỗi yêu cầu (`studio_http.py:239`) nhưng không trả về client, nên lỗi Studio không dò ngược được từ phía người dùng.
-- Log yêu cầu của Studio Node chỉ có `METHOD path status ms` (`server.ts:209-210`), không có mã yêu cầu.
+- Log yêu cầu của Studio Node chỉ có `METHOD path status ms` (`server.ts:212`), không có mã yêu cầu.
 - Truy ngược actor → phiếu → giao dịch → báo cáo (lớp 7) dựa vào audit và `xt audit verify`; báo cáo D phụ thuộc `aggregate_records`, hiện còn `unavailable` ở lõi (`src/xt/entrypoints/composition/records.py:364`; D-UNI-AGG-1 chưa hiện thực).

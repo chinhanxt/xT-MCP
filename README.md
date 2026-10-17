@@ -60,7 +60,7 @@ Kế hoạch: [docs/plans/2026-10-17-unified-xt-studio-waretrack.md](docs/plans/
 | Lớp 4 Quy trình, DevSecOps | Workflow, worker, build | `packages/*/processes/`, `src/xt/adapters/workflow/`, `src/xt/entrypoints/worker.py`, `scripts/unified.mjs` |
 | Lớp 5 Hội tụ, sổ cái | Audit, tệp, biến động kho | `src/xt/adapters/db/audit.py`, `src/xt/adapters/http/files_api.py`, `packages/kho-hang/models/stock_movement.json` |
 | Lớp 6 Phân tích, trí tuệ | RAG, model, LLM relay | `imports/dify-rea/src/knowledge.ts`, `imports/dify-rea/src/models.ts`, `src/xt/entrypoints/desk_llm_http.py` |
-| Lớp 7 Quản trị, giám sát | Audit, health, sao lưu | `src/xt/entrypoints/audit_cli.py`, `src/xt/adapters/mcp/http_app.py` (`/healthz`), `deploy/scripts/backup_unified.py` |
+| Lớp 7 Quản trị, giám sát | Audit, health, sao lưu | `src/xt/entrypoints/audit_cli.py`, `src/xt/adapters/mcp/http_app.py` (`/healthz`), `deploy/scripts/backup_unified.py` (sao lưu: đang làm, PR #30 chưa vào `staging`) |
 | H (Con người) | Tổ chức, vòng đời nhân sự | `packages/nhan-su-vong-doi/`, `seed/` |
 | P (Quy trình) | Đề xuất, phê duyệt, giao việc | `packages/de-xuat-phe-duyet/`, `packages/giao-viec-sla/`, `packages/kho-hang/processes/` |
 | D (Dữ liệu) | Bảng, đọc dữ liệu | `src/xt/application/model_engine/`, `/data` ([docs/headless-data.md](docs/headless-data.md)); panel báo cáo D ở Desk đã có, nhưng `aggregate_records` ở lõi còn `unavailable` (D-UNI-AGG-1 chưa hiện thực) |
