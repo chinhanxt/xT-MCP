@@ -3,8 +3,9 @@
 """deploy/scripts/backup_unified.py trên PostgreSQL thật: backup -> restore vào DB mới -> đối chiếu.
 
 Đã chạy pass trên PostgreSQL 17 (17/10/2026, client 17 qua wrapper docker). Cần `pg_dump`,
-`pg_restore`, `psql` cùng hoặc mới hơn server trên PATH; thiếu hoặc cũ hơn thì bỏ qua. Kiểm: tồn kho và sổ biến động của tenant giống hệt sau restore, tệp đối tượng giống
-byte, và `xt audit verify` đạt trên database đã khôi phục.
+`pg_restore`, `psql` cùng hoặc mới hơn server trên PATH; thiếu hoặc cũ hơn thì bỏ qua.
+Kiểm: tồn kho và sổ biến động của tenant giống hệt sau restore, tệp đối tượng giống byte,
+và `xt audit verify` đạt trên database đã khôi phục.
 """
 
 from __future__ import annotations
