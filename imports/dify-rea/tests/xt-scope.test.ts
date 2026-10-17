@@ -71,6 +71,7 @@ test('runs: editors see colleagues\' run metadata but not their input or result;
     insertRun(s.store, a.app, a.workspace, alice.person, 'alice salary question');
     insertRun(s.store, a.app, a.workspace, bob.person, 'bob private question');
     insertRun(s.store, a.app, a.workspace, '', 'legacy run before integration');
+    s.store.db.prepare("UPDATE runs SET status='error',error=? WHERE person_id=?").run('tool failed on bob private question', bob.person);
     for (const path of ['/api/runs', `/api/runs?app_id=${a.app}`]) {
       const seen = (await s.call(alice, path)).value as any[];
       assert.equal(seen.length, 3);
@@ -79,9 +80,14 @@ test('runs: editors see colleagues\' run metadata but not their input or result;
       assert.match(mine.result, /alice salary question answer/);
       const text = JSON.stringify(seen.filter((r) => r.person_id !== alice.person));
       assert.ok(!text.includes('bob private') && !text.includes('legacy run'), text);
-      assert.ok(seen.filter((r) => r.person_id !== alice.person).every((r) => r.input === '' && r.result === null && r.status === 'success'));
+      assert.ok(seen.filter((r) => r.person_id !== alice.person).every((r) => r.input === '' && r.result === null && r.status));
+      const bobs = seen.find((r) => r.person_id === bob.person);
+      assert.equal(bobs.status, 'error');
+      assert.ok(bobs.error && !bobs.error.includes('bob'), bobs.error);
+      assert.equal(seen.find((r) => r.person_id === '').error, null);
       const all = JSON.stringify((await s.call(admin, path)).value);
       assert.ok(all.includes('bob private question') && all.includes('alice salary question') && all.includes('legacy run'));
+      assert.ok(all.includes('tool failed on bob private question'));
     }
     const viewer = { tenant, person: bob.person, roles: ['studio_user'] };
     assert.deepEqual(((await s.call(viewer, '/api/runs')).value as any[]).map((r) => r.input), ['bob private question']);

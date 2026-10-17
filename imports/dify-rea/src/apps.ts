@@ -327,9 +327,10 @@ export async function routeApps(ctx: RouteContext): Promise<boolean> {
             'SELECT r.*,a.name AS app_name FROM runs r JOIN apps a ON a.id=r.app_id WHERE r.workspace_id=? ORDER BY created_at DESC LIMIT 100',
           )
           .all(workspace);
-    // Integrated editors see run metadata of colleagues, but only admins see other people's input and output.
+    // Integrated editors see run metadata of colleagues, but only admins see other people's input, output and error text
+    // (model and tool errors can quote content).
     const own = (r: Record<string, unknown>) => !ctx.identity || ctx.identity.role === 'admin' || r.person_id === ctx.identity.person;
-    send(rows.map((r) => (own(r) ? r : { ...r, input: '', result: null })));
+    send(rows.map((r) => (own(r) ? r : { ...r, input: '', result: null, error: r.error ? 'Lượt chạy thất bại (chi tiết đã ẩn).' : r.error })));
     return true;
   }
 
