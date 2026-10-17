@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
 # Mỗi tệp mã phải có `SPDX-License-Identifier: Apache-2.0` trong 5 dòng đầu, hoặc được phủ bởi một
-# annotation Apache-2.0 trong REUSE.toml ở gốc thư mục kiểm (dùng cho mã nhập vào không sửa tệp,
-# ví dụ imports/waretrack-3d theo docs/decisions.md D-UNI-WT-1).
+# annotation Apache-2.0 trong REUSE.toml ở gốc thư mục kiểm, CHỈ cho đường dẫn dưới imports/ (mã nhập
+# vào không sửa tệp, ví dụ imports/waretrack-3d theo docs/decisions.md D-UNI-WT-1).
 
 TARGET_DIR="${1:-.}"
 
@@ -51,7 +51,8 @@ for ann in data.get("annotations", []):
         continue
     paths = ann.get("path", [])
     for glob in [paths] if isinstance(paths, str) else paths:
-        print(regex(glob))
+        if glob.startswith("imports/"):  # chỉ mã nhập vào; mã của xT phải có header inline
+            print(regex(glob))
 PY
 fi
 

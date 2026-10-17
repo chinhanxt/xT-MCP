@@ -50,7 +50,7 @@ def test_claude_directory_is_ignored(tmp_path: Path) -> None:
 
 def test_reuse_annotation_covers_only_listed_paths(tmp_path: Path) -> None:
     (tmp_path / "REUSE.toml").write_text(
-        '# SPDX-License-Identifier: Apache-2.0\nversion = 1\n[[annotations]]\n'
+        "# SPDX-License-Identifier: Apache-2.0\nversion = 1\n[[annotations]]\n"
         'path = ["imports/ext/src/**"]\n'
         'SPDX-FileCopyrightText = "x"\nSPDX-License-Identifier = "Apache-2.0"\n'
     )
@@ -71,3 +71,16 @@ def test_annotation_with_other_license_does_not_cover(tmp_path: Path) -> None:
     )
     (tmp_path / "a.tsx").write_text("x\n")
     assert run(tmp_path).returncode == 1
+
+
+def test_annotation_outside_imports_does_not_cover(tmp_path: Path) -> None:
+    (tmp_path / "REUSE.toml").write_text(
+        "# SPDX-License-Identifier: Apache-2.0\nversion = 1\n[[annotations]]\n"
+        'path = ["docs/**", "seed/**"]\n'
+        'SPDX-FileCopyrightText = "x"\nSPDX-License-Identifier = "Apache-2.0"\n'
+    )
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "page.html").write_text("<p>x</p>\n")
+    result = run(tmp_path)
+    assert result.returncode == 1
+    assert "page.html" in result.stdout
