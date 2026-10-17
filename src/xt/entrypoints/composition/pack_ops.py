@@ -22,6 +22,12 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+from xt.application.iam.role_grants import (
+    AccessGrant,
+    RoleGrantRejected,
+    RoleGrantService,
+    parse_roles,
+)
 from xt.application.process.ports import ServiceFn
 from xt.domain.process.spec import ApproveStep, ProcessSpec, TaskStep
 from xt.entrypoints.composition.util import engine_call
@@ -476,6 +482,48 @@ def close_lifecycle_case(pc: ProcessContext, d: ProcessDefinition) -> ServiceFn:
     return op
 
 
+def sync_access_grants(pc: ProcessContext, d: ProcessDefinition) -> ServiceFn:
+    """D-UNI-H-1: ngay sau bước người duyệt cấp quyền (vd `it` của tiếp nhận), áp mọi
+    `access_grant` system `keycloak` của nhân viên thành vai trò hiệu lực của person (bản đã có
+    `revoked_on` -> gỡ).
+    Người duyệt = người đang hoàn thành bước (ngữ cảnh đã xác thực), người đề nghị =
+    `lifecycle_case.initiated_by`, người tạo bản ghi grant (`created_by`) không được là người duyệt;
+    `allowed_roles` = allow-list của tenant khai trong quy trình."""
+
+    def op(case_id: str, allowed_roles: str) -> dict[str, int]:
+        db = _Data(pc)
+        try:
+            allowed = parse_roles(allowed_roles)
+        except ValueError as e:
+            raise OpInputError(str(e)) from None
+        case = db.get(CASE, record_id(case_id, CASE))
+        emp = db.get(EMPLOYEE, record_id(case["employee"], EMPLOYEE))
+        out = {"applied": 0, "already": 0, "revoked": 0, "skipped": 0}
+        where = {"and": [_eq("employee", str(emp["id"])), _eq("system", "keycloak")]}
+        grants = db.rows(GRANT, where)
+        if not grants:  # không cấp quyền SSO xT: không đòi gì thêm (tiếp nhận không có tài khoản)
+            return out
+        if ACTING.get() is None:
+            raise OpInputError("sync_access_grants chỉ chạy ngay sau bước duyệt của một người")
+        if not emp.get("user_id"):
+            raise OpInputError(f"nhân viên {emp.get('emp_no')} chưa gắn người dùng xT")
+        grantee, requester = UUID(str(emp["user_id"])), case.get("initiated_by")
+        svc = RoleGrantService(pc.rt.store)
+        for g in grants:
+            grant = AccessGrant(
+                f"{GRANT}:{g['id']}", str(g["system"]), str(g.get("role") or ""), grantee,
+                UUID(str(requester)) if requester else None, bool(g.get("revoked_on")),
+                UUID(str(g["created_by"])) if g.get("created_by") else None,
+            )  # fmt: skip
+            try:
+                out[svc.apply(pc.actor, grant, allowed=allowed)] += 1
+            except RoleGrantRejected as e:
+                raise OpInputError(f"{grant.ref}: {e}") from None
+        return out
+
+    return op
+
+
 PackOpFactory = Callable[["ProcessContext", "ProcessDefinition"], ServiceFn]
 
 PACK_OPS: dict[str, tuple[tuple[str, ...], PackOpFactory]] = {
@@ -486,4 +534,5 @@ PACK_OPS: dict[str, tuple[tuple[str, ...], PackOpFactory]] = {
     "activate_employee": (("employee_id",), activate_employee),
     "check_unreturned_assets": (("employee_id",), check_unreturned_assets),
     "close_lifecycle_case": (("case_id",), close_lifecycle_case),
+    "sync_access_grants": (("case_id", "allowed_roles"), sync_access_grants),
 }
