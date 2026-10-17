@@ -10,7 +10,7 @@ vi.mock('../src/config', () => ({ config: { xtOrigin: 'https://xt.test', appGlob
 import { Portal } from '../src/Portal';
 import { PortalPending } from '../src/PortalBoundary';
 import { areaNames } from '../src/portal-nav';
-import { fieldLabel, groupDigits, primitiveLabel, valueLabel } from '../src/portal-labels';
+import { actionLabel, fieldLabel, groupDigits, primitiveLabel, refKind, valueLabel } from '../src/portal-labels';
 
 const ok = (data: unknown): ToolResult => ({ content: [{ type: 'text', text: JSON.stringify({ ok: true, data }) }] });
 let root: Root | undefined;
@@ -27,6 +27,16 @@ it('maps known technical keys and values to Vietnamese and leaves unknown ones u
   expect(fieldLabel('custom_field')).toBe('custom_field');
   expect(primitiveLabel('request')).toBe('Yêu cầu');
   expect(Object.keys(areaNames)).toEqual(['H', 'P', 'D', 'I', 'T3', 'Desk']);
+});
+it('labels money, plain dates, record refs and history actions without leaking technical keys', () => {
+  expect(valueLabel('amount', '1500000')).toBe('1.500.000');
+  expect(valueLabel('amount', 'n/a')).toBe('n/a');
+  expect(valueLabel('effective_on', '2026-01-01')).toBe('01/01/2026');
+  expect(refKind('advance_request:0000')).toBe('phiếu tạm ứng');
+  expect(refKind('lifecycle_task:0000')).toBe('bước quy trình');
+  expect(refKind('unknown_model:1')).toBe('bản ghi');
+  expect(actionLabel('submit')).toBe('Gửi duyệt');
+  expect(actionLabel('custom_action')).toBe('custom_action');
 });
 it('groups digits vi-VN style without going through Number', () => {
   expect(groupDigits('1500000')).toBe('1.500.000');

@@ -21,10 +21,15 @@ valueLabels.status = valueLabels.state;
 export const fieldLabel = (key: string) => fieldLabels[key] || key;
 
 const isoDate = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+const plainDate = /^(\d{4})-(\d{2})-(\d{2})$/;
+const plainNumber = /^-?\d+(\.\d+)?$/;
 /** Giá trị enum/thời gian đã biết -> tiếng Việt; còn lại trả nguyên văn. */
 export function valueLabel(key: string, value: string): string {
   const mapped = valueLabels[key]?.[value];
   if (mapped) return mapped;
+  if (key === 'amount' && plainNumber.test(value)) return groupDigits(value);
+  const day = plainDate.exec(value);
+  if (day) return `${day[3]}/${day[2]}/${day[1]}`;
   if (isoDate.test(value)) { const date = new Date(value); if (!Number.isNaN(date.getTime())) return date.toLocaleString('vi-VN'); }
   return value;
 }
@@ -50,3 +55,16 @@ export function groupDigits(value: string): string {
   const whole = match[2].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return `${match[1]}${whole}${match[3] ? `,${match[3]}` : ''}`;
 }
+
+/** Loại bản ghi đọc được từ ref `model:uuid`; không có nhãn thì "bản ghi" (không lộ mã kỹ thuật). */
+const refKinds: Record<string, string> = {
+  advance_request: 'phiếu tạm ứng', leave_request: 'đơn nghỉ phép', employee: 'hồ sơ nhân viên', lifecycle_case: 'hồ sơ tiếp nhận', lifecycle_task: 'bước quy trình',
+  access_grant: 'quyền truy cập', process_instance: 'quy trình',
+};
+export function refKind(ref: unknown): string { return refKinds[String(ref).split(':')[0]] || 'bản ghi'; }
+
+/** Hành động trong lịch sử bản ghi khi máy chủ không trả `summary`. */
+const actionLabels: Record<string, string> = {
+  create: 'Tạo phiếu', update: 'Cập nhật', submit: 'Gửi duyệt', approve: 'Duyệt', reject: 'Từ chối', return: 'Trả lại', cancel: 'Hủy', transition: 'Chuyển trạng thái', delete: 'Xóa',
+};
+export const actionLabel = (action: string) => actionLabels[action] || action;

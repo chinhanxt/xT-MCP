@@ -116,7 +116,7 @@ test('generic app (CRM): list from search_records; record create sends exact cre
   await form.getByLabel('Họ tên *').fill('Trần Thị B');
   await form.getByLabel('Điện thoại').fill('0901234567');
   await form.getByRole('button',{name:'Tạo',exact:true}).click();
-  await expect(form.getByTestId('request-done')).toContainText('Đã tạo crm_contact:');
+  await expect(form.getByTestId('request-done')).toContainText('Đã tạo Khách hàng');
   const creates=()=>fixture.calls.filter(call=>call.name==='create_record');
   expect(creates()).toHaveLength(1);
   expect(creates()[0].arguments).toEqual({model_id:'crm_contact',values:{name:'Trần Thị B',phone:'0901234567'},idempotency_key:expect.any(String)});
@@ -127,7 +127,7 @@ test('generic app (CRM): list from search_records; record create sends exact cre
   await form.getByLabel('Khách *').fill('Công ty X');
   await form.getByLabel('Số tiền *').fill('1500000.50');
   await form.getByRole('button',{name:'Tạo và gửi duyệt',exact:true}).click();
-  await expect(form.getByTestId('request-done')).toContainText('Đã gửi duyệt crm_quote:');
+  await expect(form.getByTestId('request-done')).toContainText('Đã gửi duyệt Báo giá');
   expect(creates()).toHaveLength(2);
   expect(creates()[1].arguments).toEqual({model_id:'crm_quote',values:{customer:'Công ty X',amount:'1500000.50'},idempotency_key:expect.any(String)});
   const submits=fixture.calls.filter(call=>call.name==='submit_request');

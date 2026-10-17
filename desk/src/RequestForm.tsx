@@ -7,7 +7,7 @@ import type { McpTool, ToolResult } from './types';
 import { ToolError, readToolResult } from './portal-result';
 import { PortalAlert } from './PortalAlert';
 import { classifyError, type ErrorKind } from './portal-state';
-import { valueLabel } from './portal-labels';
+import { refKind, valueLabel } from './portal-labels';
 import { buildValues, confirmUrlOf, fieldErrorsOf, isSupported, readFields, validate, type FieldSpec } from './portal-request';
 
 type Data = Record<string, unknown>;
@@ -30,6 +30,7 @@ export function RequestForm({ mcp, tools, models, onDone, primitives = ['request
   const attempt = useRef<Attempt | null>(null), working = useRef(false), live = useRef(true), seq = useRef(0);
   const allowed = new Set(tools.map((tool) => tool.name));
   const chosen = modelId || String(requestModels[0]?.id || '');
+  const modelLabel = String(requestModels.find((row) => String(row.id) === chosen)?.label || refKind(chosen + ':'));
   const needsSubmit = requestModels.find((row) => String(row.id) === chosen)?.primitive === 'request'; // record/document chỉ cần create_record
   useEffect(() => { live.current = true; return () => { live.current = false; seq.current++; }; }, []);
 
@@ -61,7 +62,7 @@ export function RequestForm({ mcp, tools, models, onDone, primitives = ['request
         const record = obj(obj(read(await call('create_record', { model_id: chosen, values, idempotency_key: current.createKey }))).record);
         const ref = String(record.ref || '');
         if (!ref) throw new Error('Máy chủ không trả về mã phiếu nháp');
-        if (!needsSubmit) { attempt.current = null; if (live.current) { setDone(ref); setRaw({}); setErrors({}); } onDone?.(); return; }
+        if (!needsSubmit) { attempt.current = null; if (live.current) { setDone(modelLabel); setRaw({}); setErrors({}); } onDone?.(); return; }
         let revision = record.revision;
         if (typeof revision !== 'number') revision = obj(obj(read(await call('get_record', { ref }))).record).revision;
         if (typeof revision !== 'number') throw new Error('Không đọc được phiên bản của phiếu nháp');
@@ -71,13 +72,13 @@ export function RequestForm({ mcp, tools, models, onDone, primitives = ['request
       read(await call('submit_request', { ref: current.draft.ref, expected_revision: current.draft.revision, idempotency_key: current.submitKey }));
       attempt.current = null;
       if (!live.current) return;
-      setDone(current.draft.ref); setPending(''); setRaw({}); setErrors({});
+      setDone(modelLabel); setPending(''); setRaw({}); setErrors({});
       onDone?.();
     } catch (e) {
       if (!live.current) return;
       const text = (e as Error).message;
       setKind(classifyError(e));
-      setMessage(current.draft ? `${text}. Phiếu nháp ${current.draft.ref} đã tạo nhưng chưa gửi duyệt; bấm Gửi lại để thử tiếp với cùng khóa an toàn.` : text);
+      setMessage(current.draft ? `${text}. Phiếu nháp ${modelLabel} đã tạo nhưng chưa gửi duyệt; bấm Gửi lại để thử tiếp với cùng khóa an toàn.` : text);
     } finally { working.current = false; if (live.current) setBusy(false); }
   }
   /** Đọc kết quả; khi lỗi, giữ lỗi theo từng field và liên kết xác nhận (chỉ origin xT). */

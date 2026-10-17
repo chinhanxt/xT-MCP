@@ -80,7 +80,7 @@ it('creates a plain record with create_record only (no submit_request)', async (
   await fill('note', 'Ca chiều'); await send();
   expect(calls('create_record')[0].arguments).toEqual({ model_id: 'cham_cong', values: { note: 'Ca chiều' }, idempotency_key: expect.any(String) });
   expect(calls('submit_request')).toHaveLength(0);
-  expect(container.querySelector('[data-testid="request-done"]')?.textContent).toBe('Đã tạo cham_cong:9.');
+  expect(container.querySelector('[data-testid="request-done"]')?.textContent).toBe('Đã tạo Chấm công.');
 });
 
 it('keeps the approval flow for request models and drops models the user cannot see', async () => {
@@ -96,7 +96,7 @@ it('keeps the approval flow for request models and drops models the user cannot 
   await fill('note', 'Khách lớn'); await send();
   expect(calls('create_record')[0].arguments.model_id).toBe('de_nghi_giam_gia');
   expect(calls('submit_request')[0].arguments).toMatchObject({ ref: 'de_nghi_giam_gia:3', expected_revision: 1 });
-  expect(container.querySelector('[data-testid="request-done"]')?.textContent).toBe('Đã gửi duyệt de_nghi_giam_gia:3.');
+  expect(container.querySelector('[data-testid="request-done"]')?.textContent).toBe('Đã gửi duyệt Đề nghị giảm giá.');
 });
 
 it('explains honestly when the manifest lists no models or none are visible', async () => {
