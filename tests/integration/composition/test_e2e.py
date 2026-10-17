@@ -129,8 +129,10 @@ def confirm_in_desk(
 def test_admin_outputs(stack: Stack) -> None:
     assert "{'units': 7, 'people': 60, 'agent_grants': 12}" in stack.outputs["org-acme"]
     plan = stack.outputs["plan-acme"]
-    assert "Gói de-xuat-phe-duyet 0.2.0" in plan and "proposal_approval v3" in plan
-    assert "đã cài de-xuat-phe-duyet 0.2.0 vào acme" in stack.outputs["install-acme"]
+    pack = Path(__file__).resolve().parents[3] / "packages/de-xuat-phe-duyet/pack.json"
+    version = json.loads(pack.read_text())["version"]
+    assert f"Gói de-xuat-phe-duyet {version}" in plan and "proposal_approval v3" in plan
+    assert f"đã cài de-xuat-phe-duyet {version} vào acme" in stack.outputs["install-acme"]
 
 
 @pytest.mark.anyio
