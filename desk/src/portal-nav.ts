@@ -2,12 +2,12 @@
 // SPDX-FileCopyrightText: 2026 xT contributors
 import { useCallback, useEffect, useState } from 'react';
 
-export const AREAS = ['H', 'P', 'D', 'I', 'Kho', 'Desk'] as const;
+export const AREAS = ['H', 'P', 'D', 'I', 'T3', 'Desk'] as const;
 export type Area = (typeof AREAS)[number];
 
 /** `#/H` -> `H`; mọi giá trị khác (kể cả lạ) -> Desk. Hash không chạm tới đường dẫn /auth/callback. */
 export function areaFromHash(hash: string): Area {
-  const name = hash.replace(/^#\/?/, '');
+  const name = hash.replace(/^#\/?/, '').replace(/^Kho$/, 'T3'); // liên kết cũ #/Kho nay nằm trong Tầng 3
   return (AREAS as readonly string[]).includes(name) ? name as Area : 'Desk';
 }
 export const hashFor = (area: Area) => (area === 'Desk' ? '' : `#/${area}`);
