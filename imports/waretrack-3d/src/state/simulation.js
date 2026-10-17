@@ -1483,7 +1483,7 @@ export function createSimulation(world) {
     p.position.y = slot.pose.y ?? 0
     p.position.z = at?.z ?? slot.pose.z
     p.heading = at?.h ?? slot.pose.h
-    p.received = `Apr 20, ${fmtTime(clock)}`
+    p.received = `20/04, ${fmtTime(clock)}`
     if (ps) {
       ps.ready = false
       ps.recycleAt = null
@@ -1520,7 +1520,7 @@ export function createSimulation(world) {
     const dock = db.get('dock', ts.t.dockId)
     fs.info = {
       status: ts.dir === 'in' ? 'unloading' : 'loading',
-      task: `${ts.dir === 'in' ? 'Unloading' : 'Loading'} ${ts.id} at ${dock?.name ?? ts.t.dockId}`,
+      task: `${ts.dir === 'in' ? 'Đang dỡ' : 'Đang xếp'} ${ts.id} tại ${dock?.name ?? ts.t.dockId}`,
     }
     if (!initial) cancelSteps(fs)
   }
@@ -1674,7 +1674,7 @@ export function createSimulation(world) {
       const p = refill.pallet
       p.status = 'moving'
       p.carriedBy = f.id
-      p.received = `Apr 20, ${fmtTime(clock)}`
+      p.received = `20/04, ${fmtTime(clock)}`
       const ps = palletSim.get(p.id)
       if (ps) { ps.ready = false; ps.recycleAt = null }
       f.carryingPalletId = p.id
@@ -2192,19 +2192,19 @@ export function createSimulation(world) {
     f.speedKmh = round1(Math.abs(fs.v) * 3.6)
     if (fs.job || (fs.info && (f.carryingKind || f.carryingPalletId))) {
       f.status = fs.info?.status ?? 'loading'
-      f.task = fs.info?.task ?? 'Working'
+      f.task = fs.info?.task ?? 'Đang làm việc'
     } else if (fs.mode === 'charging') {
       f.status = 'charging'
-      f.task = 'Charging at bay'
+      f.task = 'Đang sạc tại trạm'
     } else if (fs.mode === 'toCharger') {
       f.status = 'moving'
-      f.task = `Driving to charger ${fs.charger?.name ?? ''}`.trim()
+      f.task = `Đang tới trạm sạc ${fs.charger?.name ?? ''}`.trim()
     } else if (f.carryingKind || f.carryingPalletId) {
       f.status = 'moving'
-      f.task = 'Putting away pallet'
+      f.task = 'Đang đưa pallet vào kho'
     } else {
       f.status = 'idle'
-      f.task = 'Waiting for work'
+      f.task = 'Chờ việc'
     }
     if (!fs.job) f.truckId = null
   }
@@ -2231,13 +2231,13 @@ export function createSimulation(world) {
         d.truckId = ts.id
         d.bookedTruckId = ts.id
         d.bookedInMin = ts.t.etaMin
-        d.rearDoors = 'Closed'
+        d.rearDoors = 'Đóng'
       } else {
         d.status = status
         d.truckId = ts.id
         d.bookedTruckId = null
         d.bookedInMin = null
-        d.rearDoors = 'Open'
+        d.rearDoors = 'Mở'
       }
     }
   }

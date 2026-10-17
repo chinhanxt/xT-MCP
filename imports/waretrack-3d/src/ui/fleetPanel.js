@@ -1,4 +1,4 @@
-// Fleet panel, bottom-right (SPEC §2.6): segmented tabs Docks / Forklifts / Trucks with live
+// Fleet panel, bottom-right (SPEC §2.6): segmented tabs Cửa kho / Xe nâng / Xe tải with live
 // counters, then the rows of the current site (≈ 4 visible, scrolls beyond). Clicking a row
 // selects that entity; the selected entity's row is highlighted.
 import './panels.css'
@@ -8,9 +8,9 @@ import { fleetRows, fleetCounts } from '../data/selectors.js'
 import { morph, esc, ico } from './detailPanel.js'
 
 const TABS = [
-  ['docks', 'Docks'],
-  ['forklifts', 'Forklifts'],
-  ['trucks', 'Trucks'],
+  ['docks', 'Cửa kho'],
+  ['forklifts', 'Xe nâng'],
+  ['trucks', 'Xe tải'],
 ]
 
 // blue "dock board" glyph of the panel header (rounded tile, lighter top band, white rows)
@@ -46,7 +46,7 @@ export function mountFleetPanel(el) {
   const root = document.createElement('div')
   root.className = 'card fp'
   root.setAttribute('role', 'region')
-  root.setAttribute('aria-label', 'Fleet')
+  root.setAttribute('aria-label', 'Đội xe và cửa kho')
   root.innerHTML = `<div class="fp__head">
       <span class="fp__icon">${HEAD_GLYPH}</span>
       <div class="fp-seg" role="tablist"></div>
@@ -64,13 +64,13 @@ export function mountFleetPanel(el) {
     const { siteId, fleetTab, selection } = store.state
     const tab = TABS.some(([k]) => k === fleetTab) ? fleetTab : 'docks'
     morph(seg, tabsHtml(tab, fleetCounts(siteId)))
-    const name = siteId === 'ALL' ? 'All sites' : db.site(siteId)?.name ?? siteId
+    const name = siteId === 'ALL' ? 'Tất cả kho' : db.site(siteId)?.name ?? siteId
     if (site.textContent !== name) site.textContent = name
     list.className = `fp__rows fp__rows--${tab}`
     const rows = fleetRows(siteId, tab)
     morph(list, rows.length
       ? rows.map((r) => rowHtml(r, selection)).join('')
-      : '<div class="fp__empty">Nothing to show for this site.</div>')
+      : '<div class="fp__empty">Không có dữ liệu cho kho này.</div>')
     const key = `${siteId}|${tab}`
     if (shown !== key) {
       if (shown) {

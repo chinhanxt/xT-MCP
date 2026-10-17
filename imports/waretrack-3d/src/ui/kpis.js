@@ -1,4 +1,4 @@
-// KPI cards under the top bar (SPEC §2.2): Stock on hand · Trucks on site · On-time delivery.
+// KPI cards under the top bar (SPEC §2.2): Tồn kho · Xe tại kho · Giao đúng hẹn.
 // Cards are built once; values patch in place on site change and on every simulation tick.
 import { store, bus } from '../state/store.js'
 import { kpis } from '../data/selectors.js'
@@ -35,7 +35,7 @@ function setText(el, text) {
 }
 
 export function mountKpis(el) {
-  el.setAttribute('aria-label', 'Key metrics')
+  el.setAttribute('aria-label', 'Chỉ số chính')
   el.innerHTML = kpis(store.state.siteId).map(cardTemplate).join('')
   const cards = new Map([...el.querySelectorAll('[data-kpi]')].map((card) => [card.dataset.kpi, {
     title: card.querySelector('.kpi__title'),
@@ -52,7 +52,7 @@ export function mountKpis(el) {
       setText(c.title, k.title)
       setText(c.value, formatValue(k))
       setText(c.deltaText, k.delta)
-      c.delta.hidden = !k.delta || /^[+-]?0(\.0+)?%?$/.test(k.delta)
+      c.delta.hidden = !k.delta || /^[+-]?0([.,]0+)?%?$/.test(k.delta)
       setText(c.sub, k.sub)
       if (swap) {
         // replay the small "value swap" animation when the site changes

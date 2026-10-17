@@ -8,16 +8,19 @@ export function fmtTime(min) {
   return `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`
 }
 
-/** 1412 → "1,412" */
-export const fmtNum = (n) => Math.round(n).toLocaleString('en-US')
+/** 1412 → "1.412" (vi-VN) */
+export const fmtNum = (n) => Math.round(n).toLocaleString('vi-VN')
 
-/** 96.64 → "96.6%" */
-export const fmtPct = (n, digits = 1) => `${n.toFixed(digits)}%`
+/** 4.26 → "4,3" (vi-VN, fixed decimals) */
+export const fmtDec = (n, digits = 1) => n.toLocaleString('vi-VN', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 
-export const fmtKmh = (v) => `${v < 10 ? v.toFixed(1).replace(/\.0$/, '') : Math.round(v)} km/h`
+/** 96.64 → "96,6%" */
+export const fmtPct = (n, digits = 1) => `${fmtDec(n, digits)}%`
 
-/** whole minutes → "13 min" (min 1) */
-export const fmtMin = (m) => `${Math.max(1, Math.round(m))} min`
+export const fmtKmh = (v) => `${v < 10 ? fmtDec(v).replace(/,0$/, '') : Math.round(v)} km/h`
+
+/** whole minutes → "13 phút" (min 1) */
+export const fmtMin = (m) => `${Math.max(1, Math.round(m))} phút`
 
 /**
  * Status chip vocabulary. tone ∈ green | blue | orange | gray.
@@ -26,43 +29,43 @@ export const fmtMin = (m) => `${Math.max(1, Math.round(m))} min`
  */
 export const STATUS = {
   truck: {
-    en_route:  { chip: 'En route',  tone: 'blue' },
-    at_gate:   { chip: 'At gate',   tone: 'orange' },
-    docking:   { chip: 'Docking',   tone: 'blue' },
-    loading:   { chip: 'Loading',   tone: 'green' },
-    unloading: { chip: 'Unloading', tone: 'green' },
-    departing: { chip: 'Departing', tone: 'gray' },
+    en_route:  { chip: 'Đang trên đường', tone: 'blue' },
+    at_gate:   { chip: 'Chờ ở cổng',      tone: 'orange' },
+    docking:   { chip: 'Đang vào cửa',    tone: 'blue' },
+    loading:   { chip: 'Đang xếp hàng',   tone: 'green' },
+    unloading: { chip: 'Đang dỡ hàng',    tone: 'green' },
+    departing: { chip: 'Đang rời kho',    tone: 'gray' },
   },
   forklift: {
-    loading:   { chip: 'Loading',   long: 'Loading truck',   tone: 'green' },
-    unloading: { chip: 'Unloading', long: 'Unloading truck', tone: 'green' },
-    charging:  { chip: 'Charging',  long: 'Charging',        tone: 'orange' },
-    idle:      { chip: 'Idle',      long: 'Idle',            tone: 'gray' },
-    moving:    { chip: 'Moving',    long: 'Moving',          tone: 'blue' },
+    loading:   { chip: 'Đang xếp',  long: 'Đang xếp hàng lên xe', tone: 'green' },
+    unloading: { chip: 'Đang dỡ',   long: 'Đang dỡ hàng xuống',   tone: 'green' },
+    charging:  { chip: 'Đang sạc',  long: 'Đang sạc',             tone: 'orange' },
+    idle:      { chip: 'Rảnh',      long: 'Đang rảnh',            tone: 'gray' },
+    moving:    { chip: 'Di chuyển', long: 'Đang di chuyển',       tone: 'blue' },
   },
   pallet: {
-    staged: { chip: 'Staged', tone: 'green' },
-    moving: { chip: 'Moving', tone: 'blue' },
-    stored: { chip: 'Stored', tone: 'gray' },
-    loaded: { chip: 'Loaded', tone: 'green' },
+    staged: { chip: 'Chờ xử lý',   tone: 'green' },
+    moving: { chip: 'Đang chuyển', tone: 'blue' },
+    stored: { chip: 'Đã lưu kho',  tone: 'gray' },
+    loaded: { chip: 'Đã lên xe',   tone: 'green' },
   },
   dock: {
-    available: { chip: 'Available', tone: 'gray' },
-    booked:    { chip: 'Booked',    tone: 'orange' },
-    docking:   { chip: 'Docking',   tone: 'blue' },
-    loading:   { chip: 'Loading',   tone: 'green' },
-    unloading: { chip: 'Unloading', tone: 'green' },
+    available: { chip: 'Trống',         tone: 'gray' },
+    booked:    { chip: 'Đã đặt chỗ',    tone: 'orange' },
+    docking:   { chip: 'Đang vào cửa',  tone: 'blue' },
+    loading:   { chip: 'Đang xếp hàng', tone: 'green' },
+    unloading: { chip: 'Đang dỡ hàng',  tone: 'green' },
   },
   charger: {
-    free:     { chip: 'Free',     tone: 'gray' },
-    charging: { chip: 'Charging', tone: 'orange' },
+    free:     { chip: 'Trống',    tone: 'gray' },
+    charging: { chip: 'Đang sạc', tone: 'orange' },
   },
   inventory: {
-    in_stock:  { chip: 'In Stock',  tone: 'green' },
-    low_stock: { chip: 'Low Stock', tone: 'orange' },
+    in_stock:  { chip: 'Còn hàng',  tone: 'green' },
+    low_stock: { chip: 'Sắp hết',   tone: 'orange' },
   },
   site: {
-    Operational: { chip: 'Operational', tone: 'green' },
+    Operational: { chip: 'Đang hoạt động', tone: 'green' },
   },
 }
 
@@ -70,7 +73,7 @@ export function statusMeta(type, status) {
   return STATUS[type]?.[status] ?? { chip: String(status ?? '—'), tone: 'gray' }
 }
 
-/** Type label shown in the detail-panel eyebrow ("FORKLIFT · WH-01"). */
+/** Type label shown in the detail-panel eyebrow ("XE NÂNG · WH-01"). */
 export const TYPE_LABEL = {
-  site: 'SITE', truck: 'TRUCK', forklift: 'FORKLIFT', pallet: 'PALLET', dock: 'DOCK BAY', charger: 'CHARGER',
+  site: 'KHO', truck: 'XE TẢI', forklift: 'XE NÂNG', pallet: 'PALLET', dock: 'CỬA KHO', charger: 'TRẠM SẠC',
 }

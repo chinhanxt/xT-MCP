@@ -4,6 +4,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { db, ENTITY_TYPES } from '../src/data/db.js'
 import { TRUCKS, DOCKS, FORKLIFTS, CHARGERS, PALLETS, SHIPMENTS, SITES, SKUS, CARRIERS } from '../src/data/mockData.js'
+import { STATUS, TYPE_LABEL } from '../src/data/format.js'
 import {
   siteStats, kpis, siteSelectorSub, siteMenuSub, dockName, shipmentTracking, fleetRows, fleetCounts, search,
 } from '../src/data/selectors.js'
@@ -63,9 +64,9 @@ test('siteStats: một kho khớp dữ liệu, ALL bằng tổng các kho', () =
 test('kpis và nhãn tóm tắt kho', () => {
   const k = kpis('ALL')
   assert.deepEqual(k.map((x) => x.key), ['stock', 'trucks', 'ontime'])
-  assert.match(k[0].sub, /all sites/)
-  assert.match(siteSelectorSub(SITES[0].id), /^\d+% full · \d+\/\d+ docked$/)
-  assert.match(siteMenuSub(SITES[0].id), /^\d+\/\d+ docked · \d+ inbound$/)
+  assert.match(k[0].sub, /tất cả kho/)
+  assert.match(siteSelectorSub(SITES[0].id), /^Đầy \d+% · \d+\/\d+ cửa có xe$/)
+  assert.match(siteMenuSub(SITES[0].id), /^\d+\/\d+ cửa có xe · \d+ xe đang đến$/)
   assert.equal(dockName('KHONG-CO'), '—')
   assert.equal(dockName(DOCKS[0].id), DOCKS[0].name)
 })
@@ -98,4 +99,19 @@ test('search: rỗng, khớp theo mã không phân biệt hoa thường, tối �
   assert.equal(hit.siteId, t.siteId)
   assert.deepEqual(search('zzzz-khong-co'), [])
   assert.ok(search('a').length <= 8)
+})
+
+test('giao diện mô phỏng bằng tiếng Việt: nhãn, KPI, tên kho, bước vận chuyển', () => {
+  const english = /\b(stock|trucks?|on site|delivery|inbound|docked|loading|unloading|charging|operational|hub|network|riverside|northgate|eastport|southfield|westgate|in transit|delivered|confirmed|picked)\b/i
+  const texts = [
+    ...kpis('ALL').flatMap((k) => [k.title, k.sub]),
+    ...Object.values(STATUS).flatMap((g) => Object.values(g).flatMap((m) => [m.chip, m.long ?? ''])),
+    ...Object.values(TYPE_LABEL),
+    ...SITES.flatMap((s) => [s.name, s.kind, s.address]),
+    ...Object.values(SKUS).flatMap((s) => [s.name, s.category]),
+    siteSelectorSub(SITES[0].id), siteMenuSub(SITES[0].id),
+    ...TRUCKS.flatMap((t) => shipmentTracking(t.id).steps.map((s) => s.label)),
+  ]
+  for (const t of texts) assert.doesNotMatch(t, english, t)
+  assert.deepEqual(kpis('ALL').map((k) => k.title), ['Tồn kho', 'Xe tại kho', 'Giao đúng hẹn'])
 })

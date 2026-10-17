@@ -34,7 +34,7 @@ function badgeClass(siteId) {
 
 function networkSub() {
   const s = siteStats('ALL')
-  return `${db.sites().length} sites · ${s.docked} docked`
+  return `${db.sites().length} kho · ${s.docked} cửa có xe`
 }
 
 const TYPE_ICON = {
@@ -52,7 +52,7 @@ function searchAll(query) {
     results.push({
       type: 'truck', id: shp.truckId, kind: 'shipment',
       title: `#${shp.id} · ${shp.customer}`,
-      sub: `${shp.truckId} · ${shp.direction === 'outbound' ? `To ${shp.toLabel}` : `Inbound to ${shp.siteId}`}`,
+      sub: `${shp.truckId} · ${shp.direction === 'outbound' ? `Đến ${shp.toLabel}` : `Nhập về ${shp.siteId}`}`,
       siteId: shp.siteId,
     })
     if (results.length >= 8) break
@@ -89,7 +89,7 @@ const NOTE_ICON = { orange: 'alert', blue: 'truck', green: 'check', gray: 'batte
 
 function template() {
   return `
-  <a class="tb-brand" href="#" aria-label="WareTrack home">
+  <a class="tb-brand" href="#" aria-label="Trang chủ WareTrack">
     <span class="tb-brand__logo">${icon('logoCube', 37)}</span>
     <span class="tb-brand__name">WareTrack</span>
   </a>
@@ -98,10 +98,10 @@ function template() {
     <label class="tb-search__field">
       ${icon('search', 18, { sw: 1.6 })}
       <input class="tb-search__input" type="search" autocomplete="off" spellcheck="false"
-        placeholder="Search sites, trucks, forklifts, pallets, shipments..."
+        placeholder="Tìm kho, xe tải, xe nâng, pallet, lô hàng..."
         role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="wt-search-results"
-        aria-label="Search sites, trucks, forklifts, pallets, shipments" />
-      <button class="tb-search__clear" type="button" aria-label="Clear search">${icon('close', 14)}</button>
+        aria-label="Tìm kho, xe tải, xe nâng, pallet, lô hàng" />
+      <button class="tb-search__clear" type="button" aria-label="Xóa tìm kiếm">${icon('close', 14)}</button>
       <kbd class="kbd">/</kbd>
     </label>
     <div class="wt-pop tb-results" id="wt-search-results" role="listbox"></div>
@@ -119,11 +119,11 @@ function template() {
           <span class="tb-site__next">${icon('chevronRight', 15)}</span>
         </button>
         <span class="tb-site__divider"></span>
-        <button class="tb-site__toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Choose site">
+        <button class="tb-site__toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Chọn kho">
           ${icon('chevronDown', 15, { sw: 1.9 })}
         </button>
       </div>
-      <div class="wt-pop tb-sitemenu" role="listbox" aria-label="Sites"></div>
+      <div class="wt-pop tb-sitemenu" role="listbox" aria-label="Danh sách kho"></div>
     </div>
 
     <div class="tb-live" role="status" aria-live="off">
@@ -132,14 +132,14 @@ function template() {
     </div>
 
     <div class="tb-bell" data-menu="notifications">
-      <button class="tb-bell__btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Notifications">
+      <button class="tb-bell__btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Thông báo">
         ${icon('bell', 24, { sw: 1.6 })}
         <span class="tb-bell__dot"></span>
       </button>
-      <div class="wt-pop tb-notes" role="dialog" aria-label="Notifications">
+      <div class="wt-pop tb-notes" role="dialog" aria-label="Thông báo">
         <div class="wt-pop__head">
-          <span>Notifications</span>
-          <button class="tb-notes__mark" type="button">Mark all as read</button>
+          <span>Thông báo</span>
+          <button class="tb-notes__mark" type="button">Đánh dấu đã đọc tất cả</button>
         </div>
         <div class="tb-notes__list"></div>
       </div>
@@ -161,9 +161,9 @@ function template() {
           ${avatar(32)}
           <div><b>${esc(db.user.name)}</b><span>${esc(db.user.email)}</span></div>
         </div>
-        <button class="tb-usermenu__item" type="button" role="menuitem">${icon('user', 16)}Profile</button>
-        <button class="tb-usermenu__item" type="button" role="menuitem">${icon('settings', 16)}Settings</button>
-        <button class="tb-usermenu__item tb-usermenu__item--danger" type="button" role="menuitem">${icon('logout', 16)}Sign out</button>
+        <button class="tb-usermenu__item" type="button" role="menuitem">${icon('user', 16)}Hồ sơ</button>
+        <button class="tb-usermenu__item" type="button" role="menuitem">${icon('settings', 16)}Cài đặt</button>
+        <button class="tb-usermenu__item tb-usermenu__item--danger" type="button" role="menuitem">${icon('logout', 16)}Đăng xuất</button>
       </div>
     </div>
   </div>`
@@ -218,10 +218,10 @@ function createSearch(root) {
             <span class="tb-results__title">${highlight(r.title, q)}</span>
             <span class="tb-results__sub">${esc(r.sub ?? '')}</span>
           </span>
-          ${r.kind === 'shipment' ? '<span class="tb-results__type">Shipment</span>' : ''}
+          ${r.kind === 'shipment' ? '<span class="tb-results__type">Lô hàng</span>' : ''}
         </button>`).join('') + `
-        <div class="tb-results__hint"><span><kbd class="kbd">↵</kbd>select</span><span><kbd class="kbd">↑↓</kbd>navigate</span><span><kbd class="kbd">esc</kbd>clear</span></div>`
-      : `<div class="wt-pop__empty">No matches for “${esc(q.trim())}”</div>`
+        <div class="tb-results__hint"><span><kbd class="kbd">↵</kbd>chọn</span><span><kbd class="kbd">↑↓</kbd>di chuyển</span><span><kbd class="kbd">esc</kbd>xóa</span></div>`
+      : `<div class="wt-pop__empty">Không có kết quả cho “${esc(q.trim())}”</div>`
   }
 
   input.addEventListener('input', () => {
@@ -291,21 +291,21 @@ function createSiteSelector(root) {
     const all = id === 'ALL'
     const site = db.site(id)
     badge.className = `${badgeClass(id)} tb-site__badge`
-    setText(badge, all ? 'ALL' : id)
-    setText(name, all ? 'Network overview' : site?.name ?? id)
+    setText(badge, all ? 'Tất cả' : id)
+    setText(name, all ? 'Tổng quan mạng lưới' : site?.name ?? id)
     setText(sub, all ? networkSub() : siteSelectorSub(id))
     const next = db.site(nextSiteId(id))
-    main.title = `Next site · ${next.id} ${next.name}`
+    main.title = `Kho tiếp theo · ${next.id} ${next.name}`
     if (menu.classList.contains('is-open')) markCurrent()
   }
 
   function buildMenu() {
     const all = `
       <button class="tb-sitemenu__row tb-sitemenu__row--all" type="button" role="option" data-site="ALL">
-        <span class="site-badge site-badge--slate">ALL</span>
+        <span class="site-badge site-badge--slate">Tất cả</span>
         <span class="tb-sitemenu__body">
-          <span class="tb-sitemenu__top"><span class="tb-sitemenu__name">Network overview</span></span>
-          <span class="tb-sitemenu__meta"><span class="tb-sitemenu__sub">Zoom out to all ${db.sites().length} sites</span></span>
+          <span class="tb-sitemenu__top"><span class="tb-sitemenu__name">Tổng quan mạng lưới</span></span>
+          <span class="tb-sitemenu__meta"><span class="tb-sitemenu__sub">Thu nhỏ để xem cả ${db.sites().length} kho</span></span>
         </span>
       </button>`
     const sites = db.sites().map((s) => `
@@ -409,13 +409,13 @@ function createNotifications(root) {
 
   function ago(at) {
     const m = Math.floor(store.state.simMinutes - at)
-    return m <= 0 ? 'now' : m < 60 ? `${m} min ago` : fmtTime(at)
+    return m <= 0 ? 'vừa xong' : m < 60 ? `${m} phút trước` : fmtTime(at)
   }
 
   function renderBadge() {
     const n = unreadCount()
     dot.hidden = n === 0
-    btn.setAttribute('aria-label', n ? `Notifications (${n} unread)` : 'Notifications')
+    btn.setAttribute('aria-label', n ? `Thông báo (${n} chưa đọc)` : 'Thông báo')
     markAll.disabled = n === 0
   }
 
@@ -431,7 +431,7 @@ function createNotifications(root) {
           </span>
           <span class="tb-notes__time" data-at="${n.at}">${ago(n.at)}</span>
         </button>`).join('')
-      : '<div class="wt-pop__empty">You’re all caught up.</div>'
+      : '<div class="wt-pop__empty">Bạn đã xem hết thông báo.</div>'
   }
 
   btn.addEventListener('click', () => store.set({ menu: store.state.menu === 'notifications' ? null : 'notifications' }))

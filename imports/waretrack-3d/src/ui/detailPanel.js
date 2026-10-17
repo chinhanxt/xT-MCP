@@ -7,7 +7,7 @@ import './panels.css'
 import { db } from '../data/db.js'
 import { store, bus } from '../state/store.js'
 import { siteStats, siteActivityLine, dockName } from '../data/selectors.js'
-import { fmtTime, fmtNum, fmtKmh, fmtMin, statusMeta, TYPE_LABEL } from '../data/format.js'
+import { fmtTime, fmtNum, fmtDec, fmtKmh, fmtMin, statusMeta, TYPE_LABEL } from '../data/format.js'
 import { illustration, skuIllustration } from './illustrations.js'
 import { icon } from './icons.js'
 
@@ -127,10 +127,10 @@ function tile(label, valueHtml, barHtml = '') {
 
 function siteTiles(s) {
   return `<div class="dp-tiles">
-    ${tile('Stock on hand', `<b>${fmtNum(s.stock)}</b> / ${fmtNum(s.capacity)}`, bar(pct(s.stock, s.capacity), 'blue'))}
-    ${tile('Truck bays', `<b>${s.docksBusy}</b> / ${s.docksTotal} busy`, bar(pct(s.docksBusy, s.docksTotal), 'green'))}
-    ${tile('Outbound today', `<b>${fmtNum(s.outboundToday)}</b> trucks`)}
-    ${tile('Put-aways today', `<b>${fmtNum(s.putawaysToday)}</b> pallets`)}
+    ${tile('Tồn kho', `<b>${fmtNum(s.stock)}</b> / ${fmtNum(s.capacity)}`, bar(pct(s.stock, s.capacity), 'blue'))}
+    ${tile('Cửa nhận hàng', `<b>${s.docksBusy}</b> / ${s.docksTotal} đang bận`, bar(pct(s.docksBusy, s.docksTotal), 'green'))}
+    ${tile('Xuất hôm nay', `<b>${fmtNum(s.outboundToday)}</b> chuyến`)}
+    ${tile('Nhập kho hôm nay', `<b>${fmtNum(s.putawaysToday)}</b> pallet`)}
   </div>`
 }
 
@@ -163,9 +163,9 @@ function siteCard(site) {
       ${bar(fl.battery, fl.battery < 25 ? 'orange' : 'green')}
       <span class="dp-fl__pct">${Math.round(fl.battery)}%</span>
     </div>` : ''
-  const buttons = [button('locate', 'locate', 'Locate on map')]
+  const buttons = [button('locate', 'locate', 'Định vị trên bản đồ')]
   // the video shows an extra (inert) layers toggle on the automated DC card
-  if (site.variant === 'robotics') buttons.unshift(button('layers', 'layers', 'Map layers'))
+  if (site.variant === 'robotics') buttons.unshift(button('layers', 'layers', 'Lớp bản đồ'))
   return header({
     illu: siteIllu(site),
     eyebrow: `${site.kind} · ${site.id}`,
@@ -173,11 +173,11 @@ function siteCard(site) {
     sub: site.address,
     buttons,
   })
-    + status(site.status, statusMeta('site', site.status).tone, siteActivityLine(site.id))
+    + status(statusMeta('site', site.status).chip, statusMeta('site', site.status).tone, siteActivityLine(site.id))
     + siteTiles(s)
-    + section('Inventory', 'units')
+    + section('Hàng tồn', 'đơn vị')
     + `<div class="dp-inv">${inv}</div>`
-    + section('Forklift fleet', `${s.forkliftsWorking}/${s.forkliftsTotal} working`)
+    + section('Đội xe nâng', `${s.forkliftsWorking}/${s.forkliftsTotal} đang làm việc`)
     + flRow
 }
 
@@ -189,28 +189,28 @@ function networkCard() {
     const full = Math.round(st.fullPct)
     return `<div class="dp-site" data-site="${esc(site.id)}" role="button" tabindex="0">
       <span class="site-badge dp-site__badge${site.badgeTone === 'cyan' ? ' site-badge--cyan' : ''}">${esc(site.id)}</span>
-      <span class="dp-site__name">${esc(site.name)}<small>${st.docked}/${st.docksTotal} docked · ${st.inbound} inbound</small></span>
+      <span class="dp-site__name">${esc(site.name)}<small>${st.docked}/${st.docksTotal} cửa có xe · ${st.inbound} xe đang đến</small></span>
       ${bar(st.fullPct, 'blue')}
       <span class="dp-site__pct">${full}%</span>
     </div>`
   }).join('')
   return header({
     illu: illustration('network', TILE_ILLU),
-    eyebrow: `NETWORK · ${sites.length} SITES`,
-    name: 'Network overview',
-    sub: `${sites.length} sites · ${s.docked} docked · ${s.inbound} inbound`,
-    buttons: [button('home', 'locate', 'Show all sites')],
+    eyebrow: `MẠNG LƯỚI · ${sites.length} KHO`,
+    name: 'Tổng quan mạng lưới',
+    sub: `${sites.length} kho · ${s.docked} có xe · ${s.inbound} xe đang đến`,
+    buttons: [button('home', 'locate', 'Xem tất cả kho')],
   })
-    + status('Operational', 'green', siteActivityLine('ALL'))
+    + status(statusMeta('site', 'Operational').chip, 'green', siteActivityLine('ALL'))
     + siteTiles(s)
-    + section('Sites', 'fill')
+    + section('Danh sách kho', 'mức đầy')
     + `<div class="dp-sites">${list}</div>`
 }
 
 function forkliftCard(f) {
   const m = statusMeta('forklift', f.status)
   const following = store.state.followId === f.id
-  let carrying = 'Empty'
+  let carrying = 'Trống'
   if (f.carryingPalletId) {
     const pal = db.get('pallet', f.carryingPalletId)
     carrying = `${link('pallet', f.carryingPalletId)}${pal ? ` · ${esc(db.sku(pal.sku)?.name ?? pal.sku)}` : ''}`
@@ -223,23 +223,23 @@ function forkliftCard(f) {
     eyebrow: `${TYPE_LABEL.forklift} · ${f.siteId}`,
     name: f.id,
     sub: `${f.operator} · ${f.model}`,
-    buttons: [button('locate', 'locate', 'Locate on map'), button('follow', 'arrowUpRight', following ? 'Stop following' : 'Follow', following), button('close', 'close', 'Close')],
+    buttons: [button('locate', 'locate', 'Định vị trên bản đồ'), button('follow', 'arrowUpRight', following ? 'Dừng theo dõi' : 'Theo dõi', following), button('close', 'close', 'Đóng')],
   })
     + status(m.long ?? m.chip, m.tone, f.task)
-    + progress(f.battery, f.battery < 25 ? 'orange' : 'green', `Battery ${Math.round(f.battery)}%`)
+    + progress(f.battery, f.battery < 25 ? 'orange' : 'green', `Pin ${Math.round(f.battery)}%`)
     + rows([
-      ['Carrying', carrying],
-      ['Moves today', esc(fmtNum(f.movesToday ?? 0))],
-      ['Speed', `${(f.speedKmh ?? 0).toFixed(1)} km/h`],
-      ['Charger', charger ? link('charger', charger.id, charger.name) : '—'],
-      ['Site', esc(siteName(f.siteId))],
+      ['Đang chở', carrying],
+      ['Lượt di chuyển hôm nay', esc(fmtNum(f.movesToday ?? 0))],
+      ['Tốc độ', `${fmtDec(f.speedKmh ?? 0)} km/h`],
+      ['Trạm sạc', charger ? link('charger', charger.id, charger.name) : '—'],
+      ['Kho', esc(siteName(f.siteId))],
     ])
 }
 
 function palletWhere(p) {
-  if (p.status === 'moving' && p.carriedBy) return { status: `On forks of ${p.carriedBy}`, location: `Forklift ${p.carriedBy}` }
-  if (p.status === 'loaded') return { status: `Loaded · ${p.siteId}`, location: `${p.siteId} · On truck` }
-  const where = `${p.siteId} · Yard slot ${p.slot}`
+  if (p.status === 'moving' && p.carriedBy) return { status: `Trên càng nâng ${p.carriedBy}`, location: `Xe nâng ${p.carriedBy}` }
+  if (p.status === 'loaded') return { status: `Đã lên xe · ${p.siteId}`, location: `${p.siteId} · Trên xe tải` }
+  const where = `${p.siteId} · Ô bãi ${p.slot}`
   return { status: where, location: where }
 }
 
@@ -252,16 +252,16 @@ function palletCard(p) {
     eyebrow: `${TYPE_LABEL.pallet} · ${(sku?.category ?? '').toUpperCase()}`,
     name: sku?.name ?? p.id,
     sub: `${p.id} · ${p.sku}`,
-    buttons: [button('locate', 'locate', 'Locate on map'), button('close', 'close', 'Close')],
+    buttons: [button('locate', 'locate', 'Định vị trên bản đồ'), button('close', 'close', 'Đóng')],
   })
     + status(m.chip, m.tone, where.status)
     + rows([
-      ['Quantity', `${fmtNum(p.quantity)} units`],
-      ['Gross weight', `${fmtNum(p.grossKg)} kg`],
-      ['Location', esc(where.location)],
-      ['Lot', esc(p.lot)],
-      ['Received', esc(p.received)],
-      ['Site', esc(siteName(p.siteId))],
+      ['Số lượng', `${fmtNum(p.quantity)} đơn vị`],
+      ['Khối lượng cả bì', `${fmtNum(p.grossKg)} kg`],
+      ['Vị trí', esc(where.location)],
+      ['Lô', esc(p.lot)],
+      ['Ngày nhận', esc(p.received)],
+      ['Kho', esc(siteName(p.siteId))],
     ])
 }
 
@@ -269,11 +269,11 @@ function dockStatusText(d, truck) {
   if (d.status === 'booked') {
     const t = db.get('truck', d.bookedTruckId)
     const mins = d.bookedInMin ?? t?.etaMin ?? 0
-    return `${d.bookedTruckId} due in ${fmtMin(mins)}`
+    return `${d.bookedTruckId} đến sau ${fmtMin(mins)}`
   }
-  if (d.status === 'available' || !truck) return 'Ready for next truck'
-  if (d.status === 'docking') return `${truck.id} reversing in`
-  return `${truck.id} · ${truck.progress.done}/${truck.progress.total} pallets`
+  if (d.status === 'available' || !truck) return 'Sẵn sàng đón xe tiếp theo'
+  if (d.status === 'docking') return `${truck.id} đang lùi vào`
+  return `${truck.id} · ${truck.progress.done}/${truck.progress.total} pallet`
 }
 
 function dockCard(d) {
@@ -284,37 +284,37 @@ function dockCard(d) {
     eyebrow: `${TYPE_LABEL.dock} · ${d.siteId}`,
     name: d.name,
     sub: d.kind,
-    buttons: [button('locate', 'locate', 'Locate on map'), button('close', 'close', 'Close')],
+    buttons: [button('locate', 'locate', 'Định vị trên bản đồ'), button('close', 'close', 'Đóng')],
   })
     + status(m.chip, m.tone, dockStatusText(d, d.truckId ? truck : null))
     + rows([
-      ['Truck', truck ? `${link('truck', truck.id)} · ${esc(db.carrier(truck.carrier)?.name ?? '')}` : '—'],
-      ['Rear doors', esc(d.rearDoors ?? '—')],
-      ['Trucks today', esc(fmtNum(d.trucksToday ?? 0))],
-      ['Site', esc(siteName(d.siteId))],
+      ['Xe tải', truck ? `${link('truck', truck.id)} · ${esc(db.carrier(truck.carrier)?.name ?? '')}` : '—'],
+      ['Cửa sau xe', esc(d.rearDoors ?? '—')],
+      ['Xe hôm nay', esc(fmtNum(d.trucksToday ?? 0))],
+      ['Kho', esc(siteName(d.siteId))],
     ])
 }
 
 function chargerCard(c) {
   const m = statusMeta('charger', c.status)
   const f = db.get('forklift', c.forkliftId)
-  let text = 'Ready · no forklift assigned'
+  let text = 'Sẵn sàng · chưa gán xe nâng'
   if (f && c.status === 'charging') text = `${f.id} · ${Math.round(f.battery)}%`
-  else if (f) text = `${f.id} is out · ${f.task}`
+  else if (f) text = `${f.id} đang vắng · ${f.task}`
   return header({
     illu: illustration('charger', TILE_ILLU),
     eyebrow: `${TYPE_LABEL.charger} · ${c.siteId}`,
     name: c.name,
     sub: c.spec,
-    buttons: [button('locate', 'locate', 'Locate on map'), button('close', 'close', 'Close')],
+    buttons: [button('locate', 'locate', 'Định vị trên bản đồ'), button('close', 'close', 'Đóng')],
   })
     + status(m.chip, m.tone, text, c.status === 'free' ? ' dp-chip--ink' : '')
     + rows([
-      ['Forklift', f ? `${link('forklift', f.id)} · battery ${Math.round(f.battery)}%` : '—'],
-      ['Sessions today', esc(fmtNum(c.sessionsToday ?? 0))],
-      ['Energy today', `${(c.energyKwh ?? 0).toFixed(1)} kWh`],
-      ['Charge rate', `${c.chargeRatePctMin ?? 0}% a minute`],
-      ['Site', esc(siteName(c.siteId))],
+      ['Xe nâng', f ? `${link('forklift', f.id)} · pin ${Math.round(f.battery)}%` : '—'],
+      ['Lượt sạc hôm nay', esc(fmtNum(c.sessionsToday ?? 0))],
+      ['Điện năng hôm nay', `${fmtDec(c.energyKwh ?? 0)} kWh`],
+      ['Tốc độ sạc', `${c.chargeRatePctMin ?? 0}%/phút`],
+      ['Kho', esc(siteName(c.siteId))],
     ])
 }
 
@@ -332,21 +332,21 @@ function approachPct(t) {
   return max > 0 ? Math.max(4, (1 - d / max) * 100) : 100
 }
 
-const fmtDistance = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1)} km left` : `${Math.round(m)} m left`)
+const fmtDistance = (m) => (m >= 1000 ? `còn ${fmtDec(m / 1000)} km` : `còn ${Math.round(m)} m`)
 
 function fmtWeight(t) {
   if (!(t > 0)) return '0 kg'
-  return t < 1 ? `${fmtNum(Math.round(t * 100) * 10)} kg` : `${t.toFixed(1)} t`
+  return t < 1 ? `${fmtNum(Math.round(t * 100) * 10)} kg` : `${fmtDec(t)} tấn`
 }
 
 function truckContext(t, dock) {
   switch (t.status) {
     case 'loading':
-    case 'unloading': return `${t.siteId} · ${dock} · ${t.progress.done}/${t.progress.total} pallets`
-    case 'docking': return `Reversing into ${dock} · ${t.siteId}`
-    case 'at_gate': return `Waiting at gate · ${t.siteId}`
-    case 'departing': return `Leaving ${t.siteId} · ${dock}`
-    default: return `To ${t.siteId} · ETA ${fmtMin(t.etaMin)}`
+    case 'unloading': return `${t.siteId} · ${dock} · ${t.progress.done}/${t.progress.total} pallet`
+    case 'docking': return `Đang lùi vào ${dock} · ${t.siteId}`
+    case 'at_gate': return `Chờ ở cổng · ${t.siteId}`
+    case 'departing': return `Đang rời ${t.siteId} · ${dock}`
+    default: return `Đến ${t.siteId} · dự kiến ${fmtMin(t.etaMin)}`
   }
 }
 
@@ -360,12 +360,12 @@ function truckCard(t) {
 
   let prog
   if (atDock) prog = progress(pct(t.progress.done, t.progress.total), 'green', `${t.progress.done}/${t.progress.total}`)
-  else if (t.status === 'departing') prog = progress(100, 'green', 'Departed')
+  else if (t.status === 'departing') prog = progress(100, 'green', 'Đã rời kho')
   else prog = progress(approachPct(t), 'blue', fmtDistance(t.distanceLeftM ?? 0))
 
   let eta
-  if (atDock) eta = `Done in ${fmtMin(t.etaMin)}`
-  else if (t.status === 'departing') eta = 'Departed'
+  if (atDock) eta = `Xong sau ${fmtMin(t.etaMin)}`
+  else if (t.status === 'departing') eta = 'Đã rời kho'
   else eta = `${fmtTime(store.state.simMinutes + (t.etaMin ?? 0))} (${fmtMin(t.etaMin)})`
 
   const cargo = t.cargo ?? { pallets: 0, capacity: 0, weightT: 0 }
@@ -374,18 +374,18 @@ function truckCard(t) {
     eyebrow: (carrier?.fullName ?? TYPE_LABEL.truck).toUpperCase(),
     name: t.id,
     sub: `${t.driver} · ${t.plate}`,
-    buttons: [button('locate', 'locate', 'Locate on map'), button('follow', 'arrowUpRight', following ? 'Stop following' : 'Follow', following), button('close', 'close', 'Close')],
+    buttons: [button('locate', 'locate', 'Định vị trên bản đồ'), button('follow', 'arrowUpRight', following ? 'Dừng theo dõi' : 'Theo dõi', following), button('close', 'close', 'Đóng')],
   })
     + status(m.chip, m.tone, truckContext(t, dock))
     + prog
     + rows([
-      ['Shipment', shp ? `<a class="link wt-link" role="button" tabindex="0" data-act="shipment" data-id="${esc(t.id)}">#${esc(shp.id)}</a>` : '—'],
-      ['Customer', esc(shp?.customer ?? '—')],
-      ['Destination', esc(shp?.toLabel ?? '—')],
-      ['ETA', esc(eta)],
-      ['Speed', esc(fmtKmh(t.speedKmh ?? 0))],
-      ['Bay', t.dockId ? `${link('dock', t.dockId, dock)} · ${esc(t.siteId)}` : '—'],
-      ['Cargo', `${cargo.pallets}/${cargo.capacity} pallets · ${fmtWeight(cargo.weightT)}`],
+      ['Lô hàng', shp ? `<a class="link wt-link" role="button" tabindex="0" data-act="shipment" data-id="${esc(t.id)}">#${esc(shp.id)}</a>` : '—'],
+      ['Khách hàng', esc(shp?.customer ?? '—')],
+      ['Điểm đến', esc(shp?.toLabel ?? '—')],
+      ['Dự kiến', esc(eta)],
+      ['Tốc độ', esc(fmtKmh(t.speedKmh ?? 0))],
+      ['Cửa kho', t.dockId ? `${link('dock', t.dockId, dock)} · ${esc(t.siteId)}` : '—'],
+      ['Hàng hóa', `${cargo.pallets}/${cargo.capacity} pallet · ${fmtWeight(cargo.weightT)}`],
     ])
 }
 
@@ -417,7 +417,7 @@ export function mountDetailPanel(el) {
   const card = document.createElement('div')
   card.className = 'card dp'
   card.setAttribute('role', 'region')
-  card.setAttribute('aria-label', 'Details')
+  card.setAttribute('aria-label', 'Chi tiết')
   el.appendChild(card)
 
   let view = null

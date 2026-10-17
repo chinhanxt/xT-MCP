@@ -15,16 +15,16 @@ test('fmtTime: phút từ nửa đêm sang HH:MM, quay vòng 24 giờ', () => {
 
 test('pad2, fmtNum, fmtPct, fmtMin', () => {
   assert.equal(pad2(7), '07')
-  assert.equal(fmtNum(1412.4), '1,412')
-  assert.equal(fmtPct(96.64), '96.6%')
+  assert.equal(fmtNum(1412.4), '1.412')
+  assert.equal(fmtPct(96.64), '96,6%')
   assert.equal(fmtPct(96.64, 0), '97%')
-  assert.equal(fmtMin(0.2), '1 min')
-  assert.equal(fmtMin(12.6), '13 min')
+  assert.equal(fmtMin(0.2), '1 phút')
+  assert.equal(fmtMin(12.6), '13 phút')
 })
 
 test('fmtKmh: một chữ số thập phân dưới 10, làm tròn từ 10', () => {
   assert.equal(fmtKmh(4), '4 km/h')
-  assert.equal(fmtKmh(4.26), '4.3 km/h')
+  assert.equal(fmtKmh(4.26), '4,3 km/h')
   assert.equal(fmtKmh(12.4), '12 km/h')
 })
 
