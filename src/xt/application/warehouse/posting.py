@@ -126,7 +126,8 @@ def post_stock(db: StockData, request_id: UUID, approver: UUID) -> dict[str, Any
                 "location": str(location_id),
                 "warehouse": warehouse,
                 "quantity_milli": delta,
-                "posted_at": posted_at,
+                "posted_at": posted_at,  # received/posted by the system
+                "occurred_on": row.get("doc_date"),  # business date on the slip, if given
                 "approved_by": str(approver),
             },
         )

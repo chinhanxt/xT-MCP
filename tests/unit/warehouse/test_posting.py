@@ -124,6 +124,19 @@ def test_workflow_ledger_write_requires_warehouse(model):
     validate_write(None, actor, model, {"quantity_milli": 0, "warehouse": str(uuid4())})
 
 
+def test_movement_keeps_business_date_apart_from_posting_time():
+    db, rid, manager = fixture()
+    db.rows_by_model["stock_request"][str(rid)]["doc_date"] = "2026-10-01"
+    post_stock(db, rid, manager)
+    (movement,) = db.rows_by_model["stock_movement"].values()
+    assert movement["occurred_on"] == "2026-10-01"
+    assert movement["posted_at"][:10] != "2026-10-01"
+    db, rid, manager = fixture()
+    post_stock(db, rid, manager)
+    (movement,) = db.rows_by_model["stock_movement"].values()
+    assert movement["occurred_on"] is None and movement["posted_at"]
+
+
 def test_insufficient_stock_and_sod_write_nothing():
     db, rid, manager = fixture("issue")
     with pytest.raises(ModelError, match="Không đủ tồn"):

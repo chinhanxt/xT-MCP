@@ -69,6 +69,13 @@
       "required": true
     },
     {
+      "id": "occurred_on",
+      "name": "occurred_on",
+      "type": "date",
+      "label": "occurred_on",
+      "pii": "none"
+    },
+    {
       "id": "approved_by",
       "name": "approved_by",
       "type": "user",

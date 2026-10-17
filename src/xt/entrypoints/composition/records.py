@@ -109,6 +109,9 @@ class _PlanningRepository:
     def search(self, *args: Any, **kwargs: Any) -> NoReturn:
         raise RuntimeError("search must use the real repository")
 
+    def aggregate(self, *args: Any, **kwargs: Any) -> NoReturn:
+        raise RuntimeError("aggregate must use the real repository")
+
 
 @dataclass(frozen=True)
 class RecordMutation:
@@ -362,7 +365,9 @@ class RecordServiceAdapter:
         return out
 
     def aggregate(self, ctx: CallContext, args: Args) -> Data:
-        unavailable("aggregate_records")
+        from xt.entrypoints.composition.aggregate import aggregate_records
+
+        return aggregate_records(self, ctx, args)
 
     # ---- ghi -----------------------------------------------------------------------------------
     def _plan(
