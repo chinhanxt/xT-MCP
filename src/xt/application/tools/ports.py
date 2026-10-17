@@ -39,6 +39,11 @@ class AccessCheck:
     attributes: Mapping[str, Any] = field(default_factory=dict)
 
 
+# Lý do từ chối đặc biệt: model thuộc ứng dụng đã cài nhưng đang tắt ở tenant của người gọi;
+# dispatcher đổi thành `capability_unavailable` thay vì `access_denied`.
+APP_DISABLED = "app_disabled"
+
+
 @dataclass(frozen=True, slots=True)
 class AccessDecision:
     allowed: bool

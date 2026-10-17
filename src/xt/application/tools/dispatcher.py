@@ -43,6 +43,7 @@ from xt.application.tools.errors import (
 )
 from xt.application.tools.handlers import HANDLERS, Handler, ReadHandler, ToolServices, WriteHandler
 from xt.application.tools.ports import (
+    APP_DISABLED,
     IN_PROGRESS,
     Args,
     CommitResult,
@@ -373,6 +374,15 @@ class ToolDispatcher:
     def _authorize(self, handler: Handler, ctx: CallContext, args: Args) -> None:
         s = self.services
         decision = s.access.check(ctx, handler.access(s, ctx, args))
+        if not decision.allowed and decision.reason == APP_DISABLED:
+            # Ứng dụng của chính tenant đang tắt: cổng này chạy TRƯỚC `access_denied` của IAM.
+            raise ToolError(
+                ErrorCode.CAPABILITY_UNAVAILABLE,
+                decision.message,
+                remediation="Tell the user the app is disabled; an admin re-enables it with a"
+                " proposal + approval (xt pack enable). The data is kept.",
+                details={"reason": APP_DISABLED, **dict(decision.details)},
+            )
         if not decision.allowed:
             remediation = None
             if decision.explain_ref is None:

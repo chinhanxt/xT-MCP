@@ -135,6 +135,16 @@ def test_iam_runs_first_for_every_tool(tool: str, world: World) -> None:
     assert world.operations.pending == {} and world.store.commits == []
 
 
+def test_app_disabled_gate_is_capability_unavailable_not_access_denied(
+    d: ToolDispatcher, world: World
+) -> None:
+    world.access.deny_tools["create_record"] = "app_disabled"
+    out = call(d, "create_record", dict(BY_NAME["create_record"].examples[0]))
+    assert code(out) == "capability_unavailable"
+    assert err(out)["details"]["reason"] == "app_disabled"
+    assert world.operations.pending == {} and world.store.commits == []
+
+
 def test_sod_denied_before_any_confirmation(d: ToolDispatcher, world: World) -> None:
     # Storyboard S2a: Việt bảo agent tự duyệt đơn của mình -> access_denied, không có link.
     out = call(

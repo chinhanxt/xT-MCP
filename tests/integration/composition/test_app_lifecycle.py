@@ -58,9 +58,9 @@ def inspect(w: Warehouse, key: str) -> dict[str, Any]:
     return dict(out["data"])
 
 
-def create_item(w: Warehouse) -> dict[str, Any]:
+def create_item(w: Warehouse, who: str = "NV-0001") -> dict[str, Any]:
     return w.tool(
-        "NV-0002",
+        who,
         "create_record",
         {
             "model_id": "stock_item",
@@ -84,10 +84,15 @@ def test_install_disable_enable_cycle(two: Any, pg: Any) -> None:
     assert not {m["id"] for m in after["models"]} & {"stock_item", "stock_request"}
     admin_view = {a["id"]: a["status"] for a in inspect(w, "NV-0001")["apps"]}
     assert admin_view["kho-hang"] == "disabled"
-    blocked = create_item(w)
-    assert not blocked["ok"]
-    assert blocked["error"]["code"] == "capability_unavailable"
-    assert blocked["error"]["details"]["reason"] == "app_disabled"
+    # NV-0001 qua IAM (có quyền tạo) và NV-0002 (nhân viên, IAM sẽ từ chối): cổng ứng dụng tắt
+    # chạy trước IAM nên cả hai cùng nhận capability_unavailable/app_disabled.
+    for who in ("NV-0001", "NV-0002"):
+        blocked = create_item(w, who)
+        assert not blocked["ok"]
+        assert blocked["error"]["code"] == "capability_unavailable", (who, blocked)
+        assert blocked["error"]["details"]["reason"] == "app_disabled"
+    # tenant khác không lộ: nhân viên không có quyền tạo vẫn access_denied
+    assert create_item(other, "NV-0002")["error"]["code"] == "access_denied"
     # admin (NV-0001) vẫn đọc qua get_record, dữ liệu còn; người thường bị chặn đọc
     ref = {"ref": f"stock_item:{item['id']}"}
     assert w.tool("NV-0001", "get_record", ref)["ok"]
