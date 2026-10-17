@@ -21,9 +21,8 @@ mkdir -p "$DIST"
 # 1. wheel
 uv build --wheel --out-dir "$DIST"   # sdist bỏ: trùng tên xt-<version>.tar.gz của git archive
 
-# 2. Tarball nguồn. Đề thi OLP2026 thuộc VFOSSA: không phát hành (xem docs/decisions.md).
-git archive --format=tar.gz --prefix="xt-$VERSION/" -o "$DIST/xt-$VERSION.tar.gz" "$REF" -- . \
-  ':(exclude)research/de_thi_OLP2026.pdf' ':(exclude)research/de_thi_OLP2026.txt'
+# 2. Tarball nguồn. .gitattributes tại REF loại đề thi, ảnh tham chiếu và thư mục sinh cục bộ.
+git archive --format=tar.gz --prefix="xt-$VERSION/" -o "$DIST/xt-$VERSION.tar.gz" "$REF" -- .
 
 # 3. SBOM Python (CycloneDX 1.6): môi trường runtime sạch (không nhóm dev) dựng từ uv.lock.
 SBOM_VENV="$(mktemp -d)"

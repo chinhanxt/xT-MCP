@@ -13,7 +13,7 @@ Ký hiệu: **[đã chạy]** = đã chạy thật ngày 16/10/2026 và có outp
 | Ubuntu | 24.04 LTS | | Máy phát triển: Linux 6.17 |
 | git, make, curl, openssl, python3 | git 2.43, GNU make 4.3, Python 3.12 (hệ thống) | | `python3` chạy script triển khai (chỉ stdlib); `openssl` sinh khóa ký |
 | uv | >= 0.11 (đã dùng 0.11.25) | MIT/Apache-2.0 | Tự tải Python >= 3.12 nếu thiếu (đã chạy Python 3.13) |
-| Node.js | 24 LTS qua nvm (đã dùng v24.14.1, CI dùng 24) | MIT | Chỉ cần để dịch/kiểm thử Desk |
+| Node.js | 24 LTS qua nvm (đã dùng v24.14.1, CI dùng 24) | MIT | Dịch/kiểm thử/chạy bản hợp nhất Desk, Studio và WareTrack 3D |
 | Docker Engine + Compose v2 | 29.1.3 | Apache-2.0 | Chỉ cần để chạy stack (`up-*`, `test-integration`). **Podman** (`podman compose`): [chưa kiểm chứng] |
 
 Cài công cụ (đã chạy phần `uv`/`nvm` trên máy phát triển; cài mới từ đầu: [chưa kiểm chứng] vì máy đã có sẵn):
@@ -32,10 +32,11 @@ Dung lượng: cần khoảng 3 GB đĩa trống cho ảnh Docker của profile 
 ## 2. Lấy mã nguồn
 
 ```sh
-git clone <URL-repo-công-khai> xT && cd xT      # hoặc: tar xzf xt-<version>.tar.gz && cd xt-<version>
+git clone https://github.com/chinhanxt/xT-MCP.git xT && cd xT
+# Hoặc: tar xzf xt-<version>.tar.gz && cd xt-<version>
 ```
 
-Bản phát hành `xt-<version>.tar.gz` kèm `SHA256SUMS` và SBOM CycloneDX: kiểm bằng `sha256sum -c SHA256SUMS`. Tarball tạo từ `git archive`, **không** chứa `node_modules`, `.venv` hay mã của dự án khác.
+Bản phát hành `xt-<version>.tar.gz` kèm `SHA256SUMS` và SBOM CycloneDX: kiểm bằng `sha256sum -c SHA256SUMS`. Tarball tạo từ `git archive`, không chứa `node_modules` hay `.venv`; nguồn tích hợp trong `imports/` giữ thông báo giấy phép riêng.
 
 ## 3. Cấu hình trước khi dịch
 
@@ -64,6 +65,10 @@ Sửa hostname xong chạy lại `make -C deploy render` (sinh `deploy/apisix/re
 | Target | Làm gì | Trạng thái |
 |---|---|---|
 | `make setup` | `uv sync`: tạo `.venv`, cài xt và công cụ dev theo `uv.lock` | [đã chạy] |
+| `make unified-setup` | `npm ci` theo lockfile của Studio, WareTrack 3D và Desk | Lệnh đối chiếu với `scripts/unified.mjs`; xem hướng dẫn bản hợp nhất bên dưới |
+| `make unified-build` | Build ba frontend, gộp Studio/WareTrack vào `desk/dist/` | Bằng chứng và giới hạn: [nhật ký thực thi](docs/plans/unified-execution.md) |
+| `make unified-test` | Test Studio, WareTrack 3D và Desk theo `npm test` của từng thành phần; không chạy backend/Playwright | Lệnh đối chiếu với `scripts/unified.mjs` và ba `package.json` |
+| `make unified-start` | Build lại theo runtime env rồi chạy lõi, Studio và portal local; không tạo hạ tầng/seed | Cần `XT_UNIFIED_ENV_FILE`; xem [unified-local.md](docs/unified-local.md) |
 | `make lint` | `ruff check`, `ruff format --check`, `mypy` (strict) | [đã chạy]: ruff xanh; mypy xanh khi mã nguồn nhất quán (lần chạy 16/10 báo 1 lỗi kiểu trong `src/` đang được sửa dở, không thuộc phần tài liệu/phát hành) |
 | `make boundaries` | `lint-imports`: ranh giới module/lớp | [đã chạy] 4 contract kept, 0 broken |
 | `make reuse` | `uv run reuse lint`: giấy phép từng tệp | [đã chạy] tuân thủ REUSE 3.3 (cả trong tarball phát hành: 948/948 tệp) |
@@ -94,6 +99,59 @@ cp desk/.env.example desk/.env   # chỉnh nếu cần, rồi:
 make desk-build
 make desk-test
 ```
+
+### Bản hợp nhất Desk, Studio và WareTrack 3D
+
+Sau `make setup`, dùng chuỗi lệnh chung thay cho các bước Desk riêng:
+
+```sh
+make unified-setup
+make unified-build
+make unified-test
+XT_UNIFIED_ENV_FILE="$HOME/.config/xt/unified.env" make unified-start
+```
+
+Ba bước setup/build/test không cần Docker. Bước start cần PostgreSQL/Keycloak đã provision và cấu hình runtime quyền 0600, có kết nối host hợp lệ; launcher không tạo tenant, không cấp quyền và không seed. Cổng mặc định: lõi `127.0.0.1:8010`, Studio `127.0.0.1:4327`, portal `http://localhost:5173` (Studio tại `/studio/`, WareTrack tại `/waretrack/`). Ctrl+C dừng các tiến trình launcher đã tạo; cổng bị chiếm làm launcher báo lỗi.
+
+Biến môi trường, redirect OIDC và giới hạn kiểm thử: [docs/unified-local.md](docs/unified-local.md). Sao lưu PostgreSQL/tệp/Studio kèm khóa, health check và truy vết lỗi: [docs/unified-ops.md](docs/unified-ops.md). [Sơ đồ kiến trúc hợp nhất](docs/diagrams/xt-unified-architecture.html); [kế hoạch G7](docs/plans/2026-10-17-unified-xt-studio-waretrack.md) và [tiến độ/bằng chứng](docs/plans/unified-execution.md).
+
+### Ứng dụng Tầng 3: cài, tắt, bật lại
+
+CLI quản trị dùng `XT_DB_MIGRATOR_URL` (role `xt_migrator`) và cấu hình khóa audit theo [Model Engine](docs/model-engine.md). Ví dụ tenant `acme` đã tồn tại, gói và các phụ thuộc đã được kiểm tra:
+
+```sh
+uv run xt pack install --tenant acme packages/kho-hang --proposed-by nguoi-de-xuat --approved-by nguoi-duyet
+uv run xt pack disable --tenant acme kho-hang --proposed-by nguoi-de-xuat --approved-by nguoi-duyet
+uv run xt pack enable --tenant acme kho-hang --proposed-by nguoi-de-xuat --approved-by nguoi-duyet
+```
+
+Mỗi dòng là bước **xem kế hoạch**, chưa áp; với từng thao tác, người duyệt kiểm kế hoạch/digest rồi chạy lại đúng lệnh đó, thêm `--confirm 'sha256:…'` bằng digest vừa in. Chỉ chuyển sang thao tác kế tiếp sau khi thao tác trước đã áp; enable chỉ dùng khi gói đang tắt. Người duyệt phải khác người đề xuất. CLI kiểm lại digest trước khi áp và ghi nhận hai người; đây là đường quản trị dùng credential migrator, không thay thế xác thực người duyệt qua Desk.
+
+Disable giữ dữ liệu, ẩn model và chặn ghi theo tenant; từ chối nếu còn gói đang bật phụ thuộc. Gói cài từ trước khi có metadata vòng đời cần cài lại trước khi tắt/bật. Không có lệnh gỡ/xóa dữ liệu trong luồng này.
+
+### Sau nâng cấp: PostgREST và checkpoint audit
+
+Sao lưu theo [unified-ops.md](docs/unified-ops.md) trước khi nâng cấp. Với database đã bootstrap, hoàn tất bước quản trị **trước khi mở lại `/data`**:
+
+```sh
+# Nạp XT_DATA_SUPERUSER_URL từ secret vào môi trường, không truyền DSN qua argv.
+# Cấu hình XT_PGRST_PASSWORD, XT_DATA_CLIENTS và XT_PGRST_ISSUER
+# (hoặc XT_DOMAIN_AUTH/XT_REALM) theo docs/headless-data.md.
+make -C deploy pgrst-db
+```
+
+Target gọi `deploy/scripts/configure_data.py`: cài audit, migration nền và cập nhật gate PostgREST bằng superuser, rồi cấu hình authenticator/issuer/allowlist client. `uv run xt db migrate` riêng chưa đủ: view mới trả 0 dòng khi gate cũ chưa có `disabled_models` (fail-closed). Không cấp credential superuser cho service PostgREST. Xem [docs/headless-data.md](docs/headless-data.md#cài-đặt).
+
+Sau nâng cấp hợp lệ, đối chiếu thay đổi catalog với migration đã duyệt trước khi tạo neo mới. Digest audit v2 chuẩn hóa catalog theo tên/ACL để ổn định sau restore; checkpoint v1 không so được digest hàm/catalog mới. `verify` vẫn kiểm chữ ký/chuỗi; nếu không có lỗi chuỗi, checkpoint cũ trả mã **2** và yêu cầu neo lại, không phải kết quả đạt. Mã 2 cũng dùng cho lỗi cấu hình/checkpoint (kể cả chữ ký), nên phải đọc thông báo và xử lý lỗi, không tự động neo lại chỉ vì mã thoát này. Lỗi chuỗi/catalog trả mã **1** phải được điều tra trước khi neo.
+
+```sh
+uv run xt audit verify --against-checkpoint latest
+# Sau khi xác minh thay đổi và tính toàn vẹn:
+uv run xt audit checkpoint --label after-upgrade-digest-v2
+uv run xt audit verify --against-checkpoint latest
+```
+
+Cần `XT_DB_APP_URL`, `XT_AUDIT_CHECKPOINT_DIR` ngoài PostgreSQL; bước ký cần `XT_AUDIT_SIGNING_KEY_FILE` và `XT_AUDIT_SIGNING_KEY_ID`, bước verify cần `XT_AUDIT_VERIFY_KEY_FILE`. Giữ checkpoint cũ làm bằng chứng; sao lưu thư mục checkpoint và khóa công khai riêng vì bản lưu thống nhất không gồm chúng. Chi tiết [Model Engine](docs/model-engine.md#7a-mô-hình-đe-dọa-của-xt_migrator-quyết-định-16102026-phòng-ngừa--phát-hiện).
 
 ### Ảnh cho test tích hợp
 
@@ -139,10 +197,10 @@ Số đo thật ngày 15/10/2026, Docker Engine 29.1.3, máy 15,6 GB RAM (`resea
 make release
 ```
 
-Tạo trong `dist/` (cần mạng cho `uvx`/`npx`, và `git` sạch; chỉ gồm nội dung đã commit):
+Không cần Docker. Script xóa và tạo lại `dist/`; cần mạng cho `uvx`/`npx`. Commit trước khi phát hành: tarball lấy `HEAD` đã commit, gồm cả quy tắc loại tệp trong `.gitattributes` của ref đó (thay đổi chưa commit không vào tarball). Tạo trong `dist/`:
 
 - `xt-<version>-py3-none-any.whl`
-- `xt-<version>.tar.gz`: `git archive` với tiền tố `xt-<version>/`. **Loại** `research/de_thi_OLP2026.pdf` và `.txt` (đề thi thuộc VFOSSA, xem `docs/decisions.md`).
+- `xt-<version>.tar.gz`: `git archive` với tiền tố `xt-<version>/`, có `LICENSE`, `README.md`, `CHANGELOG.md`, `NOTICE`. `.gitattributes` tại ref đã commit loại `.claude/worktrees`, `node_modules`, `dist`, `.venv` (kể cả thư mục lồng), `research/de_thi_OLP2026.*` (đề thi thuộc VFOSSA, xem `docs/decisions.md`) và `imports/waretrack-3d/docs/ref`.
 - `xt-<version>-python.cdx.json`: SBOM CycloneDX 1.6 của môi trường runtime Python (`cyclonedx-bom`, Apache-2.0), dựng sạch từ `uv.lock`, không nhóm dev.
 - `xt-<version>-desk.cdx.json`: SBOM CycloneDX 1.6 của phụ thuộc runtime Desk (`@cyclonedx/cyclonedx-npm`, Apache-2.0), đọc từ `package-lock.json`.
 - `SHA256SUMS`: băm của mọi tệp trên; script tự kiểm lại bằng `sha256sum -c`.
@@ -176,4 +234,4 @@ SBOM Python có 41 thành phần, SBOM Desk có 99. Phiên bản lấy từ `pyp
 | `make test-integration`: `thiếu image ...` / `image is missing` | Kéo ảnh ở mục "Ảnh cho test tích hợp" |
 | Podman | Thử `make -C deploy up-minimal DC="podman compose --env-file .env"`; [chưa kiểm chứng] |
 
-Báo lỗi cài đặt bằng GitHub Issues (mẫu **Báo lỗi**), kèm phiên bản và output lệnh.
+Báo lỗi cài đặt qua [GitHub Issues — chinhanxt/xT-MCP](https://github.com/chinhanxt/xT-MCP/issues) (mẫu **Báo lỗi**), kèm phiên bản và output lệnh đã loại bí mật.

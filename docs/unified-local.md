@@ -3,7 +3,7 @@
 
 # Chạy bản tích hợp xT, Studio và WareTrack trên máy phát triển
 
-Bản tích hợp dùng xT làm lõi, Studio cho AI và `imports/waretrack-3d` cho mô phỏng kho tại `/waretrack/`. Dữ liệu doanh nghiệp và quyền nghiệp vụ đi qua xT; module 3D hiện dùng dữ liệu giả lập.
+Bản tích hợp dùng xT làm lõi, Studio cho AI và `imports/waretrack-3d` tại `/waretrack/`. WareTrack có hai chế độ: **Mô phỏng** dùng dữ liệu minh họa trong trình duyệt; **Dữ liệu nghiệp vụ** chỉ đọc qua bridge của cổng xT khi được nhúng. Chưa có ánh xạ vị trí kho thực tế sang tọa độ 3D; dữ liệu nghiệp vụ hiển thị dạng danh sách. Thiếu bridge hoặc lỗi quyền được báo rõ, không thay bằng dữ liệu giả.
 
 ## Điều kiện
 
@@ -52,7 +52,7 @@ Public share và API key độc lập đang tắt trong chế độ tích hợp.
 ## Kiểm chứng và giới hạn
 
 - `make unified-build`: kiểm tra TypeScript của Studio/Desk, build cả ba frontend rồi gộp Studio/WareTrack 3D vào `desk/dist`.
-- `make unified-test`: test của Studio và Desk; WareTrack 3D chưa có test script nên kiểm tra production build và báo rõ giới hạn này. Test backend chạy riêng bằng `uv run pytest tests/unit --no-cov`.
+- `make unified-test`: chạy `npm test` của Studio, WareTrack 3D và Desk; không chạy Playwright hoặc backend. Test WareTrack bao phủ lớp dữ liệu, store, adapter và chuyển chế độ; chưa chứng minh cảnh 3D hoạt động trên trình duyệt. Test backend chạy riêng bằng `uv run pytest tests/unit --no-cov`.
 - `uv run pytest tests/integration/composition/test_warehouse.py -m integration --no-cov`: PostgreSQL thật, container fixture riêng, không dùng tenant thực. Chỉ chạy khi không có bài test stack nặng khác.
 - `uv run pytest tests/unit/http/test_studio_node.py --no-cov`: proxy Python gọi Node/SQLite thật, gồm danh tính tenant và callback công cụ; identity đầu vào là fixture, không thay thế nghiệm thu Keycloak thật.
 

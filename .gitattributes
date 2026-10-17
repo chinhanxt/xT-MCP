@@ -1,5 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-# Đề thi OLP2026 thuộc VFOSSA: không đưa vào tarball phát hành.
-research/de_thi_OLP2026.pdf export-ignore
-research/de_thi_OLP2026.txt export-ignore
+# Không phát hành đề thi, ảnh tham chiếu chưa rõ quyền hoặc thư mục sinh cục bộ.
+research/de_thi_OLP2026.* export-ignore
+imports/waretrack-3d/docs/ref export-ignore
+**/.claude/worktrees export-ignore
+node_modules export-ignore
+dist export-ignore
+.venv export-ignore
