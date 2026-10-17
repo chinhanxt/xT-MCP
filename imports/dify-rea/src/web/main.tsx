@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { FormEvent } from 'react';
@@ -281,7 +283,7 @@ function Studio() {
               </>
             )}
             {page === 'models' && <Models models={models} reload={reload} notify={setNotice} />}
-            {page === 'knowledge' && <KnowledgePage items={knowledge} models={models} reload={reload} notify={setNotice} />}
+            {page === 'knowledge' && <KnowledgePage items={knowledge} models={models} reload={reload} notify={setNotice} integrated={session.integrated} />}
             {page === 'mcp' && <McpConnectors items={connectors} reload={reload} notify={setNotice} />}
             {page === 'runs' && <Runs />}
           </div>

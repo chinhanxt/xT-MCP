@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import type { GenerationOptions, InputField } from '../contracts.ts';
 export function GenerationSettings({ value, onChange }: { value: GenerationOptions; onChange: (v: GenerationOptions) => void }) {
   return (

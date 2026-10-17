@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { useEffect, useState } from 'react';
 import { api } from './api.ts';
 import { Modal, ErrorBox } from './ui.tsx';

@@ -1,0 +1,8 @@
+{
+  "model": "tai_san",
+  "records": [
+    {"_key": "TS-0001", "code": "TS-0001", "name": "Máy phát điện dự phòng", "kind": "thiet-bi", "location": "Tầng hầm B1", "status": "hoat-dong"},
+    {"_key": "TS-0002", "code": "TS-0002", "name": "Máy lạnh phòng máy chủ", "kind": "thiet-bi", "location": "Tầng 3, phòng máy chủ", "status": "hoat-dong"},
+    {"_key": "TS-0003", "code": "TS-0003", "name": "Xe nâng hàng", "kind": "phuong-tien", "location": "Kho chính", "status": "bao-tri"}
+  ]
+}

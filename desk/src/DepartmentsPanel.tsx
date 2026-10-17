@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { McpConnection } from './mcp';
 import type { McpTool, ToolResult } from './types';
 import { readToolResult } from './portal-result';
+import { PortalAlert } from './PortalAlert';
+import { classifyError, type ErrorKind } from './portal-state';
 
 type Data = Record<string, unknown>;
 function obj(value: unknown): Data { return value && typeof value === 'object' && !Array.isArray(value) ? value as Data : {}; }
@@ -27,14 +29,14 @@ type Props = { mcp: McpConnection | null; tools: McpTool[] };
 
 export function DepartmentsPanel({ mcp, tools }: Props) {
   const [units, setUnits] = useState<Unit[] | null>(null), [active, setActive] = useState<Unit | null>(null);
-  const [members, setMembers] = useState<Data[] | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(false), [partial, setPartial] = useState(false);
+  const [members, setMembers] = useState<Data[] | null>(null), [error, setError] = useState(''), [kind, setKind] = useState<ErrorKind>('error'), [loading, setLoading] = useState(false), [partial, setPartial] = useState(false);
   const seq = useRef(0), live = useRef(true);
   const allowed = tools.some((tool) => tool.name === 'find_people');
 
   async function load(args: Data): Promise<{ people: Data[]; more: boolean } | null> {
-    if (!mcp || !allowed) { setError('Thiếu quyền: không có công cụ find_people.'); return null; }
+    if (!mcp || !allowed) { setError('Không có công cụ find_people.'); setKind('forbidden'); return null; }
     const mine = ++seq.current;
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setKind('error');
     try {
       const people: Data[] = [];
       let cursor = '';
@@ -47,7 +49,7 @@ export function DepartmentsPanel({ mcp, tools }: Props) {
       }
       return { people, more: !!cursor };
     } catch (e) {
-      if (live.current && mine === seq.current) setError((e as Error).message);
+      if (live.current && mine === seq.current) { setError((e as Error).message); setKind(classifyError(e)); }
       return null;
     } finally { if (live.current && mine === seq.current) setLoading(false); }
   }
@@ -73,6 +75,6 @@ export function DepartmentsPanel({ mcp, tools }: Props) {
     </div>}
     {partial && <p role="note">Danh bạ lớn: chỉ hiển thị {MAX_PAGES * 100} người đầu tiên nên danh sách và số lượng có thể chưa đầy đủ.</p>}
     {loading && <p role="status">Đang tải…</p>}
-    {error && <p role="alert" className="note portal-error" data-state="error">{error}</p>}
+    <PortalAlert text={error} kind={kind}/>
   </section>;
 }

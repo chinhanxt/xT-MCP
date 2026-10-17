@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 export function MessageContent({ content }: { content: string }) {

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { AppKind, Citation, Trace } from '../contracts.ts';

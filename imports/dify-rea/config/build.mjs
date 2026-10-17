@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { build } from 'esbuild';
 import { mkdir, copyFile } from 'node:fs/promises';
 await mkdir('dist', { recursive: true });

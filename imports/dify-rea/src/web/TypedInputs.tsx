@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import type { InputField } from '../contracts.ts';
 export function TypedInputs({
   fields,

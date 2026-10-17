@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import type { AuthHeaders, McpConnection } from './mcp';
 import type { ToolResult } from './types';
 
@@ -59,5 +60,38 @@ export function createPortalBridge(auth: AuthHeaders, mcp: McpConnection | null)
       return result;
     },
     invalidate() { active = false; for (const controller of controllers) controller.abort(); controllers.clear(); },
+  };
+}
+
+/** Quyền theo khung nhúng: mỗi khung chỉ nhận đúng phần cầu nối của nó. */
+export type FrameScope = 'studio' | 'waretrack';
+export interface StudioBridge { readonly scope: 'studio'; request: PortalBridge['request'] }
+export interface WareTrackBridge { readonly scope: 'waretrack'; callTool: PortalBridge['callTool'] }
+export interface PortalHost {
+  /** Khung nhúng gọi `parent.xtPortal.connect(window)`; chỉ nhận cầu nối của chính khung (khớp contentWindow của iframe có data-xt-scope). */
+  connect(win: Window): StudioBridge | WareTrackBridge | null;
+  invalidate(): void;
+}
+
+/**
+ * `window.xtPortal` không còn lộ `request`/`callTool` trực tiếp: WareTrack không với tới proxy Studio và Studio không gọi tool MCP.
+ * Giới hạn đã biết: các khung cùng origin có thể truy cập cửa sổ của nhau (`parent.frames[i]`) nên đây là kiểm soát năng lực
+ * chống dùng nhầm/sai phạm vi, không phải ranh giới chống mã độc cùng origin; cần origin khác hoặc MessageChannel cho mức đó.
+ */
+export function createPortalHost(bridge: PortalBridge, frames: () => Iterable<HTMLIFrameElement> = () => document.querySelectorAll<HTMLIFrameElement>('iframe[data-xt-scope]')): PortalHost {
+  let active = true;
+  return {
+    connect(win) {
+      if (!active || !win) return null;
+      for (const frame of frames()) {
+        if (frame.contentWindow !== win) continue;
+        const scope = frame.dataset.xtScope;
+        if (scope === 'studio') { const studio: StudioBridge = { scope, request: (path, init) => bridge.request(path, init) }; return Object.freeze(studio); }
+        if (scope === 'waretrack') { const ware: WareTrackBridge = { scope, callTool: (name, args) => bridge.callTool(name, args) }; return Object.freeze(ware); }
+        return null;
+      }
+      return null;
+    },
+    invalidate() { active = false; bridge.invalidate(); },
   };
 }

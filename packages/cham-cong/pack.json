@@ -1,0 +1,25 @@
+{
+  "format": "xt-pack/1",
+  "pack": "cham-cong",
+  "version": "0.1.0",
+  "title": "Chấm công dự án: nộp và duyệt bảng công tuần",
+  "depends_on": [],
+  "models": ["du_an", "bang_cong_tuan", "cham_cong"],
+  "processes": ["duyet_bang_cong"],
+  "policies": ["iam"],
+  "allowed_ops": {},
+  "bindings": {"bang_cong_tuan": {"primitive": "request", "process": "duyet_bang_cong", "state_field": "state", "inputs": {"total_hours_milli": {"field": "total_hours_milli"}}}},
+  "notes": {
+    "group": "thoi-gian-du-an",
+    "roles": {
+      "employee": "Chấm công và nộp bảng công tuần của chính mình; xem danh mục dự án",
+      "project_manager": "Quản lý dự án: tạo dự án, đọc mọi chấm công, duyệt bảng công tuần",
+      "director": "Đọc toàn bộ; duyệt bảng công tuần trên 60 giờ",
+      "admin": "Quản trị danh mục dự án",
+      "agent": "Danh tính agent: đọc, soạn nháp bảng công; không bao giờ duyệt",
+      "xt_workflow": "Danh tính dịch vụ duy nhất ghi trạng thái bảng công tuần"
+    },
+    "step_actions": {"*": "record.approve"},
+    "tenant_demo": "binhminh"
+  }
+}

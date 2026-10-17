@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 // SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -34,7 +35,8 @@ it('uses actual workspace model catalog, reports counts and renders an empty sea
     return result({items:[],next_cursor:null});
   });
   expect(container.querySelector('select')?.textContent).toBe('Tạm ứngTài liệu');
-  await click('Thống kê'); expect(container.textContent).toContain('count: 0');
+  await click('Xem báo cáo'); expect(container.textContent).toContain('Không có tạm ứng.');
+  expect(Array.from(container.querySelectorAll('button')).some(b=>b.textContent==='Thống kê')).toBe(false);
   await act(async()=>container.querySelector('form')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
   expect(container.textContent).toContain('Không có kết quả.');
   expect(container.textContent).not.toContain('undefined');

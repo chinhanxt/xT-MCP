@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import type { AppConfig, AppKind, Graph, Model, ToolName } from './contracts.ts';
 import { fieldDefinitions, generationInput } from './input-fields.ts';
 export class HttpError extends Error {

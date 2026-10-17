@@ -1,0 +1,24 @@
+{
+  "model": "khach_hang",
+  "records": [
+    {
+      "_key": "KH-0001",
+      "code": "KH-0001",
+      "name": "Khách hàng mẫu A",
+      "kind": "doanh-nghiep",
+      "status": "dang-cham-soc",
+      "account_owner": "@user:NV-0006",
+      "owner_id": "@user:NV-0006"
+    },
+    {"_key": "KH-0002", "code": "KH-0002", "name": "Khách hàng mẫu B", "kind": "ca-nhan", "status": "tiem-nang", "account_owner": "@user:NV-0007", "owner_id": "@user:NV-0007"},
+    {
+      "_key": "KH-0003",
+      "code": "KH-0003",
+      "name": "Khách hàng mẫu C",
+      "kind": "doanh-nghiep",
+      "status": "khach-hang",
+      "account_owner": "@user:NV-0006",
+      "owner_id": "@user:NV-0006"
+    }
+  ]
+}

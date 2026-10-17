@@ -43,7 +43,13 @@ PATH = re.compile(r"[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_-]+)*\Z")
 
 
 def assertion(
-    secret: bytes, caller: Caller, method: str, path: str, body: bytes, capability: str = ""
+    secret: bytes,
+    caller: Caller,
+    method: str,
+    path: str,
+    body: bytes,
+    capability: str = "",
+    request_id: str = "",
 ) -> dict[str, str]:
     payload = {
         "v": 1,
@@ -58,6 +64,7 @@ def assertion(
         "iat": int(time.time()),
         "nonce": str(uuid.uuid4()),
         "capability": capability,
+        "request_id": request_id,
     }
     encoded = base64.urlsafe_b64encode(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
@@ -96,6 +103,14 @@ class StudioProxy:
         self.slots = anyio.Semaphore(4)
 
     async def endpoint(self, request: Request) -> Response:
+        # Generated here, never taken from the browser, so logs on both sides correlate.
+        request_id = uuid.uuid4().hex
+        request.state.request_id = request_id
+        response = await self._relay(request, request_id)
+        response.headers["x-request-id"] = request_id
+        return response
+
+    async def _relay(self, request: Request, request_id: str) -> Response:
         try:
             caller = await anyio.to_thread.run_sync(self.authorize, request)
         except (IdentityError, CallerError, PermissionError):
@@ -136,7 +151,7 @@ class StudioProxy:
         )
         try:
             headers = assertion(
-                self.secret, caller, request.method, target, bytes(body), capability
+                self.secret, caller, request.method, target, bytes(body), capability, request_id
             )
             if media:
                 headers["content-type"] = media
@@ -236,12 +251,12 @@ def with_studio(prepared: Any, env: Mapping[str, str], app: Starlette) -> Starle
         request.state.studio_context = CallContext(
             actor=Actor.from_principal(principal, principal.tenant),
             client_class=ClientClass.CLOUD,
-            trace_id=uuid.uuid4().hex,
+            trace_id=request.state.request_id,
             now=datetime.now(UTC),
             ensure_active=active,
         )
         return prepared.services.runtime.resolve(  # type: ignore[no-any-return]
-            Actor.from_principal(principal, principal.tenant), uuid.uuid4().hex
+            Actor.from_principal(principal, principal.tenant), request.state.request_id
         )
 
     client = httpx.AsyncClient(

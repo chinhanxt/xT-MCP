@@ -23,14 +23,15 @@ const PAGE_LIMIT = 100
 export const NOT_CONNECTED_MESSAGE = 'Chưa kết nối với cổng xT. Mở WareTrack từ cổng xT để xem dữ liệu nghiệp vụ.'
 
 /**
- * Cầu nối do cổng xT (cửa sổ cha, cùng origin) cung cấp. Chỉ khi nhúng với `?integrated=1`.
- * Trả null nếu không nhúng hoặc không truy cập được.
+ * Cầu nối do cổng xT (cửa sổ cha, cùng origin) cung cấp qua `parent.xtPortal.connect(window)`; cổng chỉ trao
+ * phần chỉ-đọc `callTool` cho khung WareTrack. Chỉ khi nhúng với `?integrated=1`.
+ * Trả null nếu không nhúng, cổng chưa sẵn sàng/đã vô hiệu hoặc không truy cập được.
  */
 export function resolvePortalBridge(win = globalThis.window) {
   try {
     if (!win || win.parent === win) return null
     if (new URLSearchParams(win.location.search).get('integrated') !== '1') return null
-    return win.parent.xtPortal ?? null
+    return win.parent.xtPortal?.connect?.(win) ?? null
   } catch {
     return null
   }

@@ -56,4 +56,6 @@ Public share và API key độc lập đang tắt trong chế độ tích hợp.
 - `uv run pytest tests/integration/composition/test_warehouse.py -m integration --no-cov`: PostgreSQL thật, container fixture riêng, không dùng tenant thực. Chỉ chạy khi không có bài test stack nặng khác.
 - `uv run pytest tests/unit/http/test_studio_node.py --no-cov`: proxy Python gọi Node/SQLite thật, gồm danh tính tenant và callback công cụ; identity đầu vào là fixture, không thay thế nghiệm thu Keycloak thật.
 
+Sao lưu/khôi phục, health check và truy vết lỗi theo `trace_id`: [unified-ops.md](unified-ops.md). Ma trận quyền: [unified-role-matrix.md](unified-role-matrix.md).
+
 Tiến độ đầy đủ, bằng chứng và các mục chưa đạt nằm trong [nhật ký thực thi](plans/unified-execution.md). Build/test với fixture không phải bằng chứng đã cập nhật server public hoặc đã nghiệm thu ChatGPT live cho bản hợp nhất.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { body, type RouteContext } from './http.ts';
 import { connector, connectorInput, discoverTools } from './mcp.ts';
 import { HttpError } from './validation.ts';

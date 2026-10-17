@@ -1,0 +1,35 @@
+{
+  "id": "ts_tai_san",
+  "name": "tai_san",
+  "label": "Tài sản",
+  "title_field": "code",
+  "fields": [
+    {"id": "f1", "name": "code", "type": "text", "label": "Mã tài sản", "pii": "none", "required": true, "unique": true, "min": 1, "max": 40},
+    {"id": "f2", "name": "name", "type": "text", "label": "Tên tài sản", "pii": "none", "required": true, "min": 1, "max": 200},
+    {"id": "f3", "name": "kind", "type": "text", "label": "Loại tài sản", "pii": "none", "max": 100},
+    {"id": "f4", "name": "location", "type": "text", "label": "Vị trí", "pii": "none", "max": 200},
+    {
+      "id": "f5",
+      "name": "status",
+      "type": "enum",
+      "label": "Tình trạng",
+      "pii": "none",
+      "required": true,
+      "default": "hoat-dong",
+      "options": [
+        {"value": "hoat-dong", "label": "Hoạt động"},
+        {"value": "bao-tri", "label": "Đang bảo trì"},
+        {"value": "ngung-su-dung", "label": "Ngừng sử dụng"},
+        {"value": "thanh-ly", "label": "Đã thanh lý"}
+      ]
+    }
+  ],
+  "permissions": {
+    "employee": {"actions": ["read"], "scope": "all"},
+    "technician": {"actions": ["read"], "scope": "all"},
+    "facility_manager": {"actions": ["create", "read", "update"], "scope": "all"},
+    "director": {"actions": ["read"], "scope": "all"},
+    "admin": {"actions": ["create", "read", "update"], "scope": "all"},
+    "agent": {"actions": ["read"], "scope": "all"}
+  }
+}
