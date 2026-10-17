@@ -17,6 +17,9 @@ Một bản lưu là một tệp tar 0600 gồm các thành phần (chọn bằn
 checksum cả tệp. Khôi phục kiểm checksum, giải nén vào thư mục tạm, kiểm lại từng tệp rồi
 mới ghi vào đích; đích không rỗng bị từ chối nếu thiếu ``--force``.
 
+Role của cụm (xt_app, xt_migrator, ...) không nằm trong dump: phải tồn tại trước khi restore
+(pg_restore giữ owner/ACL, không dùng --no-owner).
+
 Bản lưu chứa bí mật (khóa Studio, ``xt_audit.pepper`` trong dump): giữ quyền 0600, lưu ngoài repo.
 """
 
@@ -363,7 +366,6 @@ def restore(
             dbname = pg_env(os.environ.get(pg_url_env, ""))["PGDATABASE"]
             argv = [
                 _tool("pg_restore", pg_restore),
-                "--no-owner",
                 "--exit-on-error",
                 "--no-password",
                 "--dbname",
