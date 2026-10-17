@@ -18,6 +18,12 @@ from tests.integration.composition.fixtures import (  # noqa: F401  (fixture phi
     tenants,
     worker,
 )
+from tests.integration.composition.shared_tenants import (  # noqa: F401 (shared fixtures)
+    ops,
+    other_warehouse,
+    stock,
+    warehouse,
+)
 from tests.integration.keycloak import Admin, Realm, start_container, stop_container
 
 

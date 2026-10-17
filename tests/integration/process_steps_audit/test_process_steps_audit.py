@@ -36,7 +36,7 @@ from tests.integration.composition import pgfixture
 from tests.integration.composition.fixtures import PACK, ROOT, StackBase, run_admin
 from tests.integration.composition.idp import DESK_CLIENT, LocalIdp
 from tests.integration.composition.mcphttp import RunningApp, free_port, serve
-from tests.integration.composition.test_pack_ops import DEPTS, PEOPLE, Ops
+from tests.integration.composition.shared_tenants import DEPTS, PEOPLE, Ops
 from xt.adapters.db.integration import connect, tenant_of_alias
 from xt.application.tools import Actor
 from xt.domain.identity import PrincipalKind
@@ -54,7 +54,7 @@ FAR = "2099-12-31T17:00:00+07:00"
 
 
 class Aud(Ops):
-    """`Ops` của test_pack_ops nhưng mọi đường (kể cả `caller`) theo đúng alias tenant."""
+    """`Ops` dùng chung nhưng mọi đường (kể cả `caller`) theo đúng alias tenant."""
 
     def caller(self, key: str) -> tuple[Caller, Actor]:
         actor = Actor(self.alias, self.sub(key), PrincipalKind.HUMAN, DESK_CLIENT, None)

@@ -45,7 +45,7 @@ from tests.integration.composition.fixtures import (
 )
 from tests.integration.composition.idp import AGENT_CLIENT, DESK_CLIENT, LocalIdp
 from tests.integration.composition.mcphttp import RunningApp, envelope, free_port, serve
-from tests.integration.composition.test_pack_ops import DEPTS, PEOPLE
+from tests.integration.composition.shared_tenants import DEPTS, PEOPLE
 from tests.unit.identity.dpop_client import DpopKey
 from xt.adapters.db.integration import connect, person_id, tenant_of_alias
 from xt.application.tools import Actor, ClientClass, ConfirmationService

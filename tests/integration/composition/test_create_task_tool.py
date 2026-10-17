@@ -8,10 +8,9 @@ import uuid
 
 import pytest
 
-from tests.integration.composition.test_pack_ops import Ops
+from tests.integration.composition.shared_tenants import Ops
 
 pytestmark = pytest.mark.integration
-pytest_plugins = ("tests.integration.composition.test_pack_ops",)
 
 
 def test_create_task_uses_pack_binding_and_policy(ops: Ops) -> None:
