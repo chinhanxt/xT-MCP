@@ -191,6 +191,11 @@ class ToolAccessGuard:
 
     def check(self, ctx: CallContext, check: AccessCheck) -> AccessDecision:
         caller = self.rt.caller(ctx)
+        if check.resource and check.resource.startswith("explain:"):
+            query = self.rt.lineage.get(caller.actor, ctx.actor.key, check.resource[8:], ctx.now)
+            if query is None:
+                raise not_found(check.resource)
+            check = AccessCheck(check.tool, check.action, None, {"model_id": query["model_id"]})
         ev = self._evaluator(caller)
         if ev is None:
             return AccessDecision(

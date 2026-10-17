@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -15,19 +16,23 @@ from jsonschema import Draft202012Validator
 from tests.unit.model.support import catalog
 from tests.unit.model.test_aggregate_engine import (
     AS_OF,
-    Repo,
     actor,
     movement,
-    service,
     warehouse_ref,
 )
+from tests.unit.model.test_aggregate_engine import (
+    Repo as _Repo,
+)
 from xt.application.model_engine.ports import AggregateQuery, DisabledApps
+from xt.application.model_engine.service import RecordService
 from xt.application.tools.context import Actor, CallContext, ClientClass
 from xt.application.tools.errors import ToolError
 from xt.contracts.tools.catalog import BY_NAME
 from xt.domain.identity import PrincipalKind
 from xt.entrypoints.composition.aggregate import period_bounds
 from xt.entrypoints.composition.records import RecordServiceAdapter
+
+Repo: Any = _Repo
 
 
 @pytest.mark.parametrize(
@@ -39,23 +44,27 @@ from xt.entrypoints.composition.records import RecordServiceAdapter
         ("2026-02-01..2026-02-28", (date(2026, 2, 1), date(2026, 3, 1))),
     ],
 )
-def test_period_bounds_are_half_open(period, bounds):
+def test_period_bounds_are_half_open(period: str, bounds: tuple[date, date]) -> None:
     assert period_bounds(period) == bounds
 
 
-def adapter(repo):
+def adapter(repo: Any) -> tuple[Any, CallContext]:
     ma = actor()
-    rt = SimpleNamespace(
+    saves: list[Any] = []
+    rt: Any = SimpleNamespace(
         caller=lambda ctx: SimpleNamespace(
-            actor=ma, profile=SimpleNamespace(timezone="Asia/Ho_Chi_Minh")
+            actor=ma,
+            person=SimpleNamespace(id=ma.actor_id),
+            profile=SimpleNamespace(timezone="Asia/Ho_Chi_Minh"),
         ),
+        lineage=SimpleNamespace(save=lambda *args: saves.append(args), saves=saves),
         catalogs=SimpleNamespace(
             current=lambda a: (3, catalog(warehouse_ref(), movement())),
             disabled=lambda a: DisabledApps(),
         ),
         repo=repo,
     )
-    rt.records = service(repo)
+    rt.records = RecordService(rt.catalogs, repo)
     ctx = CallContext(
         Actor("t1", "sub", PrincipalKind.HUMAN, "desk", None),
         ClientClass.HUMAN,
@@ -65,7 +74,7 @@ def adapter(repo):
     return RecordServiceAdapter(rt, cursor_key=b"k" * 32), ctx
 
 
-def test_tool_output_rows_totals_refs_and_as_of():
+def test_tool_output_rows_totals_refs_and_as_of() -> None:
     w1, w2 = uuid4(), uuid4()
     repo = Repo(
         [
@@ -108,7 +117,7 @@ def test_tool_output_rows_totals_refs_and_as_of():
     assert {"field": "tier", "op": "=", "value": "gold"} in where["and"]
 
 
-def test_tool_paginates_groups_and_bounds_datetime_period_in_tenant_time():
+def test_tool_paginates_groups_and_bounds_datetime_period_in_tenant_time() -> None:
     repo = Repo([((t,), 1, ()) for t in ("a", "b", "c")])
     a, ctx = adapter(repo)
     args = {"model_id": "customer", "group_by": ["tier"], "limit": 2, "period": "2026"}
@@ -126,7 +135,90 @@ def test_tool_paginates_groups_and_bounds_datetime_period_in_tenant_time():
     "bad",
     [{"metric": "advance_total"}, {"metrics": ["avg:credit"]}, {"sort": "nope"}],
 )
-def test_tool_rejects_unsupported_requests(bad):
+def test_tool_rejects_unsupported_requests(bad: Any) -> None:
     a, ctx = adapter(Repo())
     with pytest.raises(ToolError):
         a.aggregate(ctx, {"model_id": "customer", **bad})
+
+
+def test_lineage_persists_caller_bound_query_with_replayable_refs() -> None:
+    a, ctx = adapter(Repo())
+    warehouse = f"warehouse:{uuid4()}"
+    a.aggregate(
+        ctx,
+        {
+            "model_id": "customer",
+            "group_by": ["warehouse"],
+            "where": {"warehouse": warehouse, "owner": "me"},
+        },
+    )
+    saved_actor, key, trace, query = a.rt.lineage.saves[0]
+    where = {"warehouse": warehouse, "owner": f"person:{saved_actor.actor_id}"}
+    assert (key, trace) == (ctx.actor.key, ctx.trace_id)
+    assert query == {
+        "model_id": "customer",
+        "model_revision": 3,
+        "where": where,
+        "group_by": ["warehouse"],
+        "metrics": ["count"],
+        "date_field": "created_at",
+        "time_bucket": None,
+        "timezone": "Asia/Ho_Chi_Minh",
+        "as_of": "2026-11-30T03:00:00Z",
+        "search_records": {"model_id": "customer", "where": where},
+    }
+
+
+@pytest.mark.parametrize(
+    "where", [{"email": "secret@example.test"}, {"email": {"contains": "secret"}}]
+)
+def test_lineage_rejects_pii_filters_before_querying_or_persisting(where: Any) -> None:
+    repo = Repo()
+    a, ctx = adapter(repo)
+    with pytest.raises(ToolError) as exc:
+        a.aggregate(ctx, {"model_id": "customer", "where": where})
+    assert exc.value.code == "invalid_request"
+    assert repo.calls == [] and a.rt.lineage.saves == []
+    assert "secret" not in exc.value.message
+
+
+@pytest.mark.parametrize(
+    ("field", "original", "expected"),
+    [
+        (
+            "occurred_on",
+            {"gte": "2026-11-15", "lt": "2026-12-15"},
+            {"gte": "2026-11-15", "lt": "2026-12-01"},
+        ),
+        (
+            "created_at",
+            {"gte": "2026-10-31T18:00:00Z"},
+            {"gte": "2026-10-31T18:00:00Z", "lt": "2026-12-01T00:00:00+07:00"},
+        ),
+    ],
+)
+def test_lineage_period_intersects_existing_bounds_in_tenant_timezone(
+    field: str, original: Any, expected: Any
+) -> None:
+    a, ctx = adapter(Repo())
+    a.aggregate(
+        ctx,
+        {
+            "model_id": "customer",
+            "period": "2026-11",
+            "date_field": field,
+            "where": {field: original},
+        },
+    )
+    query = a.rt.lineage.saves[0][3]
+    assert query["where"] == {field: expected}
+    assert query["search_records"] == {"model_id": "customer", "where": {field: expected}}
+
+
+def test_lineage_ref_in_filter_can_be_replayed() -> None:
+    a, ctx = adapter(Repo())
+    original = {"model_id": "customer", "where": {"warehouse": {"in": [str(uuid4())]}}}
+    a.aggregate(ctx, original)
+    replay = a.rt.lineage.saves[0][3]["search_records"]
+    a.aggregate(ctx, replay)
+    assert replay == original

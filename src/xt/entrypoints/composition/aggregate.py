@@ -69,6 +69,16 @@ def _number(v: Any) -> str:
     return format(Decimal(str(v)).normalize(), "f") if v is not None else "0"
 
 
+def check_lineage_fields(model: Any, where: Args, group_by: Any, metrics: Any) -> None:
+    """Do not retain/echo personal filters; recheck classification when opening a trace."""
+    fields = with_system_fields(model)
+    used = {*where, *group_by, *(m.split(":", 1)[1] for m in metrics if ":" in m)}
+    if any(name in fields and fields[name].pii != "none" for name in used):
+        raise invalid_request(
+            "Aggregate lineage requires non-PII fields and filters.", "validation"
+        )
+
+
 def aggregate_records(adapter: RecordServiceAdapter, ctx: CallContext, args: Args) -> Data:
     if "workspace" in args:
         unavailable("workspace-scoped aggregate")
@@ -82,6 +92,10 @@ def aggregate_records(adapter: RecordServiceAdapter, ctx: CallContext, args: Arg
     names, sums = _metrics(args)
     tz = caller.profile.timezone
     date_field = str(args.get("date_field", "created_at"))
+    used = [*args.get("group_by", ())]
+    if args.get("period") or args.get("time_bucket"):
+        used.append(date_field)
+    check_lineage_fields(model, args.get("where", {}), used, names)
     where = adapter._where(caller, ctx, model, args)
     if args.get("period"):
         lo, hi = period_bounds(str(args["period"]))
@@ -108,6 +122,31 @@ def aggregate_records(adapter: RecordServiceAdapter, ctx: CallContext, args: Arg
         if v is None or f is None or f.type not in ("ref", "user"):
             return v
         return f"{f.ref}:{v}" if f.type == "ref" else f"person:{v}"
+
+    # Convert the validated engine conjunction back to the public search filter syntax.
+    replay: Data = {}
+    ops = {v: k for k, v in adapter._OPS.items()}
+    for clause in (where or {}).get("and", []):
+        field, op = clause["field"], clause["op"]
+        name = "owner" if field == "owner_id" else field
+        raw = clause.get("value")
+        value: Any = raw if isinstance(raw, list) else key_value(field, raw)
+        if op in ("is_null", "not_null"):
+            replay.setdefault(name, {})["is_null"] = op == "is_null"
+        elif op == "=":
+            replay.setdefault(name, {})["eq"] = value
+        else:
+            public_op = ops[op]
+            previous = replay.setdefault(name, {}).get(public_op)
+            if previous is not None and op in (">", ">=", "<", "<="):
+                spec = fields[field]
+                parse = datetime.fromisoformat if spec.type == "datetime" else date.fromisoformat
+                choose_new = parse(value) > parse(previous)
+                if op in ("<", "<="):
+                    choose_new = not choose_new
+                value = value if choose_new else previous
+            replay[name][public_op] = value
+    replay = {k: v["eq"] if set(v) == {"eq"} else v for k, v in replay.items()}
 
     rows: list[Data] = []
     totals: dict[str, Any] = {"count": 0, **{f"sum:{f}": Decimal(0) for f in sums}}
@@ -140,6 +179,23 @@ def aggregate_records(adapter: RecordServiceAdapter, ctx: CallContext, args: Arg
     nxt = offset + limit
     total_values = {n: totals[n] if n == "count" else _number(totals[n]) for n in names}
     filters = {k: args[k] for k in ("where", "period", "group_by", "time_bucket") if k in args}
+    adapter.rt.lineage.save(
+        caller.actor,
+        ctx.actor.key,
+        ctx.trace_id,
+        {
+            "model_id": model.name,
+            "model_revision": version,
+            "where": replay,
+            "group_by": list(group_by),
+            "metrics": names,
+            "date_field": date_field,
+            "time_bucket": args.get("time_bucket"),
+            "timezone": tz,
+            "as_of": iso(out["as_of"]),
+            "search_records": {"model_id": model.name, "where": replay},
+        },
+    )
     return {
         "model_id": model.name,
         "model_revision": version,

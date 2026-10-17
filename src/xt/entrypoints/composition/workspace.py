@@ -11,10 +11,12 @@ from xt.adapters.db.workflow_bridge import PgWorkflowStore
 from xt.application.model_engine.service import APP_ADMIN_ROLE
 from xt.application.tools.context import CallContext, iso
 from xt.application.tools.dispatcher import GATED_CAPABILITIES, ToolSettings
-from xt.application.tools.ports import Args, CommitResult, Data, MutationPlan
+from xt.application.tools.errors import access_denied, not_found
+from xt.application.tools.ports import AccessCheck, Args, CommitResult, Data, MutationPlan
 from xt.contracts.tools import CATALOG
 from xt.entrypoints.composition.pii import effective_mode
 from xt.entrypoints.composition.runtime import Caller, Runtime
+from xt.entrypoints.composition.security import ToolAccessGuard
 from xt.entrypoints.composition.util import engine_call, parse_record_ref, signed_page, unavailable
 
 _OP_ACTION = {"INSERT": "created", "UPDATE": "updated", "DELETE": "deleted"}
@@ -158,7 +160,7 @@ class History:
 
     def get_history(self, ctx: CallContext, args: Args) -> Data | None:
         if str(args["ref"]).startswith("explain:"):
-            unavailable("get_history view=explain")
+            return self._explain(ctx, args)
         caller = self.rt.caller(ctx)
         view = str(args.get("view", "timeline"))
         if view == "explain":
@@ -219,6 +221,46 @@ class History:
             status = self.rt.audit.verify(caller.actor)
             out["chain_verified"] = status.intact
         return out
+
+    def _explain(self, ctx: CallContext, args: Args) -> Data:
+        from xt.entrypoints.composition.aggregate import check_lineage_fields
+        from xt.entrypoints.composition.records import RecordServiceAdapter
+
+        caller = self.rt.caller(ctx)
+        query = self.rt.lineage.get(caller.actor, ctx.actor.key, args["ref"][8:], ctx.now)
+        if query is None:
+            raise not_found(args["ref"])
+        decision = ToolAccessGuard(self.rt).check(
+            ctx, AccessCheck("get_history", "record.read", None, {"model_id": query["model_id"]})
+        )
+        if not decision.allowed:
+            raise access_denied(decision.message, decision.reason, None)
+        adapter = RecordServiceAdapter(self.rt, cursor_key=self.cursor_key)
+        _, model = adapter._model(caller.actor, query["model_id"])
+        used = [*query["group_by"], *([query["date_field"]] if query["time_bucket"] else [])]
+        check_lineage_fields(model, query["where"], used, query["metrics"])
+        where = adapter._where(caller, ctx, model, query["search_records"])
+        # Revalidate current model read permission, disabled apps, typed filters and RLS.
+        engine_call(lambda: self.rt.records.search(caller.actor, model.name, where, limit=1))
+        return {
+            "subject": {"ref": args["ref"]},
+            "view": "explain",
+            "next_cursor": None,
+            "explanation": {
+                "outcome": "ok",
+                "query": {**query, "replay": "current_data", "historical_snapshot": False},
+                "reasons": [
+                    {
+                        "source": "aggregate",
+                        "message": (
+                            "Replay query.search_records with a group's key filters and paginate. "
+                            "Results use current permissions and data; as_of identifies "
+                            "the aggregate, not a historical record snapshot."
+                        ),
+                    }
+                ],
+            },
+        }
 
 
 class Files:

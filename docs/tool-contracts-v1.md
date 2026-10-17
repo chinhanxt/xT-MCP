@@ -2757,6 +2757,20 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 - Kích thước: input 859 B, data 1617 B, outputSchema (envelope) 2684 B.
 - Ghi chú: `view=audit` cần `audit.read`; `explain` nhận `explain_ref`/`lineage_ref` từ lỗi hoặc aggregate.
 
+`aggregate_records` lineage được giữ 24 giờ, theo tenant và đúng actor (kind/client/subject/behalf)
+đã gọi, hoặc admin cùng tenant; luôn kiểm lại IAM `record.read`, quyền đọc model và RLS hiện tại.
+Trace lạ, khác tenant/actor hoặc hết hạn trả `not_found`. Không lưu hàng dữ liệu hay giá trị lọc PII;
+aggregate dùng bộ lọc PII bị từ chối. Khi mở trace, phân loại PII hiện tại cũng được kiểm lại.
+`explanation.query` chứa `model_id`, `model_revision`, `where`, `group_by`, `metrics`, `date_field`,
+`time_bucket`, `timezone`, `as_of`, `replay: "current_data"`, `historical_snapshot: false` và `search_records: {model_id, where}` có thể chạy trực tiếp.
+`where` đã cố định `owner=me` và giao khoảng `period` theo múi giờ tenant với bộ lọc gốc.
+Input chưa có group key: client thêm các giá trị khóa nhóm vào `query.search_records.where`,
+rồi gọi `search_records` với `limit`/`cursor` để lấy từng trang ref nguồn. Với time bucket, thêm
+khoảng ngày/giờ tương ứng vào `date_field`. Đây là phát lại trên dữ liệu/quyền **hiện tại**;
+`as_of` là thời điểm tổng hợp, không cam kết snapshot lịch sử nếu bản ghi đã sửa/xóa/thêm.
+Vì vậy explain trả định nghĩa query, `next_cursor: null`, không gắn nhãn ref hiện tại là nguồn
+lịch sử. Chưa hiện thực giải thích trace từ lỗi từ chối; trace không được lưu trả `not_found`.
+
 ```json
 {
   "name": "get_history",
