@@ -42,7 +42,7 @@ def test_access_grant_roles_on_pg(stack_base: StackBase, pg: pgfixture.Pg) -> No
     rt = Runtime(app_db=db, migrator_dsn=None)
     svc = RoleGrantService(rt.store)
     ref = f"access_grant:{uuid.uuid4()}"
-    grant = AccessGrant(ref, "keycloak", "employee", new, hr, revoked=False)
+    grant = AccessGrant(ref, "keycloak", "employee", new, hr, revoked=False, creator=hr)
     as_it, look = ModelActor(ta, it, ("xt_workflow",)), Runtime.lookup_actor(ta)
     try:
         # áp + đọc lại (Runtime.resolve dùng person_by_subject mỗi lời gọi)
@@ -57,7 +57,7 @@ def test_access_grant_roles_on_pg(stack_base: StackBase, pg: pgfixture.Pg) -> No
             svc.apply(ModelActor(ta, hr, ()), grant, allowed=ALLOWED)
         with pytest.raises(RoleGrantRejected):
             svc.apply(
-                as_it, AccessGrant(ref, "keycloak", "xt_admin", new, hr, False), allowed=ALLOWED
+                as_it, AccessGrant(ref, "keycloak", "xt_admin", new, hr, False, hr), allowed=ALLOWED
             )
         with pytest.raises(psycopg.errors.CheckViolation):
             rt.store.apply_role_grant(as_it, f"access_grant:{uuid.uuid4()}", it, "hr", hr, it)
@@ -72,7 +72,7 @@ def test_access_grant_roles_on_pg(stack_base: StackBase, pg: pgfixture.Pg) -> No
         assert p is not None and "employee" in p.roles
 
         # thu hồi: lần đọc kế tiếp không còn vai trò; thu hồi lặp lại idempotent
-        assert svc.apply(as_it, AccessGrant(ref, "keycloak", "employee", new, hr, True),
+        assert svc.apply(as_it, AccessGrant(ref, "keycloak", "employee", new, hr, True, hr),
                          allowed=ALLOWED) == "revoked"  # fmt: skip
         p = rt.store.person(look, new)
         assert p is not None and p.roles == ()

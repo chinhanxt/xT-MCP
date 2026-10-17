@@ -6,7 +6,8 @@
   được cấp/người duyệt không thuộc tenant -> từ chối.
 - Allow-list vai trò: cấu hình của tenant (tham số op trong định nghĩa quy trình đã duyệt), không
   cài cứng; vai trò ngoài danh sách (vd `xt_admin`) -> từ chối.
-- SoD: người duyệt khác người đề nghị và khác người được cấp; không biết người đề nghị -> từ chối.
+- SoD: người duyệt khác người đề nghị, khác người được cấp và khác người tạo bản ghi `access_grant`
+  (người chọn vai trò); không biết người đề nghị hoặc người tạo -> từ chối.
 - Idempotent theo khóa `ref` (bản ghi nguồn): áp lại không đổi gì; `revoked` -> gỡ ràng buộc.
 - Audit: bảng `xt_meta.person_role_grant` nằm trong hash-chain audit của tenant (migration 0017).
 """
@@ -40,6 +41,7 @@ class AccessGrant:
     grantee: UUID  # person id
     requester: UUID | None
     revoked: bool
+    creator: UUID | None  # người tạo bản ghi nguồn (created_by)
 
 
 class RoleGrantStore(Protocol):
@@ -80,9 +82,15 @@ class RoleGrantService:
             raise RoleGrantRejected(
                 "role_not_allowed", f"vai trò {grant.role!r} không nằm trong danh sách được cấp"
             )
-        if grant.requester is None or approver in (grant.requester, grant.grantee):
+        if (
+            grant.requester is None
+            or grant.creator is None
+            or approver in (grant.requester, grant.grantee, grant.creator)
+        ):
             raise RoleGrantRejected(
-                "self_approval", "người duyệt phải khác người đề nghị và người được cấp quyền"
+                "self_approval",
+                "người duyệt phải khác người đề nghị, người được cấp quyền và người tạo bản ghi cấp"
+                " quyền",
             )
         for pid in (approver, grant.grantee, grant.requester):
             if not self.store.person_active(actor, pid):

@@ -61,7 +61,7 @@ def _actor(tenant: TenantRef = T_A, who: UUID = IT) -> ModelActor:
 def _grant(role: str = "employee", **kw: object) -> AccessGrant:
     base: dict[str, object] = {
         "ref": "access_grant:1", "system": "keycloak", "role": role, "grantee": NEW,
-        "requester": HR, "revoked": False,
+        "requester": HR, "revoked": False, "creator": HR,
     }  # fmt: skip
     base.update(kw)
     return AccessGrant(**base)  # type: ignore[arg-type]
@@ -104,15 +104,17 @@ def test_revoke_hook_direct(store: FakeStore) -> None:
 
 
 @pytest.mark.parametrize(
-    ("approver", "requester", "grantee"),
-    [(HR, HR, NEW), (NEW, HR, NEW), (IT, None, NEW)],
-    ids=["approver-is-requester", "approver-is-grantee", "requester-unknown"],
-)
+    ("approver", "requester", "grantee", "creator"),
+    [(HR, HR, NEW, HR), (NEW, HR, NEW, HR), (IT, None, NEW, HR), (IT, HR, NEW, IT),
+     (IT, HR, NEW, None)],
+    ids=["approver-is-requester", "approver-is-grantee", "requester-unknown",
+         "approver-created-grant", "creator-unknown"],
+)  # fmt: skip
 def test_self_approval_rejected(
-    store: FakeStore, approver: UUID, requester: UUID | None, grantee: UUID
+    store: FakeStore, approver: UUID, requester: UUID | None, grantee: UUID, creator: UUID | None
 ) -> None:
     svc = RoleGrantService(store)
-    g = _grant(requester=requester, grantee=grantee)
+    g = _grant(requester=requester, grantee=grantee, creator=creator)
     with pytest.raises(RoleGrantRejected) as e:
         svc.apply(_actor(who=approver), g, allowed=ALLOWED)
     assert e.value.reason == "self_approval"
