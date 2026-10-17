@@ -85,6 +85,7 @@ Kết quả tại `docs/evidence/live-smoke.json`. `LIVE_KEEP_OPEN=1` giữ serv
 ## Dữ liệu và giới hạn
 
 - `.data/studio.sqlite` chứa cấu hình, tài liệu, hội thoại, phiên bản và lịch sử chạy. `.data/credential.key` giải mã credential model/MCP. Sao lưu cả database lẫn key bằng SQLite backup hoặc dừng server trước khi sao chép. Thiếu key của database cũ thì server dừng, không tạo key thay thế.
+- Chế độ tích hợp xT không tự nhận workspace cũ. Người vận hành chọn từng cặp workspace/tenant: `npm run map-legacy -- --data-dir DIR --workspace ID --tenant UUID` chỉ in kế hoạch và số bản ghi (dry-run); thêm `--apply` để ghi. Lệnh từ chối workspace đã gắn tenant khác, tenant đã có workspace (kể cả workspace tự tạo ở lần đăng nhập tích hợp đầu tiên, nên map trước lần đó) và lần chạy lặp lại. Dừng Studio và sao lưu trước khi `--apply`.
 - Migration giữ hội thoại trước đây trong miền `studio`. Các hội thoại API tạo trước khi có phân tách audience cần bắt đầu lại bằng API; không tự gán lịch sử cũ cho một API key.
 - Reindex tạo chunk/vector mới trước, chỉ thay nội dung cũ khi thành công. Nếu lỗi hoặc server restart, tài liệu đã có chunk vẫn truy xuất được; xem lỗi và thử lại. Extraction/indexing hiện chạy trong request, chưa có job queue bền vững.
 - Server mặc định loopback. `PORT` đổi cổng, `STUDIO_DATA_DIR` chọn thư mục dữ liệu. Log phát triển ghi method/path/status/thời gian; `LOG_LEVEL=silent` tắt log request.
