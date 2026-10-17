@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 NguyenThong251 and xT contributors
 // Overlay entry point: builds the fixed UI regions and mounts every UI module into them.
 // Layout + tokens live in styles.css (SPEC §2). The overlay root has pointer-events:none;
 // only the cards inside the regions catch the mouse, so the 3D view stays draggable.
@@ -7,6 +9,7 @@ import { mountMapControls } from './mapControls.js'
 import { mountDetailPanel } from './detailPanel.js'
 import { mountShipmentTracker } from './shipmentTracker.js'
 import { mountFleetPanel } from './fleetPanel.js'
+import { mountModeBar } from './modeBar.js'
 
 /** Design viewport of the overlay (SPEC §2); smaller windows scale the whole overlay down. */
 export const DESIGN_WIDTH = 1440
@@ -20,6 +23,8 @@ const REGIONS = [
   ['aside', 'wt-detail'],
   ['section', 'wt-tracker'],
   ['section', 'wt-fleet'],
+  ['div', 'wt-modebar'],
+  ['main', 'wt-business'],
 ]
 
 /** Scale factor so the 1440×830 layout fits the window (never upscales). */
@@ -50,7 +55,8 @@ export function createRegions(root, ids = REGIONS.map(([, id]) => id)) {
   return els
 }
 
-export function mountUI(root) {
+/** @param {{ setMode: Function, refresh: Function }} modes bộ điều khiển chế độ (src/state/mode.js) */
+export function mountUI(root, modes) {
   root.classList.add('wt-ui')
   bindUiScale()
   const r = createRegions(root)
@@ -60,5 +66,6 @@ export function mountUI(root) {
   mountDetailPanel(r['wt-detail'])
   mountShipmentTracker(r['wt-tracker'])
   mountFleetPanel(r['wt-fleet'])
+  mountModeBar(r['wt-modebar'], r['wt-business'], modes)
   return r
 }
