@@ -31,18 +31,31 @@ Kiểm chứng lần thay module: `make unified-build` thành công; `make unifi
 
 ## Bằng chứng hiện có
 
-- Python: 94 test pass cho proxy Studio mới và baseline desk relay/model spec/pack ops; chưa phải test liên thông Node hay SSO thật.
-- Proxy mới đã qua Ruff và mypy riêng.
-- Build/test chung đang được triển khai. Các test của nhánh chưa tích hợp không dùng làm bằng chứng hoàn tất toàn hệ thống.
+Điều phối đã chạy trên nhánh `staging` (17/10/2026), trên PostgreSQL thật:
+
+- `test_warehouse.py` 8/8 (gồm tổng hợp nhập/xuất theo kho và theo tháng).
+- `test_app_lifecycle.py` (U15) 2/2.
+- `test_role_grants_pg.py` 1/1.
+- `test_pack_ops.py` 14/14.
+- `test_backup_restore.py` 1/1 với client PG17.
+- Bộ audit: r4 29/29, audit_meta 6/6, r3 upgrade-path 1/1.
+
+Test không cần stack: unit Python 2000 passed; Desk vitest 235, Studio 65, WareTrack 37.
+
+**Chưa chạy:** Playwright e2e cho cổng hợp nhất, Keycloak SSO thật cho bản hợp nhất, ChatGPT thật trên bản hợp nhất, deploy public. Vì vậy chưa chặng nào được nghiệm thu đầy đủ.
 
 ## Tiến độ
 
-| Chặng | Trạng thái | Còn lại |
-|---|---|---|
-| G0 | Đang làm | Ma trận endpoint/role đầy đủ, provenance WareTrack và snapshot cuối |
-| G1 | Đang làm | Build chung, launcher local, kiểm thử route và smoke tầng 1 |
-| G2 | Đang làm | Tích hợp proxy/Studio, kiểm thử replay đồng thời, viewer UI, mapping legacy |
-| G3 | Đang làm | Form/contract đúng, xác nhận thao tác, lựa chọn danh mục thân thiện |
-| G4–G7 | Chưa nghiệm thu | Giao dịch kho, báo cáo, AI, e2e, backup/restore và hồ sơ bàn giao |
+| Chặng | Trạng thái | Đã merge vào staging | Còn lại |
+|---|---|---|---|
+| G0 | Đã merge | Ma trận quyền endpoint/tool × vai trò, provenance WareTrack, quyết định D-UNI-*, sơ đồ kiến trúc (#37, #11) | Không còn mục mở đã biết |
+| G1 | Đã merge, chưa e2e | Build/test chung, `unified-smoke.mjs` headless với bằng chứng JSON, backup/restore bản tích hợp (#42, #30) | Playwright e2e cổng hợp nhất; deploy public (chưa chạy) |
+| G2 | Đã merge, chưa SSO thật | Proxy Studio có correlation request_id, replay song song và thu hồi giữa chừng, công cụ mapping workspace cũ, runs list ẩn dữ liệu người khác, vai trò hiệu lực từ access_grant (#28, #19, #32, #49, #45, #46) | Đổi tenant qua gợi ý org (#7); UI quản lý thành viên H dùng luồng access_grant; Keycloak SSO thật trên bản hợp nhất; PostgREST `/data` chưa áp dụng ứng dụng bị tắt và `person_role_grant` |
+| G3 | Đã merge, chưa e2e | Shell H/P/D/I: trạng thái cấm/hết hạn, danh sách tài liệu H, phòng ban từ `org_unit`, form P từ `describe_model`, báo cáo D có as-of/lineage/bản ghi nguồn, điều hướng quay lại, bridge theo từng frame (#15, #23, #29, #34, #36, #38, #47, #50) | UI quản lý thành viên H; Playwright e2e |
+| G4 | Đã merge | Kho: biến động gắn ref kho, phiếu đảo qua duyệt, `stock_level`, sửa tồn và backfill sổ cũ, WareTrack chế độ Mô phỏng/Dữ liệu nghiệp vụ chỉ đọc (#27, #22, #33, #54, #58, #26, #31) | Không còn mục mở đã biết |
+| G5 | Đã merge phần lõi | `aggregate_records` với `doc_date`, báo cáo D (#54, #34) | `get_history` chưa giải thích `lineage_ref` |
+| G6 | Đã merge, chưa live | RAG kiểm lại từng nguồn xT dưới quyền người gọi, fail-closed khi tài liệu không có nguồn xT (#39, #61); `inspect_workspace` trả `me.roles` (#66) | ChatGPT thật trên bản hợp nhất |
+| G7 | Một phần | Tài liệu vận hành, backup/restore PG17, checkpoint audit ổn định sau restore, mã commit nền r3/r4 (#40, #30, #44, #62, #63) | Neo lại checkpoint audit v2 khi deploy; e2e, SSO thật, ChatGPT thật, deploy public |
+| G8 | Đã merge | Manifest ứng dụng và `inspect_workspace` apps, tắt/bật lại ứng dụng theo tenant qua đề xuất + duyệt (U15), launcher 4 nhóm và màn hình ứng dụng chung, ứng dụng mẫu: Kho (nhóm 1), Chấm công (nhóm 2), CRM (nhóm 3), Tài sản và bảo trì (nhóm 4) (#59, #60, #55, #56, #51, #52, #53, #64) | PostgREST `/data` chưa áp dụng ứng dụng bị tắt và `person_role_grant`; tiến trình đang chạy cần thử lại sau khi bật lại; e2e trình duyệt |
 
-Không có chặng nào được đánh dấu hoàn tất chỉ từ việc tồn tại mã nguồn.
+Không có chặng nào được đánh dấu hoàn tất chỉ từ việc tồn tại mã nguồn. "Đã merge" nghĩa là mã đã vào `staging` và qua các test ở mục bằng chứng, chưa phải nghiệm thu e2e.
