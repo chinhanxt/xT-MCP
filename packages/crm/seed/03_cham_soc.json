@@ -1,0 +1,23 @@
+{
+  "model": "cham_soc",
+  "records": [
+    {
+      "subject": "Gọi xác nhận nhu cầu",
+      "customer": "@khach_hang:KH-0001",
+      "opportunity": "@co_hoi:CH-0001",
+      "channel": "dien-thoai",
+      "contacted_at": "2026-10-05T09:30:00+07:00",
+      "by_person": "@user:NV-0006",
+      "owner_id": "@user:NV-0006",
+      "note": "Khách yêu cầu báo giá gói năm"
+    },
+    {
+      "subject": "Gửi email giới thiệu",
+      "customer": "@khach_hang:KH-0002",
+      "channel": "email",
+      "contacted_at": "2026-10-08T14:00:00+07:00",
+      "by_person": "@user:NV-0007",
+      "owner_id": "@user:NV-0007"
+    }
+  ]
+}

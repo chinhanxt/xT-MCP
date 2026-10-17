@@ -1,0 +1,62 @@
+{
+  "version": "1",
+  "tenant": "binhminh",
+  "statements": [
+    {
+      "id": "crm.read",
+      "effect": "Allow",
+      "subjects": ["role:sales", "role:sales_manager", "role:director", "role:admin", "role:agent"],
+      "actions": ["record.read"],
+      "resources": ["xrn:binhminh:khach_hang:*", "xrn:binhminh:co_hoi:*", "xrn:binhminh:cham_soc:*", "xrn:binhminh:de_nghi_giam_gia:*"],
+      "conditions": []
+    },
+    {
+      "id": "crm.catalog-write",
+      "effect": "Allow",
+      "subjects": ["role:sales", "role:sales_manager", "role:admin"],
+      "actions": ["record.create", "record.update"],
+      "resources": ["xrn:binhminh:khach_hang:*", "xrn:binhminh:co_hoi:*", "xrn:binhminh:cham_soc:*"],
+      "conditions": []
+    },
+    {
+      "id": "crm.request-write",
+      "effect": "Allow",
+      "subjects": ["role:sales", "role:sales_manager", "role:admin", "role:agent"],
+      "actions": ["record.create", "record.update", "request.submit", "record.transition"],
+      "resources": ["xrn:binhminh:de_nghi_giam_gia:*"],
+      "conditions": [{"left": "resource.owner", "op": "eq", "right": {"ref": "subject.id"}}]
+    },
+    {
+      "id": "crm.approve",
+      "effect": "Allow",
+      "subjects": ["role:sales_manager", "role:director"],
+      "actions": ["record.approve", "request.decide"],
+      "resources": ["xrn:binhminh:de_nghi_giam_gia:*"],
+      "conditions": []
+    },
+    {
+      "id": "crm.deny-agent-approve",
+      "effect": "Deny",
+      "subjects": ["role:agent"],
+      "actions": ["record.approve", "request.decide"],
+      "resources": ["xrn:binhminh:de_nghi_giam_gia:*"],
+      "conditions": []
+    },
+    {
+      "id": "crm.deny-delete",
+      "effect": "Deny",
+      "subjects": ["*"],
+      "actions": ["record.delete"],
+      "resources": ["xrn:binhminh:khach_hang:*", "xrn:binhminh:co_hoi:*", "xrn:binhminh:cham_soc:*", "xrn:binhminh:de_nghi_giam_gia:*"],
+      "conditions": []
+    },
+    {
+      "id": "crm.tools",
+      "effect": "Allow",
+      "subjects": ["role:sales", "role:sales_manager", "role:director", "role:admin", "role:agent"],
+      "actions": ["workspace.read", "model.read", "process.read", "person.read", "record.search", "inbox.read", "history.read"],
+      "resources": ["xrn:binhminh:*"],
+      "conditions": []
+    }
+  ]
+}
