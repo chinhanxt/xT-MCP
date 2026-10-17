@@ -43,6 +43,8 @@ class Workspace:
             "autonomy_ceiling": f"L{caller.autonomy}" if caller.is_agent else "L3",
             "client": caller.client_id,
             "client_class": ctx.client_class.value,
+            # Vai trò hiệu lực (org + person_role_grant còn hiệu lực), cùng nguồn với phân quyền.
+            "roles": sorted(set(caller.actor.roles)),
         }
         out: Data = {
             "me": me,

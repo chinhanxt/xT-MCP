@@ -21,5 +21,28 @@
     },
     "step_actions": {"*": "record.approve"},
     "tenant_demo": "binhminh"
+  },
+  "app": {
+    "id": "crm",
+    "title": "CRM — Khách hàng",
+    "group": "trai-nghiem-thue-bao",
+    "depends_on": [],
+    "ui": [
+      {
+        "kind": "generic"
+      }
+    ],
+    "tools": [
+      "describe_model",
+      "search_records",
+      "aggregate_records",
+      "get_record",
+      "get_history",
+      "create_record",
+      "update_record",
+      "submit_request",
+      "decide_request",
+      "get_inbox"
+    ]
   }
 }
