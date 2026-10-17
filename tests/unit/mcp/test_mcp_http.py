@@ -195,7 +195,7 @@ async def test_schema_and_duplicate_keys_rejected_on_the_wire(h: Harness) -> Non
 
 async def test_capability_unavailable_on_the_wire(h: Harness) -> None:
     async with h.running(), h.session("tok-mai") as s:
-        e = envelope(await s.call_tool("aggregate_records", {"model_id": "advance_request"}))
+        e = envelope(await s.call_tool("upload_file", dict(BY_NAME["upload_file"].examples[0])))
     assert e["error"]["code"] == "capability_unavailable"
 
 

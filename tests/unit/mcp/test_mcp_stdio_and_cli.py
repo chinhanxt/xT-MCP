@@ -138,13 +138,13 @@ def test_serve_config_validation(tmp_path: Path) -> None:
         "XT_MCP_SERVICES": "pkg.mod:factory",
         "XT_DESK_URL": "https://xt.example.vn",
         "XT_MCP_TOKEN_FILE": str(tf),
-        "XT_MCP_CAPABILITIES": "aggregate_records",
+        "XT_MCP_CAPABILITIES": "upload_file",
         "XT_MCP_LOCAL_CLIENTS": "desk-bff, ollama-bridge",
         "XT_MCP_ALLOWED_CLIENTS": "claude-connector,desk-bff,ollama-bridge,xt-desk-agent",
         "XT_MCP_CONFIDENTIAL_CLIENTS": "desk-bff,ollama-bridge",
     }
     cfg = load_serve_config(env, "stdio", "core-10", None, None)
-    assert cfg.tool_settings.enabled_capabilities == frozenset({"aggregate_records"})
+    assert cfg.tool_settings.enabled_capabilities == frozenset({"upload_file"})
     assert cfg.local_clients == frozenset({"desk-bff", "ollama-bridge"})
     assert cfg.profile.value == "core-10"
     bad = {
