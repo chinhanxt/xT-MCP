@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { McpConnection } from './mcp';
 import type { McpTool, ToolResult } from './types';
 import { readToolResult } from './portal-result';
+import { PortalAlert } from './PortalAlert';
+import { classifyError, type ErrorKind } from './portal-state';
 
 type Data = Record<string, unknown>;
 type Choice = { value: string; label: string; arg: Data };
@@ -28,21 +30,21 @@ export function ReportPanel({ mcp, tools, models }: Props) {
   const [groups, setGroups] = useState<Choice[]>([]), [metric, setMetric] = useState('count'), [group, setGroup] = useState('');
   const [report, setReport] = useState<Data | null>(null), [explain, setExplain] = useState<Data | null>(null);
   const [source, setSource] = useState<Data | null>(null), [history, setHistory] = useState<Data[] | null>(null);
-  const [error, setError] = useState(''), [loading, setLoading] = useState(false);
+  const [error, setError] = useState(''), [kind, setKind] = useState<ErrorKind>('error'), [loading, setLoading] = useState(false);
   const seq = useRef(0), live = useRef(true), describing = useRef(0);
   const allowed = new Set(tools.map((tool) => tool.name));
   const chosen = modelId || String(list[0]?.id || '');
   useEffect(() => { live.current = true; return () => { live.current = false; seq.current++; }; }, []);
 
   async function run(name: string, args: Data): Promise<Data | null> {
-    if (!mcp || !allowed.has(name)) { setError(`Thiếu quyền: không có công cụ ${name}.`); return null; }
+    if (!mcp || !allowed.has(name)) { setError(`Không có công cụ ${name}.`); setKind('forbidden'); return null; }
     const mine = ++seq.current;
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setKind('error');
     try {
       const value = readToolResult(await mcp.client.callTool({ name, arguments: args }) as ToolResult);
       return live.current && mine === seq.current ? value : null;
     } catch (e) {
-      if (live.current && mine === seq.current) setError((e as Error).message);
+      if (live.current && mine === seq.current) { setError((e as Error).message); setKind(classifyError(e)); }
       return null;
     } finally { if (live.current && mine === seq.current) setLoading(false); }
   }
@@ -99,7 +101,7 @@ export function ReportPanel({ mcp, tools, models }: Props) {
       <button disabled={!mcp || loading}>Xem báo cáo</button>
     </form>}
     {loading && <p role="status">Đang tải…</p>}
-    {error && <p role="alert" className="note portal-error" data-state="error">{error}</p>}
+    <PortalAlert text={error} kind={kind}/>
     {report && <div className="report-result">
       {typeof report.summary === 'string' && <p>{report.summary}</p>}
       <p><small>Số liệu tại {when(report.as_of)} · chỉ gồm bản ghi bạn được xem{typeof report.model_revision === 'number' ? ` · phiên bản mô hình ${report.model_revision}` : ''}</small></p>
