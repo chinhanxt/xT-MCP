@@ -37,7 +37,8 @@ from xt.adapters.db.migrator import PgMigrator
 from xt.adapters.workflow.bpmn.spiff import SpiffProcessEngine
 from xt.domain.iam import PolicyDocument, loads_policy_json, policy_digest
 from xt.domain.model.context import TenantRef
-from xt.domain.model.plan import RiskClass
+from xt.domain.model.ident import SYSTEM_COLUMNS
+from xt.domain.model.plan import RiskClass, build_plan
 from xt.domain.model.spec import Catalog, FieldSpec, load_spec_json
 from xt.domain.process.errors import SpecError
 from xt.domain.process.spec import parse_spec
@@ -231,17 +232,8 @@ def plan_install(
         problems.append(f"kế hoạch model có thao tác PHÁ HỦY {destructive}: gói chỉ được thêm")
     if blocked:
         problems.append(f"kế hoạch model có thao tác BỊ CHẶN {blocked}")
-    engine = SpiffProcessEngine()
-    processes = []
-    active = None
-    for spec in pack.processes:
-        try:
-            parsed = parse_spec(spec)
-            compiled = engine.compile(spec, m.allowed_ops)
-        except SpecError as e:
-            problems.append(f"quy trình {spec.get('id')}: {e.message}")
-            continue
-        processes.append((parsed.id, parsed.version, spec, compiled.sha256, dict(m.allowed_ops)))
+    processes, bad = _compile(pack)
+    problems += bad
     with connect(migrator_dsn) as conn:
         active = active_definitions(conn, tenant)
         cur_policy = current_policy(conn, tenant)
@@ -250,18 +242,7 @@ def plan_install(
             problems.append(f"quy trình {pid}: tenant đang chạy v{active[pid][0]} mới hơn v{ver}")
     policy: tuple[dict[str, Any], str] | None = None
     if pack.policies:
-        statements: dict[str, Any] = {}
-        if cur_policy:
-            statements = {s["id"]: s for s in cur_policy[1]["statements"]}
-        for raw_doc in pack.policies:
-            for s in _retenant(raw_doc, alias)["statements"]:
-                statements[s["id"]] = s
-        try:
-            merged_doc = PolicyDocument.model_validate(
-                {"version": "1", "tenant": alias, "statements": list(statements.values())}
-            )
-        except ValueError as e:
-            raise AdminError(f"policy gộp không hợp lệ: {e}") from e
+        merged_doc = _merge_policy(pack.policies, alias, cur_policy[1] if cur_policy else None)
         dumped = merged_doc.model_dump(mode="json")
         digest = policy_digest(merged_doc)
         if (
@@ -269,10 +250,67 @@ def plan_install(
             or policy_digest(PolicyDocument.model_validate(cur_policy[1])) != digest
         ):
             policy = (dumped, digest)
-    bindings: list[tuple[str, str, dict[str, Any]]] = []
     by_name = {x.name: x for x in catalog.models}
     problems += _complete_via_problems(processes, by_name)
-    proc_ids = {p[0] for p in processes} | set(active)
+    bad, bindings = binding_problems(m, by_name, {p[0] for p in processes} | set(active))
+    problems += bad
+    return InstallPlan(
+        pack,
+        tenant,
+        alias,
+        catalog,
+        plan.hash,
+        plan.render_vi(),
+        destructive,
+        blocked,
+        processes,
+        policy,
+        bindings,
+        problems,
+    )
+
+
+Processes = list[tuple[str, int, dict[str, Any], str, dict[str, list[str]]]]
+
+
+def _compile(pack: LoadedPack) -> tuple[Processes, list[str]]:
+    engine = SpiffProcessEngine()
+    processes: Processes = []
+    problems: list[str] = []
+    allowed = pack.manifest.allowed_ops
+    for spec in pack.processes:
+        try:
+            parsed = parse_spec(spec)
+            compiled = engine.compile(spec, allowed)
+        except SpecError as e:
+            problems.append(f"quy trình {spec.get('id')}: {e.message}")
+            continue
+        processes.append((parsed.id, parsed.version, spec, compiled.sha256, dict(allowed)))
+    return processes, problems
+
+
+def _merge_policy(
+    docs: list[dict[str, Any]], alias: str, current: Mapping[str, Any] | None
+) -> PolicyDocument:
+    statements: dict[str, Any] = {}
+    if current:
+        statements = {s["id"]: s for s in current["statements"]}
+    for raw_doc in docs:
+        for s in _retenant(raw_doc, alias)["statements"]:
+            statements[s["id"]] = s
+    try:
+        return PolicyDocument.model_validate(
+            {"version": "1", "tenant": alias, "statements": list(statements.values())}
+        )
+    except ValueError as e:
+        raise AdminError(f"policy gộp không hợp lệ: {e}") from e
+
+
+def binding_problems(
+    m: PackManifest, by_name: Mapping[str, Any], proc_ids: set[str]
+) -> tuple[list[str], list[tuple[str, str, dict[str, Any]]]]:
+    problems: list[str] = []
+    bindings: list[tuple[str, str, dict[str, Any]]] = []
     for model, b in m.bindings.items():
         spec_m = by_name.get(model)
         if spec_m is None:
@@ -289,7 +327,9 @@ def plan_install(
                     " managed_by=workflow"
                 )
             for name, src in b.inputs.items():
-                if src.field_ is not None and src.field_ not in fields:
+                # System columns (`id`, `owner_id`...) are on every row submit_request reads.
+                known = src.field_ in fields or src.field_ in SYSTEM_COLUMNS
+                if src.field_ is not None and not known:
                     problems.append(f"ràng buộc {model}: input {name} lấy trường lạ {src.field_!r}")
         else:
             for arg, f in b.fields.items():
@@ -299,20 +339,29 @@ def plan_install(
         bindings.append(
             (model, b.primitive, b.model_dump(mode="json", by_alias=True, exclude_none=True))
         )
-    return InstallPlan(
-        pack,
-        tenant,
-        alias,
-        catalog,
-        plan.hash,
-        plan.render_vi(),
-        destructive,
-        blocked,
-        processes,
-        policy,
-        bindings,
-        problems,
-    )
+    return problems, bindings
+
+
+def static_problems(pack: LoadedPack, alias: str, deps: list[LoadedPack]) -> list[str]:
+    """Every check of `plan_install` that needs no database, for a fresh tenant with `deps`."""
+    problems = check_pack_ops(pack.manifest.allowed_ops)
+    models = [x for d in deps for x in d.models] + list(pack.models)
+    try:
+        catalog = Catalog.model_validate({"version": 1, "models": models})
+    except ValueError as e:
+        return [*problems, f"model của gói không hợp lệ: {e}"]
+    plan = build_plan(None, catalog)
+    for cls in (RiskClass.DESTRUCTIVE, RiskClass.BLOCKED):
+        if plan.ids(cls):
+            problems.append(f"kế hoạch model có thao tác {cls.value}: {plan.ids(cls)}")
+    processes, bad = _compile(pack)
+    problems += bad
+    _merge_policy([p for d in deps for p in d.policies] + list(pack.policies), alias, None)
+    by_name = {x.name: x for x in catalog.models}
+    problems += _complete_via_problems(processes, by_name)
+    dep_ids = {str(spec["id"]) for d in deps for spec in d.processes}
+    problems += binding_problems(pack.manifest, by_name, {p[0] for p in processes} | dep_ids)[0]
+    return problems
 
 
 def _complete_via_problems(
