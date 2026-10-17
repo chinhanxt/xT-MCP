@@ -18,6 +18,8 @@ export function classifyError(error: unknown): ErrorKind {
   return 'error';
 }
 
+export const EXPIRED_TEXT = 'Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại.';
+
 export const stateTitle: Record<ErrorKind, string> = {
   error: 'Có lỗi',
   forbidden: 'Thiếu quyền',
@@ -28,6 +30,6 @@ export const stateTitle: Record<ErrorKind, string> = {
 export const stateHint: Record<ErrorKind, string> = {
   error: '',
   forbidden: 'Tài khoản của bạn chưa được cấp quyền cho thao tác này. Liên hệ quản trị viên doanh nghiệp.',
-  expired: 'Hãy đăng xuất rồi đăng nhập lại. Dữ liệu chưa được gửi lại.',
+  expired: 'Bấm Đăng xuất rồi đăng nhập lại. Dữ liệu chưa được gửi lại.',
   confirm: '',
 };

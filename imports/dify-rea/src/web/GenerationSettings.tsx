@@ -4,7 +4,7 @@ import type { GenerationOptions, InputField } from '../contracts.ts';
 export function GenerationSettings({ value, onChange }: { value: GenerationOptions; onChange: (v: GenerationOptions) => void }) {
   return (
     <details className="app-settings">
-      <summary>Tham số model</summary>
+      <summary>Tham số mô hình</summary>
       <label>
         Temperature
         <input
@@ -47,7 +47,7 @@ export function InputDefinitions({ fields, onChange }: { fields: InputField[]; o
   const patch = (index: number, value: Partial<InputField>) => onChange(fields.map((f, i) => (i === index ? { ...f, ...value } : f)));
   return (
     <section className="input-definitions">
-      <h2>Đầu vào workflow</h2>
+      <h2>Đầu vào quy trình</h2>
       <p className="hint">Dùng {'{{ten_bien}}'} trong prompt và template. Biến input vẫn dùng cho ô văn bản chung.</p>
       {fields.map((field, i) => (
         <div className="input-definition" key={i}>

@@ -76,7 +76,7 @@ export function ImportApp({
         {manifest && (
           <>
             <h3>{String(manifest.app.name)}</h3>
-            <p className="hint">Chọn model và kho kiến thức trong workspace này. File không chứa API key hoặc tài liệu.</p>
+            <p className="hint">Chọn mô hình và kho kiến thức trong không gian này. File không chứa API key hoặc tài liệu.</p>
             {connectorDeps.map((dep: any) => (
               <label key={String(dep.ref)}>
                 MCP: {String(dep.name)}
@@ -98,13 +98,13 @@ export function ImportApp({
             ))}
             {modelDeps.map((dep: any) => (
               <label key={String(dep.ref)}>
-                Model: {String(dep.name)}
+                Mô hình: {String(dep.name)}
                 <select
                   required
                   value={modelMap[dep.ref] ?? (models.some((m) => m.id === dep.ref) ? dep.ref : '')}
                   onChange={(e) => setModels({ ...modelMap, [dep.ref]: e.target.value })}
                 >
-                  <option value="">Chọn model tương ứng</option>
+                  <option value="">Chọn mô hình tương ứng</option>
                   {models
                     .filter((m) => m.kind === dep.kind)
                     .map((m) => (

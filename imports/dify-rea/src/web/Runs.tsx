@@ -49,7 +49,7 @@ export function Runs({ appId }: { appId?: string }) {
                     {String(r.input).slice(0, 100)}
                   </button>
                 </td>
-                <td>{r.mode === 'draft' ? 'Bản nháp' : 'Đã publish'}</td>
+                <td>{r.mode === 'draft' ? 'Bản nháp' : 'Đã xuất bản'}</td>
                 <td>
                   <span className={'pill ' + (r.status === 'success' ? 'green' : r.status === 'error' ? 'red' : '')}>
                     {r.status === 'success' ? 'Thành công' : r.status === 'error' ? 'Thất bại' : 'Đang chạy'}

@@ -30,7 +30,7 @@ export function GenericApp({ mcp, tools, app, models }: { mcp: McpConnection | n
     </div>}
     {canReport && tab === 'report' ? <ReportPanel mcp={mcp} tools={tools} models={visible} /> : <>
       <DocumentsPanel mcp={mcp} tools={tools} models={visible} primitives={LIST} noun="bản ghi" />
-      <RequestForm mcp={mcp} tools={tools} models={visible} primitives={CREATE} heading="Tạo mới" />
+      <RequestForm mcp={mcp} tools={tools} models={visible} primitives={CREATE} heading="Tạo mới" generic />
     </>}
   </div>;
 }

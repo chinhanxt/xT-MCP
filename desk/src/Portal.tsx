@@ -13,7 +13,9 @@ import { MembersPanel } from './MembersPanel';
 import { parseMilli, readToolResult } from './portal-result';
 import { classifyError, type ErrorKind } from './portal-state';
 import { PortalAlert } from './PortalAlert';
-import { fieldLabel, hiddenFields, primitiveLabel, valueLabel } from './portal-labels';
+import { fieldLabel, hiddenFields, kindFieldLabel, primitiveLabel, valueLabel } from './portal-labels';
+import { config } from './config';
+import { confirmInfo } from './confirm';
 import { modelOf, useEnumLabels, type EnumLabel } from './enum-labels';
 
 type Data = Record<string, unknown>;
@@ -29,8 +31,8 @@ function rows(value: Data | null): Data[] {
 function uuid(row: Data): string { return String(row.id || row.ref || '').split(':').at(-1) || ''; }
 function label(row: Data): string { const values = obj(row.values); return String(row.name || values.name || row.title || row.label || row.code || row.sku || values.code || values.sku || row.ref || row.id || 'Chi tiết'); }
 function display(value: unknown): string {
-  if (value === null || value === undefined) return '—';
-  if (Array.isArray(value)) return value.map(display).join(', ');
+  if (value === null || value === undefined || value === '') return '—';
+  if (Array.isArray(value)) return value.length ? value.map(display).join(', ') : '—';
   if (typeof value === 'object') { const data = obj(value); return String(data.name || data.label || Object.entries(data).map(([k,v]) => `${k}: ${display(v)}`).join(' · ')); }
   return String(value);
 }
@@ -38,7 +40,7 @@ function RecordCard({ row, select, enumLabel }: { row: Data; select?: (ref: stri
   const model = modelOf(row);
   const ref = typeof row.ref === 'string' ? row.ref : '';
   const details = Object.fromEntries(Object.entries({...Object.fromEntries(Object.entries(row).filter(([key]) => !['values','ref','id','name','title','label'].includes(key))), ...obj(row.values)}).filter(([key]) => !hiddenFields.has(key)));
-  return <article className="portal-entry"><strong>{label(row)}</strong><dl>{Object.entries(details).map(([key,value]) => <div key={key}><dt>{fieldLabel(key)}</dt><dd>{key.endsWith('_milli') && typeof value==='number' ? (value/1000).toFixed(3) : typeof value==='string' ? (enumLabel ? enumLabel(model,key,value) : valueLabel(key,value)) : display(value)}</dd></div>)}</dl>
+  return <article className="portal-entry"><strong>{label(row)}</strong><dl>{Object.entries(details).map(([key,value]) => <div key={key}><dt>{key==='kind' ? kindFieldLabel(value) : fieldLabel(key)}</dt><dd>{key.endsWith('_milli') && typeof value==='number' ? (value/1000).toFixed(3) : key==='lines' && Array.isArray(value) ? (value.length ? `${value.length} dòng` : '—') : typeof value==='string' && value==='' ? '—' : typeof value==='string' ? (enumLabel ? enumLabel(model,key,value) : valueLabel(key,value)) : display(value)}</dd></div>)}</dl>
     {ref && select && <button onClick={() => select(ref)}>Mở {label(row)}</button>}
   </article>;
 }
@@ -57,7 +59,7 @@ function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNa
   const [data, setData] = useState<Data | null>(null), [error, setErrorText] = useState(''), [errorKind, setErrorKind] = useState<ErrorKind>('error'), [rejecting, setRejecting] = useState(false), [reason, setReason] = useState(''), [loading, setLoading] = useState(false);
   const [query, setQuery] = useState(''), [model, setModel] = useState(''), [catalogModel, setCatalogModel] = useState('stock_item');
   const [catalog, setCatalog] = useState<Data[]>([]), [workspace, setWorkspace] = useState<Data | null>(null);
-  const [code, setCode] = useState(''), [name, setName] = useState(''), [unit, setUnit] = useState('pcs');
+  const [code, setCode] = useState(''), [name, setName] = useState(''), [unit, setUnit] = useState('cái');
   const [requestCode, setRequestCode] = useState(''), [reorder, setReorder] = useState('0'), [quantity, setQuantity] = useState('1');
   const [warehouse, setWarehouse] = useState(''), [location, setLocation] = useState(''), [item, setItem] = useState('');
   const [kind, setKind] = useState<'receive'|'issue'>('receive'), [note, setNote] = useState('');
@@ -135,11 +137,12 @@ function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNa
   const canDecide = selected && ['in_review','submitted'].includes(selectedState) && typeof revision === 'number';
   const resultRows = rows(data), isList = !!data && ['items','people','rows','events'].some(key => Array.isArray(data[key]));
   const enumLabel = useEnumLabels(mcp, tools, data ? (isList ? resultRows : [obj(data.record || data.request || data.me || data)]).map(modelOf).filter(id => warehouseModels.includes(id) || catalog.some(row => row.id === id)) : []);
+  const confirmCard = errorKind==='confirm' && !!toolEntry && !!confirmInfo(toolEntry.result, config.xtOrigin); // thẻ xác nhận đã nói đủ; không lặp lại ở thông báo
   const output = <>
     {selectedRef && <div className="portal-actions"><button disabled={loading} onClick={()=>openRecord(selectedRef)}>Làm mới bản ghi</button><button disabled={loading} onClick={()=>void call('get_history',{ref:selectedRef})}>Lịch sử</button></div>}
     {(area==='P'||area==='Kho') && canDecide && <div className="portal-actions"><button disabled={loading} onClick={()=>void call('decide_request',{ref:selectedRef,decision:'approve',expected_revision:revision})}>Duyệt</button><button disabled={loading} aria-expanded={rejecting} onClick={()=>setRejecting(true)}>Từ chối</button></div>}
     {(area==='P'||area==='Kho') && canDecide && rejecting && <form onSubmit={e=>{e.preventDefault();const text=reason.trim();if(!text){fail('Nhập lý do từ chối');return;}setRejecting(false);setReason('');void call('decide_request',{ref:selectedRef,decision:'reject',reason:text,expected_revision:revision});}}><label htmlFor="reject-reason">Lý do từ chối</label><textarea id="reject-reason" value={reason} onChange={e=>setReason(e.target.value)} maxLength={2000} rows={3} required autoFocus/><button disabled={loading}>Gửi từ chối</button><button type="button" onClick={()=>{setRejecting(false);setReason('');}}>Hủy</button></form>}
-    {loading && <p role="status">Đang tải…</p>}<PortalAlert text={error} kind={errorKind}/>
+    {loading && <p role="status">Đang tải…</p>}{!confirmCard && <PortalAlert text={error} kind={errorKind}/>}
     {toolEntry && mcp && <><ToolItem entry={toolEntry} client={mcp.client} allTools={mcp.tools} sandboxUrl={sandboxUrl} onOpenLink={onOpenLink} dpop={revealDpop}/>{toolEntry.status==='error' && <button disabled={loading} onClick={()=>void call(toolEntry.name,toolEntry.args)}>Thử lại sau khi xác nhận</button>}</>}
     {data && <div className="portal-results">{typeof data.summary==='string' && <p>{data.summary}</p>}{!!data.counts && <p>{Object.entries(obj(data.counts)).map(([key,value]) => `${valueLabel('kind',key)}: ${display(value)}`).join(' · ')}</p>}{!!data.totals && <p>Tổng: {display(data.totals)}</p>}{isList ? resultRows.length ? resultRows.map((row,i)=><RecordCard key={String(row.ref||row.id||i)} row={row} select={openRecord} enumLabel={enumLabel}/>) : <p>Không có kết quả.</p> : <RecordCard row={obj(data.record || data.request || data.me || data)} select={openRecord} enumLabel={enumLabel}/>}</div>}
   </>;

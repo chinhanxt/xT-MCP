@@ -7,6 +7,7 @@ import { createAppBridgeHandlers, createGlobalToolLimiter, createRateLimiter, sa
 import { config } from "./config";
 import { confirmInfo } from "./confirm";
 import { PiiReveal } from "./PiiReveal";
+import { toolLabel } from "./portal-labels";
 import { extractTokens, type RevealDeps } from "./pii";
 import type { McpTool, ToolResult } from "./types";
 
@@ -34,7 +35,7 @@ const HOST_CAPS = { serverTools: {}, serverResources: {}, openLinks: {} };
 // Rate limit chung theo tên tool cho mọi instance App của phiên (ngoài rate limit riêng từng instance)
 const globalLimiter = createGlobalToolLimiter({ ratePerSec: config.appGlobalCallsPerSec, burst: config.appGlobalBurst });
 
-const STATUS_VI = { running: "đang chạy", ok: "xong", error: "lỗi", confirm: "Cần xác nhận" } as const;
+const STATUS_VI = { running: "đang chạy", ok: "xong", error: "lỗi", confirm: "chờ xác nhận" } as const;
 
 interface UiResource {
   html: string;
@@ -112,8 +113,8 @@ export function ToolItem(props: Props) {
   const piiTokens = entry.status === "ok" ? extractTokens(entry.result) : [];
   return (
     <div className="tool" data-testid="tool-item">
-      <button className={`chip ${status}`} onClick={() => setOpen(!open)} aria-expanded={open}>
-        <span className="chip-name">{entry.name}</span>
+      <button className={`chip ${status}`} title={entry.name} onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span className="chip-name">{toolLabel(entry.name)}</span>
         <span className="chip-status">{STATUS_VI[status]}</span>
       </button>
       {open && (
@@ -123,8 +124,8 @@ export function ToolItem(props: Props) {
       )}
       {piiTokens.length > 0 && <PiiReveal tokens={piiTokens} client={props.client} dpop={props.dpop} />}
       {confirm && (
-        <div className="confirm-card" data-testid="confirm-card">
-          <div>Cần người dùng xác nhận{confirm.summary ? `: ${confirm.summary}` : "."}</div>
+        <div className="confirm-card" data-testid="confirm-card" role="status">
+          <div>Cần xác nhận{confirm.summary ? `: ${confirm.summary}` : " trước khi thực hiện"}.</div>
           <a href={confirm.url} target="_blank" rel="noopener noreferrer">
             Mở trang xác nhận
           </a>

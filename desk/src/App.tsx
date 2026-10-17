@@ -268,8 +268,9 @@ export function App() {
               <p className="hint">Đang đăng nhập...</p>
             ) : (
               <>
-                <p>Cần đăng nhập để dùng xT Desk. Chat chạy như một agent thay mặt bạn (client <code>{config.oidcClientId}</code>).</p>
-                {authState.error && <div className="note" role="alert">{authState.error}</div>}
+                <h2>Đăng nhập để dùng xT Desk</h2>
+                <p>Trợ lý làm việc thay mặt bạn, với đúng quyền của tài khoản bạn.</p>
+                {authState.error && <div className="note" role="alert" title={authState.detail}>{authState.error}</div>}
                 <button id="login" onClick={() => void session!.startLogin()}>Đăng nhập bằng Keycloak</button>
               </>
             )}

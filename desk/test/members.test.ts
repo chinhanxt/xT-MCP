@@ -37,7 +37,7 @@ it('creates employee, case and process in order; resumes start with the same key
     if (++starts === 1) throw new Error('Mất kết nối');
     return ok({ process_instance: 'process_instance:p1', state: 'running' });
   });
-  expect(panel().textContent).toContain('hr, employee');
+  expect(panel().textContent).toContain('Nhân sự, Nhân viên');
   await fillHR(); await submit('Tiếp nhận nhân viên');
   expect(panel().textContent).toContain('Mất kết nối'); expect(panel().textContent).not.toContain('Đã khởi động');
   await submit('Tiếp nhận nhân viên');
@@ -69,9 +69,9 @@ it('records a grant without claiming effective roles, lists/revokes using the li
   expect(panel().textContent).toContain('chỉ hiệu lực sau bước IT');
   await click('Tải quyền truy cập'); expect(calls('search_records')[0].arguments).toEqual({ model_id: 'access_grant', limit: 50 });
   expect(panel().textContent).toContain('Chưa thu hồi'); expect(panel().textContent).toContain('Đã thu hồi');
-  await input('Ngày thu hồi', '2026-10-18'); await click('Thu hồi employee'); await click('Thu hồi employee');
+  await input('Ngày thu hồi', '2026-10-18'); await click('Thu hồi Nhân viên'); await click('Thu hồi Nhân viên');
   expect(calls('update_record')[0].arguments).toMatchObject({ ref: grant.ref, set: { revoked_on: '2026-10-18' }, expected_revision: 3, idempotency_key: expect.any(String) });
-  expect(calls('update_record')[1]).toEqual(calls('update_record')[0]); expect(panel().querySelectorAll('button')).not.toContainEqual(expect.objectContaining({ textContent: 'Thu hồi employee' }));
+  expect(calls('update_record')[1]).toEqual(calls('update_record')[0]); expect(panel().querySelectorAll('button')).not.toContainEqual(expect.objectContaining({ textContent: 'Thu hồi Nhân viên' }));
 });
 it.each(['Vai trò không nằm trong danh sách được cấp', 'Người tạo không được tự duyệt cấp quyền'])('shows IT failure: %s', async message => {
   await mount(async call => call.name === 'get_inbox' ? ok({ items: [task], next_cursor: null }) : error('access_denied', message));
@@ -103,7 +103,7 @@ it('stops a pending onboarding chain and clears personal state after session rep
   mcp = { client: { callTool: vi.fn(async call => call.name === 'inspect_workspace' ? ok({ me: { roles: ['employee'] }, models: [] }) : ok({ people: [] })) }, tools } as unknown as McpConnection;
   await render(); await act(async () => finish(ok({ record: { ref: 'employee:old' } })));
   expect(vi.mocked(old.client.callTool).mock.calls.filter(c => c[0].name === 'create_record')).toHaveLength(1);
-  expect(panel().textContent).not.toContain('Đã khởi động'); expect(panel().querySelector<HTMLInputElement>('[aria-label="Họ và tên"]')?.value).toBe(''); expect(panel().textContent).not.toContain('hr, employee');
+  expect(panel().textContent).not.toContain('Đã khởi động'); expect(panel().querySelector<HTMLInputElement>('[aria-label="Họ và tên"]')?.value).toBe(''); expect(panel().textContent).not.toContain('Nhân sự, Nhân viên');
 });
 it('preserves spaces while typing and retires grant keys only after validated success', async () => {
   let n = 0;
@@ -118,8 +118,9 @@ it('preserves spaces while typing and retires grant keys only after validated su
 it('clears records and blocks further calls on expiry until the session is replaced', async () => {
   await mount(async call => call.name === 'search_records' ? ok({ items: [grant] }) : error('unauthenticated', 'Tài khoản đã bị thu hồi'));
   await click('Tải quyền truy cập'); await click('Tải bước quy trình');
-  expect(panel().querySelector('[data-state="expired"]')?.textContent).toContain('Tài khoản đã bị thu hồi');
-  expect(panel().textContent).not.toContain('access_grant:g1'); expect(panel().textContent).not.toContain('hr, employee');
+  expect(panel().querySelector('[data-state="expired"]')?.getAttribute('title')).toBe('Tài khoản đã bị thu hồi');
+  expect(panel().querySelector('[data-state="expired"]')?.textContent).toContain('Phiên đăng nhập không hợp lệ, vui lòng đăng nhập lại');
+  expect(panel().textContent).not.toContain('access_grant:g1'); expect(panel().textContent).not.toContain('Nhân sự, Nhân viên');
   expect(Array.from(panel().querySelectorAll('button')).every(b => b.disabled)).toBe(true);
 });
 it('preflights the HR tools and rejects malformed process success', async () => {
@@ -134,7 +135,7 @@ it('paginates grants and inbox without completing unrelated tasks or exposing un
     if (call.name === 'get_inbox') return ok({ items: call.arguments.cursor ? [task] : [{ ref: 'task:other', step: 'it' }], next_cursor: call.arguments.cursor ? null : 't-next' });
     return error('confirmation_required', 'Cần xác nhận', { confirm_url: 'https://evil.test/desk/confirm/it' });
   });
-  await click('Tải quyền truy cập'); await click('Tải thêm quyền'); expect(calls('search_records')[1].arguments.cursor).toBe('g-next');
+  await click('Tải quyền truy cập'); await click('Tải thêm quyền'); expect(calls('search_records').filter(c => c.arguments.model_id === 'access_grant')[1].arguments.cursor).toBe('g-next');
   await click('Tải bước quy trình'); expect(panel().textContent).not.toContain('Hoàn thành IT');
   await click('Tải thêm bước'); expect(calls('get_inbox')[1].arguments.cursor).toBe('t-next'); await click('Hoàn thành IT');
   expect(panel().querySelector('a')).toBeNull(); expect(panel().textContent).not.toContain('Đã hoàn thành');
@@ -174,9 +175,9 @@ it.each([
   expect(panel().textContent).toContain('máy chủ có thể chỉ trả lỗi quy trình tổng quát');
 });
 it('removes cached effective roles when inspect_workspace refresh is forbidden', async () => {
-  await mount(async () => ok({})); expect(panel().textContent).toContain('hr, employee');
+  await mount(async () => ok({})); expect(panel().textContent).toContain('Nhân sự, Nhân viên');
   vi.mocked(mcp.client.callTool).mockResolvedValue(error('access_denied', 'Không thể kiểm tra vai trò') as Awaited<ReturnType<typeof mcp.client.callTool>>);
-  await click('Làm mới vai trò'); expect(panel().textContent).not.toContain('hr, employee');
+  await click('Làm mới vai trò'); expect(panel().textContent).not.toContain('Nhân sự, Nhân viên');
   expect(container.querySelector('[data-state="forbidden"]')?.textContent).toContain('Không thể kiểm tra vai trò');
 });
 it('allows correcting a rejected case while keeping the created employee locked', async () => {
@@ -192,7 +193,7 @@ it('allows correcting a rejected case while keeping the created employee locked'
 it('names the revoke button after the grant, keeping the technical ref only as tooltip and description', async () => {
   await mount(async call => call.name === 'search_records' ? ok({ items: [grant], next_cursor: null }) : ok({}));
   await click('Tải quyền truy cập');
-  const button = Array.from(panel().querySelectorAll('button')).find(b => b.textContent === 'Thu hồi employee')!;
+  const button = Array.from(panel().querySelectorAll('button')).find(b => b.textContent === 'Thu hồi Nhân viên')!;
   expect(button.textContent).not.toContain('access_grant:');
   expect(button.getAttribute('title')).toBe('access_grant:g1');
   expect(panel().querySelector(`[id="${button.getAttribute('aria-describedby')}"]`)?.textContent).toContain('access_grant:g1');
@@ -209,7 +210,7 @@ it('shows the grant hint only for grant and IT-step errors, not for other operat
 it('does not attach the grant hint to a session-expired alert, even right after a grant attempt', async () => {
   await mount(async () => error('unauthenticated', 'Phiên hết hạn'));
   await input('ID nhân viên được cấp', 'e1'); await input('Vai trò được cấp', 'employee'); await input('Ngày cấp', '2026-10-17'); await submit('Đề xuất cấp quyền');
-  expect(panel().querySelector('[data-state="expired"]')?.textContent).toContain('Phiên hết hạn');
+  expect(panel().querySelector('[data-state="expired"]')?.getAttribute('title')).toBe('Phiên hết hạn');
   expect(panel().textContent).not.toContain('Nếu bước cấp quyền thất bại');
 });
 it('shows confirmation_required as a neutral "Cần xác nhận" status with the confirm link, not an alert', async () => {

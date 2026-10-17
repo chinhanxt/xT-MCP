@@ -15,6 +15,7 @@ export const hiddenFields = new Set(['model_id', 'revision', 'allowed_actions'])
 const valueLabels: Record<string, Record<string, string>> = {
   state: { draft: 'Nháp', submitted: 'Đã gửi', in_review: 'Đang duyệt', approved: 'Đã duyệt', rejected: 'Đã từ chối', returned: 'Trả lại', done: 'Hoàn thành', cancelled: 'Đã hủy', published: 'Đã ban hành', open: 'Đang mở', closed: 'Đã đóng' },
   sla_status: { on_track: 'Đúng hạn', at_risk: 'Sắp trễ', breached: 'Quá hạn' },
+  unit: { pcs: 'cái', piece: 'cái', box: 'hộp', set: 'bộ', pack: 'gói', bottle: 'chai', meter: 'mét' },
   kind: { approval: 'Chờ duyệt', task: 'Công việc', notification: 'Thông báo', mention: 'Nhắc đến', receive: 'Nhập kho', issue: 'Xuất kho' },
 };
 valueLabels.status = valueLabels.state;
@@ -68,3 +69,25 @@ const actionLabels: Record<string, string> = {
   create: 'Tạo phiếu', update: 'Cập nhật', submit: 'Gửi duyệt', approve: 'Duyệt', reject: 'Từ chối', return: 'Trả lại', cancel: 'Hủy', transition: 'Chuyển trạng thái', delete: 'Xóa',
 };
 export const actionLabel = (action: string) => actionLabels[action] || action;
+
+/** Tên công cụ MCP -> nhãn tiếng Việt cho chip chat/xác nhận; tool lạ (của ứng dụng) giữ tên gốc. */
+const toolLabels: Record<string, string> = {
+  inspect_workspace: 'Xem không gian làm việc', describe_model: 'Xem cấu trúc dữ liệu', describe_process: 'Xem quy trình', find_people: 'Tìm nhân sự',
+  search_records: 'Tìm bản ghi', aggregate_records: 'Tổng hợp số liệu', get_record: 'Mở bản ghi', get_inbox: 'Xem hộp thư', get_history: 'Xem lịch sử',
+  create_record: 'Tạo bản ghi', update_record: 'Cập nhật bản ghi', transition_record: 'Chuyển trạng thái', delete_record: 'Xóa bản ghi', upload_file: 'Tải tệp lên',
+  submit_request: 'Gửi duyệt', decide_request: 'Duyệt yêu cầu', create_task: 'Giao việc', start_process: 'Khởi động quy trình', notify: 'Gửi thông báo',
+  propose_model_change: 'Đề xuất đổi mô hình dữ liệu', propose_process_change: 'Đề xuất đổi quy trình',
+};
+export const toolLabel = (name: string) => toolLabels[name] || name;
+
+/** Vai trò trong doanh nghiệp -> tiếng Việt; vai trò lạ giữ nguyên. */
+const roleLabels: Record<string, string> = {
+  staff: 'Nhân viên', employee: 'Nhân viên', hr: 'Nhân sự', accountant: 'Kế toán', manager: 'Quản lý', it: 'IT', it_admin: 'Quản trị IT', iam_admin: 'Quản trị định danh',
+  approver: 'Người duyệt', admin: 'Quản trị viên', tenant_admin: 'Quản trị doanh nghiệp', warehouse: 'Thủ kho', warehouse_manager: 'Quản lý kho', agent: 'Trợ lý',
+  ceo: 'Giám đốc', sales: 'Kinh doanh', finance: 'Tài chính',
+};
+export const roleLabel = (role: unknown) => roleLabels[String(role)] || String(role);
+
+/** `kind` của mục hộp thư (cần duyệt, công việc...) khác `kind` của phiếu kho (nhập/xuất): nhãn trường theo giá trị. */
+const inboxKinds = new Set(['approval', 'task', 'notification', 'mention']);
+export const kindFieldLabel = (value: unknown) => (inboxKinds.has(String(value)) ? 'Hộp thư' : fieldLabel('kind'));

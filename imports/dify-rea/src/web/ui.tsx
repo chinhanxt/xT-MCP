@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { AppKind, Citation, Trace } from '../contracts.ts';
-export const kindLabel: Record<AppKind, string> = { chat: 'Chatbot', workflow: 'Workflow', agent: 'Agent' };
+export const kindLabel: Record<AppKind, string> = { chat: 'Hội thoại', workflow: 'Quy trình', agent: 'Trợ lý tự động' };
 export const kindIcon: Record<AppKind, string> = { chat: '◌', workflow: '⑂', agent: '✦' };
 export function Modal({ title, children, close }: { title: string; children: ReactNode; close: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);

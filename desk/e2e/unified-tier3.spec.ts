@@ -110,8 +110,8 @@ test('generic app (CRM): list from search_records; record create sends exact cre
   await list.getByRole('button',{name:'Mở Nguyễn Văn A',exact:true}).click();
   await expect(list.getByRole('article',{name:'Chi tiết bản ghi'})).toContainText('0900000001');
   // record model: create_record only
-  const form=page.getByRole('region',{name:'Tạo mới'});
-  await expect(form.getByLabel('Loại yêu cầu')).toHaveValue('crm_contact');
+  const form=page.locator('.portal-request');
+  await expect(form.getByLabel('Loại bản ghi')).toHaveValue('crm_contact');
   await expect(form.getByLabel('Họ tên *')).toBeVisible();
   await form.getByLabel('Họ tên *').fill('Trần Thị B');
   await form.getByLabel('Điện thoại').fill('0901234567');
@@ -122,7 +122,7 @@ test('generic app (CRM): list from search_records; record create sends exact cre
   expect(creates()[0].arguments).toEqual({model_id:'crm_contact',values:{name:'Trần Thị B',phone:'0901234567'},idempotency_key:expect.any(String)});
   expect(fixture.calls.some(call=>call.name==='submit_request')).toBe(false);
   // request model: create_record, then submit_request with the draft's ref + revision
-  await form.getByLabel('Loại yêu cầu').selectOption('crm_quote');
+  await form.getByLabel('Loại bản ghi').selectOption('crm_quote');
   await expect(form.getByLabel('Khách *')).toBeVisible();
   await form.getByLabel('Khách *').fill('Công ty X');
   await form.getByLabel('Số tiền *').fill('1500000.50');

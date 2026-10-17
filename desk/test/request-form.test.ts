@@ -67,7 +67,7 @@ it('builds the form only for request models, blocks empty required fields and se
   expect(Array.from(select.options).map((o) => o.textContent)).toEqual(['Tạm ứng']);
   expect(calls('describe_model')[0].arguments).toEqual({ model_id: 'advance_request' });
   expect(container.querySelector('label[for="req-purpose"]')?.textContent).toBe('Mục đích *');
-  expect(container.querySelector('#req-approver')?.textContent).toContain('Chưa hỗ trợ nhập loại');
+  expect(container.querySelector('#req-approver')?.textContent).toContain('có thể bỏ qua');
   await send();
   expect(container.querySelector('#req-purpose-err')?.textContent).toBe('Trường bắt buộc');
   expect(container.querySelector('#req-purpose')?.getAttribute('aria-invalid')).toBe('true');
@@ -151,7 +151,7 @@ it('blocks submit when a required field type has no picker yet', async () => {
   try {
     await mount(base(() => undefined));
     expect(container.querySelector<HTMLButtonElement>('.portal-request form button')!.disabled).toBe(true);
-    expect(container.querySelector('#req-approver')?.textContent).toContain('không thể tạo ở đây');
+    expect(container.querySelector('#req-approver')?.textContent).toContain('Trường bắt buộc nhưng chưa nhập được');
   } finally { Object.assign(saved, { required: false }); }
 });
 
@@ -161,4 +161,22 @@ it('labels enum options from describe_model options and falls back to the raw va
   const select = container.querySelector<HTMLSelectElement>('#req-kind')!;
   expect(Array.from(select.options).map((o) => [o.value, o.textContent])).toEqual([['', 'Chọn'], ['trip', 'Công tác'], ['other', 'Khác']]);
   expect(readFields({ fields: [{ id: 'p', type: 'enum', enum_values: ['zz'] }] })[0].enumLabels).toEqual({});
+});
+
+it('offers a picker for ref fields via search_records and sends the bare id', async () => {
+  model.fields.push({ id: 'project', label: 'Dự án', type: 'ref', ref_model: 'project' } as never);
+  try {
+    await mount(base((call) => {
+      if (call.name === 'search_records') return ok({ items: [{ ref: 'project:p1', title: 'Cổng thông tin' }] });
+      if (call.name === 'create_record') return ok({ record: { ref: 'advance_request:7', revision: 1 } });
+      if (call.name === 'submit_request') return ok({ request: { ref: 'advance_request:7', revision: 2 } });
+    }), ['inspect_workspace', 'describe_model', 'get_inbox', 'create_record', 'submit_request', 'get_record', 'search_records']);
+    expect(calls('search_records')[0].arguments).toEqual({ model_id: 'project', limit: 100 });
+    const select = container.querySelector<HTMLSelectElement>('#req-project')!;
+    expect(select.tagName).toBe('SELECT');
+    expect(Array.from(select.options).map((o) => o.textContent)).toEqual(['Chọn dự án', 'Cổng thông tin']);
+    expect(container.textContent).not.toContain('“ref”');
+    await fill('purpose', 'x'); await fill('amount', '5'); await fill('project', 'p1'); await send();
+    expect(calls('create_record')[0].arguments.values).toMatchObject({ project: 'p1' });
+  } finally { model.fields.pop(); }
 });

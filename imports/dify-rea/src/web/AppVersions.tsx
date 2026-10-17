@@ -17,7 +17,7 @@ export function AppVersions({ app, onRestore }: { app: StudioApp; onRestore: (a:
       <div className="page-heading">
         <div>
           <h1>Lịch sử phiên bản</h1>
-          <p>Khôi phục vào bản nháp, chạy thử rồi publish thành một phiên bản mới.</p>
+          <p>Khôi phục vào bản nháp, chạy thử rồi xuất bản thành một phiên bản mới.</p>
         </div>
         <button
           onClick={async () => {
@@ -61,7 +61,7 @@ export function AppVersions({ app, onRestore }: { app: StudioApp; onRestore: (a:
             </button>
           </div>
         ))}
-        {!versions.length && <p>Publish lần đầu để lưu một phiên bản.</p>}
+        {!versions.length && <p>Xuất bản lần đầu để lưu một phiên bản.</p>}
       </div>
     </div>
   );

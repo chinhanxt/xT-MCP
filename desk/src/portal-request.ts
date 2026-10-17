@@ -7,7 +7,7 @@ function obj(value: unknown): Data { return value && typeof value === 'object' &
 
 export interface FieldSpec {
   id: string; label: string; type: string; required: boolean; multiple: boolean;
-  enumValues: string[]; enumLabels: Record<string, string>; description: string; maxLength?: number;
+  enumValues: string[]; enumLabels: Record<string, string>; description: string; maxLength?: number; refModel?: string;
 }
 const options = (f: Data): Data[] => (Array.isArray(f.options) ? f.options.map(obj).filter((o) => typeof o.value === 'string') : []);
 
@@ -22,16 +22,17 @@ export function readFields(model: unknown): FieldSpec[] {
     enumLabels: Object.fromEntries(options(f).filter((o) => typeof o.label === 'string' && o.label.trim()).map((o) => [String(o.value), String(o.label).trim()])),
     description: typeof f.description === 'string' ? f.description : '',
     maxLength: typeof f.max_length === 'number' ? f.max_length : undefined,
+    refModel: typeof f.ref_model === 'string' && f.ref_model ? f.ref_model : typeof f.ref === 'string' && f.ref ? f.ref : undefined,
   }));
 }
 
 const SIMPLE = new Set(['string', 'text', 'integer', 'decimal', 'money', 'boolean', 'date', 'datetime', 'enum']);
-/** ref/person/file hoặc nhiều giá trị chưa có bộ chọn: báo rõ, không giả lập. */
-export const isSupported = (f: FieldSpec) => SIMPLE.has(f.type) && !f.multiple;
+/** ref có model đích chọn được bằng search_records (`canPick`); person/file hoặc nhiều giá trị chưa có bộ chọn: báo rõ, không giả lập. */
+export const isSupported = (f: FieldSpec, canPick = true) => !f.multiple && (SIMPLE.has(f.type) || (canPick && f.type === 'ref' && !!f.refModel));
 
 export function validate(fields: FieldSpec[], raw: Record<string, string>): Record<string, string> {
   const errors: Record<string, string> = {};
-  for (const f of fields.filter(isSupported)) {
+  for (const f of fields.filter((f) => isSupported(f))) {
     const v = (raw[f.id] ?? '').trim();
     if (!v && f.type !== 'boolean') { if (f.required) errors[f.id] = 'Trường bắt buộc'; continue; }
     if (f.type === 'integer' && !/^-?\d+$/.test(v)) errors[f.id] = 'Phải là số nguyên';
@@ -44,7 +45,7 @@ export function validate(fields: FieldSpec[], raw: Record<string, string>): Reco
 /** Số tiền/thập phân gửi dưới dạng chuỗi (hợp đồng), không qua Number. */
 export function buildValues(fields: FieldSpec[], raw: Record<string, string>): Data {
   const values: Data = {};
-  for (const f of fields.filter(isSupported)) {
+  for (const f of fields.filter((f) => isSupported(f))) {
     const v = (raw[f.id] ?? '').trim();
     if (f.type === 'boolean') { if (raw[f.id] === 'true' || f.required) values[f.id] = raw[f.id] === 'true'; continue; }
     if (!v) continue;

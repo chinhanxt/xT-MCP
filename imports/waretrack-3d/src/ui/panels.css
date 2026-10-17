@@ -491,6 +491,12 @@
 .fp-seg__n { font-size: 10px; font-weight: 500; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .fp-seg__btn.is-active .fp-seg__n { color: #3157d5; font-weight: 600; }
 
+/* Hẹp (điện thoại): tên kho xuống dòng riêng, không bị cắt thành "Kh…" */
+@media (max-width: 480px) {
+  .fp__head { flex-wrap: wrap; height: auto; row-gap: 5px; }
+  .fp__site { flex: 1 0 100%; margin-left: 0; padding-left: 0; }
+}
+
 .fp__rows {
   --c1: 62px;
   max-height: 132px;

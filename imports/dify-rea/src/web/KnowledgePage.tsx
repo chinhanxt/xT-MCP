@@ -105,7 +105,7 @@ export function KnowledgePage({
               <button className="bare-card" onClick={() => choose(k)}>
                 <span className="app-icon knowledge">▤</span>
                 <h3>{k.name}</h3>
-                <p>{k.description || 'Kho tài liệu của workspace'}</p>
+                <p>{k.description || 'Kho tài liệu của không gian làm việc'}</p>
                 <div className="card-footer">
                   <span>
                     {k.document_count} tài liệu · {k.chunk_count} đoạn
