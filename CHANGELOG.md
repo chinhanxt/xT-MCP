@@ -7,6 +7,53 @@ Các thay đổi đáng chú ý của xT được ghi trong tệp này.
 
 ## [Unreleased]
 
+Cập nhật hợp nhất sau bản ghi ngày 17/10/2026 (`1882811`), đến `c453771` trên `staging`: các mục dưới đây chỉ ghi thay đổi từ PR đã gộp. Đây là ghi nhận mã nguồn và bộ kiểm thử đã bổ sung, không phải xác nhận toàn bộ e2e của bản hợp nhất đã đạt.
+
+### Tầng 1 lõi
+
+- Vai trò hiệu lực lấy thêm từ `access_grant` đã duyệt; quy trình nhân sự áp quyền Keycloak sau bước IT và thu hồi theo `revoked_on`. `inspect_workspace` trả vai trò hiệu lực của chính người gọi trong `me.roles` (#45, #46, #66).
+- PostgREST `/data` áp dụng vai trò được cấp và ẩn model của ứng dụng đã tắt; giữ FORCE RLS và quyền view khi nâng cấp. Sửa đường migration qua hàm `pgrst_gate` được bảo vệ từ 0019 đến 0021 (#69, #79).
+- Model engine tương thích DB chưa có bảng `pack_install`; bổ sung `aggregate_explain` vào danh sách metadata miễn audit và đồng bộ kiểm thử r3 (#77, #81).
+- Mở được `lineage_ref` dạng `explain:<trace_id>` qua `get_history`: lưu định nghĩa truy vấn 24 giờ, kiểm lại quyền và trả bộ lọc để đọc bản ghi nguồn. Đọc lại dùng dữ liệu hiện tại, không phải ảnh chụp lịch sử (#72).
+
+### Tầng 2 H·P·D·I
+
+- H có danh sách tài liệu tìm kiếm/phân trang, phòng ban từ `org_unit`, quản lý tiếp nhận nhân sự và vòng đời cấp/thu hồi quyền qua các tool hiện có (#23, #38, #71).
+- P dựng form yêu cầu từ `describe_model`, tạo và gửi với khóa idempotency; D có báo cáo tổng hợp kèm `as_of`, nguồn gốc và bản ghi nguồn (#29, #34).
+- Đồng nhất trạng thái cấm/hết phiên, ranh giới lỗi từng module và lý do từ chối; bỏ nút đếm trùng ở D. Bổ sung điều hướng quay lại theo hash, chuyển focus khi đổi không gian và mở trợ lý Desk từ I (#15, #47, #36).
+- Đổi doanh nghiệp qua đăng xuất đầy đủ và đăng nhập lại bằng PKCE, tránh dùng tiếp phiên của doanh nghiệp cũ (#75).
+
+### Tầng 3 cắm-rút
+
+- Manifest khai báo ứng dụng; `inspect_workspace.apps` phản ánh ứng dụng theo tenant. Tắt/bật lại ứng dụng qua đề xuất và người duyệt, không xóa dữ liệu nghiệp vụ (#59, #60).
+- Launcher chia bốn nhóm, đặt Kho ở nhóm 1; màn hình ứng dụng chung dùng manifest và schema nghiệp vụ (#55, #56).
+- Bổ sung CRM nhẹ, chấm công dự án theo bảng công tuần có duyệt, tài sản và bảo trì; khai báo khối ứng dụng cho ba gói. Sự kiện cảm biến của gói tài sản chỉ là dữ liệu mô phỏng (#51, #52, #53, #64).
+- Bổ sung e2e trình duyệt cho ứng dụng Tầng 3 trên bundle hợp nhất đã build (#68).
+
+### Studio/AI
+
+- Proxy và Studio dùng chung `request_id`; có công cụ vận hành ánh xạ một workspace cũ sang tenant xT (#28, #32).
+- RAG kiểm lại từng nguồn xT dưới quyền người gọi trước khi trích dẫn; chế độ tích hợp loại tài liệu không có nguồn xT và ẩn tiêu đề nguồn bị từ chối (#39, #61).
+- Danh sách lượt chạy ẩn input/kết quả của người khác với người không phải quản trị; bổ sung test endpoint chéo tenant, replay assertion song song trên POST và thu hồi quyền giữa lượt chạy (#49, #19).
+- Bridge phân quyền theo từng frame; WareTrack không gọi được proxy Studio (#50).
+
+### Kho
+
+- Tồn và biến động gắn tham chiếu kho; phiếu đảo phải qua phê duyệt và ghi biến động ngược dấu. Model `stock_level` cho phép tìm hàng dưới ngưỡng bằng `search_records` (#27, #22, #33).
+- Hiện thực `aggregate_records` phía server và ngày nghiệp vụ `doc_date`/`occurred_on`; sửa tồn bằng đọc phân trang, điền kho cho sổ cũ theo lô và làm mới `stock_level` cho hàng chưa nhập khi ghi kho tiếp theo. Sửa binding input lấy cột hệ thống `id` khi cài gói (#58, #48).
+- WareTrack tách chế độ Mô phỏng/Dữ liệu nghiệp vụ, đọc qua adapter xT; nhúng cùng origin trong Kho với bridge chỉ đọc. Sửa thanh chế độ bị panel chi tiết che ở màn hình hẹp (#26, #31, #80).
+- Bổ sung test lớp dữ liệu WareTrack, gỡ workflow CI upstream và ghi nguồn gốc mã (#11).
+
+### Vận hành/bảo mật
+
+- Backup/restore bản hợp nhất bao gồm PostgreSQL, tệp, Studio và khóa; bổ sung test phục hồi trên PostgreSQL và sửa docstring phản ánh lượt chạy. Digest checkpoint audit v2 chuẩn hóa catalog để kiểm sau `pg_dump`/`pg_restore`; checkpoint cũ cần neo lại sau nâng cấp (#30, #44, #83, #62).
+- Tài liệu vận hành bao phủ backup/restore, health và trace; bổ sung ma trận quyền endpoint/tool, nguồn gốc mã, tiến độ G0–G8 và sơ đồ kiến trúc; script smoke headless ghi bằng chứng JSON (#40, #37, #67, #42).
+- Kiểm SPDX mở rộng sang `.tsx`/`.mjs`/`.css`, bổ sung header và khai báo REUSE; sửa kiểm thử SPDX và bỏ ảnh tham chiếu chưa rõ quyền (#41, #57, #65).
+- Giữ nguyên định danh hệ thống trong lỗi xác nhận sau khi che PII; hiển thị chi tiết từ chối cấp quyền an toàn. `demo-seed` dùng `xt org import --if-empty` để không ghi đè tenant đã có dữ liệu (#76, #74, #82).
+- CI dùng Node 24 cho test launcher; fixture integration chia sẻ tenant theo session và cập nhật commit nền kiểm thử audit sau khi gỡ đề thi khỏi lịch sử (#70, #78, #63).
+
+**Ghi chú lịch sử trước đợt cập nhật này:**
+
 - 17/10/2026: sửa thuộc tính phòng ban/quyền đọc của người duyệt, bổ sung metadata `withdrawn` cho chủ giấy, binding `create_task` và ánh xạ priority trên gói `giao-viec-sla` 0.3.4. Kiểm lại bằng ChatGPT thật, xác nhận Desk password/TOTP, 19 test tích hợp tập trung và `make check` (1.789 Python, 154 Vitest, 19 Playwright). [Báo cáo và giới hạn](docs/mcp-chatgpt-20261017.md); mô tả tool đã làm gọn nhưng host vẫn có lúc cảnh báo “Suspicious Instruction”.
 
 - Kiểm thử MCP thật trên Claude/ChatGPT và SDK: [báo cáo kết quả, lỗi và giới hạn](docs/mcp-live-20261016.md). Sửa APISIX response header buffer để reconnect OAuth có `id_token_hint` không trả 502; xác minh URL lỗi trước đó trả 200 sau sửa, 53 test triển khai offline đạt.
