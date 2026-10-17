@@ -324,8 +324,16 @@ def drop_view_step(lay: Layout, name: str) -> Step:
 def view_steps(lay: Layout, m: ModelSpec, readers: Sequence[str] = ()) -> list[Step]:
     """View PostgREST/BI: security_invoker=false, chủ xt_api_owner, không có field sensitive."""
     cols = [*SYSTEM_COLS, *(f.name for f in m.fields if f.pii != "sensitive")]
-    q = sql.SQL("CREATE VIEW {} WITH (security_invoker = false) AS SELECT {} FROM {}").format(
-        lay.view(m.name), sql.SQL(", ").join(sql.Identifier(c) for c in cols), lay.table(m.name)
+    q = sql.SQL(
+        "CREATE VIEW {} WITH (security_invoker = false) AS SELECT {} FROM {}"
+        " WHERE session_user <> 'xt_authenticator' OR coalesce(NOT ("
+        "(nullif(current_setting('xt.pgrst_ctx', true), '')::jsonb -> 'disabled_models')"
+        " ? {}), false)"
+    ).format(
+        lay.view(m.name),
+        sql.SQL(", ").join(sql.Identifier(c) for c in cols),
+        lay.table(m.name),
+        sql.Literal(m.name),
     )
     grantees = sql.SQL(", ").join(sql.Identifier(r) for r in (WEB_ROLE, *readers))
     return [

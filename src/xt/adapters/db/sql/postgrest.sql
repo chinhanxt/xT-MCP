@@ -272,7 +272,12 @@ BEGIN
   -- Vai trò/phạm vi lấy từ bảng tổ chức của xT (không từ token), như đường MCP: sub phải gắn với
   -- một người đang hoạt động của đúng tenant.
   IF reason IS NULL THEN
-    SELECT pe.id, pe.roles, pe.unit INTO p
+    SELECT pe.id, ARRAY(SELECT DISTINCT role FROM (
+             SELECT unnest(pe.roles) AS role
+             UNION ALL
+             SELECT g.role FROM xt_meta.person_role_grant g
+              WHERE g.tenant_id = pe.tenant_id AND g.person = pe.id AND g.revoked_at IS NULL
+           ) effective ORDER BY role) AS roles, pe.unit INTO p
       FROM xt_meta.person pe
      WHERE pe.tenant_id = t_id AND pe.subject = sub AND pe.active;
     IF NOT FOUND THEN
@@ -293,6 +298,11 @@ BEGIN
 
   PERFORM xt.set_context(jsonb_build_object(
     't', t_id, 'a', p.id, 'r', to_jsonb(p.roles), 'tm', '[]'::jsonb,
+    -- Lọc ở từng view, kể cả quan hệ nhúng; admin vẫn phải qua quyền đọc RLS của model.
+    'disabled_models', CASE WHEN 'admin' = ANY(p.roles) THEN '[]'::jsonb ELSE
+      (SELECT coalesce(jsonb_agg(DISTINCT m.name), '[]'::jsonb)
+         FROM xt_meta.pack_install pi CROSS JOIN LATERAL unnest(pi.models) m(name)
+        WHERE pi.tenant_id = t_id AND pi.status = 'disabled') END,
     'd', CASE WHEN p.unit IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(p.unit) END));
 END $$;
 
