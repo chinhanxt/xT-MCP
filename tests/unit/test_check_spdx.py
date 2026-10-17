@@ -85,4 +85,6 @@ def test_annotation_outside_imports_does_not_cover(tmp_path: Path) -> None:
     result = run(tmp_path)
     assert result.returncode == 1
     assert "page.html" in result.stdout
+
+
 # REUSE-IgnoreEnd
