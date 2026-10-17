@@ -6,7 +6,8 @@ import type { McpTool, ToolResult } from './types';
 import { readToolResult } from './portal-result';
 import { PortalAlert } from './PortalAlert';
 import { classifyError, type ErrorKind } from './portal-state';
-import { fieldLabel, hiddenFields, valueLabel } from './portal-labels';
+import { fieldLabel, hiddenFields } from './portal-labels';
+import { modelOf, useEnumLabels } from './enum-labels';
 
 type Data = Record<string, unknown>;
 const PAGE = 20;
@@ -34,6 +35,7 @@ export function DocumentsPanel({ mcp, tools, models, primitives = ['document'], 
   const seq = useRef(0), live = useRef(true), applied = useRef('');
   const allowed = new Set(tools.map((tool) => tool.name));
   const chosen = model || String(docModels[0]?.id || '');
+  const enumLabel = useEnumLabels(mcp, tools, [detail ? modelOf(detail) || chosen : '']);
 
   async function run(name: string, args: Data): Promise<Data | null> {
     if (!mcp || !allowed.has(name)) { setError(`Không có công cụ ${name}.`); setKind('forbidden'); return null; }
@@ -83,7 +85,7 @@ export function DocumentsPanel({ mcp, tools, models, primitives = ['document'], 
       })}</ul>}
       {cursor && <button disabled={loading} onClick={() => void search(cursor)}>Tải thêm</button>}
       {detail && <article className="portal-entry" aria-label={`Chi tiết ${noun}`}><strong>{title(detail)}</strong>
-        <dl>{details.map(([key, value]) => <div key={key}><dt>{fieldLabel(key)}</dt><dd>{typeof value === 'string' ? valueLabel(key, value) : text(value)}</dd></div>)}</dl>
+        <dl>{details.map(([key, value]) => <div key={key}><dt>{fieldLabel(key)}</dt><dd>{typeof value === 'string' ? enumLabel(modelOf(detail) || chosen, key, value) : text(value)}</dd></div>)}</dl>
         <button onClick={() => setDetail(null)}>{`Đóng ${noun}`}</button></article>}
     </>}
     <PortalAlert text={error} kind={kind}/>

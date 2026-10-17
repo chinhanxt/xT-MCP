@@ -78,11 +78,11 @@ it('adds a "Báo cáo" tab to a generic app, scoped to the app models, and only 
 it('CRM preset sums value_milli by stage; the timesheet preset buckets hours by project per week on the date field', async () => {
   await mount(base(agg()));
   await click('Mở CRM'); await click('Báo cáo');
-  await click('Tổng Giá trị (milli) theo Giai đoạn');
+  await click('Tổng giá trị (milli) theo giai đoạn');
   expect(calls('aggregate_records')[0].arguments).toEqual({ model_id: 'co_hoi', metrics: ['sum:value_milli'], group_by: ['stage'] });
   expect(container.querySelector('.report-result')?.textContent).toContain('5.000');
   await click('← Danh sách ứng dụng'); await click('Mở Chấm công'); await click('Báo cáo');
-  await click('Tổng Số giờ (milli) theo Dự án theo tuần');
+  await click('Tổng số giờ (milli) theo dự án theo tuần');
   expect(calls('aggregate_records')[1].arguments).toEqual({ model_id: 'cham_cong', metrics: ['sum:hours_milli'], group_by: ['project'], time_bucket: 'week', date_field: 'date' });
 });
 
@@ -96,7 +96,7 @@ it('lets the user change the preset: metric, group, bucket and date field', asyn
 
 it('keeps the as-of and explains the source honestly: replay uses current data, not a snapshot', async () => {
   await mount(base((call) => call.name === 'aggregate_records' ? ok(report) : call.name === 'get_history' ? ok(explain) : undefined));
-  await click('Mở CRM'); await click('Báo cáo'); await click('Tổng Giá trị (milli) theo Giai đoạn');
+  await click('Mở CRM'); await click('Báo cáo'); await click('Tổng giá trị (milli) theo giai đoạn');
   expect(container.querySelector('.report-result small')?.textContent).toContain(new Date('2026-10-17T08:30:00Z').toLocaleString('vi-VN'));
   await click('Xem nguồn');
   expect(calls('get_history')[0].arguments).toEqual({ ref: 'explain:lin-9', view: 'explain' });
@@ -108,14 +108,14 @@ it('keeps the as-of and explains the source honestly: replay uses current data, 
 it('does not claim current-data replay when the server did not say so', async () => {
   const plain = { explanation: { outcome: 'ok', reasons: [], record_refs: [] } };
   await mount(base((call) => call.name === 'aggregate_records' ? ok(report) : call.name === 'get_history' ? ok(plain) : undefined));
-  await click('Mở CRM'); await click('Báo cáo'); await click('Tổng Giá trị (milli) theo Giai đoạn'); await click('Xem nguồn');
+  await click('Mở CRM'); await click('Báo cáo'); await click('Tổng giá trị (milli) theo giai đoạn'); await click('Xem nguồn');
   expect(container.querySelector('[aria-label="Nguồn số liệu"]')?.textContent).not.toContain('dữ liệu hiện tại');
 });
 
 it('shows access_denied via PortalAlert and never leaves the previous numbers visible', async () => {
   let deny = false;
   await mount(base((call) => call.name === 'aggregate_records' ? (deny ? err('access_denied', 'Không có quyền tổng hợp') : ok(report)) : undefined));
-  await click('Mở CRM'); await click('Báo cáo'); await click('Tổng Giá trị (milli) theo Giai đoạn');
+  await click('Mở CRM'); await click('Báo cáo'); await click('Tổng giá trị (milli) theo giai đoạn');
   expect(container.querySelector('.report-result')).toBeTruthy();
   deny = true;
   await click('Xem báo cáo');
@@ -132,7 +132,7 @@ it('shows a precondition error as a generic alert and clears stale numbers, incl
     if (call.name === 'aggregate_records') return fail ? err('precondition_failed', 'Mô hình đã đổi, hãy tải lại') : ok(report);
     if (call.name === 'get_history') return ok(explain);
   }));
-  await click('Mở CRM'); await click('Báo cáo'); await click('Tổng Giá trị (milli) theo Giai đoạn'); await click('Xem nguồn');
+  await click('Mở CRM'); await click('Báo cáo'); await click('Tổng giá trị (milli) theo giai đoạn'); await click('Xem nguồn');
   expect(container.querySelector('[aria-label="Nguồn số liệu"]')).toBeTruthy();
   fail = true;
   await click('Xem báo cáo');

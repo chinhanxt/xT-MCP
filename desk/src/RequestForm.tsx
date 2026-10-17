@@ -7,6 +7,7 @@ import type { McpTool, ToolResult } from './types';
 import { ToolError, readToolResult } from './portal-result';
 import { PortalAlert } from './PortalAlert';
 import { classifyError, type ErrorKind } from './portal-state';
+import { valueLabel } from './portal-labels';
 import { buildValues, confirmUrlOf, fieldErrorsOf, isSupported, readFields, validate, type FieldSpec } from './portal-request';
 
 type Data = Record<string, unknown>;
@@ -92,7 +93,7 @@ export function RequestForm({ mcp, tools, models, onDone, primitives = ['request
       <label htmlFor={id}>{f.label}{f.required ? ' *' : ''}</label>
       {!isSupported(f) ? <p id={id} role="note">Chưa hỗ trợ nhập loại “{f.multiple ? 'nhiều giá trị' : f.type}” trên Desk{f.required ? ' — yêu cầu này không thể tạo ở đây, hãy dùng Studio hoặc trợ lý.' : '; bỏ qua trường này.'}</p>
         : f.type === 'text' ? <textarea {...common} value={raw[f.id] ?? ''} onChange={(e) => set(e.target.value)} maxLength={f.maxLength} rows={3} />
-        : f.type === 'enum' ? <select {...common} value={raw[f.id] ?? ''} onChange={(e) => set(e.target.value)}><option value="">Chọn</option>{f.enumValues.map((v) => <option key={v} value={v}>{v}</option>)}</select>
+        : f.type === 'enum' ? <select {...common} value={raw[f.id] ?? ''} onChange={(e) => set(e.target.value)}><option value="">Chọn</option>{f.enumValues.map((v) => <option key={v} value={v}>{f.enumLabels[v] ?? valueLabel(f.id, v)}</option>)}</select>
         : f.type === 'boolean' ? <input {...common} type="checkbox" checked={raw[f.id] === 'true'} onChange={(e) => set(String(e.target.checked))} />
         : <input {...common} type={inputType[f.type] || 'text'} value={raw[f.id] ?? ''} onChange={(e) => set(e.target.value)} maxLength={f.maxLength} inputMode={f.type === 'integer' ? 'numeric' : f.type === 'money' || f.type === 'decimal' ? 'decimal' : undefined} />}
       {f.description && <small>{f.description}</small>}

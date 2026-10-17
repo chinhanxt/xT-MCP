@@ -104,7 +104,7 @@ it('retries a failed submit with the same draft and idempotency keys and never c
     if (call.name === 'submit_request') return ++submits === 1 ? err('confirmation_required', 'Cần xác nhận', { confirm_url: 'https://xt.test/desk/confirm/c1', confirmation_id: 'c1' }) : ok({ request: { ref: 'advance_request:3', state: 'in_review', revision: 5 } });
   }));
   await fill('purpose', 'x'); await fill('amount', '1000'); await send();
-  const alert = container.querySelector('[role="alert"].portal-error')!;
+  const alert = container.querySelector('[role="status"].portal-confirm')!;
   expect(alert.textContent).toContain('Phiếu nháp advance_request:3 đã tạo nhưng chưa gửi duyệt');
   expect(alert.querySelector('a')?.getAttribute('href')).toBe('https://xt.test/desk/confirm/c1');
   expect(container.querySelector<HTMLInputElement>('#req-purpose')!.disabled).toBe(true);
@@ -153,4 +153,12 @@ it('blocks submit when a required field type has no picker yet', async () => {
     expect(container.querySelector<HTMLButtonElement>('.portal-request form button')!.disabled).toBe(true);
     expect(container.querySelector('#req-approver')?.textContent).toContain('không thể tạo ở đây');
   } finally { Object.assign(saved, { required: false }); }
+});
+
+it('labels enum options from describe_model options and falls back to the raw value without a label', async () => {
+  const withOptions = { ...model, fields: model.fields.map((f) => f.id === 'kind' ? { ...f, enum_values: undefined, options: [{ value: 'trip', label: 'Công tác' }, { value: 'other', label: 'Khác' }] } : f) };
+  await mount(base((call) => call.name === 'describe_model' ? ok({ model: withOptions }) : undefined));
+  const select = container.querySelector<HTMLSelectElement>('#req-kind')!;
+  expect(Array.from(select.options).map((o) => [o.value, o.textContent])).toEqual([['', 'Chọn'], ['trip', 'Công tác'], ['other', 'Khác']]);
+  expect(readFields({ fields: [{ id: 'p', type: 'enum', enum_values: ['zz'] }] })[0].enumLabels).toEqual({});
 });

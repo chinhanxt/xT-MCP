@@ -7,8 +7,9 @@ function obj(value: unknown): Data { return value && typeof value === 'object' &
 
 export interface FieldSpec {
   id: string; label: string; type: string; required: boolean; multiple: boolean;
-  enumValues: string[]; description: string; maxLength?: number;
+  enumValues: string[]; enumLabels: Record<string, string>; description: string; maxLength?: number;
 }
+const options = (f: Data): Data[] => (Array.isArray(f.options) ? f.options.map(obj).filter((o) => typeof o.value === 'string') : []);
 
 /** Đọc `describe_model.model.fields`; không đoán field nào ngoài những gì server khai báo. */
 export function readFields(model: unknown): FieldSpec[] {
@@ -17,7 +18,8 @@ export function readFields(model: unknown): FieldSpec[] {
   return fields.map(obj).filter((f) => typeof f.id === 'string').map((f) => ({
     id: String(f.id), label: String(f.label || f.id), type: String(f.type || 'string'),
     required: f.required === true, multiple: f.multiple === true,
-    enumValues: Array.isArray(f.enum_values) ? f.enum_values.map(String) : [],
+    enumValues: Array.isArray(f.enum_values) ? f.enum_values.map(String) : options(f).map((o) => String(o.value)),
+    enumLabels: Object.fromEntries(options(f).filter((o) => typeof o.label === 'string' && o.label.trim()).map((o) => [String(o.value), String(o.label).trim()])),
     description: typeof f.description === 'string' ? f.description : '',
     maxLength: typeof f.max_length === 'number' ? f.max_length : undefined,
   }));

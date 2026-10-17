@@ -410,3 +410,13 @@ test('opening a restored database without its encryption key fails without creat
     rmSync(restored, { recursive: true, force: true });
   }
 });
+
+test('published app conversation picker wraps instead of clipping on narrow screens', () => {
+  const tsx = readFileSync(new URL('../src/web/PublishedApp.tsx', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/web/responsive.css', import.meta.url), 'utf8');
+  assert.match(tsx, /className="row conversation-bar"[\s\S]*aria-label="Hội thoại"/);
+  const rule = css.match(/@media \(max-width: 600px\) \{\s*\.row\.conversation-bar \{[^}]*\}\s*\.row\.conversation-bar select \{[^}]*\}/)?.[0] ?? '';
+  assert.match(rule, /flex-wrap: wrap/);
+  assert.match(rule, /flex: 1 1 100%/);
+  assert.match(rule, /min-width: 0/);
+});

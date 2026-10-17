@@ -172,6 +172,7 @@ it('clears Portal and issued bridges when the token expires without a usable ref
   expect(container.querySelector('.portal')).toBeNull();
   expect(location.hash).toBe('');
   expect(container.querySelector('#login')).toBeTruthy();
+  expect(container.querySelector('#box')).toBeNull(); expect(container.querySelector('#send')).toBeNull(); // không có khung chat khi chưa đăng nhập
   await expect(issued.request('/studio-api/apps')).rejects.toThrow();
   expect(connections[0].client.close).toHaveBeenCalled();
 });
@@ -228,4 +229,23 @@ it('automatically restarts targeted PKCE when Desk mounts after the logout redir
   expect(url.searchParams.get('scope')).toContain('organization:beta');
   expect(url.searchParams.get('code_challenge_method')).toBe('S256');
   expect(container.textContent).toContain('Đang đăng nhập');
+});
+
+it('shows the chat composer only in the Desk area once signed in', async () => {
+  await mount('Desk');
+  expect(container.querySelector<HTMLInputElement>('#box')).toBeTruthy();
+  expect(container.querySelector('#box')!.closest('form')!.hidden).toBe(false);
+});
+it('keeps the chat composer hidden outside the Desk area', async () => {
+  await mount('H');
+  expect(container.querySelector('#box')!.closest('form')!.hidden).toBe(true);
+});
+it('stacks the tenant picker, logout and meta on narrow screens', async () => {
+  const css = (await import('node:fs')).readFileSync(`${process.cwd()}/src/styles.css`, 'utf8');
+  const narrow = css.match(/@media \(max-width:600px\)\{header \.logout[^@]*\}\}/)?.[0] ?? '';
+  expect(narrow).toContain('header>label{order:2;flex:1 0 100%'); expect(narrow).toContain('header>label select{flex:1 1 auto;min-width:0}'); expect(narrow).toContain('header .meta{order:3;flex:1 0 100%}');
+});
+it('renders confirmation as a neutral info style, not the red error style', async () => {
+  const css = (await import('node:fs')).readFileSync(`${process.cwd()}/src/styles.css`, 'utf8');
+  expect(css).toContain('.chip.confirm .chip-status { color: #1971c2; }'); expect(css).toMatch(/\.portal-confirm\{border-left:4px solid #1971c2/);
 });

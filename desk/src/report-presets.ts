@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
 
+import { inSentence } from './portal-labels';
+
 type Data = Record<string, unknown>;
 function obj(value: unknown): Data { return value && typeof value === 'object' && !Array.isArray(value) ? value as Data : {}; }
 
@@ -28,7 +30,7 @@ export function reportOptions(model: unknown): ReportOptions {
   const named = (Array.isArray(m.metrics) ? m.metrics : []).map(obj).filter((x) => typeof x.id === 'string')
     .map((x): Choice => ({ value: `m:${x.id}`, label: String(x.label || x.id), arg: { metric: x.id } }));
   const numeric = fields.filter((f) => NUMERIC.has(String(f.type)));
-  const sums = numeric.map((f): Choice => ({ value: `s:${f.id}`, label: `Tổng ${label(f)}`, arg: { metrics: [`sum:${f.id}`] } }));
+  const sums = numeric.map((f): Choice => ({ value: `s:${f.id}`, label: `Tổng ${inSentence(label(f))}`, arg: { metrics: [`sum:${f.id}`] } }));
   const groupFields = fields.filter((f) => f.type === 'enum' || f.type === 'ref');
   const groups = groupFields.map((f): Choice => ({ value: String(f.id), label: label(f), arg: { group_by: [f.id] } }));
   const dates = fields.filter((f) => f.type === 'date' || f.type === 'datetime').map((f): DateField => ({ id: String(f.id), label: label(f) }));
@@ -40,9 +42,9 @@ export function reportOptions(model: unknown): ReportOptions {
   const presets: ReportPreset[] = [];
   const add = (text: string, metric: string, group: Data | undefined, bucket: '' | Bucket = '') =>
     presets.push({ id: `${presets.length}`, label: text, metric, group: group ? String(group.id) : '', bucket, dateField: bucket && date ? date.id : '' });
-  if (sum && status) add(`Tổng ${label(sum)} theo ${label(status)}`, `s:${sum.id}`, status);
-  if (sum && date && dim) add(`Tổng ${label(sum)} theo ${label(dim)} theo tuần`, `s:${sum.id}`, dim, 'week');
-  if (status) add(`Số bản ghi theo ${label(status)}`, 'count', status);
+  if (sum && status) add(`Tổng ${inSentence(label(sum))} theo ${inSentence(label(status))}`, `s:${sum.id}`, status);
+  if (sum && date && dim) add(`Tổng ${inSentence(label(sum))} theo ${inSentence(label(dim))} theo tuần`, `s:${sum.id}`, dim, 'week');
+  if (status) add(`Số bản ghi theo ${inSentence(label(status))}`, 'count', status);
   if (!presets.length) add('Số bản ghi', 'count', undefined);
   return { metrics: [COUNT, ...named, ...sums], groups, dates, presets };
 }

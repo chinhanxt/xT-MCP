@@ -2,13 +2,14 @@
 // SPDX-FileCopyrightText: 2026 xT contributors
 import { ToolError } from './portal-result';
 
-export type ErrorKind = 'error' | 'forbidden' | 'expired';
+export type ErrorKind = 'error' | 'forbidden' | 'expired' | 'confirm';
 
 /** Phân loại lỗi để mỗi không gian báo đúng: thiếu quyền, hết phiên hoặc lỗi chung. */
 export function classifyError(error: unknown): ErrorKind {
   if (error instanceof ToolError) {
     if (error.code === 'access_denied') return 'forbidden';
     if (error.code === 'unauthenticated') return 'expired';
+    if (error.code === 'confirmation_required') return 'confirm'; // không phải lỗi: chờ người có thẩm quyền xác nhận
     return 'error';
   }
   const text = error instanceof Error ? error.message : String(error);
@@ -21,10 +22,12 @@ export const stateTitle: Record<ErrorKind, string> = {
   error: 'Có lỗi',
   forbidden: 'Thiếu quyền',
   expired: 'Phiên đã hết hạn',
+  confirm: 'Cần xác nhận',
 };
 
 export const stateHint: Record<ErrorKind, string> = {
   error: '',
   forbidden: 'Tài khoản của bạn chưa được cấp quyền cho thao tác này. Liên hệ quản trị viên doanh nghiệp.',
   expired: 'Hãy đăng xuất rồi đăng nhập lại. Dữ liệu chưa được gửi lại.',
+  confirm: '',
 };

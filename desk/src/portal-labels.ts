@@ -31,6 +31,18 @@ export function valueLabel(key: string, value: string): string {
 export const primitiveLabels: Record<string, string> = { record: 'Bản ghi', request: 'Yêu cầu', document: 'Tài liệu', task: 'Công việc' };
 export const primitiveLabel = (value: unknown) => primitiveLabels[String(value)] || String(value);
 
+/** Chữ đầu về chữ thường khi nhãn đứng giữa câu ("Tổng Số tiền" -> "Tổng số tiền"); từ viết hoa hoàn toàn (SLA, VAT) giữ nguyên. */
+export function inSentence(label: string): string {
+  return /^\p{Lu}\p{Ll}/u.test(label) ? label.charAt(0).toLocaleLowerCase('vi-VN') + label.slice(1) : label;
+}
+
+/** Tên người đọc được của bản ghi (title_field do máy chủ trả ở `title`); không có thì mới dùng `fallback`. */
+export function recordTitle(row: Record<string, unknown>, fallback = ''): string {
+  const values = row.values && typeof row.values === 'object' ? row.values as Record<string, unknown> : {};
+  for (const candidate of [row.title, row.name, values.title, values.name, values.code]) if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  return fallback;
+}
+
 /** Chuỗi số -> nhóm nghìn kiểu vi-VN, không qua Number (không mất chính xác). */
 export function groupDigits(value: string): string {
   const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value);
