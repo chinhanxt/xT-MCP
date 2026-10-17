@@ -64,7 +64,10 @@ def migrate(migrator: psycopg.Connection[Any]) -> list[str]:
             ).fetchone()
             if again:
                 continue
-            migrator.execute(body.encode())
+            # Immutable 0019 mixed protected gate DDL with views; 0021 replaces its view step.
+            # Gate upgrades belong to the superuser PostgREST installer, never this login.
+            if name != "0019_postgrest_app_roles.sql":
+                migrator.execute(body.encode())
             migrator.execute("INSERT INTO xt_meta.schema_migration (name) VALUES (%s)", (name,))
         ran.append(name)
     return ran

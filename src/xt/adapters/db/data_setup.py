@@ -15,12 +15,13 @@ from typing import Any
 import psycopg
 
 from xt.adapters.db.migrations import migrate
-from xt.adapters.db.tenancy import install_meta_audit
+from xt.adapters.db.tenancy import install_meta_audit, postgrest_sql
 
 
 def install_data_prerequisites(superuser: psycopg.Connection[Any]) -> list[str]:
     """Cài API audit metadata (superuser) rồi migration nền (xt_migrator) trong cùng một
-    transaction quản trị; trả file vừa áp. Không cấp/thu quyền audit nào cho xt_migrator.
+    transaction quản trị, rồi cập nhật PostgREST bằng superuser; trả file vừa áp.
+    Không cấp/thu quyền audit nào cho xt_migrator.
     """
     if (
         not superuser.autocommit
@@ -38,4 +39,5 @@ def install_data_prerequisites(superuser: psycopg.Connection[Any]) -> list[str]:
         superuser.execute("SET LOCAL ROLE xt_migrator")
         ran = migrate(superuser)
         superuser.execute("RESET ROLE")
+        superuser.execute(postgrest_sql().encode())
     return ran

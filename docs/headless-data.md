@@ -78,16 +78,25 @@ GET /data/<model>      Accept-Profile: api_t<seq>
 
 ### Gói ứng dụng đang tắt và vai trò hiệu lực
 
-Migration `0019_postgrest_app_roles.sql` cập nhật gate và view đã có; compiler áp cùng bộ lọc
-cho view mới. Mỗi request đọc lại vai trò hiệu lực và danh sách model thuộc gói `disabled` của
-chính tenant. Người không có vai trò hiệu lực `admin` nhận 0 dòng của các model này, kể cả khi
+Gate trong `postgrest.sql` và migration `0021_postgrest_app_role_views.sql` cập nhật lần lượt
+hàm kiểm tra và view đã có; compiler áp cùng bộ lọc cho view mới. Mỗi request đọc lại vai trò
+hiệu lực và danh sách model thuộc gói `disabled` của chính tenant. Người không có vai trò hiệu
+lực `admin` nhận 0 dòng của các model này, kể cả khi
 đọc qua quan hệ nhúng; model khác vẫn đọc theo RLS. Admin vẫn phải có quyền đọc model theo RLS.
 Không cấp thêm quyền: `xt_web` vẫn chỉ SELECT view, bảng model vẫn FORCE RLS.
 
-Nâng cấp DB cũ bằng đường superuser `install_data_prerequisites()` hiện có (ví dụ cấu hình data
-qua script quản trị). Nếu dùng `xt db migrate` bằng login migrator riêng, phải chạy
-`install_postgrest_role()` bằng superuser trước: audit guard cấm migrator tự đổi thân gate đã
-được bảo vệ. Không cần thay quyền hay tắt audit guard. Cài lại PostgREST giữ nguyên bản sửa.
+`0019_postgrest_app_roles.sql` đã phát hành được giữ nguyên, nhưng runner chỉ ghi nhận tên
+migration này vào ledger, không chạy lại SQL của nó. `0021` thay phần cập nhật view, kể cả khi
+`0019` đã áp trước đó. Vì vậy `xt db migrate` bằng login migrator chạy được với gate cũ, gate
+mới hoặc DB chưa cài PostgREST, không tự thay hàm đã được audit bảo vệ.
+
+Để hoàn tất nâng cấp PostgREST trên DB cũ, chạy `install_data_prerequisites()` bằng superuser
+(ví dụ `make -C deploy pgrst-db`): trong cùng transaction, bước này cài audit, chạy migration
+bằng `xt_migrator`, rồi nạp lại `postgrest.sql` bằng superuser. `install_postgrest_role()` vẫn
+cập nhật gate và cấu hình issuer/client; bootstrap mới đã có gate mới. Nếu chạy migration
+riêng, phải hoàn tất bước quản trị trước khi phục vụ `/data`: view mới trả 0 dòng khi gate cũ
+chưa có `disabled_models` (fail-closed). Không thay quyền hay tắt audit guard; migrator vẫn
+không được sửa gate. Cài lại PostgREST giữ nguyên bản sửa.
 
 ### Dữ liệu cá nhân trong view
 
@@ -183,7 +192,7 @@ make -C deploy provision-data
 make -C deploy pgrst-jwks
 ```
 
-`pgrst-db` gọi `install_data_prerequisites` trên một transaction quản trị: bước superuser chạy `install_meta_audit()` (idempotent: `xt_audit.install_meta` SECURITY DEFINER thuộc `xt_audit_owner` + event trigger bảo vệ), rồi `SET LOCAL ROLE xt_migrator` chạy migration nguyên bản; 0006 gắn audit `xt_meta.*` qua `install_meta`. **Không cấp/thu quyền audit nào cho xt_migrator**, kể cả tạm thời (R2-04: migrator không được tin cậy với audit, `docs/decisions.md`). `xt_migrator` không bao giờ có EXECUTE `xt_audit.log()`/`append()`; ACL hai hàm này trước/sau cài giống nhau. Hồi quy: `test_data_setup_never_grants_migrator_audit_write` probe `has_function_privilege` trước, trong transaction (trước/sau migration, gọi thử `append` → 42501) và sau commit. Phạm vi và giới hạn: docs/integration-notes.md, mục API cài schema nền cho data. Không đưa DSN quản trị vào PostgREST.
+`pgrst-db` gọi `install_data_prerequisites` trên một transaction quản trị: bước superuser chạy `install_meta_audit()` (idempotent: `xt_audit.install_meta` SECURITY DEFINER thuộc `xt_audit_owner` + event trigger bảo vệ), rồi `SET LOCAL ROLE xt_migrator` chạy migration (0019 được ghi nhận thay thế bởi 0021); 0006 gắn audit `xt_meta.*` qua `install_meta`. Sau `RESET ROLE`, nạp lại `postgrest.sql` bằng superuser để cập nhật các hàm được bảo vệ. **Không cấp/thu quyền audit nào cho xt_migrator**, kể cả tạm thời (R2-04: migrator không được tin cậy với audit, `docs/decisions.md`). `xt_migrator` không bao giờ có EXECUTE `xt_audit.log()`/`append()`; ACL hai hàm này trước/sau cài giống nhau. Hồi quy: `test_data_setup_never_grants_migrator_audit_write` probe `has_function_privilege` trước, trong transaction (trước/sau migration, gọi thử `append` → 42501) và sau commit. Phạm vi và giới hạn: docs/integration-notes.md, mục API cài schema nền cho data. Không đưa DSN quản trị vào PostgREST.
 
 ## Demo `docs/headless-demo.sh`
 
