@@ -58,7 +58,7 @@ Cài lại chuẩn hóa thuộc tính của cả `xt_authenticator` và `xt_web`
 | Chữ ký | RS256/ES256 qua JWKS realm | Không chấp nhận `alg: none`/HS256 |
 | Tuổi token | Ngắn (≤ 5 phút) | Lấy token mới mỗi lần demo |
 
-**Quyền nghiệp vụ không lấy từ token.** Gate tra `xt_meta.person` (`tenant_id` từ alias, `subject = sub`, `active`); vai trò (`roles`) và phòng (`unit` -> `department_ids`) lấy từ bảng này, không từ `realm_access.roles`, `roles` hay `team_ids` (`identity.md`). `sub` chưa đăng ký hoặc không hoạt động: `hint=invalid_behalf`. Hiện `team_ids` luôn rỗng. Bảng `agent_grant` chưa được gate dùng.
+**Quyền nghiệp vụ không lấy từ token.** Gate tra `xt_meta.person` (`tenant_id` từ alias, `subject = sub`, `active`); vai trò hiệu lực = `person.roles` ∪ `person_role_grant.role` của cùng tenant/người với `revoked_at IS NULL`; phòng (`unit` -> `department_ids`) lấy từ `person`, không từ `realm_access.roles`, `roles` hay `team_ids` (`identity.md`). `sub` chưa đăng ký hoặc không hoạt động: `hint=invalid_behalf`. Hiện `team_ids` luôn rỗng. Bảng `agent_grant` chưa được gate dùng.
 
 Gate từ chối bằng `403` với mã Postgres `42501`; `hint` là mã lý do ổn định, không chứa giá trị claim. PostgREST có thể từ chối trước gate bằng `401` (JWT), `404` (view/RPC không có) hoặc `406` (schema không được expose).
 
@@ -75,6 +75,19 @@ GET /data/<model>      Accept-Profile: api_t<seq>
 - `/data` **chỉ đọc**: APISIX chỉ route `GET`/`HEAD`; các method ghi không khớp route. Gọi trực tiếp PostgREST trên view hợp lệ với `Content-Profile` đúng trả `403` (`hint=read_only_api`); profile sai bị chặn trước hoặc ở gate. `/rpc/*` không có hàm trong schema API (`404`); gate cũng từ chối nếu request RPC tới được pre-request (`hint=rpc_disabled`).
 - RLS là lớp thứ hai: ngữ cảnh tenant A đọc thẳng `api_t<B>` được 0 dòng (spike t5b).
 - Field do workflow quản lý (`managed_by: workflow`) không ghi được từ `/data`; `xt_web` không có quyền ghi và không là thành viên `xt_app`.
+
+### Gói ứng dụng đang tắt và vai trò hiệu lực
+
+Migration `0019_postgrest_app_roles.sql` cập nhật gate và view đã có; compiler áp cùng bộ lọc
+cho view mới. Mỗi request đọc lại vai trò hiệu lực và danh sách model thuộc gói `disabled` của
+chính tenant. Người không có vai trò hiệu lực `admin` nhận 0 dòng của các model này, kể cả khi
+đọc qua quan hệ nhúng; model khác vẫn đọc theo RLS. Admin vẫn phải có quyền đọc model theo RLS.
+Không cấp thêm quyền: `xt_web` vẫn chỉ SELECT view, bảng model vẫn FORCE RLS.
+
+Nâng cấp DB cũ bằng đường superuser `install_data_prerequisites()` hiện có (ví dụ cấu hình data
+qua script quản trị). Nếu dùng `xt db migrate` bằng login migrator riêng, phải chạy
+`install_postgrest_role()` bằng superuser trước: audit guard cấm migrator tự đổi thân gate đã
+được bảo vệ. Không cần thay quyền hay tắt audit guard. Cài lại PostgREST giữ nguyên bản sửa.
 
 ### Dữ liệu cá nhân trong view
 
