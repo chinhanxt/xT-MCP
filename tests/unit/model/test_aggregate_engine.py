@@ -15,7 +15,7 @@ import pytest
 
 from tests.unit.model.support import catalog, customer
 from xt.adapters.db.records import PgRecordRepository
-from xt.application.model_engine.ports import AggregatePage, AggregateQuery
+from xt.application.model_engine.ports import AggregatePage, AggregateQuery, DisabledApps
 from xt.application.model_engine.service import MAX_GROUPS, RecordService
 from xt.domain.model.context import ModelActor, TenantRef
 from xt.domain.model.errors import ModelError
@@ -57,7 +57,10 @@ class Repo:
 
 
 def service(repo):
-    cats = SimpleNamespace(current=lambda a: (3, catalog(warehouse_ref(), movement())))
+    cats = SimpleNamespace(
+        current=lambda a: (3, catalog(warehouse_ref(), movement())),
+        disabled=lambda a: DisabledApps(),
+    )
     return RecordService(cats, repo)
 
 

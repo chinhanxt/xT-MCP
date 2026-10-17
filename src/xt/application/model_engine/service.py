@@ -435,6 +435,7 @@ class RecordService(_CatalogMixin):
         """count/sum per group under the same read permission, filter and RLS as search."""
         ver, cat = self._catalog(actor)
         m = self._model(cat, model)
+        self._enabled(actor, m.name, read=True)
         self._require(actor, m, "read")
         expr = self._filter(m, where)
         by = with_system_fields(m)

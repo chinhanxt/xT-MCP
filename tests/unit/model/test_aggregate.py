@@ -21,7 +21,7 @@ from tests.unit.model.test_aggregate_engine import (
     service,
     warehouse_ref,
 )
-from xt.application.model_engine.ports import AggregateQuery
+from xt.application.model_engine.ports import AggregateQuery, DisabledApps
 from xt.application.tools.context import Actor, CallContext, ClientClass
 from xt.application.tools.errors import ToolError
 from xt.contracts.tools.catalog import BY_NAME
@@ -49,7 +49,10 @@ def adapter(repo):
         caller=lambda ctx: SimpleNamespace(
             actor=ma, profile=SimpleNamespace(timezone="Asia/Ho_Chi_Minh")
         ),
-        catalogs=SimpleNamespace(current=lambda a: (3, catalog(warehouse_ref(), movement()))),
+        catalogs=SimpleNamespace(
+            current=lambda a: (3, catalog(warehouse_ref(), movement())),
+            disabled=lambda a: DisabledApps(),
+        ),
         repo=repo,
     )
     rt.records = service(repo)

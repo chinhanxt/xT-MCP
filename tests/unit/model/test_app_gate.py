@@ -12,7 +12,7 @@ import pytest
 
 from tests.unit.model.support import catalog, customer
 from tests.unit.model.test_service import FakeRepo
-from xt.application.model_engine.ports import DisabledApps
+from xt.application.model_engine.ports import AggregateQuery, DisabledApps
 from xt.application.model_engine.service import APP_ADMIN_ROLE, ModelService, RecordService
 from xt.domain.model.context import ModelActor, TenantRef
 from xt.domain.model.errors import ModelError
@@ -107,6 +107,14 @@ def test_disabled_app_reads_only_for_admin() -> None:
             read(who(A))
         assert_app_disabled(ex)
         read(who(A, APP_ADMIN_ROLE))  # admin vẫn đọc được để đối soát
+
+
+def test_disabled_app_blocks_aggregate_for_non_admin() -> None:
+    cats, rs, _ = setup()
+    disable(cats, A)
+    with pytest.raises(ModelError) as ex:
+        rs.aggregate(who(A), "lead", None, AggregateQuery())
+    assert_app_disabled(ex)
 
 
 def test_other_models_and_other_tenants_unaffected() -> None:
