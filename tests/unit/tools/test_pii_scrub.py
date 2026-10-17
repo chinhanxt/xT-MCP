@@ -104,6 +104,107 @@ def test_protocol_fields_and_numeric_business_keys_are_kept() -> None:
     assert out == err
 
 
+@pytest.mark.parametrize(
+    "identifier",
+    [
+        "cf_0912345678abcdefabcdefabcdefabcd",
+        "cf_079123456789abcdefabcdefabcdefab",
+        "cf_1234567890123abcdefabcdefabcdefa",
+    ],
+)
+@pytest.mark.parametrize("known_collision", [False, True])
+@pytest.mark.parametrize("classified_collision", [False, True])
+def test_system_identifiers_are_kept(
+    identifier: str, known_collision: bool, classified_collision: bool
+) -> None:
+    details = {
+        "confirmation_id": identifier,
+        "confirm_url": f"https://xt.example.test/desk/confirm/{identifier}",
+        "trace_id": identifier.replace("cf_", "tr_"),
+        "ref": f"task:{identifier[3:]}",
+        "refs": [f"task:{identifier[3:]}", f"person:{CCCD}"],
+        "record_refs": [f"task:{identifier[3:]}"],
+        "idempotency_key": identifier[3:],
+        "operation_ref": f"operation:{identifier[3:]}",
+        "lineage_ref": f"explain:{identifier[3:]}",
+        "parent_ref": f"task:{identifier[3:]}",
+        "source_ref": f"task:{identifier[3:]}",
+        "subject_ref": f"task:{identifier[3:]}",
+        "plan_digest": f"sha256:{identifier[3:] * 2}",
+    }
+    # Known PII collisions must not alter identifiers either.
+    known = [identifier, CCCD] if known_collision else []
+    pii_fields = details if classified_collision else ()
+    assert (
+        scrub({"details": details}, known_values=known, pii_fields=pii_fields)["details"] == details
+    )
+
+
+def test_pii_in_payload_text_is_still_masked() -> None:
+    text = f"cf_0912345678abcdef, CCCD {CCCD}, mail mai@acme.vn"
+    expected = f"cf_{MASK}abcdef, CCCD {MASK}, mail {MASK}"
+    out = scrub({"message": text, "details": {"plan_summary": {"text": text}}})
+    assert out == {"message": expected, "details": {"plan_summary": {"text": expected}}}
+
+
+@pytest.mark.parametrize("key", ["ref", "refs", "confirmation_id", "idempotency_key"])
+def test_identifier_names_do_not_bypass_classified_pii_or_nested_payloads(key: str) -> None:
+    assert scrub({key: CCCD}, pii_fields={key}) == {key: MASK}
+    payload = {"details": {"plan_summary": {"values": {key: CCCD}}}}
+    assert scrub(payload, pii_fields={key})["details"]["plan_summary"]["values"][key] == MASK
+    assert scrub({key: {"text": CCCD}}) == {key: {"text": MASK}}
+
+
+@pytest.mark.parametrize("key", ["ref", "trace_id", "confirmation_id", "idempotency_key"])
+def test_identifier_names_in_payloads_are_still_scrubbed(key: str) -> None:
+    error = {"details": {"plan_summary": {"values": {key: "0912345678"}}}}
+    assert scrub(error)["details"]["plan_summary"]["values"][key] == MASK
+
+
+def test_nested_protocol_references_are_kept() -> None:
+    ref = f"person:{CCCD}"
+    details = {
+        "confirmer": {"ref": ref, "name": "0912345678"},
+        "confirmers": [{"ref": ref}],
+        "plan_summary": {
+            "ref": ref,
+            "confirmers": [ref],
+            "recipients": [{"id": CCCD, "ref": ref, "name": "0912345678"}],
+            "values": {"phone": "0912345678"},
+        },
+    }
+    out = scrub({"details": details})["details"]
+    assert out["confirmer"] == {"ref": ref, "name": MASK}
+    assert out["confirmers"] == [{"ref": ref}]
+    assert out["plan_summary"] == {
+        "ref": ref,
+        "confirmers": [ref],
+        "recipients": [{"id": CCCD, "ref": ref, "name": MASK}],
+        "values": {"phone": MASK},
+    }
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["record", "instance", "task", "requester", "assignee", "delegate_to", "plan_hash"],
+)
+def test_plan_system_identifiers_are_kept(key: str) -> None:
+    error = {"details": {"plan_summary": {key: f"0912345678abcdef{CCCD}"}}}
+    assert scrub(error) == error
+
+
+@pytest.mark.parametrize("field", ["details", "plan_summary", "confirmer", "recipients"])
+def test_catalog_field_names_do_not_classify_metadata_containers(field: str) -> None:
+    error = {
+        "details": {
+            "confirmation_id": "cf_0912345678abcdefabcdefabcdefabcd",
+            "confirmer": {"ref": f"person:{CCCD}"},
+            "plan_summary": {"recipients": [{"ref": f"person:{CCCD}"}]},
+        }
+    }
+    assert scrub(error, pii_fields={field}) == error
+
+
 @pytest.mark.parametrize("field", [f"f{CCCD}", "phone0912345678", "acct1234567890123456"])
 @pytest.mark.parametrize("detail_key", ["field", "fields", "valid_fields", "writable_fields"])
 def test_pii_in_field_identifiers_is_masked(field: str, detail_key: str) -> None:

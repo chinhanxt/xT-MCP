@@ -85,7 +85,7 @@ def d(world: World) -> ToolDispatcher:
     return make_dispatcher(world)
 
 
-CREATE = {
+CREATE: dict[str, Any] = {
     "model_id": "advance_request",
     "values": {"amount": "8000000", "purpose": "Công tác Đà Nẵng"},
     "idempotency_key": "adv-viet-0001",
@@ -233,9 +233,9 @@ def test_find_people_relations(d: ToolDispatcher) -> None:
     out = call(d, "find_people", {"direct_reports_of": "Mai", "manager_of": "Bình"})
     assert err(out)["details"]["reason"] == "conflicting_parameters"
     assert code(call(d, "find_people", {})) == "invalid_request"
-    out = data(call(d, "find_people", {"direct_reports_of": "Mai"}))
-    assert out["relation"] == "direct_reports_of"
-    assert {p["ref"] for p in out["people"]} == {"person:binh", "person:viet"}
+    result = data(call(d, "find_people", {"direct_reports_of": "Mai"}))
+    assert result["relation"] == "direct_reports_of"
+    assert {p["ref"] for p in result["people"]} == {"person:binh", "person:viet"}
 
 
 def test_search_requires_query_without_model(d: ToolDispatcher) -> None:
@@ -524,8 +524,10 @@ def test_decide_request_human_only_full_loop(d: ToolDispatcher, world: World) ->
     assert det["level"] == "human_only" and det["confirmer"]["ref"] == "person:mai"
     assert det["plan_digest"].startswith("sha256:")
     assert "8000000" in det["plan_summary"]
-    out = ConfirmationService(d).confirm(det["confirmation_id"], "sub-mai", later(3), "tr_desk")
-    assert out.status is PendingStatus.CONFIRMED
+    confirmed = ConfirmationService(d).confirm(
+        det["confirmation_id"], "sub-mai", later(3), "tr_desk"
+    )
+    assert confirmed.status is PendingStatus.CONFIRMED
     replay = call(d, "decide_request", DECIDE, agent_ctx("sub-mai", now=later(4)))
     assert data(replay)["outcome"] == "request_approved"
     assert replay.envelope["meta"]["receipt"]["replayed"] is True
@@ -751,6 +753,7 @@ def test_port_data_is_normalized_to_json(d: ToolDispatcher, world: World) -> Non
 
     def typed(ctx: Any, args: Any) -> Any:
         out = get(ctx, args)
+        assert out is not None
         out["record"]["values"].update(amount=Decimal("8000000"), due=date(2026, 11, 20), at=NOW)
         return out
 
@@ -760,7 +763,7 @@ def test_port_data_is_normalized_to_json(d: ToolDispatcher, world: World) -> Non
     assert values["at"] == "2026-11-15T09:00:00Z"
 
 
-def test_errors_carry_no_pii_for_cloud(d: ToolDispatcher, world: World) -> None:
+def test_error_pii_lane_preserves_protocol_reference(d: ToolDispatcher, world: World) -> None:
     out = call(
         d,
         "create_record",
@@ -769,7 +772,8 @@ def test_errors_carry_no_pii_for_cloud(d: ToolDispatcher, world: World) -> None:
     assert not out.is_error  # local mask không đụng dữ liệu ghi
     assert "create_record" not in world.pii.scrubbed
     bad = call(d, "get_record", {"ref": "advance_request:079123456789"})
-    assert "079123456789" not in str(bad.envelope) and "get_record" in world.pii.scrubbed
+    assert err(bad)["details"]["ref"] == "advance_request:079123456789"
+    assert "get_record" in world.pii.scrubbed
 
 
 def test_double_click_on_confirm_executes_once(d: ToolDispatcher, world: World) -> None:

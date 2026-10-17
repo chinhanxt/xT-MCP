@@ -10,9 +10,11 @@ from typing import Any
 
 import pytest
 
-from tests.unit.tools.fakes import agent_ctx, make_dispatcher, make_world
+from tests.unit.tools.fakes import agent_ctx, later, make_dispatcher, make_world
 from xt.adapters.mcp.strict_body import BodyRejection, inspect_body
+from xt.application.tools import ConfirmationService
 from xt.application.tools.context import ClientClass
+from xt.application.tools.ports import PendingStatus
 from xt.contracts.tools import BY_NAME, input_issues
 
 CCCD = "079123456789"
@@ -109,6 +111,35 @@ def test_continuation_stays_replayable_for_cloud_client() -> None:
     cont = first["continuation"]
     again = d.call(cont["tool"], cont["arguments"], agent_ctx("sub-mai")).envelope
     assert again["ok"] or again["error"]["details"].get("reason") != "masked_value"
+
+
+def test_confirmation_id_survives_real_pii_lane(monkeypatch: pytest.MonkeyPatch) -> None:
+    w = make_world()
+    w.services.pii.scrub_error = _real_lane().scrub_error  # type: ignore[method-assign]
+    confirmation_id = "cf_0912345678abcdefabcdefabcdefabcd"
+    new_id = w.services.ids.new_id
+    monkeypatch.setattr(
+        w.services.ids,
+        "new_id",
+        lambda prefix: confirmation_id if prefix == "cf" else new_id(prefix),
+    )
+    d = make_dispatcher(w)
+    args = {
+        "model_id": "employee",
+        "values": {"full_name": "Lê Văn Phúc, SĐT 0912345678"},
+        "idempotency_key": "emp-issue-73",
+    }
+    first = d.call("create_record", args, agent_ctx("sub-mai")).envelope["error"]
+    assert first["code"] == "confirmation_required"
+    details = first["details"]
+    assert details["confirmation_id"] == confirmation_id
+    assert details["confirm_url"] == f"https://xt.example.test/desk/confirm/{confirmation_id}"
+    confirmed = ConfirmationService(d).confirm(
+        details["confirmation_id"], "sub-mai", later(1), "tr_issue_73"
+    )
+    assert confirmed.status is PendingStatus.CONFIRMED
+    replay = d.call("create_record", args, agent_ctx("sub-mai", now=later(2))).envelope
+    assert replay["ok"] and replay["meta"]["receipt"]["replayed"]
 
 
 def test_scrub_keeps_money_amounts() -> None:
