@@ -45,7 +45,7 @@ Chi tiết và lý do từng quyết định: [docs/architecture-v2.md](docs/arc
 
 ### Bản tích hợp xT + Studio + WareTrack: ánh xạ tới đường dẫn
 
-Kế hoạch: [docs/plans/2026-10-17-unified-xt-studio-waretrack.md](docs/plans/2026-10-17-unified-xt-studio-waretrack.md). Chạy local: [docs/unified-local.md](docs/unified-local.md); vận hành: [docs/unified-ops.md](docs/unified-ops.md); quyền: [docs/unified-role-matrix.md](docs/unified-role-matrix.md).
+Kế hoạch: [docs/plans/2026-10-17-unified-xt-studio-waretrack.md](docs/plans/2026-10-17-unified-xt-studio-waretrack.md). [Sơ đồ kiến trúc hợp nhất](docs/diagrams/xt-unified-architecture.html). Chạy local: [docs/unified-local.md](docs/unified-local.md); vận hành: [docs/unified-ops.md](docs/unified-ops.md); quyền: [docs/unified-role-matrix.md](docs/unified-role-matrix.md).
 
 | Khung | Phần tử | Đường dẫn |
 |---|---|---|
@@ -63,7 +63,7 @@ Kế hoạch: [docs/plans/2026-10-17-unified-xt-studio-waretrack.md](docs/plans/
 | Lớp 7 Quản trị, giám sát | Audit, health, sao lưu | `src/xt/entrypoints/audit_cli.py`, `src/xt/adapters/mcp/http_app.py` (`/healthz`), `deploy/scripts/backup_unified.py` (sao lưu/khôi phục, xem [docs/unified-ops.md](docs/unified-ops.md)) |
 | H (Con người) | Tổ chức, vòng đời nhân sự | `packages/nhan-su-vong-doi/`, `seed/` |
 | P (Quy trình) | Đề xuất, phê duyệt, giao việc | `packages/de-xuat-phe-duyet/`, `packages/giao-viec-sla/`, `packages/kho-hang/processes/` |
-| D (Dữ liệu) | Bảng, đọc dữ liệu | `src/xt/application/model_engine/`, `/data` ([docs/headless-data.md](docs/headless-data.md)); panel báo cáo D ở Desk đã có, nhưng `aggregate_records` ở lõi còn `unavailable` (D-UNI-AGG-1 chưa hiện thực) |
+| D (Dữ liệu) | Bảng, đọc và tổng hợp dữ liệu | `src/xt/application/model_engine/`, `src/xt/entrypoints/composition/aggregate.py`, `/data` ([docs/headless-data.md](docs/headless-data.md)); panel D hiển thị thời điểm, lineage và bản ghi nguồn |
 | I (Trí tuệ) | Studio, Desk, công cụ xT | `imports/dify-rea/`, `desk/`, `src/xt/entrypoints/studio_tools.py` |
 
 Bảng chỉ trỏ vị trí mã; trạng thái từng phần xem bảng Tính năng bên dưới và [nhật ký thực thi](docs/plans/unified-execution.md). Chưa có mục nào của bản tích hợp được nghiệm thu đủ.
@@ -92,11 +92,25 @@ Số test (17/10/2026): `make check` **1.789 Python + 154 Vitest + 19 Playwright
 
 **Audit bảo mật:** 13 báo cáo [docs/audit-*.md](docs/gap-review.md) (kiểm thử nội bộ bằng agent độc lập, không phải bên thứ ba), 144 phát hiện đánh số, 141 đã sửa kèm test hồi quy; một số bản sửa cuối chưa được tester xác nhận (xem mục 0.3 của [docs/gap-review.md](docs/gap-review.md)).
 
-**Dự kiến (chưa có mã hoặc chưa chạy thật):** `notify` hoàn chỉnh (kênh Telegram, leo thang SLA qua Notifier) và 2 tool còn lại để đủ 21 (v1.0), `aggregate_records` (còn trả `capability_unavailable`), kiểm dịch ClamAV và két sắt OpenBao ở mức ứng dụng, luồng NATS/Parquet/DuckDB, `xt backup`/`xt restore`, remote công khai + tag phiên bản, DCR tự động tương thích Claude/ChatGPT (smoke bằng client test cấu hình sẵn đã chạy, xem báo cáo kiểm thử).
+**Dự kiến (chưa có mã hoặc chưa chạy thật):** `notify` hoàn chỉnh (kênh Telegram, leo thang SLA qua Notifier) và 2 tool còn lại để đủ 21 (v1.0), kiểm dịch ClamAV và két sắt OpenBao ở mức ứng dụng, luồng NATS/Parquet/DuckDB, `xt backup`/`xt restore`, remote công khai + tag phiên bản, DCR tự động tương thích Claude/ChatGPT (smoke bằng client test cấu hình sẵn đã chạy, xem báo cáo kiểm thử).
 
 ## Bắt đầu nhanh
 
-Cần Docker Engine (hoặc Podman), `uv`, Node (nvm), `make`. Từ bản sạch Ubuntu 24.04: xem [INSTALL.md](INSTALL.md).
+Cần `uv`, Node >= 24 (nvm), `make`; Docker Engine cần cho stack hạ tầng. Từ bản sạch Ubuntu 24.04: xem [INSTALL.md](INSTALL.md).
+
+Bản hợp nhất Desk + Studio + WareTrack 3D dùng các target chung:
+
+```sh
+make setup
+make unified-setup
+make unified-build
+make unified-test
+XT_UNIFIED_ENV_FILE="$HOME/.config/xt/unified.env" make unified-start
+```
+
+`unified-build` gộp ba frontend vào `desk/dist`; `unified-test` chạy test Studio, WareTrack 3D và Desk, không chạy kiểm thử backend/Playwright. `unified-start` build lại rồi chạy lõi, Studio và cổng local; cần PostgreSQL/Keycloak đã provision và tệp runtime quyền 0600 theo [hướng dẫn local](docs/unified-local.md). Launcher không khởi tạo/seed database. Sao lưu, khôi phục và health check: [hướng dẫn vận hành](docs/unified-ops.md).
+
+Đường build/triển khai lõi và Desk riêng:
 
 ```sh
 make setup            # uv sync
@@ -106,13 +120,17 @@ make up-minimal && make provision-realm   # stack tối thiểu bằng Docker En
 make release          # dist/xt-<version>.tar.gz + SBOM + SHA256SUMS
 ```
 
+**Ứng dụng Tầng 3:** `uv run xt pack install --tenant <alias> packages/<gói> --proposed-by <người-đề-xuất> --approved-by <người-duyệt>` in kế hoạch/digest; người duyệt kiểm rồi chạy lại cùng lệnh với `--confirm <digest>`. `xt pack disable` / `xt pack enable` dùng tên gói thay đường dẫn và cùng các cờ tenant/người đề xuất/người duyệt/xác nhận. Hai người phải khác nhau. Tắt gói giữ dữ liệu, ẩn model và chặn ghi theo tenant; xem ví dụ trong [INSTALL.md](INSTALL.md#ứng-dụng-tầng-3-cài-tắt-bật-lại).
+
+**Sau nâng cấp:** trước khi phục vụ `/data`, chạy `make -C deploy pgrst-db` bằng `XT_DATA_SUPERUSER_URL` từ secret để cập nhật gate PostgREST; chỉ `xt db migrate` là chưa đủ ([headless-data.md](docs/headless-data.md)). Sau khi đối chiếu thay đổi đã duyệt, neo checkpoint audit mới với `uv run xt audit checkpoint`, rồi `uv run xt audit verify --against-checkpoint latest`. Checkpoint digest v1 cần neo lại sang v2; CLI trả mã 2 khi checkpoint cũ, vẫn kiểm chuỗi nhưng chưa so digest hàm/catalog. Xem [quy trình nâng cấp](INSTALL.md#sau-nâng-cấp-postgrest-và-checkpoint-audit).
+
 ## Giấy phép và mục đích giấy phép
 
 xT dùng **Apache-2.0** (OSI-approved). **Mục đích:** cho phép sinh viên, cộng đồng và doanh nghiệp dùng, sửa, phân phối lại và đóng góp, kể cả trong sản phẩm thương mại, với điều khoản cấp quyền sáng chế rõ ràng và yêu cầu giữ thông báo bản quyền; đồng thời tương thích với các phụ thuộc MIT/BSD/Apache và với thư viện LGPL chỉ được import không sửa (SpiffWorkflow, psycopg). Mỗi tệp mã có header `SPDX-License-Identifier: Apache-2.0` (kiểm bằng `reuse lint` và `scripts/check_spdx.sh`).
 
 - Toàn văn: [LICENSE](LICENSE), thông báo: [NOTICE](NOTICE).
 - Chiến lược và ma trận tương thích: [docs/LICENSING.md](docs/LICENSING.md).
-- Danh mục thư viện, giấy phép, nguồn: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Không vendor mã của dự án khác; SBOM CycloneDX đi kèm mỗi bản phát hành.
+- Danh mục thư viện, giấy phép, nguồn: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md); các nguồn tích hợp trong `imports/` giữ thông báo giấy phép riêng. SBOM CycloneDX đi kèm mỗi bản phát hành.
 
 ## Tài liệu
 
@@ -120,6 +138,6 @@ xT dùng **Apache-2.0** (OSI-approved). **Mục đích:** cho phép sinh viên, 
 
 ## Bug tracker, changelog, đóng góp
 
-- **Bug tracker:** GitHub Issues của repo (mẫu **Báo lỗi** và **Đề xuất tính năng** trong `.github/ISSUE_TEMPLATE/`). Không đăng bí mật hay dữ liệu cá nhân; lỗ hổng bảo mật báo theo [SECURITY.md](SECURITY.md).
+- **Bug tracker:** [GitHub Issues — chinhanxt/xT-MCP](https://github.com/chinhanxt/xT-MCP/issues) (mẫu **Báo lỗi** và **Đề xuất tính năng** trong `.github/ISSUE_TEMPLATE/`). Không đăng bí mật hay dữ liệu cá nhân; lỗ hổng bảo mật báo theo [SECURITY.md](SECURITY.md).
 - **Changelog:** [CHANGELOG.md](CHANGELOG.md) (Keep a Changelog).
 - **Đóng góp:** [CONTRIBUTING.md](CONTRIBUTING.md) (SPDX, kiểm tra, DCO sign-off), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), mẫu PR trong `.github/`.

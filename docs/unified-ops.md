@@ -55,7 +55,9 @@ Quy tắc của `restore`:
 - `pg_dump`/`pg_restore` giữ owner và ACL; role cụm không nằm trong dump nên phải tồn tại trước.
 - Quyền sau khôi phục: tệp 0600, thư mục Studio 0700.
 
-Chưa kiểm: restore vào PostgreSQL thật và `xt audit verify` sau restore (test tích hợp cho việc này nằm ở PR #44, chưa vào `staging`, chưa chạy); `--clean --if-exists` không xóa đối tượng có trong database đích mà không có trong dump (nên restore vào database trống); khôi phục đồng bộ ba thành phần khi hệ thống đang ghi.
+Test restore PostgreSQL thật của PR #44 đã vào `staging`; [nhật ký thực thi](plans/unified-execution.md) ghi 1/1 đạt với client PG17, PR #83 cập nhật docstring theo lượt chạy đó. Đây là bằng chứng đã ghi nhận, không phải lượt kiểm mới. Giới hạn: `--clean --if-exists` không xóa đối tượng có trong database đích mà không có trong dump (nên restore vào database trống); khôi phục đồng bộ ba thành phần khi hệ thống đang ghi chưa được kiểm chứng.
+
+Nếu khôi phục đi kèm nâng cấp hoặc checkpoint còn digest v1, làm theo [quy trình nâng cấp và neo lại checkpoint](../INSTALL.md#sau-nâng-cấp-postgrest-và-checkpoint-audit). Không coi mã thoát 2 là đã kiểm toàn vẹn; giữ checkpoint cũ và xác minh thay đổi trước khi tạo neo v2.
 
 ## 2. Health check
 
@@ -90,7 +92,7 @@ Cách truy:
 docker compose -f deploy/compose.yaml logs xt-api xt-worker | grep 'trace_id=<mã>'
 ```
 
-Giới hạn đã biết (việc còn lại của G7, **chưa có**):
+Khả năng truy nguồn và giới hạn:
 
 - `X-Request-Id` chỉ có trên đường `/studio-api/*`; các route MCP, `/workflow/v1`, `/files/v1` vẫn chỉ có `meta.trace_id` trong envelope, và trình duyệt không nhận mã nếu lỗi xảy ra trước khi có envelope.
-- Truy ngược actor → phiếu → giao dịch → báo cáo (lớp 7) dựa vào audit và `xt audit verify`; báo cáo D phụ thuộc `aggregate_records`, hiện còn `unavailable` ở lõi (`src/xt/entrypoints/composition/records.py:364`; D-UNI-AGG-1 chưa hiện thực).
+- Báo cáo D dùng `aggregate_records` đã hiện thực, có `as_of` và `lineage_ref` dạng `explain:<trace_id>`. `get_history` mở tham chiếu này, kiểm lại quyền và trả truy vấn nguồn trong thời hạn 24 giờ (PR #72). Đọc lại truy vấn dùng dữ liệu hiện tại, không phải ảnh chụp lịch sử; kiểm toàn vẹn audit bằng `xt audit verify` không thay thế đối soát số liệu báo cáo.

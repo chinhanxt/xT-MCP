@@ -20,10 +20,10 @@ make check
 make release
 VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -n1)"
 T="dist/xt-$VERSION.tar.gz"
-bad="$(tar tzf "$T" | grep -E '\.pdf$|de_thi_OLP|(^|/)\.env$|\.pem$|\.key$|e2e/reports/' || true)"
+bad="$(tar tzf "$T" | grep -E '\.pdf$|de_thi_OLP|(^|/)\.env$|\.pem$|\.key$|e2e/reports/|(^|/)(node_modules|dist|\.venv)(/|$)|/\.claude/worktrees(/|$)|/imports/waretrack-3d/docs/ref(/|$)' || true)"
 [ -z "$bad" ] || { echo "tarball chứa tệp không được phát hành:" >&2; echo "$bad" >&2; exit 1; }
-for f in LICENSE NOTICE THIRD_PARTY_NOTICES.md REUSE.toml; do
-  tar tzf "$T" | grep -qx "xt-$VERSION/$f" || { echo "tarball thiếu $f" >&2; exit 1; }
+for f in LICENSE README.md CHANGELOG.md NOTICE THIRD_PARTY_NOTICES.md REUSE.toml; do
+  tar tzf "$T" | grep -x "xt-$VERSION/$f" >/dev/null || { echo "tarball thiếu $f" >&2; exit 1; }
 done
 mkdir x && tar xzf "$T" -C x && (cd "x/xt-$VERSION" && uvx --quiet reuse lint >/dev/null)
 echo "clone sạch: setup + check + release OK; tarball sạch và tuân thủ REUSE"
