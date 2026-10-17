@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { McpConnection } from '../src/mcp';
 import type { McpTool, ToolResult } from '../src/types';
+vi.mock('../src/config', () => ({ config: { xtOrigin: 'https://xt.test', appGlobalCallsPerSec: 10, appGlobalBurst: 10 } }));
 import { Tier3 } from '../src/Tier3';
 import { areaFromHash } from '../src/portal-nav';
 import { BUILTIN_WMS, GROUPS, appViews, isAdmin, lifecycleCommand, modulePath, moduleScope, parseApps, tenantName, visibleApps } from '../src/tier3';
@@ -118,7 +119,7 @@ it('opens the built-in warehouse view for the WMS app and a same-origin iframe f
   expect(choice[0].getAttribute('aria-pressed')).toBe('true');
   await click('Danh sách');
   expect(container.querySelector('[data-testid="wms"]')).toBeNull();
-  expect(text()).toContain('chưa được hỗ trợ');
+  expect(text()).toContain('chưa được cấp quyền xem model nào');
   await click('Sơ đồ 3D');
   expect(container.querySelector('[data-testid="wms"]')).toBeTruthy();
   await click('← Danh sách ứng dụng');

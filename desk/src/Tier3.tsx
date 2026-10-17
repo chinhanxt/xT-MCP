@@ -6,18 +6,19 @@ import type { McpTool, ToolResult } from './types';
 import { readToolResult } from './portal-result';
 import { PortalAlert } from './PortalAlert';
 import { classifyError, type ErrorKind } from './portal-state';
+import { GenericApp } from './GenericApp';
 import { BUILTIN_WMS, GROUPS, OTHER_GROUP, appViews, isAdmin, lifecycleCommand, modulePath, moduleScope, parseApps, tenantName, visibleApps, type AppView, type TierApp } from './tier3';
 
 type Props = {
   mcp: McpConnection | null; tools: McpTool[];
   /** Hiển thị ứng dụng Kho dựng sẵn của cổng (biểu mẫu + WareTrack). */
   renderWarehouse: () => ReactNode;
-  /** Hiển thị giao diện chung sinh từ describe_model cho ứng dụng không có module riêng. */
-  renderGeneric?: (app: TierApp) => ReactNode;
 };
 
+const obj = (value: unknown): Record<string, unknown> => (value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {});
+
 /** Tầng 3: nền tảng Kinh doanh số, 4 nhóm; danh sách ứng dụng lấy từ inspect_workspace.apps. */
-export function Tier3({ mcp, tools, renderWarehouse, renderGeneric }: Props) {
+export function Tier3({ mcp, tools, renderWarehouse }: Props) {
   const [workspace, setWorkspace] = useState<unknown>(null), [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(''), [kind, setKind] = useState<ErrorKind>('error'), [open, setOpen] = useState(''), [pick, setPick] = useState('');
   const live = useRef(true);
@@ -48,7 +49,8 @@ export function Tier3({ mcp, tools, renderWarehouse, renderGeneric }: Props) {
       if (!path) return <PortalAlert text="Đường dẫn giao diện của ứng dụng không hợp lệ." kind="error" />;
       return <iframe className="portal-frame" data-xt-scope={moduleScope(path)} title={`Ứng dụng ${app.title}`} src={`${path}?integrated=1`} loading="lazy" />;
     }
-    return renderGeneric ? renderGeneric(app) : <p role="status">Giao diện chung của ứng dụng này chưa được hỗ trợ trên Desk.</p>;
+    const models = Array.isArray(obj(workspace).models) ? obj(workspace).models as Record<string, unknown>[] : [];
+    return <GenericApp key={app.id} mcp={mcp} tools={tools} app={app} models={models} />;
   }
 
   function body(app: TierApp): ReactNode {
