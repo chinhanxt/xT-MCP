@@ -59,7 +59,7 @@ Cổng chung: assertion HMAC (tenant, person, roles, method, path, body hash, `i
 
 ## 4. MCP tool × vai trò (policy gói `kho-hang`)
 
-Catalog: `contracts/tools/catalog.py` (17 tool + `start_process`), `contracts/tools/notify.py`, tool app-only `contracts/tools/apps.py`. Cột "Studio" = tool nằm trong `TOOLS` của H2 (`studio_tools.py:25-38`). Vai trò áp theo statement của `packages/kho-hang/policies/iam.json` (đã cài; trường `tenant` là mẫu, được đổi sang tenant đích lúc cài bằng `_retenant`, `entrypoints/composition/packs.py:131-144`). SA/SE/SU **không** là subject nào trong policy này, nên ✖ trừ khi người đó đồng thời giữ vai trò khác. `pol` = gói này không cấp, phụ thuộc gói khác.
+Catalog: `contracts/tools/catalog.py` (17 tool + `start_process`), `contracts/tools/notify.py`, tool app-only `contracts/tools/apps.py`. Cột "Studio" = tool nằm trong `TOOLS` của H2 (`studio_tools.py:25-38`). Vai trò áp theo statement của `packages/kho-hang/policies/iam.json` (đã cài; trường `tenant` là mẫu, được đổi sang tenant đích lúc cài bằng `_retenant`, `entrypoints/composition/packs.py:132-145`). SA/SE/SU **không** là subject nào trong policy này, nên ✖ trừ khi người đó đồng thời giữ vai trò khác. `pol` = gói này không cấp, phụ thuộc gói khác.
 
 | Tool (nguồn) | IAM action | Tự chủ tối đa | Studio | SA | SE/SU | WM | ST | Căn cứ policy `kho-hang` |
 |---|---|---|---|---|---|---|---|---|
