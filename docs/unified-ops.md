@@ -7,7 +7,7 @@
 
 ## 1. Sao lưu và khôi phục
 
-Công cụ: `deploy/scripts/backup_unified.py` (stdlib, không cần cài thêm; cần `pg_dump`, `pg_restore`, `psql` trong `PATH` nếu dùng thành phần PostgreSQL).
+Công cụ: `deploy/scripts/backup_unified.py` (stdlib, không cần cài thêm; cần `pg_dump`, `pg_restore`, `psql` trong `PATH` (client có major >= server: stack dùng postgres:17 trong khi Ubuntu 24.04 mặc định client 16; trỏ client 17 bằng `--pg-dump`/`--pg-restore`/`--psql`) nếu dùng thành phần PostgreSQL).
 
 Một bản lưu là tệp `xt-unified-<UTC>.tar` quyền 0600 kèm `<tệp>.sha256`, gồm `manifest.json` (sha256 và kích thước từng tệp) và các thành phần chọn bằng cờ:
 
@@ -91,4 +91,4 @@ Giới hạn đã biết (việc còn lại của G7, **chưa có**):
 - Không có header `X-Request-Id` đi xuyên APISIX → lõi → Studio; trình duyệt không nhận mã nếu lỗi xảy ra trước khi có envelope.
 - `/studio-api/*`: proxy tạo `trace_id` mới cho mỗi yêu cầu (`studio_http.py:239`) nhưng không trả về client, nên lỗi Studio không dò ngược được từ phía người dùng.
 - Log yêu cầu của Studio Node chỉ có `METHOD path status ms` (`server.ts:209-210`), không có mã yêu cầu.
-- Truy ngược actor → phiếu → giao dịch → báo cáo (lớp 7) dựa vào audit và `xt audit verify`; báo cáo D chưa có (`aggregate_records` còn `capability_unavailable`).
+- Truy ngược actor → phiếu → giao dịch → báo cáo (lớp 7) dựa vào audit và `xt audit verify`; báo cáo D phụ thuộc `aggregate_records`, hiện còn `unavailable` ở lõi (`src/xt/entrypoints/composition/records.py:364`; D-UNI-AGG-1 chưa hiện thực).

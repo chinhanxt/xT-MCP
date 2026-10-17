@@ -63,7 +63,7 @@ Kế hoạch: [docs/plans/2026-10-17-unified-xt-studio-waretrack.md](docs/plans/
 | Lớp 7 Quản trị, giám sát | Audit, health, sao lưu | `src/xt/entrypoints/audit_cli.py`, `src/xt/adapters/mcp/http_app.py` (`/healthz`), `deploy/scripts/backup_unified.py` |
 | H (Con người) | Tổ chức, vòng đời nhân sự | `packages/nhan-su-vong-doi/`, `seed/` |
 | P (Quy trình) | Đề xuất, phê duyệt, giao việc | `packages/de-xuat-phe-duyet/`, `packages/giao-viec-sla/`, `packages/kho-hang/processes/` |
-| D (Dữ liệu) | Bảng, đọc dữ liệu | `src/xt/application/model_engine/`, `/data` ([docs/headless-data.md](docs/headless-data.md)); báo cáo tổng hợp chưa có |
+| D (Dữ liệu) | Bảng, đọc dữ liệu | `src/xt/application/model_engine/`, `/data` ([docs/headless-data.md](docs/headless-data.md)); panel báo cáo D ở Desk đã có, nhưng `aggregate_records` ở lõi còn `unavailable` (D-UNI-AGG-1 chưa hiện thực) |
 | I (Trí tuệ) | Studio, Desk, công cụ xT | `imports/dify-rea/`, `desk/`, `src/xt/entrypoints/studio_tools.py` |
 
 Bảng chỉ trỏ vị trí mã; trạng thái từng phần xem bảng Tính năng bên dưới và [nhật ký thực thi](docs/plans/unified-execution.md). Chưa có mục nào của bản tích hợp được nghiệm thu đủ.
