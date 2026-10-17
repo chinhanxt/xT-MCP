@@ -109,6 +109,9 @@ class _PlanningRepository:
     def search(self, *args: Any, **kwargs: Any) -> NoReturn:
         raise RuntimeError("search must use the real repository")
 
+    def aggregate(self, *args: Any, **kwargs: Any) -> NoReturn:
+        raise RuntimeError("aggregate must use the real repository")
+
 
 @dataclass(frozen=True)
 class RecordMutation:

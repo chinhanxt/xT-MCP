@@ -19,6 +19,8 @@ from psycopg.types.json import Jsonb
 from xt.adapters.db.compiler import Layout, compile_expr
 from xt.adapters.db.connection import Database, set_audit_hmacs
 from xt.application.model_engine.ports import (
+    AggregatePage,
+    AggregateQuery,
     Busy,
     ConstraintViolated,
     Page,
@@ -214,7 +216,34 @@ class PgRecordRepository:
     ) -> Page:
         lay = Layout(actor.tenant.seq)
         params: list[Any] = []
+        cond = self._where(actor, m, where, scope_hint, params)
+        orders: list[sql.Composable] = [
+            sql.SQL("{} {}").format(sql.Identifier(col), sql.SQL("DESC" if desc else "ASC"))
+            for col, desc in order
+        ]
+        orders.append(sql.SQL("id"))
+        t = lay.table(m.name)
+        with self._tx(actor) as cur:
+            total_row = cur.execute(
+                sql.SQL("SELECT count(*) AS n FROM {} WHERE {}").format(t, cond), params
+            ).fetchone()
+            rows = cur.execute(
+                sql.SQL("SELECT * FROM {} WHERE {} ORDER BY {} LIMIT %s OFFSET %s").format(
+                    t, cond, sql.SQL(", ").join(orders)
+                ),
+                [*params, limit, offset],
+            ).fetchall()
+        assert total_row is not None
+        return Page(int(total_row["n"]), [self._out(r, m) for r in rows])
 
+    @staticmethod
+    def _where(
+        actor: ModelActor,
+        m: ModelSpec,
+        where: Expr | None,
+        scope_hint: Literal["all", "scoped"],
+        params: list[Any],
+    ) -> sql.Composable:
         def literal(f: FieldSpec, v: object) -> sql.Composable:
             params.append(coerce_literal(f, v))
             return sql.Placeholder()
@@ -234,21 +263,54 @@ class PgRecordRepository:
                 parts.append(sql.SQL("team_id = ANY(%s)"))
                 params.append(list(actor.team_ids))
             cond = sql.SQL("{} AND ({})").format(cond, sql.SQL(" OR ").join(parts))
-        orders: list[sql.Composable] = [
-            sql.SQL("{} {}").format(sql.Identifier(col), sql.SQL("DESC" if desc else "ASC"))
-            for col, desc in order
+        return cond
+
+    def aggregate(
+        self,
+        actor: ModelActor,
+        m: ModelSpec,
+        where: Expr | None,
+        query: AggregateQuery,
+        max_groups: int,
+        scope_hint: Literal["all", "scoped"],
+    ) -> AggregatePage:
+        """One GROUP BY statement in the caller's RLS transaction; as_of = transaction time."""
+        params: list[Any] = []
+        keys: list[sql.Composable] = [sql.Identifier(g) for g in query.group_by]
+        if query.bucket is not None:
+            unit, name, tz = query.bucket
+            col: sql.Composable = sql.Identifier(name)
+            if with_system_fields(m)[name].type == "datetime":
+                col = sql.SQL("({} AT TIME ZONE {})").format(col, sql.Literal(tz))
+            else:  # date: no session-timezone cast through timestamptz
+                col = sql.SQL("{}::timestamp").format(col)
+            keys.append(sql.SQL("date_trunc({}, {})::date").format(sql.Literal(unit), col))
+        cond = self._where(actor, m, where, scope_hint, params)
+        cols = [
+            *(sql.SQL("{} AS {}").format(k, sql.Identifier(f"k{i}")) for i, k in enumerate(keys)),
+            sql.SQL("count(*) AS n"),
+            *(
+                sql.SQL("sum({}) AS {}").format(sql.Identifier(f), sql.Identifier(f"s{i}"))
+                for i, f in enumerate(query.sums)
+            ),
         ]
-        orders.append(sql.SQL("id"))
-        t = lay.table(m.name)
+        q = sql.SQL("SELECT {} FROM {} WHERE {}").format(
+            sql.SQL(", ").join(cols), Layout(actor.tenant.seq).table(m.name), cond
+        )
+        if keys:
+            pos = sql.SQL(", ").join(sql.Literal(i + 1) for i in range(len(keys)))
+            q = sql.SQL("{} GROUP BY {} ORDER BY {} LIMIT %s").format(q, pos, pos)
+            params.append(max_groups + 1)
         with self._tx(actor) as cur:
-            total_row = cur.execute(
-                sql.SQL("SELECT count(*) AS n FROM {} WHERE {}").format(t, cond), params
-            ).fetchone()
-            rows = cur.execute(
-                sql.SQL("SELECT * FROM {} WHERE {} ORDER BY {} LIMIT %s OFFSET %s").format(
-                    t, cond, sql.SQL(", ").join(orders)
-                ),
-                [*params, limit, offset],
-            ).fetchall()
-        assert total_row is not None
-        return Page(int(total_row["n"]), [self._out(r, m) for r in rows])
+            now = cur.execute("SELECT transaction_timestamp() AS t").fetchone()
+            rows = cur.execute(q, params).fetchall()
+        assert now is not None
+        out = [
+            (
+                tuple(r[f"k{i}"] for i in range(len(keys))),
+                int(r["n"]),
+                tuple(r[f"s{i}"] for i in range(len(query.sums))),
+            )
+            for r in rows
+        ]
+        return AggregatePage(now["t"], out[:max_groups], len(out) > max_groups)
