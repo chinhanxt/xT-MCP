@@ -53,6 +53,10 @@ ACTING: ContextVar[tuple[str, str] | None] = ContextVar("xt_acting_task", defaul
 class OpInputError(ValueError):
     """Tham số op sai kiểu/giá trị: bước dịch vụ lỗi, runtime khôi phục state (fail closed)."""
 
+    def __init__(self, message: str, *, reason: str | None = None) -> None:
+        super().__init__(message)
+        self.reason = reason
+
 
 # ------------------------------------------------------------------------ kiểm tham số ----
 def record_id(value: object, model: str) -> UUID:
@@ -531,7 +535,7 @@ def sync_access_grants(pc: ProcessContext, d: ProcessDefinition) -> ServiceFn:
             try:
                 out[svc.apply(pc.actor, grant, allowed=allowed)] += 1
             except RoleGrantRejected as e:
-                raise OpInputError(f"{grant.ref}: {e}") from None
+                raise OpInputError(f"{grant.ref}: {e}", reason=e.reason) from None
         return out
 
     return op
