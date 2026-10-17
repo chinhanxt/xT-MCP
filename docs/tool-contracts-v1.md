@@ -478,6 +478,13 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
               "local",
               "human"
             ]
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Caller's own effective roles (org roles + active role grants)."
           }
         },
         "required": [
@@ -6289,7 +6296,7 @@ Ngân sách REA là ≤ 13.312 B mỗi input.
 
 | Tool | since | trần | in | compact | data | out | tools/list | +out | desc | props/req | RO | D | I | OW |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|---|---|---|
-| `inspect_workspace` | 0.1 | L0 | 459 | 402 | 2858 | 3925 | 844 | 4728 | 235 | 2/0 | T | F | T | F |
+| `inspect_workspace` | 0.1 | L0 | 459 | 402 | 2988 | 4055 | 844 | 4858 | 235 | 2/0 | T | F | T | F |
 | `describe_model` | 0.1 | L0 | 413 | 340 | 4206 | 5273 | 791 | 6023 | 250 | 2/1 | T | F | T | F |
 | `describe_process` | 0.1 | L0 | 753 | 696 | 1196 | 2263 | 1117 | 3339 | 222 | 2/1 | T | F | T | F |
 | `find_people` | 0.1 | L0 | 1095 | 1009 | 1491 | 2558 | 1452 | 3969 | 258 | 8/0 | T | F | T | F |
@@ -6313,8 +6320,8 @@ Ngân sách REA là ≤ 13.312 B mỗi input.
 
 | Tập | Số tool | Σ input (B) | Σ compact (B) | Σ data (B) | Σ outputSchema (B) | tools/list (B) | tools/list + outputSchema (B) | Token tool thật trên qwen3.5:4b |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| v0.1 | 17 | 29464 | 28286 | 26179 | 44318 | 36628 | 80249 | 8155 |
-| v1.0 (tất cả) | 21 | 34652 | 33231 | 27609 | 50016 | 43204 | 92359 | 9635 |
+| v0.1 | 17 | 29464 | 28286 | 26309 | 44448 | 36628 | 80379 | 8155 |
+| v1.0 (tất cả) | 21 | 34652 | 33231 | 27739 | 50146 | 43204 | 92489 | 9635 |
 | core-10 (model nhỏ) | 10 | 15552 | 14838 | 13022 | 23692 | 19936 | 43218 | 3916 |
 
 Input lớn nhất: 8899 B (`propose_model_change`) = 66% ngân sách REA 13.312 B. Các số token qwen trong bảng là số đo lịch sử trước thay đổi schema mảng object; chưa đo lại. Token tool đo bằng `prompt_eval_count` của ollama (`/api/chat`, template tool của qwen3.5) trừ baseline không có tool (71 token); chỉ gồm name/description/parameters, không gồm outputSchema (ollama không gửi).

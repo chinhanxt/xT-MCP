@@ -109,3 +109,9 @@ def test_apps_in_default_sections_and_include_enum() -> None:
     assert "apps" in enum
     out = _inspect(("staff",), [_row("kho-hang", "enabled", KHO_APP, ["stock_item"])], [])
     assert [a["id"] for a in out["apps"]] == ["kho-hang"]
+
+
+def test_me_includes_caller_effective_roles() -> None:
+    out = _inspect(("staff", "admin", "staff"), [], ["me"])
+    assert out["me"]["roles"] == ["admin", "staff"]
+    Draft202012Validator(BY_NAME["inspect_workspace"].output_schema).validate(out)
