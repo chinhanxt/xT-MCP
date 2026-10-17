@@ -51,6 +51,7 @@ from xt.adapters.mcp import (
     stdio_caller,
     token_file_source,
 )
+from xt.application.model_engine.service import MAX_GROUPS, MAX_GROUPS_CAP
 from xt.application.tools import GATED_CAPABILITIES, ToolDispatcher, ToolServices, ToolSettings
 from xt.contracts.prompt_catalog import PromptError, default_prompts
 from xt.contracts.tools import Profile
@@ -215,6 +216,10 @@ def load_serve_config(
     ttl = int(ttl_raw) if ttl_raw.isdigit() else -1
     if not 60 <= ttl <= 3600:
         problems.append("XT_CONFIRMATION_TTL_SECONDS phải là số nguyên 60..3600")
+    groups_raw = env.get("XT_MAX_AGGREGATE_GROUPS", str(MAX_GROUPS)).strip()
+    groups = int(groups_raw) if groups_raw.isdigit() else -1
+    if not 1 <= groups <= MAX_GROUPS_CAP:
+        problems.append(f"XT_MAX_AGGREGATE_GROUPS phải là số nguyên 1..{MAX_GROUPS_CAP}")
     tool_settings: ToolSettings | None = None
     if desk and not problems:
         try:
@@ -223,6 +228,7 @@ def load_serve_config(
                 confirmation_ttl=timedelta(seconds=ttl),
                 channels=channels,
                 enabled_capabilities=caps,
+                max_aggregate_groups=groups,
             )
         except ValueError as e:
             problems.append(f"cấu hình tool: {e}")

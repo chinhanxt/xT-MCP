@@ -62,7 +62,7 @@
       "id": "cc.tools",
       "effect": "Allow",
       "subjects": ["role:employee", "role:project_manager", "role:director", "role:admin", "role:agent"],
-      "actions": ["workspace.read", "model.read", "process.read", "person.read", "record.search", "inbox.read", "history.read"],
+      "actions": ["workspace.read", "model.read", "process.read", "person.read", "record.search", "record.aggregate", "inbox.read", "history.read"],
       "resources": ["xrn:binhminh:*"],
       "conditions": []
     }

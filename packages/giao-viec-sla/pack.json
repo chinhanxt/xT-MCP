@@ -1,7 +1,7 @@
 {
   "format": "xt-pack/1",
   "pack": "giao-viec-sla",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "title": "Giao việc có SLA, leo thang và bản tin tuần",
   "depends_on": [],
   "models": [

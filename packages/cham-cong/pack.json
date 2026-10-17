@@ -1,7 +1,7 @@
 {
   "format": "xt-pack/1",
   "pack": "cham-cong",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "title": "Chấm công dự án: nộp và duyệt bảng công tuần",
   "depends_on": [],
   "models": ["du_an", "bang_cong_tuan", "cham_cong"],

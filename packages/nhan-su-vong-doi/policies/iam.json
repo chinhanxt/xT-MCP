@@ -32,6 +32,34 @@
       ]
     },
     {
+      "id": "hr.emp-own-read-agg",
+      "effect": "Allow",
+      "subjects": [
+        "role:employee"
+      ],
+      "actions": [
+        "record.aggregate"
+      ],
+      "resources": [
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.owner",
+          "op": "eq",
+          "right": {
+            "ref": "subject.id"
+          }
+        }
+      ]
+    },
+    {
       "id": "hr.hr-all",
       "effect": "Allow",
       "subjects": [
@@ -42,6 +70,26 @@
         "record.create",
         "record.update",
         "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "hr.hr-all-agg",
+      "effect": "Allow",
+      "subjects": [
+        "role:hr"
+      ],
+      "actions": [
+        "record.aggregate"
       ],
       "resources": [
         "xrn:binhminh:employee:*",
@@ -77,6 +125,26 @@
       "conditions": []
     },
     {
+      "id": "hr.it-admin-agg",
+      "effect": "Allow",
+      "subjects": [
+        "role:it_admin"
+      ],
+      "actions": [
+        "record.aggregate"
+      ],
+      "resources": [
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*"
+      ],
+      "conditions": []
+    },
+    {
       "id": "hr.accounting",
       "effect": "Allow",
       "subjects": [
@@ -87,6 +155,27 @@
         "record.read",
         "record.update",
         "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "hr.accounting-agg",
+      "effect": "Allow",
+      "subjects": [
+        "role:payment_accountant",
+        "role:chief_accountant"
+      ],
+      "actions": [
+        "record.aggregate"
       ],
       "resources": [
         "xrn:binhminh:employee:*",
@@ -129,6 +218,34 @@
       ]
     },
     {
+      "id": "hr.dept-head-handover-agg",
+      "effect": "Allow",
+      "subjects": [
+        "role:dept_head"
+      ],
+      "actions": [
+        "record.aggregate"
+      ],
+      "resources": [
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.department",
+          "op": "eq",
+          "right": {
+            "ref": "subject.department"
+          }
+        }
+      ]
+    },
+    {
       "id": "hr.director-all",
       "effect": "Allow",
       "subjects": [
@@ -137,6 +254,26 @@
       "actions": [
         "record.read",
         "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "hr.director-all-agg",
+      "effect": "Allow",
+      "subjects": [
+        "role:director"
+      ],
+      "actions": [
+        "record.aggregate"
       ],
       "resources": [
         "xrn:binhminh:employee:*",
@@ -221,6 +358,26 @@
         "xrn:binhminh:offboarding_settlement:*",
         "xrn:binhminh:department:*",
         "xrn:binhminh:employee_pii:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "hr.agent-l0-l1-agg",
+      "effect": "Allow",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "record.aggregate"
+      ],
+      "resources": [
+        "xrn:binhminh:employee:*",
+        "xrn:binhminh:lifecycle_case:*",
+        "xrn:binhminh:lifecycle_task:*",
+        "xrn:binhminh:asset_issue:*",
+        "xrn:binhminh:access_grant:*",
+        "xrn:binhminh:offboarding_settlement:*",
+        "xrn:binhminh:department:*"
       ],
       "conditions": []
     },

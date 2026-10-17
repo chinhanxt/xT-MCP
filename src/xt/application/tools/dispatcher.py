@@ -121,6 +121,7 @@ class ToolSettings:
     enabled_capabilities: frozenset[str] = frozenset()
     max_open_pending_per_actor: int = 20
     max_response_bytes: int = 1_048_576
+    max_aggregate_groups: int = 1000
 
     def __post_init__(self) -> None:
         try:
@@ -142,6 +143,8 @@ class ToolSettings:
             )
         if u.scheme == "http" and not _is_loopback(host):
             raise ValueError("confirm_base_url phải dùng https (http chỉ cho loopback)")
+        if self.max_aggregate_groups < 1:
+            raise ValueError("max_aggregate_groups phải ≥ 1")
         unknown = self.enabled_capabilities - set(GATED_CAPABILITIES)
         if unknown:
             raise ValueError(f"năng lực không biết: {sorted(unknown)}")

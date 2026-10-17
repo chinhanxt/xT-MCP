@@ -8,7 +8,7 @@ from typing import Any
 from uuid import UUID
 
 from xt.adapters.db.workflow_bridge import PgWorkflowStore
-from xt.application.model_engine.service import APP_ADMIN_ROLE
+from xt.application.model_engine.service import APP_ADMIN_ROLE, MAX_GROUPS_CAP
 from xt.application.tools.context import CallContext, iso
 from xt.application.tools.dispatcher import GATED_CAPABILITIES, ToolSettings
 from xt.application.tools.errors import access_denied, not_found
@@ -106,6 +106,7 @@ class Workspace:
             out["limits"] = {
                 "max_page_size": 200,
                 "confirmation_ttl_seconds": int(self.settings.confirmation_ttl.total_seconds()),
+                "max_aggregate_groups": min(self.settings.max_aggregate_groups, MAX_GROUPS_CAP),
             }
         return out
 

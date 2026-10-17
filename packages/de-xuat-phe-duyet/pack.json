@@ -1,7 +1,7 @@
 {
   "format": "xt-pack/1",
   "pack": "de-xuat-phe-duyet",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "title": "Đề xuất và phê duyệt đa cấp (Tạm ứng, Thanh toán, Hoàn ứng)",
   "depends_on": [],
   "models": [
