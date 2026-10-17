@@ -5,7 +5,7 @@
 Một container `postgres:17-alpine` (tên ngẫu nhiên, cổng ngẫu nhiên, xóa bằng `docker rm -f -v`),
 hai CSDL:
   * `xt`    — cài mới: bootstrap + migrate 0001…mới nhất bằng mã hiện tại.
-  * `xt_up` — nâng cấp: bootstrap + migrate + tenant + catalog bằng mã commit 98e1a1b (0001-0004,
+  * `xt_up` — nâng cấp: bootstrap + migrate + tenant + catalog bằng mã commit 07bf5f5 (0001-0004,
               trước I-AUD-META), rồi `install_meta_audit` + migrate bằng mã hiện tại.
 
 Test thường = phòng thủ đứng vững. `xfail(strict=True)` = lỗi ĐÃ tái hiện (gỡ xfail khi sửa).
@@ -54,7 +54,7 @@ from xt.domain.model.spec import Catalog, check_regex
 pytestmark = pytest.mark.integration
 
 IMAGE = "postgres:17-alpine"
-OLD_COMMIT = "98e1a1b"
+OLD_COMMIT = "07bf5f5"
 ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -178,7 +178,7 @@ def cluster(tmp_path_factory: pytest.TempPathFactory) -> Iterator[tuple[Cluster,
         ).stdout
         c.port = int(out.strip().splitlines()[0].rsplit(":", 1)[1])
         _wait(c)
-        # 1) CSDL nâng cấp: mã cũ (98e1a1b) trước, khi cụm còn chưa có role mới (xt_job…)
+        # 1) CSDL nâng cấp: mã cũ (07bf5f5) trước, khi cụm còn chưa có role mới (xt_job…)
         old = tmp_path_factory.mktemp("old_src")
         arch = subprocess.run(
             ["git", "-C", str(ROOT), "archive", OLD_COMMIT, "src"], check=True, capture_output=True
