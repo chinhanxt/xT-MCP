@@ -145,6 +145,34 @@ it('shows the actual generic workflow failure and the approval restrictions with
   expect(panel().querySelector('[role="alert"]')?.textContent).toContain('Quy trình gặp sự cố');
   expect(panel().textContent).toContain('máy chủ có thể chỉ trả lỗi quy trình tổng quát'); expect(panel().textContent).not.toContain('Đã hoàn thành');
 });
+it.each([
+  ['role_not_allowed', 'Vai trò không nằm trong danh sách được phép cấp.'],
+  ['self_approval', 'Người duyệt phải khác người đề nghị, người được cấp quyền và người tạo bản ghi cấp quyền.'],
+])('shows safe grant details for %s and keeps the failed IT step retryable', async (reason, message) => {
+  await mount(async call => call.name === 'get_inbox' ? ok({ items: [task] }) : error('precondition_failed', 'Không thể hoàn thành bước.', { reason, message, trace_id: 'grant-trace' }));
+  await click('Tải bước quy trình'); await click('Hoàn thành IT');
+  expect(panel().querySelector('[role="alert"]')?.textContent).toContain(message);
+  expect(panel().querySelector('[role="alert"]')?.textContent).toContain('grant-trace');
+  expect(panel().textContent).not.toContain('máy chủ có thể chỉ trả lỗi quy trình tổng quát');
+  expect(panel().textContent).not.toContain('Đã hoàn thành');
+  await click('Hoàn thành IT'); expect(calls('transition_record')[1]).toEqual(calls('transition_record')[0]);
+});
+it.each([undefined, '', '   ', 42, { text: 'invalid' }])('keeps generic workflow guidance for malformed details.message: %s', async message => {
+  await mount(async call => call.name === 'get_inbox' ? ok({ items: [task] }) : error('precondition_failed', 'Quy trình gặp sự cố; quản trị đã được ghi nhận.', { reason: 'role_not_allowed', message }));
+  await click('Tải bước quy trình'); await click('Hoàn thành IT');
+  expect(panel().querySelector('[role="alert"]')?.textContent).toContain('Quy trình gặp sự cố');
+  expect(panel().textContent).toContain('máy chủ có thể chỉ trả lỗi quy trình tổng quát');
+});
+it.each([
+  ['internal_error', { reason: 'role_not_allowed', message: 'secret database details' }],
+  ['precondition_failed', { message: 'secret database details' }],
+])('keeps unrecognized %s details private', async (code, details) => {
+  await mount(async call => call.name === 'get_inbox' ? ok({ items: [task] }) : error(code, 'Quy trình gặp sự cố; quản trị đã được ghi nhận.', details));
+  await click('Tải bước quy trình'); await click('Hoàn thành IT');
+  expect(panel().querySelector('[role="alert"]')?.textContent).toContain('Quy trình gặp sự cố');
+  expect(panel().textContent).not.toContain('secret');
+  expect(panel().textContent).toContain('máy chủ có thể chỉ trả lỗi quy trình tổng quát');
+});
 it('removes cached effective roles when inspect_workspace refresh is forbidden', async () => {
   await mount(async () => ok({})); expect(panel().textContent).toContain('hr, employee');
   vi.mocked(mcp.client.callTool).mockResolvedValue(error('access_denied', 'Không thể kiểm tra vai trò') as Awaited<ReturnType<typeof mcp.client.callTool>>);

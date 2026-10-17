@@ -46,7 +46,7 @@ export interface RunAgentOptions {
 }
 
 export async function runAgent(o: RunAgentOptions): Promise<{ steps: number; stopped: "done" | "max_steps" | "aborted" }> {
-  const emit = o.onEvent ?? (() => {});
+  const emit = (event: AgentEvent) => { if (!o.signal?.aborted) o.onEvent?.(event); };
   const allowed = new Set(o.tools.map((t) => t.name));
   const schemas = new Map(o.tools.map((t) => [t.name, t.inputSchema]));
   const openaiTools = toOpenAITools(o.tools);
@@ -59,12 +59,14 @@ export async function runAgent(o: RunAgentOptions): Promise<{ steps: number; sto
         : o.history, tools: openaiTools, signal: o.signal },
       (text) => emit({ type: "assistant_delta", step, text }),
     );
+    if (o.signal?.aborted) return { steps: step - 1, stopped: "aborted" };
     const calls: ToolCall[] = reply.tool_calls;
     o.history.push({ role: "assistant", content: reply.content || "", ...(calls.length ? { tool_calls: calls } : {}) });
     if (reply.content) emit({ type: "assistant_message", step, content: reply.content });
     if (!calls.length) return { steps: step, stopped: "done" };
 
     for (const tc of calls) {
+      if (o.signal?.aborted) return { steps: step - 1, stopped: "aborted" };
       let args: Record<string, unknown> = {};
       let result: ToolResult | undefined;
       try {
@@ -91,6 +93,7 @@ export async function runAgent(o: RunAgentOptions): Promise<{ steps: number; sto
         tc.function.arguments = JSON.stringify(args);
       }
       emit({ type: "tool_start", id: tc.id, name: tc.function.name, args });
+      if (o.signal?.aborted) return { steps: step - 1, stopped: "aborted" };
       if (!result) {
         if (!allowed.has(tc.function.name)) {
           result = errResult(`Tool "${tc.function.name}" không có trong hồ sơ tool hiện tại.`);
@@ -102,6 +105,7 @@ export async function runAgent(o: RunAgentOptions): Promise<{ steps: number; sto
           }
         }
       }
+      if (o.signal?.aborted) return { steps: step - 1, stopped: "aborted" };
       emit({ type: "tool_end", id: tc.id, name: tc.function.name, args, result });
       o.history.push({ role: "tool", tool_call_id: tc.id, content: resultForModel(result) });
     }

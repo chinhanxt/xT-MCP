@@ -6,7 +6,7 @@ function obj(value: unknown): Data { return value && typeof value === 'object' &
 
 /** Lỗi nghiệp vụ từ tool: giữ mã lỗi để UI phân biệt thiếu quyền, hết phiên và lỗi thường. */
 export class ToolError extends Error {
-  constructor(message: string, readonly code: string, readonly requestId: string) { super(message); this.name = 'ToolError'; }
+  constructor(message: string, readonly code: string, readonly requestId: string, readonly details: Data = {}) { super(message); this.name = 'ToolError'; }
 }
 
 function requestIdOf(result: ToolResult, value: Data, error: Data): string {
@@ -31,7 +31,7 @@ export function readToolResult(result: ToolResult): Data {
     const error = obj(value.error);
     const message = String(error.message || value.message || error.code || 'Thao tác bị từ chối');
     const requestId = requestIdOf(result, value, error);
-    throw new ToolError(requestId ? `${message} (mã yêu cầu: ${requestId})` : message, String(error.code || ''), requestId);
+    throw new ToolError(requestId ? `${message} (mã yêu cầu: ${requestId})` : message, String(error.code || ''), requestId, obj(error.details));
   }
   return obj(value.data || value);
 }

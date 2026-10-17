@@ -134,6 +134,71 @@ describe("runAgent", () => {
     expect(r.stopped).toBe("aborted");
     expect(llm.seen).toHaveLength(0);
   });
+
+  it("discards a late LLM reply after abort without events, history or idempotency changes", async () => {
+    const ac = new AbortController();
+    let finish!: (reply: LlmReply) => void;
+    let delta!: (text: string) => void;
+    const llm: LlmClient = { complete: (_request, onDelta) => {
+      delta = onDelta;
+      return new Promise(resolve => { finish = resolve; });
+    } };
+    const { mcp, calls } = mockMcp(() => ({}));
+    const events: AgentEvent[] = [];
+    const history = base();
+    const idempotencyKeys = new Map<string, string>();
+    const write: McpTool = { name: "write", inputSchema: { type: "object", properties: { idempotency_key: { type: "string" } } } };
+    const running = runAgent({ llm, mcp, tools: [write], history, maxSteps: 2, signal: ac.signal, idempotencyKeys, onEvent: event => events.push(event) });
+    ac.abort();
+    delta("Prior tenant secret");
+    finish({ content: "Prior tenant secret", tool_calls: [call("old", "write", { idempotency_key: "old-write" })] });
+    expect((await running).stopped).toBe("aborted");
+    expect(calls).toEqual([]);
+    expect(events).toEqual([]);
+    expect(history).toEqual(base());
+    expect(idempotencyKeys.size).toBe(0);
+  });
+
+  it.each(["resolve", "reject"] as const)("stops remaining tools when the pending first tool %ss after abort", async outcome => {
+    const ac = new AbortController();
+    let finish!: (result: ToolResult) => void;
+    let reject!: (error: Error) => void;
+    let started!: () => void;
+    const firstStarted = new Promise<void>(resolve => { started = resolve; });
+    const llm = mockLlm([{ content: "", tool_calls: [call("first", "read", {}), call("second", "read", {})] }]);
+    let dispatched = 0;
+    const { mcp, calls } = mockMcp(() => {
+      if (++dispatched > 1) return {};
+      started();
+      return new Promise((resolve, fail) => { finish = resolve; reject = fail; });
+    });
+    const events: AgentEvent[] = [];
+    const history = base();
+    const running = runAgent({ llm, mcp, tools: [tool("read")], history, maxSteps: 2, signal: ac.signal, onEvent: event => events.push(event) });
+    await firstStarted;
+    ac.abort();
+    if (outcome === "resolve") finish({ content: [{ type: "text", text: "Prior tenant secret" }] });
+    else reject(new Error("Old request failed"));
+    expect((await running).stopped).toBe("aborted");
+    expect(calls).toEqual([{ name: "read", arguments: {} }]);
+    expect(events.map(event => event.type)).toEqual(["tool_start"]);
+    expect(history.filter(message => message.role === "tool")).toEqual([]);
+    expect(llm.seen).toHaveLength(1);
+  });
+
+  it("does not dispatch a tool when an event subscriber aborts the run", async () => {
+    const ac = new AbortController();
+    const llm = mockLlm([{ content: "Preparing action", tool_calls: [call("write", "write", {})] }]);
+    const { mcp, calls } = mockMcp(() => ({}));
+    const events: AgentEvent[] = [];
+    const result = await runAgent({ llm, mcp, tools: [tool("write")], history: base(), maxSteps: 2, signal: ac.signal, onEvent: event => {
+      events.push(event);
+      if (event.type === "tool_start") ac.abort();
+    } });
+    expect(result.stopped).toBe("aborted");
+    expect(calls).toEqual([]);
+    expect(events.at(-1)?.type).toBe("tool_start");
+  });
 });
 
 describe("ToolCallAccumulator", () => {

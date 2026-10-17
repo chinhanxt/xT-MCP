@@ -11,6 +11,8 @@ declare const __DESK_CONFIG__: {
   oidcIssuer: string;
   oidcClientId: string;
   oidcScope: string;
+  oidcOrgParam: string;
+  oidcOrganizations: string[];
   appCallsPerSec: number;
   appCallBurst: number;
   appMaxInflight: number;

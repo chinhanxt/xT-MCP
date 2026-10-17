@@ -18,6 +18,7 @@ export function createSession(): OidcSession {
       issuer: config.oidcIssuer,
       clientId: config.oidcClientId,
       scope: config.oidcScope,
+      organizationParam: config.oidcOrgParam,
       redirectUri: `${location.origin}${CALLBACK_PATH}`,
       postLogoutRedirectUri: `${location.origin}/`,
     },
