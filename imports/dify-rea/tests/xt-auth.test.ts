@@ -86,26 +86,6 @@ test('integrated assertions bind tenant, person, path, body, role and nonce', as
   }
 });
 
-test('tenant mapping survives a Studio restart without claiming legacy workspace', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'xt-studio-map-'));
-  const tenant = randomUUID();
-  let store = new Store(dir);
-  const legacy = store.id();
-  store.db.prepare('INSERT INTO workspaces(id,name) VALUES(?,?)').run(legacy, 'legacy');
-  const mapped = store.transaction(() => {
-    const id = store.id();
-    store.db.prepare('INSERT INTO workspaces(id,name) VALUES(?,?)').run(id, 'new tenant');
-    store.db.prepare('INSERT INTO xt_workspace_map(tenant_id,workspace_id) VALUES(?,?)').run(tenant, id);
-    return id;
-  });
-  store.close();
-  store = new Store(dir);
-  assert.equal(store.db.prepare('SELECT workspace_id FROM xt_workspace_map WHERE tenant_id=?').get(tenant)?.workspace_id, mapped);
-  assert.notEqual(mapped, legacy);
-  store.close();
-  rmSync(dir, { recursive: true, force: true });
-});
-
 test('signed request_id is validated and written to the request log', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'xt-studio-rid-'));
   const store = new Store(dir);
@@ -137,4 +117,24 @@ test('signed request_id is validated and written to the request log', async () =
     store.close();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('tenant mapping survives a Studio restart without claiming legacy workspace', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'xt-studio-map-'));
+  const tenant = randomUUID();
+  let store = new Store(dir);
+  const legacy = store.id();
+  store.db.prepare('INSERT INTO workspaces(id,name) VALUES(?,?)').run(legacy, 'legacy');
+  const mapped = store.transaction(() => {
+    const id = store.id();
+    store.db.prepare('INSERT INTO workspaces(id,name) VALUES(?,?)').run(id, 'new tenant');
+    store.db.prepare('INSERT INTO xt_workspace_map(tenant_id,workspace_id) VALUES(?,?)').run(tenant, id);
+    return id;
+  });
+  store.close();
+  store = new Store(dir);
+  assert.equal(store.db.prepare('SELECT workspace_id FROM xt_workspace_map WHERE tenant_id=?').get(tenant)?.workspace_id, mapped);
+  assert.notEqual(mapped, legacy);
+  store.close();
+  rmSync(dir, { recursive: true, force: true });
 });
