@@ -75,6 +75,7 @@ export async function runAgent(
   messages: ChatMessage[],
   signal?: AbortSignal,
   coreTools?: XtTools,
+  integrated = coreTools !== undefined,
 ): Promise<RunResult> {
   const selected = config.xt_tools ?? [];
   if (selected.length && !coreTools) throw new HttpError(503, 'Kết nối công cụ xT chưa sẵn sàng.');
@@ -97,7 +98,7 @@ export async function runAgent(
       function: { name, description: tool.name + ': ' + tool.description, parameters: tool.input_schema },
     })),
   ];
-  const check = sourceCheck(coreTools);
+  const check = sourceCheck(coreTools, integrated);
   const history = [...messages],
     trace: Trace[] = [],
     citations: RunResult['citations'] = [];

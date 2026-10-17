@@ -109,8 +109,9 @@ export async function runWorkflow(
   signal?: AbortSignal,
   inputs: Record<string, string | number | boolean> = {},
   coreTools?: XtTools,
+  integrated = coreTools !== undefined,
 ): Promise<RunResult> {
-  const check = sourceCheck(coreTools);
+  const check = sourceCheck(coreTools, integrated);
   const graph = config.graph,
     ordered = validateGraph(
       graph,

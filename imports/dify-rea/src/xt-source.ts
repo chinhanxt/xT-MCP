@@ -47,8 +47,15 @@ export type SourceCheck = (ref: string, signal?: AbortSignal) => Promise<number 
 
 // Current revision visible to the caller, or null when xT says the record is gone or not readable.
 // Transport failures throw so a run fails visibly instead of answering without sources.
-export function sourceCheck(tools: XtTools | undefined): SourceCheck | undefined {
-  if (!tools) return undefined;
+// Integrated mode always gets a check (retrieve uses it to drop documents without an xT source);
+// without a core connection that check fails closed. Standalone mode gets none.
+export function sourceCheck(tools: XtTools | undefined, integrated = tools !== undefined): SourceCheck | undefined {
+  if (!tools)
+    return integrated
+      ? async () => {
+          throw new HttpError(503, 'Không kiểm tra nguồn xT được cho tài liệu này.');
+        }
+      : undefined;
   const seen = new Map<string, Promise<number | null>>();
   return (ref, signal) => {
     let pending = seen.get(ref);
