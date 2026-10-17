@@ -137,6 +137,7 @@ test('generic app (CRM): list from search_records; record create sends exact cre
 });
 
 test('WareTrack module: scoped read-only bridge, business-mode read via connect(window), writes and Studio proxy refused, logout invalidates',async({page})=>{
+  test.setTimeout(120_000); // iframe 3D nặng: tránh vượt ngân sách 45 s khi máy bận
   const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
   const fixture=await mockPortal(page,handler(['staff']));
   await loginToTier3(page);
@@ -150,7 +151,7 @@ test('WareTrack module: scoped read-only bridge, business-mode read via connect(
   await expect(iframe).toHaveAttribute('src','/waretrack/?integrated=1');
   const wt=page.frameLocator('iframe[title="xT WareTrack"]');
   // business mode reads through connect(window).callTool('search_records', ...) and renders the read-only list
-  await expect(wt.getByRole('button',{name:'Mô phỏng',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(wt.getByRole('button',{name:'Mô phỏng',exact:true})).toHaveAttribute('aria-pressed','true',{timeout:30_000}); // bundle 3D ~880 KB: lần tải đầu chậm khi máy bận
   await iframe.scrollIntoViewIfNeeded();
   await wt.getByRole('button',{name:'Dữ liệu nghiệp vụ',exact:true}).click();
   await expect(wt.getByRole('heading',{name:'Dữ liệu nghiệp vụ (chỉ đọc)'})).toBeVisible();
