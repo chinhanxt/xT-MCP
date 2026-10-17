@@ -130,8 +130,14 @@ def confirmation_tenant(db: Database, confirmation_id: str) -> TenantRef | None:
 
 
 # ------------------------------------------------------------------------ đọc lúc chạy ----
+# Vai trò hiệu lực = sơ đồ tổ chức + vai trò cấp qua access_grant đã duyệt còn hiệu lực (D-UNI-H-1);
+# đọc lại mỗi lời gọi nên thu hồi có hiệu lực ở lần kiểm quyền kế tiếp.
+_ROLES_SQL = (
+    "(p.roles || ARRAY(SELECT g.role FROM xt_meta.person_role_grant g WHERE g.tenant_id ="
+    " p.tenant_id AND g.person = p.id AND g.revoked_at IS NULL ORDER BY g.role))"
+)
 _PERSON_SQL = (
-    "SELECT p.*, u.key AS unit_key FROM xt_meta.person p"
+    f"SELECT p.*, {_ROLES_SQL} AS effective_roles, u.key AS unit_key FROM xt_meta.person p"
     " LEFT JOIN xt_meta.org_unit u ON u.tenant_id = p.tenant_id AND u.id = p.unit"
 )
 
@@ -143,7 +149,7 @@ def _person(row: Mapping[str, Any]) -> Person:
         key=row["key"],
         name=row["name"],
         subject=row["subject"],
-        roles=tuple(row["roles"]),
+        roles=tuple(dict.fromkeys(row["effective_roles"])),
         unit=row["unit"],
         unit_key=row["unit_key"],
         manager=row["manager"],
@@ -207,7 +213,7 @@ class PgIntegrationStore:
             like = "%" + query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
             params += [like, like]
         if role:
-            conds.append("%s = ANY(p.roles)")
+            conds.append(f"%s = ANY({_ROLES_SQL})")
             params.append(role)
         if unit:
             conds.append("p.unit = %s")
@@ -254,6 +260,47 @@ class PgIntegrationStore:
                 (person, client_id),
             ).fetchone()
         return (int(row["autonomy"]), tuple(row["roles"])) if row else None
+
+    # ---- vai trò cấp qua access_grant (D-UNI-H-1, application.iam.role_grants)
+    def person_active(self, actor: ModelActor, pid: UUID) -> bool:
+        with self.uow.tenant_tx(actor) as cur:
+            row = cur.execute(
+                "SELECT 1 FROM xt_meta.person WHERE id = %s AND active", (pid,)
+            ).fetchone()
+        return row is not None
+
+    def apply_role_grant(
+        self,
+        actor: ModelActor,
+        ref: str,
+        person: UUID,
+        role: str,
+        requested_by: UUID,
+        approved_by: UUID,
+    ) -> bool:
+        """Upsert theo `ref`; True nếu ràng buộc vừa được tạo/kích hoạt lại/đổi (False = đã có)."""
+        with self.uow.tenant_tx(actor) as cur:
+            row = cur.execute(
+                "INSERT INTO xt_meta.person_role_grant AS g (tenant_id, grant_ref, person, role,"
+                " requested_by, approved_by) VALUES (xt.tenant(), %s, %s, %s, %s, %s)"
+                " ON CONFLICT (tenant_id, grant_ref) DO UPDATE SET person = EXCLUDED.person,"
+                " role = EXCLUDED.role, requested_by = EXCLUDED.requested_by,"
+                " approved_by = EXCLUDED.approved_by, applied_at = clock_timestamp(),"
+                " revoked_at = NULL, revoked_by = NULL"
+                " WHERE g.revoked_at IS NOT NULL OR g.person <> EXCLUDED.person"
+                " OR g.role <> EXCLUDED.role RETURNING 1",
+                (ref, person, role, requested_by, approved_by),
+            ).fetchone()
+        return row is not None
+
+    def revoke_role_grant(self, actor: ModelActor, ref: str, revoked_by: UUID) -> bool:
+        with self.uow.tenant_tx(actor) as cur:
+            row = cur.execute(
+                "UPDATE xt_meta.person_role_grant SET revoked_at = clock_timestamp(),"
+                " revoked_by = %s WHERE grant_ref = %s AND revoked_at IS NULL RETURNING 1",
+                (revoked_by, ref),
+            ).fetchone()
+        return row is not None
 
     # ---- định nghĩa
     def active_policy(self, actor: ModelActor) -> tuple[int, dict[str, Any]] | None:
