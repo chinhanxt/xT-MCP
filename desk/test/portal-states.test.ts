@@ -54,7 +54,7 @@ it('classifies forbidden, expired and generic errors', () => {
 
 it('shows a forbidden state with the request id instead of fake data', async () => {
   await mount('H', async (call) => call.name === 'find_people' ? fail('access_denied', 'Không có quyền person.read', { details: { request_id: 'req-9' } }) : ok({ me: { name: 'Lan' }, models: [] }));
-  const alert = container.querySelector('[role="alert"]')!;
+  const alert = container.querySelector('.portal > [role="alert"]')!;
   expect(alert.getAttribute('data-state')).toBe('forbidden');
   expect(alert.textContent).toContain('Thiếu quyền');
   expect(alert.textContent).toContain('req-9');
@@ -63,7 +63,7 @@ it('shows a forbidden state with the request id instead of fake data', async () 
 
 it('shows an expired-session state and does not retry', async () => {
   const mcp = await mount('P', async (call) => call.name === 'get_inbox' ? fail('unauthenticated', 'Token hết hạn') : ok({ models: [] }));
-  const alert = container.querySelector('[role="alert"]')!;
+  const alert = container.querySelector('.portal > [role="alert"]')!;
   expect(alert.getAttribute('data-state')).toBe('expired');
   expect(alert.textContent).toContain('đăng nhập lại');
   expect(vi.mocked(mcp.client.callTool).mock.calls.filter((c) => c[0].name === 'get_inbox')).toHaveLength(1);
@@ -71,7 +71,7 @@ it('shows an expired-session state and does not retry', async () => {
 
 it('reports a missing tool as forbidden', async () => {
   await mount('H', async () => ok({ models: [] }), ['inspect_workspace']);
-  expect(container.querySelector('[role="alert"]')?.getAttribute('data-state')).toBe('forbidden');
+  expect(container.querySelector('.portal > [role="alert"]')?.getAttribute('data-state')).toBe('forbidden');
 });
 
 it('collects the rejection reason in a labelled textarea, never window.prompt', async () => {
@@ -88,7 +88,7 @@ it('collects the rejection reason in a labelled textarea, never window.prompt', 
   const area = container.querySelector<HTMLTextAreaElement>('textarea#reject-reason')!;
   expect(container.querySelector('label[for="reject-reason"]')?.textContent).toBe('Lý do từ chối');
   await act(async () => container.querySelector('form:has(#reject-reason)')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
-  expect(container.querySelector('[role="alert"]')?.textContent).toContain('Nhập lý do từ chối');
+  expect(container.querySelector('.portal > [role="alert"]')?.textContent).toContain('Nhập lý do từ chối');
   expect(vi.mocked(mcp.client.callTool).mock.calls.some((c) => c[0].name === 'decide_request')).toBe(false);
   await act(async () => { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(area, '  Thiếu chứng từ  '); area.dispatchEvent(new Event('input', { bubbles: true })); });
   await act(async () => container.querySelector('form:has(#reject-reason)')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
@@ -106,7 +106,7 @@ it('isolates a crashing module and lets the user retry', async () => {
   root = createRoot(container);
   await act(async () => { root!.render(createElement('div', null, createElement('nav', null, 'khung điều hướng'), createElement(PortalBoundary, { label: 'D' }, createElement(Child)))); });
   expect(container.querySelector('nav')?.textContent).toBe('khung điều hướng');
-  expect(container.querySelector('[role="alert"]')?.textContent).toContain('hỏng module');
+  expect(container.querySelector('.portal > [role="alert"]')?.textContent).toContain('hỏng module');
   broken = false;
   await click('Thử lại');
   expect(container.textContent).toContain('đã phục hồi');
@@ -119,5 +119,5 @@ it('renders connecting and connection-failed panels', async () => {
   await act(async () => { root!.render(createElement(PortalPending, { label: 'H', error: '' })); });
   expect(container.querySelector('[role="status"]')?.textContent).toContain('Đang kết nối');
   await act(async () => { root!.render(createElement(PortalPending, { label: 'H', error: 'Không kết nối được MCP: 502' })); });
-  expect(container.querySelector('[role="alert"]')?.textContent).toContain('502');
+  expect(container.querySelector('.portal > [role="alert"]')?.textContent).toContain('502');
 });
