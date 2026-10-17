@@ -68,3 +68,20 @@ it('shows empty, error and missing-tool states without inventing departments', a
   expect(container.querySelector('.portal-departments [role="alert"]')?.textContent).toContain('Thiếu quyền');
   expect(calls('find_people')).toHaveLength(0);
 });
+
+it('follows next_cursor so a large directory is not silently truncated, and warns when the page cap is hit', async () => {
+  const page = (n: number, next: string | null) => ok({ people: [{ ref: `person:${n}`, name: `P${n}`, org_unit: { ref: `org_unit:u${n}`, name: `Đơn vị ${n}` } }], next_cursor: next });
+  await mount(async (call) => {
+    if (call.name === 'inspect_workspace') return ok({ me: {}, models: [] });
+    if (call.arguments.cursor === 'c1') return page(2, null);
+    return page(1, 'c1');
+  });
+  expect(Array.from(container.querySelectorAll('.portal-departments [aria-label="Chọn phòng ban"] button')).map((b) => b.textContent)).toEqual(['Đơn vị 1 (1)', 'Đơn vị 2 (1)']);
+  expect(calls('find_people').map((c) => c.arguments).filter((a) => a.limit === 100)).toEqual([{ limit: 100 }, { limit: 100, cursor: 'c1' }]);
+  expect(container.querySelector('.portal-departments')?.textContent).not.toContain('chưa đầy đủ');
+  await act(async () => root!.unmount()); root = undefined; document.body.innerHTML = '';
+  let n = 0;
+  await mount(async (call) => call.name === 'inspect_workspace' ? ok({ me: {}, models: [] }) : page(++n, `c${n}`));
+  expect(calls('find_people').filter((c) => c.arguments.limit === 100)).toHaveLength(5);
+  expect(container.querySelector('.portal-departments [role="note"]')?.textContent).toContain('chưa đầy đủ');
+});
