@@ -9,7 +9,7 @@ import os
 import subprocess
 from typing import Any
 
-from xte2e.config import E2E, ROOT
+from xte2e.config import E2E, ROOT, settings
 
 
 def run(
@@ -36,7 +36,7 @@ def run(
         capture_output=True,
         text=True,
         timeout=timeout,
-        env={**os.environ, "SHOT": str(E2E / "reports" / f"desk-{mode}.png")},
+        env={**settings().script_env(), "SHOT": str(E2E / "reports" / f"desk-{mode}.png")},
     )
     res: dict[str, Any] = {}
     for line in r.stdout.splitlines():

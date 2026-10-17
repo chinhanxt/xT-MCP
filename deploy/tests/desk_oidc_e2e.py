@@ -16,10 +16,10 @@ for line in (DEPLOY / ".env").read_text().splitlines():
     m = re.match(r"([A-Z0-9_]+)=(.*)", line)
     if m:
         env[m.group(1)] = m.group(2).strip().strip('"')
-env.update({k: v for k, v in os.environ.items() if k.startswith(("XT_", "KC_", "GW"))})
+env.update({k: v for k, v in os.environ.items() if k.startswith(("XT_", "KC_", "APISIX_", "GW"))})
 REALM = env.get("XT_REALM", "xt")
-KC = env.get("KC_ADMIN_URL") or f"http://127.0.0.1:{env.get('KC_HTTP_PORT', '18080')}"
-GW = env.get("GW", "127.0.0.1:9080")
+KC = env.get("KC_ADMIN_URL") or f"http://127.0.0.1:{env.get('KC_HTTP_PORT') or '18080'}"
+GW = env.get("GW") or f"127.0.0.1:{env.get('APISIX_HTTP_PORT') or '9080'}"
 AUTH = env.get("XT_DOMAIN_AUTH", "xt-auth.freepro.online")
 DESK = f"https://{env.get('XT_DOMAIN_DESK', 'xt.freepro.online')}"
 CID = env.get("XT_DESK_AGENT_CLIENT_ID", "xt-desk-agent")

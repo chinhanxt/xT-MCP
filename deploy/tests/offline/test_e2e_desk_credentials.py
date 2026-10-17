@@ -8,6 +8,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "e2e"))
@@ -25,6 +26,7 @@ class BrowserCredentials(unittest.TestCase):
 
         with (
             patch.object(Path, "exists", return_value=True),
+            patch.object(desk, "settings", return_value=SimpleNamespace(script_env=dict)),
             patch.object(desk.subprocess, "run", side_effect=timeout),
             self.assertRaises(subprocess.TimeoutExpired) as failure,
         ):
