@@ -72,7 +72,7 @@ export function MembersPanel({ mcp, tools, workspace, onRefresh }: Props) {
       setPending(`Đã tạo ${current.caseRef}; chờ khởi động quy trình.`);
     }
     const value = await call('start_process', { process_id: 'employee_onboarding', subject_ref: current.caseRef, parameters: { case_id: id(current.caseRef), employee_id: id(current.employee), employee_user: `person:${raw.user_id}` } }, true);
-    if (typeof value.process_instance !== 'string' || !value.process_instance.startsWith('process_instance:') || !id(value.process_instance) || !['active', 'completed'].includes(String(value.state))) throw new Error('Chưa xác nhận được quy trình đã khởi động.');
+    if (typeof value.process_instance !== 'string' || !value.process_instance.startsWith('process_instance:') || !id(value.process_instance) || !['running', 'completed'].includes(String(value.state))) throw new Error('Chưa xác nhận được quy trình đã khởi động.');
     setDone(`Đã khởi động ${value.process_instance}.`); setPending(''); setRaw({}); attempt.current = null;
   }
   async function load(which: 'grants' | 'tasks', cursor = '') {

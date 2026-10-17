@@ -35,7 +35,7 @@ it('creates employee, case and process in order; resumes start with the same key
   await mount(async call => {
     if (call.name === 'create_record') return ok({ record: { ref: call.arguments.model_id === 'employee' ? 'employee:e1' : 'lifecycle_case:c1' } });
     if (++starts === 1) throw new Error('Mất kết nối');
-    return ok({ process_instance: 'process_instance:p1', state: 'active' });
+    return ok({ process_instance: 'process_instance:p1', state: 'running' });
   });
   expect(panel().textContent).toContain('hr, employee');
   await fillHR(); await submit('Tiếp nhận nhân viên');
@@ -123,7 +123,7 @@ it('clears records and blocks further calls on expiry until the session is repla
   expect(Array.from(panel().querySelectorAll('button')).every(b => b.disabled)).toBe(true);
 });
 it('preflights the HR tools and rejects malformed process success', async () => {
-  await mount(async call => call.name === 'create_record' ? ok({ record: { ref: call.arguments.model_id === 'employee' ? 'employee:e1' : 'lifecycle_case:c1' } }) : ok({ process_instance: '', state: 'active' }), ['inspect_workspace', 'find_people', 'create_record']);
+  await mount(async call => call.name === 'create_record' ? ok({ record: { ref: call.arguments.model_id === 'employee' ? 'employee:e1' : 'lifecycle_case:c1' } }) : ok({ process_instance: '', state: 'running' }), ['inspect_workspace', 'find_people', 'create_record']);
   await fillHR(); await submit('Tiếp nhận nhân viên'); expect(calls('create_record')).toHaveLength(0);
   tools = [...tools, { name: 'start_process', inputSchema: { type: 'object' } }]; await render(); await submit('Tiếp nhận nhân viên');
   expect(panel().textContent).toContain('Chưa xác nhận được quy trình'); expect(panel().textContent).not.toContain('Đã khởi động');
@@ -152,7 +152,7 @@ it('removes cached effective roles when inspect_workspace refresh is forbidden',
   expect(container.querySelector('[data-state="forbidden"]')?.textContent).toContain('Không thể kiểm tra vai trò');
 });
 it('allows correcting a rejected case while keeping the created employee locked', async () => {
-  await mount(async call => call.name === 'start_process' ? ok({ process_instance: 'process_instance:p1', state: 'active' }) : call.arguments.model_id === 'employee' ? ok({ record: { ref: 'employee:e1' } }) : (call.arguments.values as Record<string, unknown>).code === 'ON-2026-0015' ? error('rule_violation', 'Mã hồ sơ đã tồn tại') : ok({ record: { ref: 'lifecycle_case:c1' } }));
+  await mount(async call => call.name === 'start_process' ? ok({ process_instance: 'process_instance:p1', state: 'running' }) : call.arguments.model_id === 'employee' ? ok({ record: { ref: 'employee:e1' } }) : (call.arguments.values as Record<string, unknown>).code === 'ON-2026-0015' ? error('rule_violation', 'Mã hồ sơ đã tồn tại') : ok({ record: { ref: 'lifecycle_case:c1' } }));
   await fillHR(); await submit('Tiếp nhận nhân viên');
   expect(panel().querySelector('[aria-label="Họ và tên"]')!.closest('fieldset')!.disabled).toBe(true);
   expect(panel().querySelector('[aria-label="Mã hồ sơ"]')!.closest('fieldset')!.disabled).toBe(false);
