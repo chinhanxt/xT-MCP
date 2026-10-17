@@ -756,6 +756,16 @@ def tenant_of_alias(migrator: psycopg.Connection[Any], alias: str) -> TenantRef:
     return TenantRef(int(row[0]), row[1])
 
 
+def org_populated(migrator: psycopg.Connection[Any], tenant: TenantRef) -> bool:
+    """Tenant đã có đơn vị hoặc người (vd vừa khôi phục từ backup): nạp mẫu không được ghi đè."""
+    row = migrator.execute(
+        "SELECT EXISTS (SELECT 1 FROM xt_meta.person WHERE tenant_id = %s)"
+        " OR EXISTS (SELECT 1 FROM xt_meta.org_unit WHERE tenant_id = %s)",
+        (tenant.id, tenant.id),
+    ).fetchone()
+    return bool(row and row[0])
+
+
 def import_org(
     migrator: psycopg.Connection[Any], tenant: TenantRef, data: Mapping[str, Any]
 ) -> dict[str, int]:

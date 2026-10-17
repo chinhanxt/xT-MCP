@@ -9,12 +9,15 @@
 3. User Keycloak cho một tập đại diện (giám đốc, kế toán, 2 trưởng phòng, 3 nhân viên ở A; 3 người ở B (Hoa Mai);
    1 user thuộc cả hai Organization). Người duyệt có TOTP với seed đã biết; bí mật chỉ ở
    `${XT_SECRETS_DIR:-~/.config/xt}/e2e/demo-seed.json` (0600, ngoài repo).
-4. `xt org import` (tệp HR + links sub/agent grant), `xt pack install` hai bước có mã xác nhận,
+4. Không ghi đè: tenant đã có dữ liệu tổ chức (vd vừa khôi phục từ backup) thì bỏ qua `xt org import`
+   (`--if-empty`) và gói đã cài; chỉ `--force` mới upsert lại.
+   `xt org import` (tệp HR + links sub/agent grant), `xt pack install` hai bước có mã xác nhận,
    `xt tenant bind-queue`, `xt doctor`.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -306,8 +309,10 @@ def import_org(
     org_file: Path,
     links: dict[str, Any],
     extra_grants: list[dict[str, Any]] | None = None,
+    force: bool = False,
 ) -> str:
-    """`xt org import` thật. Tệp tạm 0644 (container uid 10001 phải đọc được; không chứa bí mật)."""
+    """`xt org import` thật. Mặc định `--if-empty`: tenant đã có dữ liệu (vd khôi phục từ backup) thì
+    bỏ qua, không ghi đè; `force=True` mới upsert. Tệp tạm 0644 (container uid 10001 phải đọc được; không chứa bí mật)."""
     d = Path(tempfile.mkdtemp(prefix="xt-e2e-org-"))
     try:
         d.chmod(0o755)
@@ -330,6 +335,7 @@ def import_org(
                 "/seed/mapping.json",
                 "--base-roles",
                 "employee",
+                *([] if force else ["--if-empty"]),
             ],
             mounts=[(d, "/seed")],
         )
@@ -420,7 +426,14 @@ def bind_queue(alias: str) -> str:
     ).strip()
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="demo-seed")
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="upsert lại tổ chức mẫu kể cả khi tenant đã có dữ liệu (mặc định: không ghi đè)",
+    )
+    force = ap.parse_args(argv).force
     s = settings()
     wait_core()
     kc = Admin()
@@ -455,7 +468,9 @@ def main() -> int:
         subjects = seed_users(kc, t, hr, state, org_id)
         links = links_for(subjects)
         log(f"tenant {alias}: xt org import ({len(subjects)} người có đăng nhập)")
-        report[f"org-{alias}"] = import_org(alias, Path(t["org"]), links).strip().splitlines()[-1]
+        report[f"org-{alias}"] = (
+            import_org(alias, Path(t["org"]), links, force=force).strip().splitlines()[-1]
+        )
         have = installed(alias)
         director = next(
             k

@@ -49,7 +49,7 @@ def connector(world) -> Connector:  # type: ignore[no-untyped-def]
         {"person": k, "client_id": cid, "autonomy": 1, "roles": ["agent"]}
         for k in (REQUESTER, DEPT_HEAD, DIRECTOR)
     ]
-    seed.import_org(A, Path(t["org_file"]), t["links"], grants)
+    seed.import_org(A, Path(t["org_file"]), t["links"], grants, force=True)
     return Connector(cid, redirect)
 
 
