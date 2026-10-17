@@ -35,7 +35,7 @@ export function PublishedApp({ app, back }: { app: StudioApp; back: () => void }
   return <div className="page">
     <button onClick={back}>← Ứng dụng</button>
     <h1>{app.name}</h1><p>{app.description}</p>
-    <div className="row">
+    <div className="row conversation-bar">
       <button onClick={() => { setConversation(''); setAnswer(''); }}>Hội thoại mới</button>
       <select aria-label="Hội thoại" value={conversation} onChange={async (event) => {
         const id = event.target.value; setConversation(id);

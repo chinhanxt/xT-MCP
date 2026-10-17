@@ -16,7 +16,7 @@ test("chưa đăng nhập: fail closed, không có request tới /mcp hay /llm",
   });
   await page.goto("/");
   await expect(page.getByTestId("login")).toBeVisible();
-  await expect(page.locator("#box")).toBeDisabled();
+  await expect(page.locator("#box")).toHaveCount(0); // khung chat chỉ có sau khi đăng nhập
   await page.waitForTimeout(800);
   expect(calls).toEqual([]);
 });
@@ -53,7 +53,7 @@ test("token chỉ trong bộ nhớ: không localStorage/sessionStorage, reload l
   expect(await page.evaluate(() => localStorage.length)).toBe(0);
   await page.reload();
   await expect(page.getByTestId("login")).toBeVisible();
-  await expect(page.locator("#box")).toBeDisabled();
+  await expect(page.locator("#box")).toHaveCount(0); // khung chat chỉ có sau khi đăng nhập
 });
 
 test("refresh token rotation: token sắp hết hạn được làm mới, đồng thời nhiều request vẫn không dùng lại refresh token cũ", async ({ page }) => {
@@ -73,6 +73,6 @@ test("callback sai state (CSRF): từ chối, không đổi token", async ({ pag
   const before = (await oidcLog(page)).length;
   await page.goto("/auth/callback?code=abc&state=sai");
   await expect(page.getByTestId("login")).toContainText(/state|phiên đăng nhập/i);
-  await expect(page.locator("#box")).toBeDisabled();
+  await expect(page.locator("#box")).toHaveCount(0); // khung chat chỉ có sau khi đăng nhập
   expect((await oidcLog(page)).slice(before).filter((e) => e.ev === "token")).toEqual([]);
 });

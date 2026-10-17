@@ -8,6 +8,7 @@ import { readToolResult, ToolError } from './portal-result';
 import { confirmUrlOf } from './portal-request';
 import { PortalAlert } from './PortalAlert';
 import { classifyError, type ErrorKind } from './portal-state';
+import { recordTitle } from './portal-labels';
 
 type Data = Record<string, unknown>;
 type Attempt = { signature: string; employee?: string; caseRef?: string };
@@ -23,7 +24,7 @@ export function MembersPanel({ mcp, tools, workspace, onRefresh }: Props) {
   const [raw, setRaw] = useState<Record<string, string>>({}), [grant, setGrant] = useState<Record<string, string>>({}), [revokedOn, setRevokedOn] = useState('');
   const [grants, setGrants] = useState<Data[] | null>(null), [tasks, setTasks] = useState<Data[] | null>(null), [cursors, setCursors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false), [expired, setExpired] = useState(false), [error, setError] = useState(''), [kind, setKind] = useState<ErrorKind>('error'), [done, setDone] = useState(''), [confirmUrl, setConfirmUrl] = useState(''), [pending, setPending] = useState('');
-  const [hasErrorDetail, setHasErrorDetail] = useState(false);
+  const [hasErrorDetail, setHasErrorDetail] = useState(false), [failedOp, setFailedOp] = useState('');
   const live = useRef(false), working = useRef(false), attempt = useRef<Attempt | null>(null), keys = useRef(new Map<string, string>());
   const scope = useRef('');
   const available = useRef(tools); available.current = tools;
@@ -50,11 +51,11 @@ export function MembersPanel({ mcp, tools, workspace, onRefresh }: Props) {
   }
   async function run(job: () => Promise<void>, operation = '') {
     if (working.current) return;
-    working.current = true; scope.current = operation; setBusy(true); setError(''); setHasErrorDetail(false); setDone(''); setConfirmUrl('');
+    working.current = true; scope.current = operation; setBusy(true); setError(''); setHasErrorDetail(false); setFailedOp(''); setDone(''); setConfirmUrl('');
     try { await job(); for (const key of keys.current.keys()) if (key.startsWith(`${JSON.stringify(operation)}:`)) keys.current.delete(key); }
     catch (e) { if (live.current) {
       const state = classifyError(e), detail = e instanceof ToolError && e.code === 'precondition_failed' && typeof e.details.reason === 'string' && typeof e.details.message === 'string' ? e.details.message.trim() : '';
-      setHasErrorDetail(!!detail); setError(detail ? `${detail}${e instanceof ToolError && e.requestId ? ` (mã yêu cầu: ${e.requestId})` : ''}` : (e as Error).message); setKind(state);
+      setFailedOp(operation); setHasErrorDetail(!!detail); setError(detail ? `${detail}${e instanceof ToolError && e.requestId ? ` (mã yêu cầu: ${e.requestId})` : ''}` : (e as Error).message); setKind(state);
       if (state === 'expired') { setExpired(true); setGrants(null); setTasks(null); setRaw({}); setGrant({}); setPending(''); setCursors({}); attempt.current = null; keys.current.clear(); }
     } }
     finally { working.current = false; if (live.current) setBusy(false); }
@@ -126,9 +127,9 @@ export function MembersPanel({ mcp, tools, workspace, onRefresh }: Props) {
     <button disabled={busy || expired || !mcp} onClick={() => void run(() => load('grants'))}>Tải quyền truy cập</button>
     <label>Ngày thu hồi<input aria-label="Ngày thu hồi" type="date" value={revokedOn} disabled={busy || expired} onChange={e => setRevokedOn(e.target.value)}/></label>
     {grants && !grants.length && <p role="status">Chưa có quyền truy cập bạn được xem.</p>}
-    {grants?.map(row => { const values = obj(row.values); return <article className="portal-entry" key={String(row.ref)}><strong>{String(values.role || row.title || row.ref)}</strong><p>{String(values.employee)} · {String(values.system)} · Cấp: {String(values.issued_on)} · {values.revoked_on ? `Đã thu hồi: ${values.revoked_on}` : 'Chưa thu hồi (chưa khẳng định đã hiệu lực)'}</p>{!values.revoked_on && <button disabled={busy || expired || !revokedOn || typeof row.revision !== 'number'} onClick={() => void run(() => revoke(row), `revoke:${row.ref}`)}>Thu hồi {String(row.ref)}</button>}</article>; })}
+    {grants?.map(row => { const values = obj(row.values), name = String(values.role || recordTitle(row, 'Quyền truy cập')); return <article className="portal-entry" key={String(row.ref)}><strong>{name}</strong><p>{String(values.employee)} · {String(values.system)} · Cấp: {String(values.issued_on)} · {values.revoked_on ? `Đã thu hồi: ${values.revoked_on}` : 'Chưa thu hồi (chưa khẳng định đã hiệu lực)'}</p>{!values.revoked_on && <><button title={String(row.ref)} aria-describedby={`grant-ref-${String(row.ref)}`} disabled={busy || expired || !revokedOn || typeof row.revision !== 'number'} onClick={() => void run(() => revoke(row), `revoke:${row.ref}`)}>Thu hồi {name}</button><span id={`grant-ref-${String(row.ref)}`} className="sr-only">Mã {String(row.ref)}</span></>}</article>; })}
     {cursors.grants && <button disabled={busy || expired} onClick={() => void run(() => load('grants', cursors.grants))}>Tải thêm quyền</button>}
     {busy && <p role="status">Đang xử lý…</p>}{done && <p role="status">{done}</p>}
-    <PortalAlert text={error} kind={kind}>{confirmUrl && <> <a href={confirmUrl} target="_blank" rel="noopener noreferrer">Mở trang xác nhận</a><p>Sau khi xác nhận, thử lại đúng thao tác để đọc kết quả.</p></>}{error && !hasErrorDetail && <p>Nếu bước cấp quyền thất bại, kiểm tra vai trò được phép và việc người tạo tự duyệt; máy chủ có thể chỉ trả lỗi quy trình tổng quát.</p>}</PortalAlert>
+    <PortalAlert text={error} kind={kind}>{confirmUrl && <> <a href={confirmUrl} target="_blank" rel="noopener noreferrer">Mở trang xác nhận</a><p>Sau khi xác nhận, thử lại đúng thao tác để đọc kết quả.</p></>}{error && !hasErrorDetail && kind === 'error' && (failedOp === 'grant' || failedOp.startsWith('step:')) && <p>Nếu bước cấp quyền thất bại, kiểm tra vai trò được phép và việc người tạo tự duyệt; máy chủ có thể chỉ trả lỗi quy trình tổng quát.</p>}</PortalAlert>
   </section>;
 }

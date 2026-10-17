@@ -50,7 +50,7 @@ afterEach(async () => { if (root) await act(async () => root!.unmount()); root =
 it('offers metrics and group-by from describe_model, renders rows/totals with as-of, scope and revision', async () => {
   await mount(base((call) => call.name === 'aggregate_records' ? ok(report) : undefined));
   const metric = container.querySelector<HTMLSelectElement>('select[aria-label="Chỉ số"]')!;
-  expect(Array.from(metric.options).map((o) => o.textContent)).toEqual(['Số bản ghi', 'Dưới ngưỡng', 'Tổng Số lượng']);
+  expect(Array.from(metric.options).map((o) => o.textContent)).toEqual(['Số bản ghi', 'Dưới ngưỡng', 'Tổng số lượng']);
   expect(Array.from(container.querySelector<HTMLSelectElement>('select[aria-label="Nhóm theo"]')!.options).map((o) => o.textContent)).toEqual(['Không nhóm', 'Kho', 'Khu']);
   await choose('Nhóm theo', 'zone');
   await click('Xem báo cáo');
@@ -85,7 +85,7 @@ it('traces a number back to source records and their history (lineage -> get_rec
   await click('Xem báo cáo'); await click('Xem nguồn');
   expect(calls('get_history')[0].arguments).toEqual({ ref: 'explain:lin-1', view: 'explain' });
   expect(container.querySelector('[aria-label="Nguồn số liệu"]')?.textContent).toContain('Tổng hợp từ 2 bản ghi');
-  await click('Mở bản ghi stock_level:a1');
+  await click('Mở bản ghi Tồn A1');
   expect(calls('get_record')[0].arguments).toEqual({ ref: 'stock_level:a1' });
   expect(container.querySelector('[aria-label="Bản ghi nguồn"]')?.textContent).toContain('3.000');
   await click('Lịch sử bản ghi');
@@ -119,4 +119,38 @@ it('stays usable without describe_model or aggregate permission', async () => {
 it('shows an empty state when the workspace has no models', async () => {
   await mount(async () => ok({ me: {}, models: [] }));
   expect(container.querySelector('.portal-report')?.textContent).toContain('Chưa có dữ liệu để lập báo cáo.');
+});
+
+it('keeps sentence labels lowercase after the first word: "Tổng số lượng", never "Tổng Số lượng"', async () => {
+  await mount(base((call) => call.name === 'aggregate_records' ? ok(report) : undefined));
+  const text = Array.from(container.querySelectorAll('button, option')).map((e) => e.textContent).join('|');
+  expect(text).toContain('Tổng số lượng theo khu'); expect(text).toContain('Số bản ghi theo khu');
+  expect(text).not.toMatch(/Tổng Số|theo Khu/);
+});
+it('shows enum labels from describe_model for report group keys and the source record detail', async () => {
+  const model = { ...stockModel, fields: stockModel.fields.map((f) => f.id === 'zone' ? { ...f, enum_values: undefined, options: [{ value: 'a', label: 'Khu A' }, { value: 'b', label: 'Khu B' }] } : f.id === 'note' ? { ...f, type: 'enum', options: [{ value: 'high', label: 'Cao' }] } : f) };
+  await mount(base((call) => {
+    if (call.name === 'describe_model') return ok({ model });
+    if (call.name === 'aggregate_records') return ok(report);
+    if (call.name === 'get_history' && call.arguments.view === 'explain') return ok({ view: 'explain', explanation: { outcome: 'lineage', reasons: [], record_refs: ['stock_level:a1'] } });
+    if (call.name === 'get_record') return ok({ record: { ref: 'stock_level:a1', title: 'Tồn A1', values: { zone: 'a', note: 'high' } } });
+  }));
+  await choose('Nhóm theo', 'zone'); await click('Xem báo cáo');
+  expect(Array.from(container.querySelectorAll('.report-result tbody td:first-child')).map((td) => td.textContent)).toEqual(['Khu A', 'Khu B']);
+  await click('Xem nguồn'); await click('Mở bản ghi Tồn A1');
+  const detail = container.querySelector('[aria-label="Bản ghi nguồn"]')!.textContent!;
+  expect(detail).toContain('Khu A'); expect(detail).toContain('Cao'); expect(detail).not.toMatch(/\bhigh\b/);
+});
+it('names source buttons after the record title, keeping the ref only as tooltip and description', async () => {
+  await mount(base((call) => {
+    if (call.name === 'aggregate_records') return ok(report);
+    if (call.name === 'get_history' && call.arguments.view === 'explain') return ok({ view: 'explain', explanation: { outcome: 'lineage', reasons: [], record_refs: ['stock_level:a1', 'stock_level:b1'] } });
+    if (call.name === 'get_record') return ok({ record: { ref: call.arguments.ref, title: call.arguments.ref === 'stock_level:a1' ? 'Tồn A1' : undefined, values: {} } });
+  }));
+  await click('Xem báo cáo'); await click('Xem nguồn');
+  const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>('[aria-label="Nguồn số liệu"] li button'));
+  expect(buttons.map((b) => b.textContent)).toEqual(['Mở bản ghi Tồn A1', 'Mở bản ghi Tồn kho 2']);
+  expect(buttons.map((b) => b.getAttribute('title'))).toEqual(['stock_level:a1', 'stock_level:b1']);
+  expect(container.querySelector(`[id="${buttons[0].getAttribute('aria-describedby')}"]`)?.textContent).toContain('stock_level:a1');
+  expect(buttons.every((b) => !b.textContent!.includes('stock_level:'))).toBe(true);
 });

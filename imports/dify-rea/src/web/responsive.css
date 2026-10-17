@@ -141,6 +141,16 @@
     border-top: 1px solid var(--line);
   }
 }
+@media (max-width: 600px) {
+  .row.conversation-bar {
+    flex-wrap: wrap;
+  }
+  .row.conversation-bar select {
+    flex: 1 1 100%;
+    min-width: 0;
+    text-overflow: ellipsis;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto !important;

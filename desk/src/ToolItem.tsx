@@ -34,7 +34,7 @@ const HOST_CAPS = { serverTools: {}, serverResources: {}, openLinks: {} };
 // Rate limit chung theo tên tool cho mọi instance App của phiên (ngoài rate limit riêng từng instance)
 const globalLimiter = createGlobalToolLimiter({ ratePerSec: config.appGlobalCallsPerSec, burst: config.appGlobalBurst });
 
-const STATUS_VI = { running: "đang chạy", ok: "xong", error: "lỗi" } as const;
+const STATUS_VI = { running: "đang chạy", ok: "xong", error: "lỗi", confirm: "Cần xác nhận" } as const;
 
 interface UiResource {
   html: string;
@@ -107,12 +107,14 @@ export function ToolItem(props: Props) {
   const { entry } = props;
   const [open, setOpen] = useState(false);
   const confirm = confirmInfo(entry.result, config.xtOrigin);
+  // Chờ xác nhận không phải lỗi: chip trung tính thay vì chip đỏ "lỗi".
+  const status = confirm && entry.status === "error" ? "confirm" : entry.status;
   const piiTokens = entry.status === "ok" ? extractTokens(entry.result) : [];
   return (
     <div className="tool" data-testid="tool-item">
-      <button className={`chip ${entry.status}`} onClick={() => setOpen(!open)} aria-expanded={open}>
+      <button className={`chip ${status}`} onClick={() => setOpen(!open)} aria-expanded={open}>
         <span className="chip-name">{entry.name}</span>
-        <span className="chip-status">{STATUS_VI[entry.status]}</span>
+        <span className="chip-status">{STATUS_VI[status]}</span>
       </button>
       {open && (
         <pre className="tool-detail">

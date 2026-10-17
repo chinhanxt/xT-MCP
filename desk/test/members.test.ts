@@ -69,9 +69,9 @@ it('records a grant without claiming effective roles, lists/revokes using the li
   expect(panel().textContent).toContain('chỉ hiệu lực sau bước IT');
   await click('Tải quyền truy cập'); expect(calls('search_records')[0].arguments).toEqual({ model_id: 'access_grant', limit: 50 });
   expect(panel().textContent).toContain('Chưa thu hồi'); expect(panel().textContent).toContain('Đã thu hồi');
-  await input('Ngày thu hồi', '2026-10-18'); await click('Thu hồi access_grant:g1'); await click('Thu hồi access_grant:g1');
+  await input('Ngày thu hồi', '2026-10-18'); await click('Thu hồi employee'); await click('Thu hồi employee');
   expect(calls('update_record')[0].arguments).toMatchObject({ ref: grant.ref, set: { revoked_on: '2026-10-18' }, expected_revision: 3, idempotency_key: expect.any(String) });
-  expect(calls('update_record')[1]).toEqual(calls('update_record')[0]); expect(panel().querySelectorAll('button')).not.toContainEqual(expect.objectContaining({ textContent: 'Thu hồi access_grant:g1' }));
+  expect(calls('update_record')[1]).toEqual(calls('update_record')[0]); expect(panel().querySelectorAll('button')).not.toContainEqual(expect.objectContaining({ textContent: 'Thu hồi employee' }));
 });
 it.each(['Vai trò không nằm trong danh sách được cấp', 'Người tạo không được tự duyệt cấp quyền'])('shows IT failure: %s', async message => {
   await mount(async call => call.name === 'get_inbox' ? ok({ items: [task], next_cursor: null }) : error('access_denied', message));
@@ -187,4 +187,36 @@ it('allows correcting a rejected case while keeping the created employee locked'
   await input('Mã hồ sơ', 'ON-2026-0020'); await submit('Tiếp nhận nhân viên');
   expect(calls('create_record').filter(c => c.arguments.model_id === 'employee')).toHaveLength(1);
   expect(panel().textContent).toContain('Đã khởi động');
+});
+
+it('names the revoke button after the grant, keeping the technical ref only as tooltip and description', async () => {
+  await mount(async call => call.name === 'search_records' ? ok({ items: [grant], next_cursor: null }) : ok({}));
+  await click('Tải quyền truy cập');
+  const button = Array.from(panel().querySelectorAll('button')).find(b => b.textContent === 'Thu hồi employee')!;
+  expect(button.textContent).not.toContain('access_grant:');
+  expect(button.getAttribute('title')).toBe('access_grant:g1');
+  expect(panel().querySelector(`[id="${button.getAttribute('aria-describedby')}"]`)?.textContent).toContain('access_grant:g1');
+});
+it('shows the grant hint only for grant and IT-step errors, not for other operations', async () => {
+  const hint = 'Nếu bước cấp quyền thất bại';
+  await mount(async call => call.name === 'create_record' || call.name === 'transition_record' ? error('internal', 'Lỗi quy trình') : call.name === 'get_inbox' ? ok({ items: [task], next_cursor: null }) : error('internal', 'Lỗi khác'));
+  await input('ID nhân viên được cấp', 'e1'); await input('Vai trò được cấp', 'employee'); await input('Ngày cấp', '2026-10-17'); await submit('Đề xuất cấp quyền');
+  expect(panel().textContent).toContain(hint);
+  await click('Tải bước quy trình'); expect(panel().textContent).not.toContain(hint);
+  await click('Hoàn thành IT'); expect(panel().textContent).toContain(hint);
+  await click('Tải quyền truy cập'); expect(panel().textContent).toContain('Lỗi khác'); expect(panel().textContent).not.toContain(hint);
+});
+it('does not attach the grant hint to a session-expired alert, even right after a grant attempt', async () => {
+  await mount(async () => error('unauthenticated', 'Phiên hết hạn'));
+  await input('ID nhân viên được cấp', 'e1'); await input('Vai trò được cấp', 'employee'); await input('Ngày cấp', '2026-10-17'); await submit('Đề xuất cấp quyền');
+  expect(panel().querySelector('[data-state="expired"]')?.textContent).toContain('Phiên hết hạn');
+  expect(panel().textContent).not.toContain('Nếu bước cấp quyền thất bại');
+});
+it('shows confirmation_required as a neutral "Cần xác nhận" status with the confirm link, not an alert', async () => {
+  await mount(async call => call.name === 'get_inbox' ? ok({ items: [task], next_cursor: null }) : error('confirmation_required', 'Chờ người phụ trách', { confirm_url: 'https://xt.test/desk/confirm/it' }));
+  await click('Tải bước quy trình'); await click('Hoàn thành IT');
+  const note = panel().querySelector('[data-state="confirm"]')!;
+  expect(note.getAttribute('role')).toBe('status'); expect(note.className).toContain('portal-confirm');
+  expect(note.textContent).toContain('Cần xác nhận'); expect(note.querySelector('a')?.getAttribute('href')).toBe('https://xt.test/desk/confirm/it');
+  expect(panel().querySelector('[data-state="error"]')).toBeNull();
 });

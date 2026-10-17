@@ -292,7 +292,7 @@ export function App() {
         {busy && <div className="thinking">đang xử lý...</div>}
         <div ref={bottom} />
       </main>
-      <form hidden={authState.status === "authenticated" && area !== "Desk"}
+      {authState.status === "authenticated" && <form hidden={area !== "Desk"}
         onSubmit={(e) => {
           e.preventDefault();
           void send(input);
@@ -302,7 +302,7 @@ export function App() {
         <button id="send" disabled={busy || !mcp}>
           Gửi
         </button>
-      </form>
+      </form>}
     </div>
   );
 }
