@@ -1,0 +1,8 @@
+{
+  "model": "cham_cong",
+  "records": [
+    {"person": "@user:NV-0006", "owner_id": "@user:NV-0006", "project": "@du_an:DA-001", "date": "2026-10-12", "hours_milli": 8000, "note": "Phân tích yêu cầu"},
+    {"person": "@user:NV-0006", "owner_id": "@user:NV-0006", "project": "@du_an:DA-001", "date": "2026-10-13", "hours_milli": 7500, "note": "Thiết kế"},
+    {"person": "@user:NV-0006", "owner_id": "@user:NV-0006", "project": "@du_an:DA-002", "date": "2026-10-14", "hours_milli": 4000, "note": "Họp khởi động"}
+  ]
+}

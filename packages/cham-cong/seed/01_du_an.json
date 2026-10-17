@@ -1,0 +1,7 @@
+{
+  "model": "du_an",
+  "records": [
+    {"_key": "DA-001", "code": "DA-001", "name": "Dự án mẫu A", "manager": "@user:NV-0005", "start_date": "2026-09-01", "end_date": "2026-12-31", "status": "dang-chay"},
+    {"_key": "DA-002", "code": "DA-002", "name": "Dự án mẫu B", "manager": "@user:NV-0005", "start_date": "2026-10-01", "status": "ke-hoach"}
+  ]
+}
