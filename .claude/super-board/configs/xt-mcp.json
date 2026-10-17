@@ -1,17 +1,46 @@
 {
   "version": 1,
   "description": "xT unified build pipeline",
-  "project": { "owner": "chinhanxt", "title": "xT-MCP board", "number": 4 },
-  "worker_backend": "workflow",
-  "calibration": { "enabled": false, "mode": "apply-existing", "skill_path": null, "allowed_skill_paths": [] },
-  "model_tier": "medium",
-  "codex": { "model": null },
-  "target": { "type": "repo", "url": null },
-  "repo": { "path": ".", "remote": "https://github.com/chinhanxt/xT-MCP" },
+  "project": {
+    "owner": "chinhanxt",
+    "title": "xT-MCP board",
+    "number": 4
+  },
+  "worker_backend": "claude-p",
+  "calibration": {
+    "enabled": false,
+    "mode": "apply-existing",
+    "skill_path": null,
+    "allowed_skill_paths": []
+  },
+  "model_tier": "low",
+  "codex": {
+    "model": null
+  },
+  "target": {
+    "type": "repo",
+    "url": null
+  },
+  "repo": {
+    "path": ".",
+    "remote": "https://github.com/chinhanxt/xT-MCP"
+  },
   "base_branch": "staging",
   "timezone": "Asia/Ho_Chi_Minh",
-  "columns": ["Backlog", "Ready", "Building", "QA", "Review", "Blocked", "Done"],
-  "labels": ["qa", "bug", "feature"],
+  "columns": [
+    "Backlog",
+    "Ready",
+    "Building",
+    "QA",
+    "Review",
+    "Blocked",
+    "Done"
+  ],
+  "labels": [
+    "qa",
+    "bug",
+    "feature"
+  ],
   "paths": {
     "project_md": "docs/super-board/PROJECT.md",
     "pre_flight_md": "docs/super-board/pre-flight.md",
@@ -22,22 +51,72 @@
     "default": "auto",
     "auto_max_lines": 400,
     "always_human": {
-      "money":  { "labels": ["money", "payments", "billing", "pricing"],
-                  "paths": ["**/billing/**", "**/payments/**", "**/stripe/**", "**/checkout/**"],
-                  "keywords": ["stripe.", "payment_intent", "price_id", "invoice.create"] },
-      "auth":   { "labels": ["auth", "security"],
-                  "paths": ["**/auth/**", "**/authz/**", "**/permissions/**"],
-                  "keywords": ["jwt.sign", "bcrypt", "password_hash", "service_role"] },
-      "schema": { "labels": ["schema", "destructive"], "paths": [],
-                  "keywords": ["drop table", "drop column", "truncate table", "rename column", "drop schema"] }
+      "money": {
+        "labels": [
+          "money",
+          "payments",
+          "billing",
+          "pricing"
+        ],
+        "paths": [
+          "**/billing/**",
+          "**/payments/**",
+          "**/stripe/**",
+          "**/checkout/**"
+        ],
+        "keywords": [
+          "stripe.",
+          "payment_intent",
+          "price_id",
+          "invoice.create"
+        ]
+      },
+      "auth": {
+        "labels": [
+          "auth",
+          "security"
+        ],
+        "paths": [
+          "**/auth/**",
+          "**/authz/**",
+          "**/permissions/**"
+        ],
+        "keywords": [
+          "jwt.sign",
+          "bcrypt",
+          "password_hash",
+          "service_role"
+        ]
+      },
+      "schema": {
+        "labels": [
+          "schema",
+          "destructive"
+        ],
+        "paths": [],
+        "keywords": [
+          "drop table",
+          "drop column",
+          "truncate table",
+          "rename column",
+          "drop schema"
+        ]
+      }
     },
     "allow_auto_on_production": false
   },
   "migrations": {
-    "globs": ["**/migrations/*.sql", "alembic/versions/**"],
-    "allowed_envs": ["test"],
+    "globs": [
+      "**/migrations/*.sql",
+      "alembic/versions/**"
+    ],
+    "allowed_envs": [
+      "test"
+    ],
     "target_env": "staging",
-    "commands": { "test": "-" },
+    "commands": {
+      "test": "-"
+    },
     "checks": {},
     "human_steps": []
   },
@@ -54,7 +133,24 @@
   "max_workers": 0,
   "rebuild_cap": 2,
   "block_rate_alert_pct": 30,
-  "collect": { "sources": ["github", "prs", "architecture"], "window_days": 14,
-               "prs": { "max_prs": 200 }, "architecture": { "max_findings": 5 }, "custom": [] },
-  "notifications": { "channel": "session", "chat_id": null, "bot_identity": "chinhanxt" }
+  "collect": {
+    "sources": [
+      "github",
+      "prs",
+      "architecture"
+    ],
+    "window_days": 14,
+    "prs": {
+      "max_prs": 200
+    },
+    "architecture": {
+      "max_findings": 5
+    },
+    "custom": []
+  },
+  "notifications": {
+    "channel": "session",
+    "chat_id": null,
+    "bot_identity": "chinhanxt"
+  }
 }
