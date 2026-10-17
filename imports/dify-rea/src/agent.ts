@@ -6,6 +6,7 @@ import type { FunctionTool } from './models.ts';
 import { callMcp, selectedTool } from './mcp.ts';
 import { hashToken } from './http.ts';
 import { retrieve } from './knowledge.ts';
+import { sourceCheck } from './xt-source.ts';
 import { HttpError, object, text } from './validation.ts';
 export function calculate(expression: string): number {
   const tokens = expression.match(/(?:\d+(?:\.\d*)?|\.\d+)|[()+\-*/]/g) ?? [];
@@ -94,6 +95,7 @@ export async function runAgent(
       function: { name, description: tool.name + ': ' + tool.description, parameters: tool.input_schema },
     })),
   ];
+  const check = sourceCheck(coreTools);
   const history = [...messages],
     trace: Trace[] = [],
     citations: RunResult['citations'] = [];
@@ -116,7 +118,7 @@ export async function runAgent(
           if ((value as { ok?: boolean }).ok === false) status = 'error';
         }
         if (call.function.name === 'knowledge_search') {
-          const found = await retrieve(store, workspace, config.knowledge_ids, text(args.query, 'Truy vấn', 2000), 5, signal);
+          const found = await retrieve(store, workspace, config.knowledge_ids, text(args.query, 'Truy vấn', 2000), 5, signal, check);
           citations.push(...found);
           output = JSON.stringify(found);
         }

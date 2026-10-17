@@ -42,3 +42,29 @@ export async function fetchXtDocument(tools: XtTools | undefined, ref: string, s
   }
   throw new HttpError(413, 'Văn bản xT có quá nhiều trang.');
 }
+
+export type SourceCheck = (ref: string, signal?: AbortSignal) => Promise<number | null>;
+
+// Current revision visible to the caller, or null when xT says the record is gone or not readable.
+// Transport failures throw so a run fails visibly instead of answering without sources.
+export function sourceCheck(tools: XtTools | undefined): SourceCheck | undefined {
+  if (!tools) return undefined;
+  const seen = new Map<string, Promise<number | null>>();
+  return (ref, signal) => {
+    let pending = seen.get(ref);
+    if (!pending) {
+      pending = (async () => {
+        const value = (await tools.call('get_record', { ref }, signal)) as Envelope;
+        if (value?.ok === true) {
+          const revision = value.data?.record?.revision;
+          if (typeof revision !== 'number' || !Number.isInteger(revision)) throw new HttpError(502, 'Bản ghi xT thiếu revision.');
+          return revision;
+        }
+        if (value?.error?.code === 'not_found' || value?.error?.code === 'access_denied') return null;
+        throw envelopeError(value ?? {});
+      })();
+      seen.set(ref, pending);
+    }
+    return pending;
+  };
+}

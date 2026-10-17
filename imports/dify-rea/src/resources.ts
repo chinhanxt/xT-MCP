@@ -4,7 +4,7 @@ import { embed, generate } from './models.ts';
 import { indexDocument, retrieve } from './knowledge.ts';
 import type { AppConfig } from './contracts.ts';
 import { extractDocument } from './documents.ts';
-import { fetchXtDocument, xtRef } from './xt-source.ts';
+import { fetchXtDocument, sourceCheck, xtRef } from './xt-source.ts';
 function references(value: unknown, resource: 'model' | 'knowledge', id: string): boolean {
   if (!value) return false;
   const config = JSON.parse(String(value)) as AppConfig;
@@ -124,7 +124,7 @@ export async function routeResources(ctx: RouteContext): Promise<boolean> {
     }
     if (method === 'POST' && knowledgeMatch[2] === 'search') {
       const v = await body(req);
-      send(await retrieve(store, workspace, [id], text(v.query, 'Truy vấn', 2000)));
+      send(await retrieve(store, workspace, [id], text(v.query, 'Truy vấn', 2000), 5, undefined, sourceCheck(ctx.coreTools)));
       return true;
     }
     if (method === 'DELETE' && !knowledgeMatch[2]) {

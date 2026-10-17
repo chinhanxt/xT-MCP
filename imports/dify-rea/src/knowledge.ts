@@ -2,6 +2,7 @@ import type { Citation } from './contracts.ts';
 import type { Store } from './store.ts';
 import { embed } from './models.ts';
 import { HttpError } from './validation.ts';
+import type { SourceCheck } from './xt-source.ts';
 export function chunkText(content: string, size = 800, overlap = 120): string[] {
   const points = Array.from(content.replace(/\r\n/g, '\n').trim()),
     chunks: string[] = [];
@@ -81,6 +82,7 @@ export async function retrieve(
   query: string,
   limit = 5,
   signal?: AbortSignal,
+  check?: SourceCheck,
 ): Promise<Citation[]> {
   const results: Citation[] = [];
   for (const id of [...new Set(ids)]) {
@@ -90,7 +92,7 @@ export async function retrieve(
       // shortcut: exact cosine scan for local datasets; move to a vector index for large corpora.
       const rows = store.db
         .prepare(
-          'SELECT c.id,c.content,c.embedding,d.id AS document_id,d.name FROM chunks c JOIN documents d ON c.document_id=d.id WHERE d.knowledge_id=? AND d.enabled=1 AND d.status=?',
+          'SELECT c.id,c.content,c.embedding,d.id AS document_id,d.name,d.xt_ref,d.xt_revision FROM chunks c JOIN documents d ON c.document_id=d.id WHERE d.knowledge_id=? AND d.enabled=1 AND d.status=?',
         )
         .all(id, 'ready');
       for (const row of rows)
@@ -101,6 +103,7 @@ export async function retrieve(
             document_name: String(row.name),
             content: String(row.content),
             score: cosine(vector, JSON.parse(String(row.embedding))),
+            ...source(row),
           });
     } else {
       const tokens = query.match(/[\p{L}\p{N}_]+/gu)?.slice(0, 30) ?? [];
@@ -108,9 +111,9 @@ export async function retrieve(
       const match = tokens.map((t) => `"${t}"`).join(' OR ');
       const rows = store.db
         .prepare(
-          `SELECT c.id,c.content,d.id AS document_id,d.name,bm25(chunk_search) AS rank FROM chunk_search JOIN chunks c ON c.id=chunk_search.id JOIN documents d ON c.document_id=d.id WHERE chunk_search MATCH ? AND d.knowledge_id=? AND d.enabled=1 AND d.status='ready' ORDER BY rank LIMIT ?`,
+          `SELECT c.id,c.content,d.id AS document_id,d.name,d.xt_ref,d.xt_revision,bm25(chunk_search) AS rank FROM chunk_search JOIN chunks c ON c.id=chunk_search.id JOIN documents d ON c.document_id=d.id WHERE chunk_search MATCH ? AND d.knowledge_id=? AND d.enabled=1 AND d.status='ready' ORDER BY rank LIMIT ?`,
         )
-        .all(match, id, limit);
+        .all(match, id, limit * 4);
       for (const r of rows)
         results.push({
           chunk_id: String(r.id),
@@ -118,9 +121,22 @@ export async function retrieve(
           document_name: String(r.name),
           content: String(r.content),
           score: -Number(r.rank),
+          ...source(r),
         });
     }
   }
-  return results.sort((a, b) => b.score - a.score).slice(0, limit);
+  // xT-sourced chunks are cited only if the caller can still read the same revision in xT.
+  const accepted: Citation[] = [];
+  for (const candidate of results.sort((a, b) => b.score - a.score)) {
+    if (accepted.length >= limit) break;
+    if (candidate.xt_ref !== undefined) {
+      if (!check) throw new HttpError(503, 'Không kiểm tra nguồn xT được cho tài liệu này.');
+      if ((await check(candidate.xt_ref, signal)) !== candidate.xt_revision) continue;
+    }
+    accepted.push(candidate);
+  }
+  return accepted;
 }
+const source = (row: Record<string, unknown>) =>
+  typeof row.xt_ref === 'string' ? { xt_ref: row.xt_ref, xt_revision: Number(row.xt_revision) } : {};
 export const contextText = (citations: Citation[]) => citations.map((c, i) => `[${i + 1}] ${c.document_name}\n${c.content}`).join('\n\n');
