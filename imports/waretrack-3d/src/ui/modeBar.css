@@ -14,6 +14,13 @@
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
 }
+/* Below 1000px the overlay stops shrinking at its 0.7 minimum, so the 1440-authored layout gets less room and the
+   right-anchored detail panel / map controls slide left onto the fixed-x bar. There, sit under the KPI strip
+   instead; business mode hides the KPIs, so the bar stays in the header band. */
+@media (max-width: 1000px) {
+  #wt-modebar { top: 152px; left: 31px; }
+  [data-wt-mode='business'] #wt-modebar { top: 78px; }
+}
 .bz-mode {
   height: 28px;
   padding: 0 12px;
