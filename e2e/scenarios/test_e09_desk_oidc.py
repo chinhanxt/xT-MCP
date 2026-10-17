@@ -11,7 +11,7 @@ import sys
 
 import pytest
 from xte2e import desk
-from xte2e.config import DEPLOY
+from xte2e.config import DEPLOY, settings
 from xte2e.flows import REQUESTER, A
 from xte2e.report import Checks, Evidence
 
@@ -26,6 +26,7 @@ def test_desk_client_config(ev: Evidence) -> None:
         text=True,
         timeout=120,
         cwd=DEPLOY,
+        env=settings().script_env(),
     )
     lines = [ln.strip() for ln in r.stdout.splitlines() if "PASS" in ln or "FAIL" in ln]
     ev.step("desk_oidc_e2e.py check", lines)

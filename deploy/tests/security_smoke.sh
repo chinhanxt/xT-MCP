@@ -5,13 +5,13 @@
 # Regression an ninh cho hạ tầng deploy/ (docs/audit-deploy.md).
 # Yêu cầu: stack đang chạy (postgres + keycloak + apisix) qua `make up-minimal` + `make provision-realm`.
 #
-#   GW=127.0.0.1:9080 ./deploy/tests/security_smoke.sh
+#   [GW=127.0.0.1:${APISIX_HTTP_PORT:-9080}] ./deploy/tests/security_smoke.sh
 #
 # BUG-D1 (DCR grant_type/auth method) và BUG-D2 (DCR rate-limit) đã sửa: các check tương ứng phải PASS.
 # Mỗi request DCR dùng IP giả riêng qua CF-Connecting-IP (APISIX chỉ tin header này từ mạng nội bộ)
 # để không dùng chung hạn mức limit-count 20/giờ/IP; riêng phần flood dùng một IP cố định.
 set -u
-GW="${GW:-127.0.0.1:9080}"
+GW="${GW:-127.0.0.1:${APISIX_HTTP_PORT:-9080}}"
 AUTH="${XT_DOMAIN_AUTH:-xt-auth.freepro.online}"
 REG="http://$GW/realms/${XT_REALM:-xt}/clients-registrations/openid-connect"
 TOK="http://$GW/realms/${XT_REALM:-xt}/protocol/openid-connect/token"

@@ -15,7 +15,7 @@ from typing import Any
 
 import pytest
 from xte2e import compose, dpop, mcpc, net
-from xte2e.config import DEPLOY, HEADLESS_CLIENT, HEADLESS_REDIRECT
+from xte2e.config import DEPLOY, HEADLESS_CLIENT, HEADLESS_REDIRECT, settings
 from xte2e.flows import DEPT_HEAD, REQUESTER, A, advance, dumps, err, key
 from xte2e.kcadmin import Admin
 from xte2e.report import Checks, Evidence
@@ -62,6 +62,7 @@ def test_security_smoke(ev: Evidence) -> None:
         text=True,
         timeout=600,
         cwd=DEPLOY,
+        env=settings().script_env(),
     )
     lines = r.stdout.splitlines()
     fails = [ln.strip() for ln in lines if ln.strip().startswith("FAIL")]

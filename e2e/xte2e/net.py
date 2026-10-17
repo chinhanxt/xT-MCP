@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Ánh xạ hostname công khai -> APISIX 127.0.0.1:9080 ở tầng transport của httpx.
+"""Ánh xạ hostname công khai -> APISIX 127.0.0.1:${APISIX_HTTP_PORT:-9080} ở tầng transport của httpx.
 
 URL logic giữ nguyên `https://<host>/...` (cookie jar, redirect, issuer đều đúng như production);
 chỉ socket được nối tới gateway với `Host` gốc. Không sửa /etc/hosts. Host không thuộc danh sách
