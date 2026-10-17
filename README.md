@@ -43,6 +43,31 @@ Chi tiết và lý do từng quyết định: [docs/architecture-v2.md](docs/arc
 
 **H-P-D-I (đề thi §1–§2).** Trục chính của ứng dụng minh họa: **P (Quy trình)**, e-Office: đề xuất–phê duyệt, giao việc có SLA; và **I (Trí tuệ)**: agent là giao diện, có quản trị quyền tự chủ L0–L3 và audit. Phụ: **H (Con người)** với danh tính cho cả người và agent, sơ đồ tổ chức; **D (Dữ liệu)** với bảng thật có ràng buộc, audit, lineage.
 
+### Bản tích hợp xT + Studio + WareTrack: ánh xạ tới đường dẫn
+
+Kế hoạch: [docs/plans/2026-10-17-unified-xt-studio-waretrack.md](docs/plans/2026-10-17-unified-xt-studio-waretrack.md). Chạy local: [docs/unified-local.md](docs/unified-local.md); vận hành: [docs/unified-ops.md](docs/unified-ops.md); quyền: [docs/unified-role-matrix.md](docs/unified-role-matrix.md).
+
+| Khung | Phần tử | Đường dẫn |
+|---|---|---|
+| Tầng 1 (lõi headless) | SSO, gateway | `deploy/keycloak/`, `deploy/apisix/apisix.yaml.tmpl`, `src/xt/adapters/identity/` |
+| | Dữ liệu, workflow, tệp | `src/xt/application/model_engine/`, `src/xt/application/process/`, `src/xt/adapters/http/workflow_api.py`, `src/xt/adapters/http/files_api.py`, `deploy/compose.yaml` |
+| Tầng 2 (cổng doanh nghiệp) | Desk / shell | `desk/` |
+| | Studio (không gian I) | `imports/dify-rea/`, cầu nối `src/xt/entrypoints/studio_http.py`, `studio_tools.py` |
+| Tầng 3 (ngành) | WareTrack | `imports/waretrack-3d/` (giao diện), `packages/kho-hang/` (nghiệp vụ kho), `src/xt/application/warehouse/` |
+| Lớp 1 Trải nghiệm | Web, MCP | `desk/`, `imports/dify-rea/src/web/`, `imports/waretrack-3d/src/`, `src/xt/adapters/mcp/` |
+| Lớp 2 Biên và ATTT | Gateway, danh tính, IAM | `deploy/apisix/`, `src/xt/adapters/identity/`, `src/xt/application/iam/` |
+| Lớp 3 Tác nghiệp | Model, phiếu, RLS | `src/xt/adapters/db/`, `packages/*/models/` |
+| Lớp 4 Quy trình, DevSecOps | Workflow, worker, build | `packages/*/processes/`, `src/xt/adapters/workflow/`, `src/xt/entrypoints/worker.py`, `scripts/unified.mjs` |
+| Lớp 5 Hội tụ, sổ cái | Audit, tệp, biến động kho | `src/xt/adapters/db/audit.py`, `src/xt/adapters/http/files_api.py`, `packages/kho-hang/models/stock_movement.json` |
+| Lớp 6 Phân tích, trí tuệ | RAG, model, LLM relay | `imports/dify-rea/src/knowledge.ts`, `imports/dify-rea/src/models.ts`, `src/xt/entrypoints/desk_llm_http.py` |
+| Lớp 7 Quản trị, giám sát | Audit, health, sao lưu | `src/xt/entrypoints/audit_cli.py`, `src/xt/adapters/mcp/http_app.py` (`/healthz`), `deploy/scripts/backup_unified.py` (sao lưu/khôi phục, xem [docs/unified-ops.md](docs/unified-ops.md)) |
+| H (Con người) | Tổ chức, vòng đời nhân sự | `packages/nhan-su-vong-doi/`, `seed/` |
+| P (Quy trình) | Đề xuất, phê duyệt, giao việc | `packages/de-xuat-phe-duyet/`, `packages/giao-viec-sla/`, `packages/kho-hang/processes/` |
+| D (Dữ liệu) | Bảng, đọc dữ liệu | `src/xt/application/model_engine/`, `/data` ([docs/headless-data.md](docs/headless-data.md)); panel báo cáo D ở Desk đã có, nhưng `aggregate_records` ở lõi còn `unavailable` (D-UNI-AGG-1 chưa hiện thực) |
+| I (Trí tuệ) | Studio, Desk, công cụ xT | `imports/dify-rea/`, `desk/`, `src/xt/entrypoints/studio_tools.py` |
+
+Bảng chỉ trỏ vị trí mã; trạng thái từng phần xem bảng Tính năng bên dưới và [nhật ký thực thi](docs/plans/unified-execution.md). Chưa có mục nào của bản tích hợp được nghiệm thu đủ.
+
 ## Tính năng (chỉ liệt kê phần đã có mã và test)
 
 **Cập nhật 17/10/2026:** [kiểm thử ChatGPT](docs/mcp-chatgpt-20261017.md) xác minh lại `create_task`, quyền đọc của trưởng bộ phận, metadata rút giấy và duyệt hai cấp bằng xác nhận Desk password/TOTP. Hai giấy gốc được sửa đúng thuộc tính phòng ban, vẫn approved và hiện revision 5; giấy B1/B2 mới dùng riêng cho lượt kiểm này. ChatGPT vẫn có lúc gắn “Suspicious Instruction” tại hộp xin quyền; ghi nhận riêng với kết quả máy chủ. [Báo cáo 16/10](docs/mcp-live-20261016.md) giữ nguyên lịch sử.

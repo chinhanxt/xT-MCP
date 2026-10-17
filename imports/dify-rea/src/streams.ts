@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 export async function* readLines(body: ReadableStream<Uint8Array>, maxBytes = 4 * 1024 * 1024, maxLine = 262144): AsyncGenerator<string> {
   const reader = body.getReader(),
     decoder = new TextDecoder('utf-8', { fatal: true });

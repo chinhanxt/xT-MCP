@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 // Read-only preview of an existing unified build; API/identity fixtures live in the spec.
 // UNIFIED_DIST=/absolute/desk/dist npx playwright test -c e2e/unified-preview.mjs
 import { defineConfig } from '@playwright/test';

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { McpConnection } from './mcp';
 import type { McpTool, ToolResult } from './types';
 import { readToolResult } from './portal-result';
+import { PortalAlert } from './PortalAlert';
+import { classifyError, type ErrorKind } from './portal-state';
 
 type Data = Record<string, unknown>;
 const PAGE = 20;
@@ -27,20 +29,20 @@ export function DocumentsPanel({ mcp, tools, models, primitives = ['document'], 
   const Noun = noun.charAt(0).toUpperCase() + noun.slice(1);
   const [model, setModel] = useState(''), [query, setQuery] = useState('');
   const [rows, setRows] = useState<Data[] | null>(null), [cursor, setCursor] = useState<string | null>(null);
-  const [detail, setDetail] = useState<Data | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(false);
+  const [detail, setDetail] = useState<Data | null>(null), [error, setError] = useState(''), [kind, setKind] = useState<ErrorKind>('error'), [loading, setLoading] = useState(false);
   const seq = useRef(0), live = useRef(true), applied = useRef('');
   const allowed = new Set(tools.map((tool) => tool.name));
   const chosen = model || String(docModels[0]?.id || '');
 
   async function run(name: string, args: Data): Promise<Data | null> {
-    if (!mcp || !allowed.has(name)) { setError(`Thiếu quyền: không có công cụ ${name}.`); return null; }
+    if (!mcp || !allowed.has(name)) { setError(`Không có công cụ ${name}.`); setKind('forbidden'); return null; }
     const mine = ++seq.current;
-    setLoading(true); setError('');
+    setLoading(true); setError(''); setKind('error');
     try {
       const value = readToolResult(await mcp.client.callTool({ name, arguments: args }) as ToolResult);
       return live.current && mine === seq.current ? value : null;
     } catch (e) {
-      if (live.current && mine === seq.current) setError((e as Error).message);
+      if (live.current && mine === seq.current) { setError((e as Error).message); setKind(classifyError(e)); }
       return null;
     } finally { if (live.current && mine === seq.current) setLoading(false); }
   }
@@ -83,6 +85,6 @@ export function DocumentsPanel({ mcp, tools, models, primitives = ['document'], 
         <dl>{details.map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{text(value)}</dd></div>)}</dl>
         <button onClick={() => setDetail(null)}>{`Đóng ${noun}`}</button></article>}
     </>}
-    {error && <p role="alert" className="note portal-error" data-state="error">{error}</p>}
+    <PortalAlert text={error} kind={kind}/>
   </section>;
 }

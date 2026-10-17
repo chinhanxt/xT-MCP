@@ -21,10 +21,10 @@ const workspace = {
     { id: 'khac', label: 'Model không thuộc ứng dụng', primitive: 'record' },
   ],
   apps: [
-    { id: 'cham-cong', title: 'Chấm công', group: 'thoi-gian-du-an', status: 'installed', ui: { kind: 'generic' }, models: ['cham_cong'] },
-    { id: 'crm', title: 'CRM nhẹ', group: 'trai-nghiem-thue-bao', status: 'installed', ui: { kind: 'generic' }, models: ['khach_hang', 'de_nghi_giam_gia', 'khong_thay'] },
-    { id: 'trong', title: 'Chưa khai báo', group: 'tai-san-khong-gian', status: 'installed', ui: { kind: 'generic' } },
-    { id: 'an', title: 'Không quyền', group: 'tai-san-khong-gian', status: 'installed', ui: { kind: 'generic' }, models: ['khong_thay'] },
+    { id: 'cham-cong', title: 'Chấm công', pack: 'cham-cong', group: 'thoi-gian-du-an', status: 'enabled', ui: [{ kind: 'generic' }], models: ['cham_cong'] },
+    { id: 'crm', title: 'CRM nhẹ', group: 'trai-nghiem-thue-bao', status: 'enabled', ui: [{ kind: 'generic' }], models: ['khach_hang', 'de_nghi_giam_gia', 'khong_thay'] },
+    { id: 'trong', title: 'Chưa khai báo', group: 'tai-san-khong-gian', status: 'enabled', ui: [{ kind: 'generic' }] },
+    { id: 'an', title: 'Không quyền', group: 'tai-san-khong-gian', status: 'enabled', ui: [{ kind: 'generic' }], models: ['khong_thay'] },
   ],
 };
 let root: Root | undefined;

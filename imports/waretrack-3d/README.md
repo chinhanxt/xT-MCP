@@ -1,6 +1,6 @@
 # WareTrack 3D — Trung tâm điều hành kho vận 3D (demo ERP)
 
-Bản dựng lại web app trong video tham chiếu (`docs/ref/reference_video.mp4`):
+Bản dựng lại web app từ video tham chiếu của tác giả (video và khung hình `docs/ref/` không phát hành trong repo vì chưa rõ quyền tác giả):
 - bản đồ thành phố 3D isometric với 5 kho;
 - xe tải, xe nâng, pallet chuyển động theo thời gian thực;
 - giao diện điều hành kính mờ: KPI, panel chi tiết, theo dõi đơn hàng, Fleet.

@@ -12,7 +12,7 @@ export class PortalBoundary extends Component<{ children?: ReactNode; label: str
   }
   render() {
     if (!this.state.failed) return this.props.children;
-    return <section className="portal" aria-label={this.props.label}>
+    return <section className="portal" aria-label={this.props.label}><h2 tabIndex={-1}>{this.props.label}</h2>
       <div role="alert" className="note portal-error" data-state="crashed">
         <strong>Không gian {this.props.label} gặp lỗi.</strong> Các không gian khác vẫn dùng được.
         <p>{this.state.message}</p>
@@ -24,7 +24,7 @@ export class PortalBoundary extends Component<{ children?: ReactNode; label: str
 
 /** Hiển thị khi chưa có kết nối MCP: đang kết nối hoặc kết nối lỗi (không để trống). */
 export function PortalPending({ label, error }: { label: string; error: string }) {
-  return <section className="portal" aria-label={label}><h2>{label}</h2>
+  return <section className="portal" aria-label={label}><h2 tabIndex={-1}>{label}</h2>
     {error ? <p role="alert" className="note portal-error" data-state="error">{error}</p> : <p role="status">Đang kết nối xT…</p>}
   </section>;
 }

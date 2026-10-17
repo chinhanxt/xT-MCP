@@ -363,7 +363,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 ### 5.1. `inspect_workspace`
 
 - Mức: **L0** · effects: `idempotent` · annotations: readOnly=True, destructive=False, idempotent=True, openWorld=False
-- Kích thước: input 452 B, data 2166 B, outputSchema (envelope) 3233 B.
+- Kích thước: input 459 B, data 2858 B, outputSchema (envelope) 3925 B.
 - Ghi chú: `tools` liệt kê tool khả dụng/không khả dụng kèm lý do (mẫu `tool_availability` của REA); catalog `tools/list` không bao giờ đổi theo người dùng.
 
 ```json
@@ -404,6 +404,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
             "processes",
             "task_types",
             "policies",
+            "apps",
             "tools",
             "limits"
           ]
@@ -603,6 +604,80 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
           "required": [
             "id",
             "kind"
+          ]
+        }
+      },
+      "apps": {
+        "type": "array",
+        "description": "Installed Tier-3 apps (business packs with an app manifest) for the launcher.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "pack": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "group": {
+              "enum": [
+                "hang-hoa",
+                "thoi-gian-du-an",
+                "trai-nghiem-thue-bao",
+                "tai-san-khong-gian"
+              ]
+            },
+            "status": {
+              "enum": [
+                "enabled",
+                "disabled"
+              ]
+            },
+            "version": {
+              "type": "string"
+            },
+            "ui": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "generic",
+                      "module"
+                    ]
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            },
+            "tools": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "models": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "id",
+            "pack",
+            "title",
+            "group",
+            "status"
           ]
         }
       },
@@ -6214,7 +6289,7 @@ Ngân sách REA là ≤ 13.312 B mỗi input.
 
 | Tool | since | trần | in | compact | data | out | tools/list | +out | desc | props/req | RO | D | I | OW |
 |---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|---|---|---|
-| `inspect_workspace` | 0.1 | L0 | 452 | 395 | 2166 | 3233 | 837 | 4029 | 235 | 2/0 | T | F | T | F |
+| `inspect_workspace` | 0.1 | L0 | 459 | 402 | 2858 | 3925 | 844 | 4728 | 235 | 2/0 | T | F | T | F |
 | `describe_model` | 0.1 | L0 | 413 | 340 | 4206 | 5273 | 791 | 6023 | 250 | 2/1 | T | F | T | F |
 | `describe_process` | 0.1 | L0 | 753 | 696 | 1196 | 2263 | 1117 | 3339 | 222 | 2/1 | T | F | T | F |
 | `find_people` | 0.1 | L0 | 1095 | 1009 | 1491 | 2558 | 1452 | 3969 | 258 | 8/0 | T | F | T | F |
@@ -6238,8 +6313,8 @@ Ngân sách REA là ≤ 13.312 B mỗi input.
 
 | Tập | Số tool | Σ input (B) | Σ compact (B) | Σ data (B) | Σ outputSchema (B) | tools/list (B) | tools/list + outputSchema (B) | Token tool thật trên qwen3.5:4b |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| v0.1 | 17 | 29457 | 28279 | 25487 | 43626 | 36621 | 79550 | 8155 |
-| v1.0 (tất cả) | 21 | 34645 | 33224 | 26917 | 49324 | 43197 | 91660 | 9635 |
+| v0.1 | 17 | 29464 | 28286 | 26179 | 44318 | 36628 | 80249 | 8155 |
+| v1.0 (tất cả) | 21 | 34652 | 33231 | 27609 | 50016 | 43204 | 92359 | 9635 |
 | core-10 (model nhỏ) | 10 | 15552 | 14838 | 13022 | 23692 | 19936 | 43218 | 3916 |
 
 Input lớn nhất: 8899 B (`propose_model_change`) = 66% ngân sách REA 13.312 B. Các số token qwen trong bảng là số đo lịch sử trước thay đổi schema mảng object; chưa đo lại. Token tool đo bằng `prompt_eval_count` của ollama (`/api/chat`, template tool của qwen3.5) trừ baseline không có tool (71 token); chỉ gồm name/description/parameters, không gồm outputSchema (ollama không gửi).

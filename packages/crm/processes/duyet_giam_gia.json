@@ -1,0 +1,19 @@
+{
+  "id": "duyet_giam_gia",
+  "name": "Phê duyệt giảm giá",
+  "version": 1,
+  "roles": ["sales_manager", "director"],
+  "inputs": {"discount_percent": {"type": "number", "description": "Mức giảm giá (%)"}},
+  "fallback_assignee": "role(director)",
+  "steps": [
+    {"id": "manager", "type": "approve", "name": "Quản lý kinh doanh duyệt", "assignee": "role(sales_manager)", "outcomes": ["approve", "reject", "return_for_revision"]},
+    {
+      "id": "director",
+      "type": "approve",
+      "name": "Giám đốc duyệt giảm giá trên 20%",
+      "assignee": "role(director)",
+      "when": "discount_percent > 20",
+      "outcomes": ["approve", "reject", "return_for_revision"]
+    }
+  ]
+}

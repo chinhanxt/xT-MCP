@@ -46,6 +46,16 @@ def test_stock_level_is_read_only_ledger_view():
         assert resource in statements[sid]["resources"], sid
 
 
+def test_business_date_and_aggregate_permission():
+    pack = load_pack(PACK)
+    current = catalog(pack.models)
+    for model, name in (("stock_request", "doc_date"), ("stock_movement", "occurred_on")):
+        field = current.model(model).by_name()[name]
+        assert field.type == "date" and not field.required and field.pii == "none"
+    tools = next(s for s in pack.policies[0]["statements"] if s["id"] == "wh.tools")
+    assert "record.aggregate" in tools["actions"]
+
+
 def test_upgrade_from_previous_release_is_safe():
     models = load_pack(PACK).models
     old = [copy.deepcopy(m) for m in models if m["name"] != "stock_level"]
@@ -56,5 +66,6 @@ def test_upgrade_from_previous_release_is_safe():
             kind["options"] = [o for o in kind["options"] if o["value"] != "reversal"]
         if m["name"] in ("stock_balance", "stock_movement"):
             m["fields"] = [f for f in m["fields"] if f["name"] != "warehouse"]
+        m["fields"] = [f for f in m["fields"] if f["name"] not in ("doc_date", "occurred_on")]
     changes = diff_catalogs(catalog(old), catalog(models))
     assert changes and all(c.cls is RiskClass.SAFE for c in changes), changes

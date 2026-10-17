@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -32,6 +34,7 @@ export function createStudio(store: Store, options: { log?: boolean; integrated?
     let path = url.pathname;
     const method = req.method ?? 'GET';
     let status = 200;
+    let requestId = '';
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'same-origin');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -97,6 +100,7 @@ export function createStudio(store: Store, options: { log?: boolean; integrated?
         if (req.headers['sec-fetch-site'] === 'cross-site') throw new HttpError(403, 'Yêu cầu cross-site bị từ chối.');
       }
       const identity = verify ? await verify(req) : undefined;
+      requestId = identity?.request_id ?? '';
       if (identity) authorizeStudioRoute(path, method, identity.role);
       const coreTools = identity?.capability && process.env.STUDIO_XT_CORE_URL && secret
         ? xtTools(process.env.STUDIO_XT_CORE_URL, secret, identity.capability) : undefined;
@@ -207,7 +211,9 @@ export function createStudio(store: Store, options: { log?: boolean; integrated?
       if (!(error instanceof HttpError)) console.error('request failed', error instanceof Error ? error.stack : 'unknown');
     } finally {
       if (options.log)
-        console.log(`${method} ${path.startsWith('/public/apps/') ? '/public/apps/:share_id' : path} ${status} ${Date.now() - started}ms`);
+        console.log(
+          `${method} ${path.startsWith('/public/apps/') ? '/public/apps/:share_id' : path} ${status} ${Date.now() - started}ms${requestId ? ' request_id=' + requestId : ''}`,
+        );
     }
   });
 }

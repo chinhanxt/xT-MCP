@@ -1,0 +1,36 @@
+{
+  "id": "crm_cham_soc",
+  "name": "cham_soc",
+  "label": "Lịch sử chăm sóc",
+  "title_field": "subject",
+  "fields": [
+    {"id": "f1", "name": "subject", "type": "text", "label": "Nội dung chăm sóc", "pii": "none", "required": true, "min": 1, "max": 200},
+    {"id": "f2", "name": "customer", "type": "ref", "label": "Khách hàng", "pii": "none", "required": true, "ref": "khach_hang"},
+    {"id": "f3", "name": "opportunity", "type": "ref", "label": "Cơ hội liên quan", "pii": "none", "ref": "co_hoi"},
+    {
+      "id": "f4",
+      "name": "channel",
+      "type": "enum",
+      "label": "Kênh",
+      "pii": "none",
+      "required": true,
+      "default": "dien-thoai",
+      "options": [
+        {"value": "dien-thoai", "label": "Điện thoại"},
+        {"value": "email", "label": "Email"},
+        {"value": "gap-mat", "label": "Gặp mặt"},
+        {"value": "tin-nhan", "label": "Tin nhắn"}
+      ]
+    },
+    {"id": "f5", "name": "contacted_at", "type": "datetime", "label": "Thời điểm liên hệ", "pii": "none", "required": true},
+    {"id": "f6", "name": "by_person", "type": "user", "label": "Người liên hệ", "pii": "none", "required": true},
+    {"id": "f7", "name": "note", "type": "text", "label": "Kết quả, ghi chú", "pii": "none", "max": 2000}
+  ],
+  "permissions": {
+    "sales": {"actions": ["create", "read", "update"], "scope": "own"},
+    "sales_manager": {"actions": ["create", "read", "update"], "scope": "all"},
+    "director": {"actions": ["read"], "scope": "all"},
+    "admin": {"actions": ["create", "read", "update"], "scope": "all"},
+    "agent": {"actions": ["read"], "scope": "all"}
+  }
+}

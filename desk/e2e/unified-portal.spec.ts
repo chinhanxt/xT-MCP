@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 // Explicit browser fixtures: real built Desk/Studio code, mocked OIDC/MCP/Studio services.
 import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
@@ -40,6 +41,7 @@ async function fixtures(page:Page) {
     else if(rpc.method==='tools/call') {
       const call=rpc.params as Call;calls.push(call);
       if(call.name==='inspect_workspace') result=ok({me:{ref:'person:lan',name:'Lan',kind:'human',autonomy_ceiling:'L1'},tenant:{name:'Doanh nghiệp mẫu'},models:[{id:'advance_request',label:'Tạm ứng',primitive:'request'},{id:'stock_request',label:'Phiếu kho',primitive:'request'},{id:'stock_item',label:'Hàng hóa',primitive:'record'}],processes:[{id:'stock_approval',label:'Duyệt phiếu kho'}]});
+      else if(call.name==='describe_model') result=ok({model:{id:call.arguments.model_id,label:String(call.arguments.model_id),fields:[],metrics:[]}});
       else if(call.name==='find_people') result=ok({relation:'search',summary:'Nhân sự theo quyền',people:[{ref:'person:lan',name:'Lan',title:'Kế toán',email:'lan@example.test',manager:{name:'Mai',ref:'person:mai'}}],next_cursor:null});
       else if(call.name==='aggregate_records') {expect(call.arguments.metrics).toEqual(['count']);result=ok({model_id:call.arguments.model_id,rows:[],totals:{count:2},summary:'2 bản ghi theo quyền của bạn.',next_cursor:null});}
       else if(call.name==='get_inbox') result=ok({counts:{approval:1},items:[{ref:requestRef,kind:'approval',title:'Phiếu PN-1',state:requestState,sla_status:'on_track'}],next_cursor:null});
@@ -80,7 +82,7 @@ test('unified built portal: H/P/D/Kho, actual Studio iframe and Response bridge,
   await expect(page.locator('.portal')).toContainText('Mai');
   await nav.getByRole('button',{name:'D',exact:true}).click();
   await expect(page.getByLabel('Loại dữ liệu',{exact:true})).toContainText('Tạm ứng');
-  await page.getByRole('button',{name:'Thống kê',exact:true}).click();
+  await page.getByRole('button',{name:'Xem báo cáo',exact:true}).click();
   await expect(page.locator('.portal')).toContainText('2 bản ghi theo quyền của bạn.');
   await page.getByRole('button',{name:'Tìm',exact:true}).click();
   await expect(page.locator('.portal')).toContainText('Không có kết quả.');

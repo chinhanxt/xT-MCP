@@ -1,0 +1,48 @@
+{
+  "id": "crm_co_hoi",
+  "name": "co_hoi",
+  "label": "Cơ hội kinh doanh",
+  "title_field": "title",
+  "fields": [
+    {"id": "f1", "name": "title", "type": "text", "label": "Tên cơ hội", "pii": "none", "required": true, "min": 1, "max": 200},
+    {"id": "f2", "name": "customer", "type": "ref", "label": "Khách hàng", "pii": "none", "required": true, "ref": "khach_hang"},
+    {
+      "id": "f3",
+      "name": "stage",
+      "type": "enum",
+      "label": "Giai đoạn",
+      "pii": "none",
+      "required": true,
+      "default": "moi",
+      "options": [
+        {"value": "moi", "label": "Mới"},
+        {"value": "tiep-can", "label": "Tiếp cận"},
+        {"value": "bao-gia", "label": "Báo giá"},
+        {"value": "dam-phan", "label": "Đàm phán"},
+        {"value": "thang", "label": "Thắng"},
+        {"value": "thua", "label": "Thua"}
+      ]
+    },
+    {
+      "id": "f4",
+      "name": "value_milli",
+      "type": "number",
+      "label": "Giá trị dự kiến (milli: 1 đồng = 1000)",
+      "pii": "none",
+      "required": true,
+      "default": 0,
+      "min": 0,
+      "max": 9000000000000000
+    },
+    {"id": "f5", "name": "owner_person", "type": "user", "label": "Người phụ trách", "pii": "none", "required": true},
+    {"id": "f6", "name": "expected_close", "type": "date", "label": "Ngày dự kiến chốt", "pii": "none"},
+    {"id": "f7", "name": "note", "type": "text", "label": "Ghi chú", "pii": "none", "max": 2000}
+  ],
+  "permissions": {
+    "sales": {"actions": ["create", "read", "update"], "scope": "own"},
+    "sales_manager": {"actions": ["create", "read", "update"], "scope": "all"},
+    "director": {"actions": ["read"], "scope": "all"},
+    "admin": {"actions": ["create", "read", "update"], "scope": "all"},
+    "agent": {"actions": ["read"], "scope": "all"}
+  }
+}

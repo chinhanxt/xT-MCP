@@ -56,3 +56,7 @@ e2e/reports/
 .claude/super-board/inflight/
 .claude/super-board/migrations/
 .claude/super-board/upgrade.json
+
+# skill không rõ giấy phép, chỉ dùng cục bộ
+.claude/skills/testing-strategy/
+imports/waretrack-3d/docs/ref/

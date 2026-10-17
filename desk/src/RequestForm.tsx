@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { config } from './config';
 import type { McpConnection } from './mcp';
 import type { McpTool, ToolResult } from './types';
-import { readToolResult } from './portal-result';
+import { ToolError, readToolResult } from './portal-result';
+import { PortalAlert } from './PortalAlert';
+import { classifyError, type ErrorKind } from './portal-state';
 import { buildValues, confirmUrlOf, fieldErrorsOf, isSupported, readFields, validate, type FieldSpec } from './portal-request';
 
 type Data = Record<string, unknown>;
@@ -22,7 +24,7 @@ export function RequestForm({ mcp, tools, models, onDone, primitives = ['request
   const requestModels = (models || []).filter((row) => primitives.includes(String(row.primitive)));
   const [modelId, setModelId] = useState(''), [fields, setFields] = useState<FieldSpec[] | null>(null);
   const [raw, setRaw] = useState<Record<string, string>>({}), [errors, setErrors] = useState<Record<string, string>>({});
-  const [message, setMessage] = useState(''), [confirmUrl, setConfirmUrl] = useState(''), [done, setDone] = useState('');
+  const [message, setMessage] = useState(''), [kind, setKind] = useState<ErrorKind>('error'), [confirmUrl, setConfirmUrl] = useState(''), [done, setDone] = useState('');
   const [busy, setBusy] = useState(false), [pending, setPending] = useState('');
   const attempt = useRef<Attempt | null>(null), working = useRef(false), live = useRef(true), seq = useRef(0);
   const allowed = new Set(tools.map((tool) => tool.name));
@@ -31,7 +33,7 @@ export function RequestForm({ mcp, tools, models, onDone, primitives = ['request
   useEffect(() => { live.current = true; return () => { live.current = false; seq.current++; }; }, []);
 
   async function call(name: string, args: Data): Promise<ToolResult> {
-    if (!mcp || !allowed.has(name)) throw Object.assign(new Error(`Thiếu quyền: không có công cụ ${name}.`), { fatal: true });
+    if (!mcp || !allowed.has(name)) throw new ToolError(`Không có công cụ ${name}.`, 'access_denied', '');
     return await mcp.client.callTool({ name, arguments: args }) as ToolResult;
   }
   useEffect(() => {
@@ -41,13 +43,13 @@ export function RequestForm({ mcp, tools, models, onDone, primitives = ['request
     call('describe_model', { model_id: chosen }).then((result) => {
       if (!live.current || mine !== seq.current) return;
       setFields(readFields(obj(readToolResult(result)).model));
-    }).catch((e: Error) => { if (live.current && mine === seq.current) { setFields([]); setMessage(e.message); } });
+    }).catch((e: Error) => { if (live.current && mine === seq.current) { setFields([]); setMessage(e.message); setKind(classifyError(e)); } });
   }, [chosen, mcp]); // eslint-disable-line
 
   async function send() {
     if (working.current || !fields || !mcp) return;
     const found = validate(fields, raw);
-    setErrors(found); setMessage(''); setConfirmUrl(''); setDone('');
+    setErrors(found); setMessage(''); setKind('error'); setConfirmUrl(''); setDone('');
     if (Object.keys(found).length) return;
     const values = buildValues(fields, raw), sig = `${chosen}:${JSON.stringify(values)}`;
     if (attempt.current?.sig !== sig && !attempt.current?.draft) attempt.current = { sig, createKey: crypto.randomUUID(), submitKey: crypto.randomUUID() };
@@ -73,6 +75,7 @@ export function RequestForm({ mcp, tools, models, onDone, primitives = ['request
     } catch (e) {
       if (!live.current) return;
       const text = (e as Error).message;
+      setKind(classifyError(e));
       setMessage(current.draft ? `${text}. Phiếu nháp ${current.draft.ref} đã tạo nhưng chưa gửi duyệt; bấm Gửi lại để thử tiếp với cùng khóa an toàn.` : text);
     } finally { working.current = false; if (live.current) setBusy(false); }
   }
@@ -110,6 +113,6 @@ export function RequestForm({ mcp, tools, models, onDone, primitives = ['request
     </form>}
     {busy && <p role="status">Đang gửi…</p>}
     {done && <p role="status" data-testid="request-done">{needsSubmit ? 'Đã gửi duyệt' : 'Đã tạo'} {done}.</p>}
-    {message && <p role="alert" className="note portal-error" data-state="error">{message}{confirmUrl && <> <a href={confirmUrl} target="_blank" rel="noopener noreferrer">Mở trang xác nhận</a></>}</p>}
+    <PortalAlert text={message} kind={kind}>{confirmUrl && <> <a href={confirmUrl} target="_blank" rel="noopener noreferrer">Mở trang xác nhận</a></>}</PortalAlert>
   </section>;
 }

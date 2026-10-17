@@ -1,0 +1,79 @@
+{
+  "version": "1",
+  "tenant": "binhminh",
+  "statements": [
+    {
+      "id": "ts.read",
+      "effect": "Allow",
+      "subjects": ["role:employee", "role:technician", "role:facility_manager", "role:director", "role:admin", "role:agent"],
+      "actions": ["record.read"],
+      "resources": ["xrn:binhminh:tai_san:*", "xrn:binhminh:phieu_bao_tri:*", "xrn:binhminh:su_kien_cam_bien:*"],
+      "conditions": []
+    },
+    {
+      "id": "ts.asset-write",
+      "effect": "Allow",
+      "subjects": ["role:facility_manager", "role:admin"],
+      "actions": ["record.create", "record.update"],
+      "resources": ["xrn:binhminh:tai_san:*"],
+      "conditions": []
+    },
+    {
+      "id": "ts.event-write",
+      "effect": "Allow",
+      "subjects": ["role:technician", "role:facility_manager", "role:admin", "role:agent"],
+      "actions": ["record.create"],
+      "resources": ["xrn:binhminh:su_kien_cam_bien:*"],
+      "conditions": []
+    },
+    {
+      "id": "ts.request-write",
+      "effect": "Allow",
+      "subjects": ["role:employee", "role:technician", "role:agent"],
+      "actions": ["record.create", "record.update", "request.submit", "record.transition"],
+      "resources": ["xrn:binhminh:phieu_bao_tri:*"],
+      "conditions": [{"left": "resource.owner", "op": "eq", "right": {"ref": "subject.id"}}]
+    },
+    {
+      "id": "ts.approve",
+      "effect": "Allow",
+      "subjects": ["role:facility_manager", "role:director"],
+      "actions": ["record.approve", "request.decide"],
+      "resources": ["xrn:binhminh:phieu_bao_tri:*"],
+      "conditions": []
+    },
+    {
+      "id": "ts.deny-agent-approve",
+      "effect": "Deny",
+      "subjects": ["role:agent"],
+      "actions": ["record.approve", "request.decide"],
+      "resources": ["xrn:binhminh:phieu_bao_tri:*"],
+      "conditions": []
+    },
+    {
+      "id": "ts.deny-agent-asset-write",
+      "effect": "Deny",
+      "subjects": ["role:agent"],
+      "actions": ["record.create", "record.update"],
+      "resources": ["xrn:binhminh:tai_san:*"],
+      "conditions": []
+    },
+    {"id": "ts.deny-event-update", "effect": "Deny", "subjects": ["*"], "actions": ["record.update"], "resources": ["xrn:binhminh:su_kien_cam_bien:*"], "conditions": []},
+    {
+      "id": "ts.deny-delete",
+      "effect": "Deny",
+      "subjects": ["*"],
+      "actions": ["record.delete"],
+      "resources": ["xrn:binhminh:tai_san:*", "xrn:binhminh:phieu_bao_tri:*", "xrn:binhminh:su_kien_cam_bien:*"],
+      "conditions": []
+    },
+    {
+      "id": "ts.tools",
+      "effect": "Allow",
+      "subjects": ["role:employee", "role:technician", "role:facility_manager", "role:director", "role:admin", "role:agent"],
+      "actions": ["workspace.read", "model.read", "process.read", "person.read", "record.search", "inbox.read", "history.read"],
+      "resources": ["xrn:binhminh:*"],
+      "conditions": []
+    }
+  ]
+}

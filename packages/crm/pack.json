@@ -1,0 +1,25 @@
+{
+  "format": "xt-pack/1",
+  "pack": "crm",
+  "version": "0.1.0",
+  "title": "CRM nhẹ: khách hàng, cơ hội, chăm sóc, giảm giá qua phê duyệt",
+  "depends_on": [],
+  "models": ["khach_hang", "co_hoi", "cham_soc", "de_nghi_giam_gia"],
+  "processes": ["duyet_giam_gia"],
+  "policies": ["iam"],
+  "allowed_ops": {},
+  "bindings": {"de_nghi_giam_gia": {"primitive": "request", "process": "duyet_giam_gia", "state_field": "state", "inputs": {"discount_percent": {"field": "discount_percent"}}}},
+  "notes": {
+    "group": "trai-nghiem-thue-bao",
+    "roles": {
+      "sales": "Người kinh doanh: quản lý khách hàng của mình, tạo cơ hội, ghi chăm sóc, đề nghị giảm giá",
+      "sales_manager": "Duyệt giảm giá; xem và sửa toàn bộ khách hàng, cơ hội, chăm sóc",
+      "director": "Đọc toàn bộ; duyệt giảm giá trên 20%",
+      "admin": "Quản trị danh mục",
+      "agent": "Danh tính agent: đọc, soạn nháp đề nghị giảm giá; không bao giờ duyệt",
+      "xt_workflow": "Danh tính dịch vụ duy nhất ghi trạng thái đề nghị giảm giá"
+    },
+    "step_actions": {"*": "record.approve"},
+    "tenant_demo": "binhminh"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "model": "su_kien_cam_bien",
+  "records": [
+    {
+      "asset": "@tai_san:TS-0002",
+      "source": "mo-phong",
+      "metric": "Nhiệt độ",
+      "value": 27,
+      "unit": "°C",
+      "observed_at": "2026-10-17T08:00:00+07:00",
+      "note": "Dữ liệu giả lập để trình diễn"
+    },
+    {
+      "asset": "@tai_san:TS-0002",
+      "source": "mo-phong",
+      "metric": "Nhiệt độ",
+      "value": 34,
+      "unit": "°C",
+      "observed_at": "2026-10-17T08:15:00+07:00",
+      "note": "Dữ liệu giả lập để trình diễn"
+    },
+    {"asset": "@tai_san:TS-0001", "source": "nhap-tay", "metric": "Giờ chạy", "value": 1250, "unit": "giờ", "observed_at": "2026-10-16T17:00:00+07:00"}
+  ]
+}

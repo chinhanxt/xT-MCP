@@ -7,9 +7,7 @@ import { readToolResult } from './portal-result';
 import { PortalAlert } from './PortalAlert';
 import { classifyError, type ErrorKind } from './portal-state';
 import { GenericApp } from './GenericApp';
-import { BUILTIN_WMS, GROUPS, LIFECYCLE_TOOL, OTHER_GROUP, isAdmin, modulePath, parseApps, visibleApps, type TierApp } from './tier3';
-
-const obj = (value: unknown): Record<string, unknown> => (value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {});
+import { BUILTIN_WMS, GROUPS, OTHER_GROUP, appViews, isAdmin, lifecycleCommand, modulePath, moduleScope, parseApps, tenantName, visibleApps, type AppView, type TierApp } from './tier3';
 
 type Props = {
   mcp: McpConnection | null; tools: McpTool[];
@@ -17,10 +15,12 @@ type Props = {
   renderWarehouse: () => ReactNode;
 };
 
+const obj = (value: unknown): Record<string, unknown> => (value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {});
+
 /** Tầng 3: nền tảng Kinh doanh số, 4 nhóm; danh sách ứng dụng lấy từ inspect_workspace.apps. */
 export function Tier3({ mcp, tools, renderWarehouse }: Props) {
   const [workspace, setWorkspace] = useState<unknown>(null), [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState(''), [kind, setKind] = useState<ErrorKind>('error'), [open, setOpen] = useState('');
+  const [error, setError] = useState(''), [kind, setKind] = useState<ErrorKind>('error'), [open, setOpen] = useState(''), [pick, setPick] = useState('');
   const live = useRef(true);
   const canInspect = tools.some((tool) => tool.name === 'inspect_workspace');
 
@@ -38,18 +38,30 @@ export function Tier3({ mcp, tools, renderWarehouse }: Props) {
   const admin = loaded && isAdmin(workspace);
   const all = !loaded ? [] : listed ?? [BUILTIN_WMS];
   const apps = visibleApps(all, admin);
-  const current = apps.find((app) => app.id === open && app.status === 'installed');
+  const current = apps.find((app) => app.id === open && app.status === 'enabled');
+  const tenant = tenantName(workspace);
   const groups = [...GROUPS, ...(apps.some((app) => !GROUPS.some((g) => g.id === app.group)) ? [OTHER_GROUP] : [])];
 
-  function view(app: TierApp): ReactNode {
-    if (app.ui.kind === 'module') {
-      if (app.builtin || app.ui.path === '/waretrack/' || app.id === 'kho-hang') return renderWarehouse();
-      const path = modulePath(app.ui.path);
+  function view(app: TierApp, chosen: AppView): ReactNode {
+    if (chosen.id === 'module') {
+      if (app.builtin || chosen.path === '/waretrack/') return renderWarehouse();
+      const path = modulePath(chosen.path);
       if (!path) return <PortalAlert text="Đường dẫn giao diện của ứng dụng không hợp lệ." kind="error" />;
-      return <iframe className="portal-frame" title={`Ứng dụng ${app.title}`} src={`${path}?integrated=1`} loading="lazy" />;
+      return <iframe className="portal-frame" data-xt-scope={moduleScope(path)} title={`Ứng dụng ${app.title}`} src={`${path}?integrated=1`} loading="lazy" />;
     }
     const models = Array.isArray(obj(workspace).models) ? obj(workspace).models as Record<string, unknown>[] : [];
     return <GenericApp key={app.id} mcp={mcp} tools={tools} app={app} models={models} />;
+  }
+
+  function body(app: TierApp): ReactNode {
+    const views = appViews(app);
+    if (!views.length) return <p role="status">Ứng dụng này không khai báo giao diện.</p>;
+    const chosen = views.find((v) => v.id === pick) ?? views[0];
+    return <>
+      {views.length > 1 && <div className="portal-actions" role="group" aria-label="Kiểu hiển thị">{views.map((v) =>
+        <button key={v.id} aria-pressed={v.id === chosen.id} onClick={() => setPick(v.id)}>{v.label}</button>)}</div>}
+      {view(app, chosen)}
+    </>;
   }
 
   return <section className="portal tier3" aria-label="Nền tảng Kinh doanh số"><h2 tabIndex={-1}>Nền tảng Kinh doanh số</h2>
@@ -57,9 +69,9 @@ export function Tier3({ mcp, tools, renderWarehouse }: Props) {
     {mcp && !loaded && !error && <p role="status">Đang tải danh sách ứng dụng…</p>}
     <PortalAlert text={error} kind={kind} />
     {current ? <div className="tier3-app">
-      <button onClick={() => setOpen('')}>← Danh sách ứng dụng</button>
+      <button onClick={() => { setOpen(''); setPick(''); }}>← Danh sách ứng dụng</button>
       <h3>{current.title}</h3>
-      {view(current)}
+      {body(current)}
     </div> : loaded && <>
       {listed === null && <p role="note">Máy chủ chưa công bố danh sách ứng dụng cắm-rút; chỉ hiện ứng dụng Kho có sẵn của cổng.</p>}
       {groups.map((group) => {
@@ -68,13 +80,14 @@ export function Tier3({ mcp, tools, renderWarehouse }: Props) {
           <h3 id={`tier3-${group.id}`}>{group.title}</h3>
           {items.length === 0 ? <p role="status">Chưa có ứng dụng trong nhóm này.</p> : <ul className="portal-doclist">{items.map((app) =>
             <li key={app.id} className={app.status === 'disabled' ? 'tier3-disabled' : undefined}>
-              <span><strong>{app.title}</strong> · {app.status === 'installed' ? 'Đã cài' : 'Đã tắt'}</span>
-              {app.status === 'installed' ? <button onClick={() => setOpen(app.id)}>{`Mở ${app.title}`}</button> : <span aria-disabled="true">Không mở được khi đã tắt</span>}
-              {admin && !app.builtin && <button disabled title={LIFECYCLE_TOOL ? undefined : 'Máy chủ chưa có công cụ đề xuất cài/tắt gói ứng dụng'}>{app.status === 'installed' ? 'Đề xuất tắt' : 'Đề xuất bật lại'}</button>}
+              <span><strong>{app.title}</strong> · {app.status === 'enabled' ? 'Đã bật' : 'Đã tắt'}</span>
+              {app.status === 'enabled' ? <button onClick={() => { setPick(''); setOpen(app.id); }}>{`Mở ${app.title}`}</button> : <span aria-disabled="true">Không mở được khi đã tắt</span>}
+              {admin && !app.builtin && <details className="tier3-lifecycle"><summary>{app.status === 'enabled' ? 'Cách tắt (vận hành)' : 'Cách bật lại (vận hành)'}</summary>
+                <p>Bật/tắt ứng dụng do vận hành viên duyệt và chạy bằng CLI, không có công cụ MCP hay nút trên Desk. Chạy trên máy chủ:</p>
+                <code>{lifecycleCommand(app, tenant)}</code></details>}
             </li>)}</ul>}
         </section>;
       })}
-      {admin && !LIFECYCLE_TOOL && !!listed && <p role="note">Đề xuất cài/tắt chưa dùng được: máy chủ chưa công bố công cụ tạo đề xuất cho gói ứng dụng, nên Desk không tạo đề xuất giả.</p>}
     </>}
   </section>;
 }

@@ -72,10 +72,14 @@ test('adapter chỉ có phương thức đọc và bị đóng băng', () => {
   for (const name of Object.keys(adapter)) assert.doesNotMatch(name, /create|update|delete|write|submit|approve|reject|decide|post|put|patch|set/i)
 })
 
-test('resolvePortalBridge: chỉ khi nhúng cùng origin với ?integrated=1', () => {
-  const portal = { callTool() {} }
-  const parent = { xtPortal: portal }
-  assert.equal(resolvePortalBridge({ parent, location: { search: '?integrated=1' } }), portal)
+test('resolvePortalBridge: chỉ khi nhúng cùng origin với ?integrated=1, qua parent.xtPortal.connect(window)', () => {
+  const scoped = { scope: 'waretrack', callTool() {} }
+  const seen = []
+  const host = { connect(w) { seen.push(w); return scoped } }
+  const parent = { xtPortal: host }
+  const win = { parent, location: { search: '?integrated=1' } }
+  assert.equal(resolvePortalBridge(win), scoped)
+  assert.deepEqual(seen, [win])
   assert.equal(resolvePortalBridge({ parent, location: { search: '' } }), null)
   assert.equal(resolvePortalBridge({ parent, location: { search: '?integrated=0' } }), null)
   const self = { location: { search: '?integrated=1' } }
@@ -85,6 +89,13 @@ test('resolvePortalBridge: chỉ khi nhúng cùng origin với ?integrated=1', (
   const blocked = { location: { search: '?integrated=1' }, get parent() { throw new Error('cross-origin') } }
   assert.equal(resolvePortalBridge(blocked), null)
   assert.equal(resolvePortalBridge(null), null)
+})
+
+test('resolvePortalBridge: cổng từ chối (connect trả null / ném lỗi) hoặc cầu nối cũ trực tiếp -> null', () => {
+  const at = (xtPortal) => resolvePortalBridge({ parent: { xtPortal }, location: { search: '?integrated=1' } })
+  assert.equal(at({ connect: () => null }), null)
+  assert.equal(at({ connect() { throw new Error('invalidated') } }), null)
+  assert.equal(at({ callTool() {} }), null)
 })
 
 test('toRows đọc structuredContent hoặc JSON trong text; field/display/formatMilli', () => {

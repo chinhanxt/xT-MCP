@@ -1,0 +1,70 @@
+{
+  "version": "1",
+  "tenant": "binhminh",
+  "statements": [
+    {
+      "id": "cc.read",
+      "effect": "Allow",
+      "subjects": ["role:employee", "role:project_manager", "role:director", "role:admin", "role:agent"],
+      "actions": ["record.read"],
+      "resources": ["xrn:binhminh:du_an:*", "xrn:binhminh:bang_cong_tuan:*", "xrn:binhminh:cham_cong:*"],
+      "conditions": []
+    },
+    {
+      "id": "cc.project-write",
+      "effect": "Allow",
+      "subjects": ["role:project_manager", "role:admin"],
+      "actions": ["record.create", "record.update"],
+      "resources": ["xrn:binhminh:du_an:*"],
+      "conditions": []
+    },
+    {
+      "id": "cc.entry-write",
+      "effect": "Allow",
+      "subjects": ["role:employee"],
+      "actions": ["record.create", "record.update"],
+      "resources": ["xrn:binhminh:cham_cong:*"],
+      "conditions": []
+    },
+    {
+      "id": "cc.request-write",
+      "effect": "Allow",
+      "subjects": ["role:employee", "role:agent"],
+      "actions": ["record.create", "record.update", "request.submit", "record.transition"],
+      "resources": ["xrn:binhminh:bang_cong_tuan:*"],
+      "conditions": [{"left": "resource.owner", "op": "eq", "right": {"ref": "subject.id"}}]
+    },
+    {
+      "id": "cc.approve",
+      "effect": "Allow",
+      "subjects": ["role:project_manager", "role:director"],
+      "actions": ["record.approve", "request.decide"],
+      "resources": ["xrn:binhminh:bang_cong_tuan:*"],
+      "conditions": []
+    },
+    {
+      "id": "cc.deny-agent-approve",
+      "effect": "Deny",
+      "subjects": ["role:agent"],
+      "actions": ["record.approve", "request.decide"],
+      "resources": ["xrn:binhminh:bang_cong_tuan:*"],
+      "conditions": []
+    },
+    {
+      "id": "cc.deny-delete",
+      "effect": "Deny",
+      "subjects": ["*"],
+      "actions": ["record.delete"],
+      "resources": ["xrn:binhminh:du_an:*", "xrn:binhminh:bang_cong_tuan:*", "xrn:binhminh:cham_cong:*"],
+      "conditions": []
+    },
+    {
+      "id": "cc.tools",
+      "effect": "Allow",
+      "subjects": ["role:employee", "role:project_manager", "role:director", "role:admin", "role:agent"],
+      "actions": ["workspace.read", "model.read", "process.read", "person.read", "record.search", "inbox.read", "history.read"],
+      "resources": ["xrn:binhminh:*"],
+      "conditions": []
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "id": "cc_du_an",
+  "name": "du_an",
+  "label": "Dự án",
+  "title_field": "name",
+  "fields": [
+    {"id": "f1", "name": "code", "type": "text", "label": "Mã dự án", "pii": "none", "required": true, "unique": true, "min": 1, "max": 40},
+    {"id": "f2", "name": "name", "type": "text", "label": "Tên dự án", "pii": "none", "required": true, "min": 1, "max": 200},
+    {"id": "f3", "name": "manager", "type": "user", "label": "Quản lý dự án", "pii": "none"},
+    {"id": "f4", "name": "start_date", "type": "date", "label": "Ngày bắt đầu", "pii": "none"},
+    {"id": "f5", "name": "end_date", "type": "date", "label": "Ngày kết thúc dự kiến", "pii": "none"},
+    {
+      "id": "f6",
+      "name": "status",
+      "type": "enum",
+      "label": "Trạng thái",
+      "pii": "none",
+      "required": true,
+      "default": "dang-chay",
+      "options": [
+        {"value": "ke-hoach", "label": "Kế hoạch"},
+        {"value": "dang-chay", "label": "Đang chạy"},
+        {"value": "tam-dung", "label": "Tạm dừng"},
+        {"value": "hoan-thanh", "label": "Hoàn thành"}
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "'Ngày kết thúc' phải sau hoặc bằng 'Ngày bắt đầu'",
+      "check": {"or": [{"field": "end_date", "op": "is_null"}, {"field": "start_date", "op": "is_null"}, {"field": "end_date", "op": ">=", "other_field": "start_date"}]}
+    }
+  ],
+  "permissions": {
+    "employee": {"actions": ["read"], "scope": "all"},
+    "project_manager": {"actions": ["create", "read", "update"], "scope": "all"},
+    "director": {"actions": ["read"], "scope": "all"},
+    "admin": {"actions": ["create", "read", "update"], "scope": "all"},
+    "agent": {"actions": ["read"], "scope": "all"}
+  }
+}

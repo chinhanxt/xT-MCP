@@ -1,0 +1,36 @@
+{
+  "id": "ts_su_kien",
+  "name": "su_kien_cam_bien",
+  "label": "Sự kiện cảm biến",
+  "title_field": "metric",
+  "fields": [
+    {"id": "f1", "name": "asset", "type": "ref", "label": "Tài sản", "pii": "none", "required": true, "ref": "tai_san"},
+    {
+      "id": "f2",
+      "name": "source",
+      "type": "enum",
+      "label": "Nguồn dữ liệu",
+      "pii": "none",
+      "required": true,
+      "default": "mo-phong",
+      "options": [
+        {"value": "cam-bien", "label": "Cảm biến thật"},
+        {"value": "nhap-tay", "label": "Nhập tay"},
+        {"value": "mo-phong", "label": "MÔ PHỎNG: dữ liệu giả lập, không phải thiết bị thật"}
+      ]
+    },
+    {"id": "f3", "name": "metric", "type": "text", "label": "Chỉ số đo", "pii": "none", "required": true, "min": 1, "max": 100},
+    {"id": "f4", "name": "value", "type": "number", "label": "Giá trị", "pii": "none", "required": true, "min": -9000000000000000, "max": 9000000000000000},
+    {"id": "f5", "name": "unit", "type": "text", "label": "Đơn vị", "pii": "none", "max": 30},
+    {"id": "f6", "name": "observed_at", "type": "datetime", "label": "Thời điểm ghi nhận", "pii": "none", "required": true},
+    {"id": "f7", "name": "note", "type": "text", "label": "Ghi chú", "pii": "none", "max": 1000}
+  ],
+  "permissions": {
+    "employee": {"actions": ["read"], "scope": "all"},
+    "technician": {"actions": ["create", "read"], "scope": "all"},
+    "facility_manager": {"actions": ["create", "read"], "scope": "all"},
+    "director": {"actions": ["read"], "scope": "all"},
+    "admin": {"actions": ["create", "read"], "scope": "all"},
+    "agent": {"actions": ["create", "read"], "scope": "all"}
+  }
+}
