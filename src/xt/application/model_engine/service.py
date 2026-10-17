@@ -28,6 +28,7 @@ from xt.application.model_engine.ports import (
     Busy,
     CatalogReader,
     ConstraintViolated,
+    DisabledApps,
     Migrator,
     PermissionDenied,
     ProposalStore,
@@ -56,6 +57,8 @@ MAX_LIMIT, MAX_OFFSET = 200, 10_000
 MAX_GROUPS = 1000
 GROUP_TYPES = ("text", "enum", "ref", "user", "bool", "date")
 BUCKET_UNITS = ("day", "week", "month", "quarter", "year")
+# Vai trò quản trị tenant (quy ước của các gói): còn đọc được model của ứng dụng đang tắt.
+APP_ADMIN_ROLE = "admin"
 Action = Literal["create", "read", "update", "delete"]
 
 
@@ -144,6 +147,21 @@ class _CatalogMixin:
             )
         return cur
 
+    def _enabled(self, actor: ModelActor, name: str, *, read: bool = False) -> None:
+        """Model của ứng dụng đang tắt: chặn mọi lời ghi; đọc chỉ còn cho admin. Catalog không bị
+        lọc (giữ bảng và dữ liệu; kế hoạch đổi model không thấy model "mất" để DROP)."""
+        off: DisabledApps = self.catalogs.disabled(actor)
+        pack = off.models.get(name)
+        if pack is None or (read and APP_ADMIN_ROLE in actor.roles):
+            return
+        raise ModelError(
+            "capability_unavailable",
+            f"Ứng dụng '{pack}' đang tắt ở đơn vị này nên không dùng được '{name}'",
+            remediation="Báo người dùng ứng dụng đang tắt; quản trị bật lại qua đề xuất + duyệt"
+            " (xt pack enable). Dữ liệu vẫn được giữ.",
+            details={"reason": "app_disabled", "pack": pack, "model": name},
+        )
+
     @staticmethod
     def _model(cat: Catalog, name: str) -> ModelSpec:
         try:
@@ -202,6 +220,7 @@ class RecordService(_CatalogMixin):
     def create(self, actor: ModelActor, model: str, values: Mapping[str, Any]) -> dict[str, Any]:
         ver, cat = self._catalog(actor)
         m = self._model(cat, model)
+        self._enabled(actor, m.name)
         self._require(actor, m, "create")
         reject_managed(m, dict(values))
         vals = self._values(actor, ver, m, "create", values)
@@ -219,6 +238,7 @@ class RecordService(_CatalogMixin):
     def get(self, actor: ModelActor, model: str, record_id: UUID) -> dict[str, Any]:
         ver, cat = self._catalog(actor)
         m = self._model(cat, model)
+        self._enabled(actor, m.name, read=True)
         self._require(actor, m, "read")
         try:
             rec = self.repo.get(actor, m, record_id)
@@ -243,6 +263,7 @@ class RecordService(_CatalogMixin):
     ) -> dict[str, Any]:
         ver, cat = self._catalog(actor)
         m = self._model(cat, model)
+        self._enabled(actor, m.name)
         self._require(actor, m, "update")
         if not workflow:
             reject_managed(m, dict(patch), f"{m.name}:{record_id}")
@@ -319,6 +340,7 @@ class RecordService(_CatalogMixin):
     ) -> dict[str, Any]:
         _, cat = self._catalog(actor)
         m = self._model(cat, model)
+        self._enabled(actor, m.name)
         self._require(actor, m, "delete")
         try:
             out = self.repo.delete(actor, m, record_id, expected_revision)
@@ -345,6 +367,7 @@ class RecordService(_CatalogMixin):
     ) -> dict[str, Any]:
         ver, cat = self._catalog(actor)
         m = self._model(cat, model)
+        self._enabled(actor, m.name, read=True)
         self._require(actor, m, "read")
         if not 1 <= limit <= MAX_LIMIT or not 0 <= offset <= MAX_OFFSET:
             raise ModelError(
@@ -412,6 +435,7 @@ class RecordService(_CatalogMixin):
         """count/sum per group under the same read permission, filter and RLS as search."""
         ver, cat = self._catalog(actor)
         m = self._model(cat, model)
+        self._enabled(actor, m.name, read=True)
         self._require(actor, m, "read")
         expr = self._filter(m, where)
         by = with_system_fields(m)
@@ -487,6 +511,7 @@ class ModelService(_CatalogMixin):
     ) -> dict[str, Any]:
         ver, cat = self._catalog(actor)
         m = self._model(cat, model)
+        self._enabled(actor, m.name, read=True)
         if not any(r in m.permissions for r in actor.roles):
             raise ModelError(
                 "access_denied",

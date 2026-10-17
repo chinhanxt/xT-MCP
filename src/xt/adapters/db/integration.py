@@ -319,7 +319,11 @@ class PgIntegrationStore:
             conds.append("process_id = %s")
             params.append(process_id)
         if active_only:
-            conds.append("active")
+            # Quy trình của ứng dụng Tầng 3 đang tắt không còn "đang kích hoạt" (G8).
+            conds.append(
+                "active AND (pack IS NULL OR pack NOT IN (SELECT pack FROM xt_meta.pack_install"
+                " WHERE status = 'disabled'))"
+            )
         with self.uow.tenant_tx(actor) as cur:
             rows = cur.execute(
                 "SELECT * FROM xt_meta.process_definition WHERE "
@@ -889,10 +893,44 @@ def bind_queue_tenant(owner: psycopg.Connection[Any], tenant: TenantRef) -> str:
 
 
 def installed_packs(migrator: psycopg.Connection[Any], tenant: TenantRef) -> set[str]:
+    """Gói đã cài VÀ đang bật (phụ thuộc của gói mới phải đang dùng được)."""
     rows = migrator.execute(
-        "SELECT pack FROM xt_meta.pack_install WHERE tenant_id = %s", (tenant.id,)
+        "SELECT pack FROM xt_meta.pack_install WHERE tenant_id = %s AND status = 'enabled'",
+        (tenant.id,),
     ).fetchall()
     return {str(r[0]) for r in rows}
+
+
+def pack_rows(migrator: psycopg.Connection[Any], tenant: TenantRef) -> list[dict[str, Any]]:
+    """Mọi gói đã cài của tenant kèm trạng thái/model/phụ thuộc (kế hoạch vòng đời ứng dụng)."""
+    with migrator.cursor(row_factory=dict_row) as cur:
+        rows = cur.execute(
+            "SELECT pack, version, status, models, depends_on FROM xt_meta.pack_install"
+            " WHERE tenant_id = %s ORDER BY pack",
+            (tenant.id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def set_pack_status(
+    migrator: psycopg.Connection[Any],
+    tenant: TenantRef,
+    *,
+    pack: str,
+    status: str,
+    digest: str,
+    proposed_by: str,
+    approved_by: str,
+) -> None:
+    """Đổi trạng thái gói (gọi trong transaction + advisory lock của `apply_lifecycle`)."""
+    cur = migrator.execute(
+        "UPDATE xt_meta.pack_install SET status = %s, status_digest = %s,"
+        " status_proposed_by = %s, status_approved_by = %s, status_changed_at = clock_timestamp()"
+        " WHERE tenant_id = %s AND pack = %s",
+        (status, digest, proposed_by, approved_by, tenant.id, pack),
+    )
+    if cur.rowcount != 1:
+        raise AdminError(f"gói {pack!r} chưa cài ở tenant này")
 
 
 def current_policy(

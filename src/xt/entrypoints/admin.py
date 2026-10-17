@@ -9,9 +9,13 @@
     xt org import --tenant acme seed/binh-minh/org.json --links links.json --base-roles employee
     xt pack install --tenant acme packages/de-xuat-phe-duyet --proposed-by <ai> --approved-by <ai>
                     [--confirm sha256:…]
+    xt pack disable|enable --tenant acme kho-hang --proposed-by <ai> --approved-by <ai>
+                    [--confirm sha256:…]
 
 `pack install` không có `--confirm` chỉ in kế hoạch (diễn tập DDL thật, rollback) và mã xác nhận;
-chạy lại với đúng mã đó mới áp. Không có giá trị mặc định ngầm cho tenant, múi giờ hay người duyệt.
+chạy lại với đúng mã đó mới áp. `pack disable|enable` (ứng dụng Tầng 3, G8) theo cùng luồng: tắt
+giữ dữ liệu, chặn ghi và ẩn model của gói ở tenant đó. Không có giá trị mặc định ngầm cho tenant,
+múi giờ hay người duyệt.
 """
 
 from __future__ import annotations
@@ -30,6 +34,7 @@ from xt.adapters.db.integration import (
     connect,
     import_org,
     installed_packs,
+    pack_rows,
     register_tenant,
     tenant_of_alias,
 )
@@ -93,6 +98,13 @@ def _parser() -> argparse.ArgumentParser:
     pi.add_argument("--proposed-by", required=True)
     pi.add_argument("--approved-by", required=True)
     pi.add_argument("--confirm", help="mã xác nhận (digest) in ra ở lần chạy xem kế hoạch")
+    for cmd, verb in (("disable", "tắt"), ("enable", "bật lại")):
+        pl = pack.add_parser(cmd, help=f"{verb} ứng dụng (gói đã cài) ở một tenant")
+        pl.add_argument("--tenant", required=True)
+        pl.add_argument("pack", help="tên gói, vd kho-hang")
+        pl.add_argument("--proposed-by", required=True)
+        pl.add_argument("--approved-by", required=True)
+        pl.add_argument("--confirm", help="mã xác nhận (digest) in ra ở lần chạy xem kế hoạch")
     return p
 
 
@@ -133,6 +145,8 @@ def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
             counts = import_org(conn, ref, data)
         print(f"đã nạp vào {args.tenant}: {counts}")
         return 0
+    if args.cmd in ("disable", "enable"):
+        return _lifecycle(args, dsn)
     from xt.entrypoints.composition.packs import install, load_pack, plan_install
 
     pack = load_pack(args.path)
@@ -166,6 +180,40 @@ def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
         approved_by=args.approved_by,
     )
     print(f"đã cài {pack.manifest.pack} {pack.manifest.version} vào {args.tenant} ({plan.digest})")
+    return 0
+
+
+def _lifecycle(args: argparse.Namespace, dsn: str) -> int:
+    from xt.entrypoints.composition import pack_lifecycle as lc
+
+    with connect(dsn) as conn:
+        ref = tenant_of_alias(conn, args.tenant)
+        if not args.confirm:
+            plan = lc.plan_lifecycle(
+                pack_rows(conn, ref),
+                tenant=ref,
+                alias=args.tenant,
+                pack=args.pack,
+                action=args.cmd,
+            )
+    if not args.confirm:
+        print(plan.render_vi())
+        if plan.problems:
+            return 1
+        print("\nĐã kiểm, CHƯA áp. Người duyệt xem kế hoạch rồi chạy lại với --confirm <mã>.")
+        return 0
+    plan = lc.apply_lifecycle(
+        dsn,
+        tenant=ref,
+        alias=args.tenant,
+        pack=args.pack,
+        action=args.cmd,
+        confirm=args.confirm,
+        proposed_by=args.proposed_by,
+        approved_by=args.approved_by,
+    )
+    verb = "tắt" if args.cmd == "disable" else "bật lại"
+    print(f"đã {verb} {args.pack} ở {args.tenant} ({plan.digest})")
     return 0
 
 

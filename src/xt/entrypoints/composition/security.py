@@ -19,9 +19,10 @@ from typing import Any
 from uuid import UUID
 
 from xt.application.iam.guard import AccessGuard as IamGuard
+from xt.application.model_engine.service import APP_ADMIN_ROLE
 from xt.application.tools.context import CallContext, PersonRef
 from xt.application.tools.errors import ToolError, invalid_request, not_found
-from xt.application.tools.ports import AccessCheck, AccessDecision, Args, Data
+from xt.application.tools.ports import APP_DISABLED, AccessCheck, AccessDecision, Args, Data
 from xt.domain.autonomy import RiskLevel
 from xt.domain.iam import DEFAULT_ACTION_LEVELS, AccessRequest, PolicyDocument, PolicyEvaluator
 from xt.domain.iam import Principal as IamPrincipal
@@ -214,12 +215,42 @@ class ToolAccessGuard:
                 )
                 if not result.allowed:
                     break
+        if not result.allowed:
+            off = self._app_disabled(caller, xrn, check.action)
+            if off is not None:
+                return off
         return AccessDecision(
             result.allowed,
             result.reason.value,
             "" if result.allowed else "Không có quyền thực hiện thao tác này.",
             None if result.allowed else f"explain:{ctx.trace_id}",
             dict(result.detail),
+        )
+
+    def _app_disabled(self, caller: Caller, xrn: str, action: str) -> AccessDecision | None:
+        """Gói gỡ quyền IAM khi tắt nên IAM luôn từ chối; model của ứng dụng đã cài nhưng đang
+        tắt ở tenant của chính người gọi phải ra `app_disabled` (dispatcher đổi thành
+        `capability_unavailable`), không phải `access_denied`. Chỉ áp cho model thuộc gói tắt của
+        tenant này (RLS): model khác vẫn `access_denied`, không lộ tồn tại. Admin đọc giữ nguyên
+        quyết định IAM."""
+        parts = xrn.split(":")
+        if len(parts) < 4:
+            return None
+        model = parts[2]
+        if action.endswith(".read") and APP_ADMIN_ROLE in caller.actor.roles:
+            return None
+        try:
+            pack = self.rt.catalogs.disabled(caller.actor).models.get(model)
+        except Exception:  # không xác định được: giữ nguyên từ chối IAM (fail-closed)
+            return None
+        if pack is None:
+            return None
+        return AccessDecision(
+            False,
+            APP_DISABLED,
+            f"Ứng dụng '{pack}' đang tắt ở đơn vị này nên không dùng được '{model}'",
+            None,
+            {"pack": pack, "model": model},
         )
 
     def allows(

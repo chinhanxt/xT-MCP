@@ -18,7 +18,7 @@ from psycopg.types.json import Jsonb
 
 from xt.adapters.db.connection import Database
 from xt.adapters.db.records import translate
-from xt.application.model_engine.ports import StoredProposal
+from xt.application.model_engine.ports import DisabledApps, StoredProposal
 from xt.domain.model.context import ModelActor, TenantRef
 from xt.domain.model.plan import Plan
 from xt.domain.model.spec import Catalog
@@ -60,6 +60,19 @@ class PgCatalogReader:
                 self._cache.pop(next(iter(self._cache)))
             self._cache[key] = cat
         return key[1], cat
+
+    def disabled(self, actor: ModelActor) -> DisabledApps:
+        """Gói đang tắt của tenant (RLS xt_meta.pack_install); không cache để tắt có hiệu lực
+        ngay ở lời gọi kế tiếp."""
+        try:
+            with self.db.tenant_tx(actor) as cur:
+                rows = cur.execute(
+                    "SELECT pack, models FROM xt_meta.pack_install WHERE status = 'disabled'"
+                ).fetchall()
+        except psycopg.Error as e:
+            raise translate(e) from e
+        models = {str(m): str(r["pack"]) for r in rows for m in (r["models"] or [])}
+        return DisabledApps(models=models, packs=frozenset(str(r["pack"]) for r in rows))
 
 
 def _proposal(row: dict[str, Any]) -> StoredProposal:
