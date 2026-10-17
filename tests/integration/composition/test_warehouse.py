@@ -302,6 +302,8 @@ def test_reversal_posts_once_through_approval(warehouse, stock):
     ledger = movements(w, first["ref"])
     assert [r["key"] for r in ledger] == [f"{rid}:0:rev"]
     assert int(ledger[0]["quantity_milli"]) == -1000
+    assert ledger[0]["warehouse"] == stock["warehouse"]
+    assert balance(w, stock)[0]["warehouse"] == stock["warehouse"]
     assert len(movements(w, original["ref"])) == 1
     second = w.request(undo)
     result, _, _ = confirm(w, second)

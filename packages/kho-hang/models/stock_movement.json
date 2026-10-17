@@ -43,6 +43,14 @@
       "required": true
     },
     {
+      "id": "warehouse",
+      "name": "warehouse",
+      "type": "ref",
+      "label": "warehouse",
+      "pii": "none",
+      "ref": "warehouse"
+    },
+    {
       "id": "quantity_milli",
       "name": "quantity_milli",
       "type": "number",
