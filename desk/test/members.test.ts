@@ -86,7 +86,7 @@ it('offers human confirmation and retries the exact IT operation before reportin
   await mount(async call => call.name === 'get_inbox' ? ok({ items: transitions > 1 ? [] : [task] }) : ++transitions === 1 ? error('confirmation_required', 'Cần xác nhận', { confirm_url: 'https://xt.test/desk/confirm/it' }) : ok({ record: { ref: task.ref }, to_state: 'done' }));
   await click('Tải bước quy trình'); await click('Hoàn thành IT');
   expect(panel().querySelector('a')?.href).toBe('https://xt.test/desk/confirm/it');
-  await click('Hoàn thành IT'); expect(calls('transition_record')[1]).toEqual(calls('transition_record')[0]); expect(panel().textContent).toContain('Đã hoàn thành');
+  await click('Hoàn thành IT'); expect(calls('transition_record')[1]).toEqual(calls('transition_record')[0]); expect(panel().textContent).toContain('Đã hoàn thành Cấp quyền SSO.'); expect(panel().textContent).not.toMatch(/lifecycle_task:|[0-9a-f]{8}-[0-9a-f]{4}/);
 });
 it('shows empty, loading and unavailable-tool states', async () => {
   let finish!: (r: ToolResult) => void;

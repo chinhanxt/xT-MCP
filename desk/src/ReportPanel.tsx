@@ -6,7 +6,7 @@ import type { McpTool, ToolResult } from './types';
 import { readToolResult } from './portal-result';
 import { PortalAlert } from './PortalAlert';
 import { classifyError, type ErrorKind } from './portal-state';
-import { fieldLabel, groupDigits, recordTitle } from './portal-labels';
+import { actionLabel, fieldLabel, groupDigits, recordTitle } from './portal-labels';
 import { modelOf, useEnumLabels } from './enum-labels';
 import { BUCKETS, COUNT, reportOptions, type Bucket, type ReportOptions, type ReportPreset } from './report-presets';
 
@@ -147,7 +147,7 @@ export function ReportPanel({ mcp, tools, models }: Props) {
     {source && <article className="portal-entry" aria-label="Bản ghi nguồn"><strong>{cell(source.title || obj(source.values).name || source.ref)}</strong>
       <dl>{Object.entries(obj(source.values)).map(([k, v]) => <div key={k}><dt>{fieldLabel(k)}</dt><dd>{typeof v === 'string' ? enumLabel(modelOf(source) || chosen, k, v) : cell(v)}</dd></div>)}</dl>
       {typeof source.ref === 'string' && <button disabled={loading} onClick={() => void trail(String(source.ref))}>Lịch sử bản ghi</button>}
-      {history && (history.length === 0 ? <p role="status">Chưa có lịch sử.</p> : <ol aria-label="Lịch sử">{history.map((ev, i) => <li key={i}>{when(ev.at)} · {cell(obj(ev.actor).name || obj(ev.actor).ref)} · {cell(ev.summary || ev.action)}</li>)}</ol>)}
+      {history && (history.length === 0 ? <p role="status">Chưa có lịch sử.</p> : <ol aria-label="Lịch sử">{history.map((ev, i) => <li key={i}>{when(ev.at)} · {cell(obj(ev.actor).name || obj(ev.actor).ref)} · {ev.summary ? cell(ev.summary) : actionLabel(cell(ev.action))}</li>)}</ol>)}
     </article>}
   </section>;
 }

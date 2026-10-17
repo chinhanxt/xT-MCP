@@ -76,7 +76,7 @@ it('builds the form only for request models, blocks empty required fields and se
   await send();
   expect(calls('create_record')[0].arguments).toEqual({ model_id: 'advance_request', values: { purpose: 'Đi Đà Nẵng', amount: '8000000', kind: 'trip' }, idempotency_key: expect.any(String) });
   expect(calls('submit_request')[0].arguments).toEqual({ ref: 'advance_request:1', expected_revision: 1, idempotency_key: expect.any(String) });
-  expect(container.querySelector('[data-testid="request-done"]')?.textContent).toContain('advance_request:1');
+  expect(container.querySelector('[data-testid="request-done"]')?.textContent).toBe('Đã gửi duyệt Tạm ứng.');
   expect((container.querySelector('#req-purpose') as HTMLInputElement).value).toBe('');
 });
 
@@ -105,7 +105,7 @@ it('retries a failed submit with the same draft and idempotency keys and never c
   }));
   await fill('purpose', 'x'); await fill('amount', '1000'); await send();
   const alert = container.querySelector('[role="status"].portal-confirm')!;
-  expect(alert.textContent).toContain('Phiếu nháp advance_request:3 đã tạo nhưng chưa gửi duyệt');
+  expect(alert.textContent).toContain('Phiếu nháp Tạm ứng đã tạo nhưng chưa gửi duyệt');
   expect(alert.querySelector('a')?.getAttribute('href')).toBe('https://xt.test/desk/confirm/c1');
   expect(container.querySelector<HTMLInputElement>('#req-purpose')!.disabled).toBe(true);
   const retry = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Gửi lại')!;
