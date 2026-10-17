@@ -16,6 +16,7 @@ from typing import Any, ClassVar, NoReturn
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
+from xt.application.iam.role_grants import RoleGrantService
 from xt.application.model_engine.ports import RecordRepository
 from xt.application.model_engine.service import RecordService as EngineRecords
 from xt.application.model_engine.service import jsonable
@@ -518,6 +519,11 @@ class RecordServiceAdapter:
                     caller.actor, payload.model, rid, rev, payload.values
                 )
             )
+            if "revoked_on" in payload.values and out["record"].get("revoked_on"):
+                # D-UNI-H-1: vai trò cấp từ bản ghi này (nếu có) hết hiệu lực cùng transaction.
+                RoleGrantService(self.rt.store).revoke(
+                    caller.actor, f"{payload.model}:{rid}", by=caller.person.id
+                )
         rec = self.record_out(caller, model, out["record"], ver)
         op_ref = f"operation:{uuid4().hex}"
         if payload.task:
