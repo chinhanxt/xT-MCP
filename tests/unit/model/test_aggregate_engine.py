@@ -16,7 +16,7 @@ import pytest
 from tests.unit.model.support import catalog, customer
 from xt.adapters.db.records import PgRecordRepository
 from xt.application.model_engine.ports import AggregatePage, AggregateQuery, DisabledApps
-from xt.application.model_engine.service import MAX_GROUPS, RecordService
+from xt.application.model_engine.service import MAX_GROUPS, MAX_GROUPS_CAP, RecordService
 from xt.domain.model.context import ModelActor, TenantRef
 from xt.domain.model.errors import ModelError
 from xt.domain.model.spec import ModelSpec
@@ -104,6 +104,23 @@ def test_engine_refuses_truncated_groups():
     with pytest.raises(ModelError) as ex:
         service(Repo(truncated=True)).aggregate(actor(), "customer", None, AggregateQuery())
     assert ex.value.code == "resource_constraint"
+
+
+@pytest.mark.parametrize(
+    ("setting", "expected"),
+    [(None, MAX_GROUPS), (250, 250), (MAX_GROUPS_CAP, MAX_GROUPS_CAP), (10**9, MAX_GROUPS_CAP)],
+)
+def test_engine_group_cap_comes_from_setting_with_upper_bound(setting, expected):
+    repo = Repo(truncated=True)
+    with pytest.raises(ModelError) as ex:
+        service(repo).aggregate(actor(), "customer", None, AggregateQuery(), max_groups=setting)
+    assert repo.calls[0][2] == expected
+    assert ex.value.details["max_groups"] == expected and str(expected) in ex.value.message
+
+
+def test_engine_rejects_non_positive_group_cap():
+    with pytest.raises(ValueError):
+        service(Repo()).aggregate(actor(), "customer", None, AggregateQuery(), max_groups=0)
 
 
 class Cursor:

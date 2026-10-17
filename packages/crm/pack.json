@@ -1,7 +1,7 @@
 {
   "format": "xt-pack/1",
   "pack": "crm",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "title": "CRM nhẹ: khách hàng, cơ hội, chăm sóc, giảm giá qua phê duyệt",
   "depends_on": [],
   "models": ["khach_hang", "co_hoi", "cham_soc", "de_nghi_giam_gia"],

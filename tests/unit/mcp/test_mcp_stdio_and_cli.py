@@ -163,6 +163,14 @@ def test_serve_config_validation(tmp_path: Path) -> None:
         "--profile",
     ):
         assert needle in text
+    assert cfg.tool_settings.max_aggregate_groups == 1000
+    sized = load_serve_config(
+        {**env, "XT_MAX_AGGREGATE_GROUPS": "2500"}, "stdio", "full", None, None
+    )
+    assert sized.tool_settings.max_aggregate_groups == 2500
+    for junk in ("0", "5001", "x"):
+        with pytest.raises(ServeConfigError, match="XT_MAX_AGGREGATE_GROUPS"):
+            load_serve_config({**env, "XT_MAX_AGGREGATE_GROUPS": junk}, "stdio", "full", None, None)
     http = load_serve_config({**env}, "http", "full", "127.0.0.1", 8710)
     assert http.port == 8710
 

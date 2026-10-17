@@ -82,7 +82,7 @@ it('traces a number back to source records and their history (lineage -> get_rec
     if (call.name === 'get_record') return ok({ record: { ref: 'stock_level:a1', title: 'Tồn A1', values: { quantity: '3.000' } } });
     if (call.name === 'get_history') return ok({ subject: { ref: 'stock_level:a1' }, events: [{ at: '2026-10-17T07:00:00Z', actor: { ref: 'person:1', name: 'Mai', kind: 'human' }, action: 'posted', summary: 'Ghi nhận nhập kho' }] });
   }));
-  await click('Xem báo cáo'); await click('Nguồn số liệu');
+  await click('Xem báo cáo'); await click('Xem nguồn');
   expect(calls('get_history')[0].arguments).toEqual({ ref: 'explain:lin-1', view: 'explain' });
   expect(container.querySelector('[aria-label="Nguồn số liệu"]')?.textContent).toContain('Tổng hợp từ 2 bản ghi');
   await click('Mở bản ghi stock_level:a1');

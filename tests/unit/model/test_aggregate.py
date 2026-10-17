@@ -48,7 +48,7 @@ def test_period_bounds_are_half_open(period: str, bounds: tuple[date, date]) -> 
     assert period_bounds(period) == bounds
 
 
-def adapter(repo: Any) -> tuple[Any, CallContext]:
+def adapter(repo: Any, max_groups: int | None = None) -> tuple[Any, CallContext]:
     ma = actor()
     saves: list[Any] = []
     rt: Any = SimpleNamespace(
@@ -71,7 +71,7 @@ def adapter(repo: Any) -> tuple[Any, CallContext]:
         "trace-1",
         AS_OF,
     )
-    return RecordServiceAdapter(rt, cursor_key=b"k" * 32), ctx
+    return RecordServiceAdapter(rt, cursor_key=b"k" * 32, max_aggregate_groups=max_groups), ctx
 
 
 def test_tool_output_rows_totals_refs_and_as_of() -> None:
@@ -115,6 +115,17 @@ def test_tool_output_rows_totals_refs_and_as_of() -> None:
     assert {"field": "occurred_on", "op": ">=", "value": "2026-11-01"} in where["and"]
     assert {"field": "occurred_on", "op": "<", "value": "2026-12-01"} in where["and"]
     assert {"field": "tier", "op": "=", "value": "gold"} in where["and"]
+
+
+def test_tool_uses_configured_group_cap() -> None:
+    repo = Repo()
+    a, ctx = adapter(repo, max_groups=42)
+    a.aggregate(ctx, {"model_id": "customer", "group_by": ["tier"]})
+    assert repo.calls[0][2] == 42
+    repo = Repo()
+    a, ctx = adapter(repo)
+    a.aggregate(ctx, {"model_id": "customer", "group_by": ["tier"]})
+    assert repo.calls[0][2] == 1000
 
 
 def test_tool_paginates_groups_and_bounds_datetime_period_in_tenant_time() -> None:

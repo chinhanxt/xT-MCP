@@ -248,6 +248,7 @@ class Composition:
             transition_commit=process.commit,
             model_changes=model_changes,
             step_transitions=process.available_transitions,
+            max_aggregate_groups=settings.max_aggregate_groups,
         )
         process.record_view = records
         return ToolServices(

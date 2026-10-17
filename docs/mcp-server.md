@@ -86,6 +86,7 @@ Port nhận `args` đã qua schema, ném `ToolError` (có hàm tạo sẵn: `not
 | `XT_MCP_CAPABILITIES` | không | Bật `upload_file` (v0.2) |
 | `XT_CONFIRM_CHANNELS` | không (`desk`) | `desk[,telegram]` |
 | `XT_CONFIRMATION_TTL_SECONDS` | không (`600`) | 60..3600 |
+| `XT_MAX_AGGREGATE_GROUPS` | không (`1000`) | 1..5000; trần số nhóm của `aggregate_records` (vượt → `resource_constraint`); `inspect_workspace.limits.max_aggregate_groups` |
 | `XT_MCP_LOCAL_CLIENTS` | không | `azp` tier `local` (PII full). Chỉ client **confidential** phía server, phải có trong `XT_MCP_CONFIDENTIAL_CLIENTS` và `XT_MCP_ALLOWED_CLIENTS`. Client public (kể cả `xt-desk-agent`) tối đa masked (`docs/decisions.md`) |
 | `XT_MCP_CONFIDENTIAL_CLIENTS` | không | Client confidential do vận hành xác nhận |
 | `XT_MCP_DEV_LOCAL_TIER` | không | `true`: cho client public ở tier `local`, chỉ dùng trong profile dev |

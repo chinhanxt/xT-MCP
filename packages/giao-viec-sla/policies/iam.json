@@ -27,6 +27,30 @@
       ]
     },
     {
+      "id": "tsk.assignee-read-agg",
+      "effect": "Allow",
+      "subjects": [
+        "role:employee"
+      ],
+      "actions": [
+        "record.aggregate"
+      ],
+      "resources": [
+        "xrn:binhminh:task:*",
+        "xrn:binhminh:task_item:*",
+        "xrn:binhminh:sla_log:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.owner",
+          "op": "eq",
+          "right": {
+            "ref": "subject.id"
+          }
+        }
+      ]
+    },
+    {
       "id": "tsk.assignee-update",
       "effect": "Allow",
       "subjects": [
@@ -61,6 +85,30 @@
         "record.create",
         "record.update",
         "task.create"
+      ],
+      "resources": [
+        "xrn:binhminh:task:*",
+        "xrn:binhminh:task_item:*",
+        "xrn:binhminh:sla_log:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.department",
+          "op": "eq",
+          "right": {
+            "ref": "subject.department"
+          }
+        }
+      ]
+    },
+    {
+      "id": "tsk.dept-head-assign-agg",
+      "effect": "Allow",
+      "subjects": [
+        "role:dept_head"
+      ],
+      "actions": [
+        "record.aggregate"
       ],
       "resources": [
         "xrn:binhminh:task:*",
@@ -120,6 +168,23 @@
       "conditions": []
     },
     {
+      "id": "tsk.director-read-agg",
+      "effect": "Allow",
+      "subjects": [
+        "role:director"
+      ],
+      "actions": [
+        "record.aggregate"
+      ],
+      "resources": [
+        "xrn:binhminh:task:*",
+        "xrn:binhminh:task_item:*",
+        "xrn:binhminh:sla_log:*",
+        "xrn:binhminh:weekly_digest:*"
+      ],
+      "conditions": []
+    },
+    {
       "id": "tsk.digest-read",
       "effect": "Allow",
       "subjects": [
@@ -128,6 +193,21 @@
       ],
       "actions": [
         "record.read"
+      ],
+      "resources": [
+        "xrn:binhminh:weekly_digest:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "tsk.digest-read-agg",
+      "effect": "Allow",
+      "subjects": [
+        "role:dept_head",
+        "role:employee"
+      ],
+      "actions": [
+        "record.aggregate"
       ],
       "resources": [
         "xrn:binhminh:weekly_digest:*"
@@ -179,6 +259,23 @@
         "record.create",
         "record.update",
         "task.create"
+      ],
+      "resources": [
+        "xrn:binhminh:task:*",
+        "xrn:binhminh:task_item:*",
+        "xrn:binhminh:sla_log:*",
+        "xrn:binhminh:weekly_digest:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "tsk.agent-l0-l1-agg",
+      "effect": "Allow",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "record.aggregate"
       ],
       "resources": [
         "xrn:binhminh:task:*",

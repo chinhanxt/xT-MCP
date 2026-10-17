@@ -54,7 +54,8 @@ from xt.domain.model.values import (
 )
 
 MAX_LIMIT, MAX_OFFSET = 200, 10_000
-MAX_GROUPS = 1000
+MAX_GROUPS = 1000  # mặc định khi tenant/vận hành không đặt `max_aggregate_groups`
+MAX_GROUPS_CAP = 5000  # trần cứng: mọi cấu hình bị kẹp về đây
 GROUP_TYPES = ("text", "enum", "ref", "user", "bool", "date")
 BUCKET_UNITS = ("day", "week", "month", "quarter", "year")
 # Vai trò quản trị tenant (quy ước của các gói): còn đọc được model của ứng dụng đang tắt.
@@ -431,8 +432,15 @@ class RecordService(_CatalogMixin):
         model: str,
         where: Mapping[str, Any] | None,
         query: AggregateQuery,
+        max_groups: int | None = None,
     ) -> dict[str, Any]:
-        """count/sum per group under the same read permission, filter and RLS as search."""
+        """count/sum per group under the same read permission, filter and RLS as search.
+
+        `max_groups`: cài đặt `max_aggregate_groups` (mặc định MAX_GROUPS, kẹp ở MAX_GROUPS_CAP).
+        """
+        if max_groups is not None and max_groups < 1:
+            raise ValueError("max_groups phải ≥ 1")
+        cap = min(max_groups or MAX_GROUPS, MAX_GROUPS_CAP)
         ver, cat = self._catalog(actor)
         m = self._model(cat, model)
         self._enabled(actor, m.name, read=True)
@@ -467,14 +475,14 @@ class RecordService(_CatalogMixin):
                 )  # fmt: skip
             field(name, ("date", "datetime"), "time_bucket")
         try:
-            page = self.repo.aggregate(actor, m, expr, query, MAX_GROUPS, self._scope(actor, m))
+            page = self.repo.aggregate(actor, m, expr, query, cap, self._scope(actor, m))
         except StoreError as e:
             raise _store_error(m, cat, e, "read") from e
         if page.truncated:
             raise ModelError(
                 "resource_constraint",
-                f"Quá {MAX_GROUPS} nhóm; thu hẹp bộ lọc hoặc bớt group_by",
-                details={"reason": "too_many_groups", "max_groups": MAX_GROUPS},
+                f"Quá {cap} nhóm; thu hẹp bộ lọc hoặc bớt group_by",
+                details={"reason": "too_many_groups", "max_groups": cap},
             )
         return {"model_revision": ver, "as_of": page.as_of, "rows": page.rows}
 
