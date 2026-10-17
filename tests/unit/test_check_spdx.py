@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
+# REUSE-IgnoreStart
 """scripts/check_spdx.sh: phần mở rộng .tsx/.mjs/.css, bỏ .claude, phủ bằng REUSE.toml."""
 
 from __future__ import annotations
@@ -84,3 +85,4 @@ def test_annotation_outside_imports_does_not_cover(tmp_path: Path) -> None:
     result = run(tmp_path)
     assert result.returncode == 1
     assert "page.html" in result.stdout
+# REUSE-IgnoreEnd

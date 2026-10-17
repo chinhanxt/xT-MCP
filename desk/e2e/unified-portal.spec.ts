@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 // Explicit browser fixtures: real built Desk/Studio code, mocked OIDC/MCP/Studio services.
 import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
