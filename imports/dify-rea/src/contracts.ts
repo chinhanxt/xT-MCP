@@ -113,6 +113,8 @@ export interface Citation {
   chunk_id: string;
   content: string;
   score: number;
+  xt_ref?: string;
+  xt_revision?: number;
 }
 export interface Trace {
   attempts?: number;

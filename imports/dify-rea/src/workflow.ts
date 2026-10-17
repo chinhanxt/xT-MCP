@@ -5,6 +5,8 @@ import type { Store } from './store.ts';
 import { HttpError } from './validation.ts';
 import { generate } from './models.ts';
 import { contextText, retrieve } from './knowledge.ts';
+import { sourceCheck } from './xt-source.ts';
+import type { XtTools } from './xt-tools.ts';
 import { httpNodeUrl, runHttpNode } from './http-node.ts';
 import { withNodePolicy } from './node-policy.ts';
 export function validateGraph(graph: Graph, inputNames: string[] = []): string[] {
@@ -106,7 +108,9 @@ export async function runWorkflow(
   input: string,
   signal?: AbortSignal,
   inputs: Record<string, string | number | boolean> = {},
+  coreTools?: XtTools,
 ): Promise<RunResult> {
+  const check = sourceCheck(coreTools);
   const graph = config.graph,
     ordered = validateGraph(
       graph,
@@ -158,7 +162,7 @@ export async function runWorkflow(
           if (n.type === 'retrieval') {
             value = render(n.data.prompt || '{{input}}', values);
             if (!n.data.knowledge_id) throw new HttpError(400, 'Node truy xuất chưa chọn kho kiến thức.');
-            const found = await retrieve(store, workspace, [n.data.knowledge_id], value, 5, signal);
+            const found = await retrieve(store, workspace, [n.data.knowledge_id], value, 5, signal, check);
             citations.push(...found);
             output = contextText(found);
           }
