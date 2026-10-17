@@ -1,6 +1,6 @@
 // Derived (computed) views over the live db. Pure functions — call them on every render.
 import { db } from './db.js'
-import { fmtTime, fmtMin, statusMeta } from './format.js'
+import { fmtTime, fmtMin, fmtNum, fmtDec, statusMeta } from './format.js'
 
 const ON_SITE = new Set(['at_gate', 'docking', 'loading', 'unloading'])
 const ARRIVING = new Set(['en_route', 'at_gate', 'docking'])
@@ -44,41 +44,41 @@ export function siteStats(siteId) {
 /** The three KPI cards under the top bar. */
 export function kpis(siteId) {
   const s = siteStats(siteId)
-  const scope = siteId === 'ALL' ? 'all sites' : siteId
+  const scope = siteId === 'ALL' ? 'tất cả kho' : siteId
   return [
-    { key: 'stock', icon: 'cube', title: 'Stock on hand', value: s.stock, format: 'num', delta: `+${s.stockDelta}`, sub: `pallets · ${scope}` },
-    { key: 'trucks', icon: 'truck', title: 'Trucks on site', value: s.trucksOnSite, format: 'num', delta: `+${s.trucksDelta}`, sub: `${s.inbound} inbound · ${scope}` },
-    { key: 'ontime', icon: 'clock', title: 'On-time delivery', value: s.onTime, format: 'pct', delta: `+${s.onTimeDelta.toFixed(1)}%`, sub: `last 30 days · ${scope}` },
+    { key: 'stock', icon: 'cube', title: 'Tồn kho', value: s.stock, format: 'num', delta: `+${fmtNum(s.stockDelta)}`, sub: `pallet · ${scope}` },
+    { key: 'trucks', icon: 'truck', title: 'Xe tại kho', value: s.trucksOnSite, format: 'num', delta: `+${fmtNum(s.trucksDelta)}`, sub: `${s.inbound} xe đang đến · ${scope}` },
+    { key: 'ontime', icon: 'clock', title: 'Giao đúng hẹn', value: s.onTime, format: 'pct', delta: `+${fmtDec(s.onTimeDelta)}%`, sub: `30 ngày qua · ${scope}` },
   ]
 }
 
-/** "78% full · 1/2 docked" for the site selector. */
+/** "Đầy 78% · 1/2 cửa có xe" for the site selector. */
 export function siteSelectorSub(siteId) {
   const s = siteStats(siteId)
-  return `${Math.round(s.fullPct)}% full · ${s.docked}/${s.docksTotal} docked`
+  return `Đầy ${Math.round(s.fullPct)}% · ${s.docked}/${s.docksTotal} cửa có xe`
 }
 
-/** Dropdown row sub-line: "2/2 docked · 0 inbound" */
+/** Dropdown row sub-line: "2/2 cửa có xe · 0 xe đang đến" */
 export function siteMenuSub(siteId) {
   const s = siteStats(siteId)
-  return `${s.docked}/${s.docksTotal} docked · ${s.inbound} inbound`
+  return `${s.docked}/${s.docksTotal} cửa có xe · ${s.inbound} xe đang đến`
 }
 
-/** Site panel chip line: "1 docked · 1 arriving · 3 staged" */
+/** Site panel chip line: "1 đang bốc dỡ · 1 sắp đến · 3 chờ xử lý" */
 export function siteActivityLine(siteId) {
   const s = siteStats(siteId)
-  return `${s.docked} docked · ${s.arriving} arriving · ${s.staged} staged`
+  return `${s.docked} đang bốc dỡ · ${s.arriving} sắp đến · ${s.staged} chờ`
 }
 
 export function dockName(dockId) {
   return db.get('dock', dockId)?.name ?? '—'
 }
 
-/** Where a truck is: "WH-04 · In 1" when at a dock, otherwise "To WH-04". */
+/** Where a truck is: "WH-04 · Nhập 1" when at a dock, otherwise "Đến WH-04". */
 export function truckWhere(truck) {
   if (truck.status === 'loading' || truck.status === 'unloading') return `${truck.siteId} · ${dockName(truck.dockId)}`
-  if (truck.status === 'departing') return `From ${truck.siteId}`
-  return `To ${truck.siteId}`
+  if (truck.status === 'departing') return `Từ ${truck.siteId}`
+  return `Đến ${truck.siteId}`
 }
 
 /** Short tag shown in the floating 3D label: { id, text } */
@@ -118,34 +118,34 @@ export function shipmentTracking(truckId) {
   const steps = []
   const done = (key, label, time, icon) => steps.push({ key, label, sub: fmtTime(time), state: 'done', icon })
 
-  done('confirmed', 'Order Confirmed', shp.times.confirmed, 'clipboard')
-  done('picked', 'Picked', shp.times.picked, 'box')
+  done('confirmed', 'Xác nhận đơn', shp.times.confirmed, 'clipboard')
+  done('picked', 'Đã lấy hàng', shp.times.picked, 'box')
 
   if (shp.direction === 'outbound') {
     if (st === 'loading') {
-      steps.push({ key: 'loading', label: `Loading ${p.done}/${p.total}`, sub: `ETA ${fmtTime(shp.eta.loaded)}`, state: 'current', icon: 'package' })
-      steps.push({ key: 'transit', label: 'In Transit', sub: `ETA ${fmtTime(shp.eta.transit)}`, state: 'todo', icon: 'truck' })
+      steps.push({ key: 'loading', label: `Đang xếp ${p.done}/${p.total}`, sub: `Dự kiến ${fmtTime(shp.eta.loaded)}`, state: 'current', icon: 'package' })
+      steps.push({ key: 'transit', label: 'Đang vận chuyển', sub: `Dự kiến ${fmtTime(shp.eta.transit)}`, state: 'todo', icon: 'truck' })
     } else {
-      done('loaded', 'Loaded', shp.times.loaded ?? shp.eta.loaded, 'package')
-      steps.push({ key: 'transit', label: 'In Transit', sub: fmtTime(shp.times.transit ?? shp.eta.transit), state: 'current', icon: 'truck' })
+      done('loaded', 'Đã xếp hàng', shp.times.loaded ?? shp.eta.loaded, 'package')
+      steps.push({ key: 'transit', label: 'Đang vận chuyển', sub: fmtTime(shp.times.transit ?? shp.eta.transit), state: 'current', icon: 'truck' })
     }
-    steps.push({ key: 'delivered', label: 'Delivered', sub: `ETA ${fmtTime(shp.eta.delivered)}`, state: 'todo', icon: 'check' })
+    steps.push({ key: 'delivered', label: 'Đã giao', sub: `Dự kiến ${fmtTime(shp.eta.delivered)}`, state: 'todo', icon: 'check' })
   } else {
-    done('loaded', 'Loaded', shp.times.loaded, 'package')
+    done('loaded', 'Đã xếp hàng', shp.times.loaded, 'package')
     if (st === 'unloading' || st === 'loading') {
-      done('transit', 'In Transit', shp.times.transit, 'truck')
-      steps.push({ key: 'unloading', label: `Unloading ${p.done}/${p.total}`, sub: `ETA ${fmtTime(shp.eta.done)}`, state: 'current', icon: 'check' })
+      done('transit', 'Đang vận chuyển', shp.times.transit, 'truck')
+      steps.push({ key: 'unloading', label: `Đang dỡ ${p.done}/${p.total}`, sub: `Dự kiến ${fmtTime(shp.eta.done)}`, state: 'current', icon: 'check' })
     } else {
-      steps.push({ key: 'transit', label: 'In Transit', sub: fmtTime(shp.times.transit), state: 'current', icon: 'truck' })
-      steps.push({ key: 'delivered', label: 'Delivered', sub: `ETA ${fmtTime(shp.eta.done)}`, state: 'todo', icon: 'check' })
+      steps.push({ key: 'transit', label: 'Đang vận chuyển', sub: fmtTime(shp.times.transit), state: 'current', icon: 'truck' })
+      steps.push({ key: 'delivered', label: 'Đã giao', sub: `Dự kiến ${fmtTime(shp.eta.done)}`, state: 'todo', icon: 'check' })
     }
   }
 
   const meta = statusMeta('truck', st)
   let foot
-  if (st === 'loading' || st === 'unloading') foot = `${truck.siteId} · ${dockName(truck.dockId)} · ${fmtMin(truck.etaMin)} left`
-  else if (st === 'departing') foot = `Departed ${truck.siteId} · ${dockName(truck.dockId)}`
-  else foot = `Arriving ${fmtTime(shp.eta.arrive)} · ${fmtMin(truck.etaMin)}`
+  if (st === 'loading' || st === 'unloading') foot = `${truck.siteId} · ${dockName(truck.dockId)} · còn ${fmtMin(truck.etaMin)}`
+  else if (st === 'departing') foot = `Đã rời ${truck.siteId} · ${dockName(truck.dockId)}`
+  else foot = `Dự kiến đến ${fmtTime(shp.eta.arrive)} · ${fmtMin(truck.etaMin)}`
 
   return {
     truck, shipment: shp, carrier,
@@ -153,7 +153,7 @@ export function shipmentTracking(truckId) {
     steps,
     card: {
       id: `#${shp.id}`,
-      to: `To: ${shp.toLabel}`,
+      to: `Đến: ${shp.toLabel}`,
       chip: meta.chip, tone: meta.tone,
       foot,
       carrierKey: truck.carrier,
@@ -171,9 +171,9 @@ export function fleetRows(siteId, tab) {
       return {
         type: 'dock', id: d.id, title: d.name, titleSub: d.siteId,
         dotColor: t ? db.carrier(t.carrier).color : null,
-        text: t ? `${t.id} · ${db.carrier(t.carrier).name}` : 'No truck assigned',
+        text: t ? `${t.id} · ${db.carrier(t.carrier).name}` : 'Chưa có xe',
         muted: !t,
-        chip: d.status === 'booked' ? 'Available' : m.chip, tone: d.status === 'booked' ? 'gray' : m.tone,
+        chip: d.status === 'booked' ? statusMeta('dock', 'available').chip : m.chip, tone: d.status === 'booked' ? 'gray' : m.tone,
         bar: t ? { value: t.progress.done, max: t.progress.total } : null,
         right: t ? `${t.progress.done}/${t.progress.total}` : '',
       }
@@ -183,7 +183,7 @@ export function fleetRows(siteId, tab) {
       if (t.status === 'en_route' || t.status === 'at_gate') {
         const m = statusMeta('truck', t.status)
         rows.push({
-          type: 'truck', id: t.id, title: 'Inbound', titleSub: t.siteId,
+          type: 'truck', id: t.id, title: 'Xe đến', titleSub: t.siteId,
           dotColor: db.carrier(t.carrier).color, text: `${t.id} · ${db.carrier(t.carrier).name}`,
           chip: m.chip, tone: m.tone, bar: null, right: fmtMin(t.etaMin),
         })
@@ -214,12 +214,12 @@ export function fleetRows(siteId, tab) {
         dotColor: db.carrier(t.carrier).color, text: truckWhere(t),
         chip: m.chip, tone: m.tone,
         bar: atDock ? { value: t.progress.done, max: t.progress.total } : null,
-        right: atDock ? `${t.progress.done}/${t.progress.total}` : t.status === 'docking' ? 'docking' : fmtMin(t.etaMin),
+        right: atDock ? `${t.progress.done}/${t.progress.total}` : t.status === 'docking' ? 'vào cửa' : fmtMin(t.etaMin),
       }
     })
 }
 
-/** Tab counters: Docks busy/total · Forklifts working/total · Trucks n */
+/** Tab counters: cửa bận/tổng · xe nâng đang làm/tổng · số xe tải */
 export function fleetCounts(siteId) {
   const s = siteStats(siteId)
   return {
@@ -228,6 +228,8 @@ export function fleetCounts(siteId) {
     trucks: `${s.trucksTotal}`,
   }
 }
+
+const SEARCH_TYPE = { truck: 'Xe tải', forklift: 'Xe nâng', pallet: 'Pallet', dock: 'Cửa kho', charger: 'Trạm sạc' }
 
 /** Simple search across all entities. Returns [{type,id,title,sub,siteId}] (max 8). */
 export function search(query) {
@@ -239,7 +241,7 @@ export function search(query) {
     const hay = [e.id, title, e.name, e.sku, e.driver, e.operator, e.plate, e.address, e.siteId]
       .filter(Boolean).join(' ').toLowerCase()
     if (hay.includes(q)) {
-      const sub = e.type === 'site' ? e.address : `${e.type[0].toUpperCase()}${e.type.slice(1)} · ${e.siteId}`
+      const sub = e.type === 'site' ? e.address : `${SEARCH_TYPE[e.type] ?? e.type} · ${e.siteId}`
       out.push({ type: e.type, id: e.id, title: e.type === 'pallet' ? `${e.id} · ${title}` : title, sub, siteId: e.siteId ?? e.id })
     }
     if (out.length >= 8) break

@@ -77,3 +77,12 @@
 }
 .bz-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .bz-table th, .bz-table td { padding: 5px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+
+/* Điện thoại (≤ 600px): thanh chế độ nằm trong lưới xếp chồng của #ui (xem styles.css), ngay dưới header,
+   chiếm cả chiều ngang và chia đều hai nút — không còn tọa độ cố định nên không đè lên panel chi tiết. */
+@media (max-width: 600px) {
+  #wt-modebar,
+  [data-wt-mode='business'] #wt-modebar { grid-row: 2; margin: 8px 12px 0; }
+  .bz-mode { flex: 1 1 0; min-width: 0; padding: 0 8px; white-space: nowrap; }
+  #wt-business { grid-row: 3 / 6; margin: 8px 12px 12px; }
+}

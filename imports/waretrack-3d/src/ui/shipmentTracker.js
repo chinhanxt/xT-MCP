@@ -23,20 +23,20 @@ function stepHtml(step) {
 function trackerHtml(model) {
   if (!model) {
     return `<div class="st__main">
-      <div class="st__head"><span class="st__icon">${ico('truck', 20)}</span><span class="st__title">Shipment Tracking</span></div>
-      <div class="st__empty">Select a truck to follow its shipment.</div>
+      <div class="st__head"><span class="st__icon">${ico('truck', 20)}</span><span class="st__title">Theo dõi vận chuyển</span></div>
+      <div class="st__empty">Chọn một xe tải để theo dõi lô hàng.</div>
     </div>`
   }
   const { card, carrier, truck } = model
   return `<div class="st__main">
       <div class="st__head">
         <span class="st__icon">${ico('truck', 20)}</span>
-        <span class="st__title">Shipment Tracking</span>
+        <span class="st__title">Theo dõi vận chuyển</span>
         <span class="st__meta">${esc(model.header)}</span>
       </div>
       <ol class="st-steps">${model.steps.map(stepHtml).join('')}</ol>
     </div>
-    <div class="st-card" data-key="${esc(truck.id)}" data-truck="${esc(truck.id)}" role="button" tabindex="0" title="Show ${esc(truck.id)}">
+    <div class="st-card" data-key="${esc(truck.id)}" data-truck="${esc(truck.id)}" role="button" tabindex="0" title="Xem ${esc(truck.id)}">
       <span class="st-card__illu">${illustration('trackerTruck', 68, { color: carrier?.color })}</span>
       <span class="st-card__text">
         <span class="st-card__id">${esc(card.id)}</span>
@@ -52,7 +52,7 @@ export function mountShipmentTracker(el) {
   const root = document.createElement('div')
   root.className = 'card st'
   root.setAttribute('role', 'region')
-  root.setAttribute('aria-label', 'Shipment Tracking')
+  root.setAttribute('aria-label', 'Theo dõi vận chuyển')
   el.appendChild(root)
 
   let shownTruck = null

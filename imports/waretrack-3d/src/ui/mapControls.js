@@ -5,15 +5,15 @@ import { icon } from './icons.js'
 
 const GROUPS = [
   [
-    { cmd: 'zoomIn', icon: 'plus', label: 'Zoom in', size: 18 },
-    { cmd: 'zoomOut', icon: 'minus', label: 'Zoom out', size: 18 },
+    { cmd: 'zoomIn', icon: 'plus', label: 'Phóng to', size: 18 },
+    { cmd: 'zoomOut', icon: 'minus', label: 'Thu nhỏ', size: 18 },
   ],
   [
-    { cmd: 'rotateLeft', icon: 'rotateLeft', label: 'Rotate left', size: 15 },
-    { cmd: 'rotateRight', icon: 'rotateRight', label: 'Rotate right', size: 15 },
+    { cmd: 'rotateLeft', icon: 'rotateLeft', label: 'Xoay trái', size: 15 },
+    { cmd: 'rotateRight', icon: 'rotateRight', label: 'Xoay phải', size: 15 },
   ],
   [
-    { cmd: 'home', icon: 'home', label: 'Reset view', size: 15 },
+    { cmd: 'home', icon: 'home', label: 'Về góc nhìn ban đầu', size: 15 },
   ],
 ]
 
@@ -24,7 +24,7 @@ const button = (b) => `
 
 export function mountMapControls(el) {
   el.innerHTML = `
-  <nav class="card mapctl" aria-label="Map controls">
+  <nav class="card mapctl" aria-label="Điều khiển bản đồ">
     ${GROUPS.map((g) => g.map(button).join('')).join('<span class="mapctl__sep" aria-hidden="true"></span>')}
   </nav>`
 
