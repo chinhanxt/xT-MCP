@@ -84,12 +84,8 @@ GATED_CAPABILITIES: Mapping[str, tuple[str, str]] = {
         "Tell the user file upload is not available in this xT release yet; do not pretend a file "
         "was attached. Keep the information as text in a record field if the user agrees.",
     ),
-    "aggregate_records": (
-        "v0.2",
-        "Tell the user server-side totals are not available in this xT release yet. Never add "
-        "numbers yourself; you may list matching records with search_records.",
-    ),
 }
+# aggregate_records: implemented server-side (D-UNI-AGG-1), no longer gated.
 
 # Lỗi do server tự dựng, không mang dữ liệu doanh nghiệp: được trả khi chưa có ngữ cảnh gọi
 # (chưa xác thực/không có tenant), nên không qua làn PII.

@@ -126,7 +126,7 @@ def test_schema_rejects_gate_params_and_bad_types(d: ToolDispatcher, world: Worl
 
 @pytest.mark.parametrize("tool", sorted(BY_NAME))
 def test_iam_runs_first_for_every_tool(tool: str, world: World) -> None:
-    d = make_dispatcher(world, enabled_capabilities=frozenset({"upload_file", "aggregate_records"}))
+    d = make_dispatcher(world, enabled_capabilities=frozenset({"upload_file"}))
     world.access.deny_tools[tool] = "implicit_deny"
     out = call(d, tool, dict(BY_NAME[tool].examples[0]))
     assert code(out) == "access_denied"
@@ -154,7 +154,13 @@ def test_sod_denied_before_any_confirmation(d: ToolDispatcher, world: World) -> 
 # ---- năng lực theo mốc -----------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("tool", ["upload_file", "aggregate_records"])
+def test_aggregate_records_is_not_gated(d: ToolDispatcher) -> None:
+    # Default settings, no XT_MCP_CAPABILITIES: the same gate the composition root uses.
+    out = call(d, "aggregate_records", {"model_id": "advance_request"})
+    assert data(out)["scope"] == "authorized_records"
+
+
+@pytest.mark.parametrize("tool", ["upload_file"])
 def test_gated_capabilities_until_v02(tool: str, d: ToolDispatcher, world: World) -> None:
     out = call(d, tool, dict(BY_NAME[tool].examples[0]))
     assert code(out) == "capability_unavailable"
@@ -163,7 +169,7 @@ def test_gated_capabilities_until_v02(tool: str, d: ToolDispatcher, world: World
 
 
 def test_enabled_capabilities_work(world: World) -> None:
-    d = make_dispatcher(world, enabled_capabilities=frozenset({"upload_file", "aggregate_records"}))
+    d = make_dispatcher(world, enabled_capabilities=frozenset({"upload_file"}))
     out = call(d, "aggregate_records", {"model_id": "advance_request"})
     assert data(out)["scope"] == "authorized_records"
     out = call(d, "upload_file", dict(BY_NAME["upload_file"].examples[0]))
