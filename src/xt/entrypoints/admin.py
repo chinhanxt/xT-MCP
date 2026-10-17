@@ -34,6 +34,7 @@ from xt.adapters.db.integration import (
     connect,
     import_org,
     installed_packs,
+    org_populated,
     pack_rows,
     register_tenant,
     tenant_of_alias,
@@ -91,6 +92,11 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         help="tệp JSON {departments: {id: mã phòng}, roles: {vai trò tệp: [vai trò gói]}} (tệp HR)",
     )
+    oi.add_argument(
+        "--if-empty",
+        action="store_true",
+        help="chỉ nạp khi tenant chưa có đơn vị/người; đã có thì bỏ qua, không đổi gì (rc 0)",
+    )
     pack = sub.add_parser("pack").add_subparsers(dest="cmd", required=True)
     pi = pack.add_parser("install", help="cài gói nghiệp vụ (in kế hoạch; --confirm để áp)")
     pi.add_argument("--tenant", required=True)
@@ -142,6 +148,12 @@ def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
             )
         with connect(dsn) as conn:
             ref = tenant_of_alias(conn, args.tenant)
+            if args.if_empty and org_populated(conn, ref):
+                print(
+                    f"bỏ qua {args.tenant}: đã có dữ liệu tổ chức, không ghi đè"
+                    " (bỏ --if-empty để upsert)"
+                )
+                return 0
             counts = import_org(conn, ref, data)
         print(f"đã nạp vào {args.tenant}: {counts}")
         return 0

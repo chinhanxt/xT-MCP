@@ -117,7 +117,7 @@ e2e-down:
 	$(E2E) python -m xte2e.stack down
 
 demo-seed:
-	$(E2E) python -m xte2e.seed
+	$(E2E) python -m xte2e.seed $(SEED_ARGS)
 
 e2e-run:   # chạy kịch bản trên stack đang có (đã demo-seed)
 	$(E2E) pytest -c pytest.ini -m "e2e and not llm" $(E2E_ARGS)
