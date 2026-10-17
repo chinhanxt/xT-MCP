@@ -248,7 +248,7 @@ class History:
             "next_cursor": None,
             "explanation": {
                 "outcome": "ok",
-                "query": query,
+                "query": {**query, "replay": "current_data", "historical_snapshot": False},
                 "reasons": [
                     {
                         "source": "aggregate",

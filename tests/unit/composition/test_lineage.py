@@ -134,7 +134,11 @@ def lineage(monkeypatch: pytest.MonkeyPatch) -> Any:
 def test_history_lineage_schema_replay_and_current_model_checks(lineage: Any) -> None:
     result = lineage.history.get_history(lineage.ctx, {"ref": "explain:trace-1", "view": "explain"})
     Draft202012Validator(BY_NAME["get_history"].output_schema).validate(result)
-    assert result["explanation"]["query"] == QUERY
+    assert result["explanation"]["query"] == {
+        **QUERY,
+        "replay": "current_data",
+        "historical_snapshot": False,
+    }
     replay = result["explanation"]["query"]["search_records"]
     Draft202012Validator(BY_NAME["search_records"].input_schema).validate(replay)
     assert lineage.searches and lineage.searches[0][0][0] is lineage.caller.actor

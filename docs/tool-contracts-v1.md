@@ -2762,7 +2762,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 Trace lạ, khác tenant/actor hoặc hết hạn trả `not_found`. Không lưu hàng dữ liệu hay giá trị lọc PII;
 aggregate dùng bộ lọc PII bị từ chối. Khi mở trace, phân loại PII hiện tại cũng được kiểm lại.
 `explanation.query` chứa `model_id`, `model_revision`, `where`, `group_by`, `metrics`, `date_field`,
-`time_bucket`, `timezone`, `as_of` và `search_records: {model_id, where}` có thể chạy trực tiếp.
+`time_bucket`, `timezone`, `as_of`, `replay: "current_data"`, `historical_snapshot: false` và `search_records: {model_id, where}` có thể chạy trực tiếp.
 `where` đã cố định `owner=me` và giao khoảng `period` theo múi giờ tenant với bộ lọc gốc.
 Input chưa có group key: client thêm các giá trị khóa nhóm vào `query.search_records.where`,
 rồi gọi `search_records` với `limit`/`cursor` để lấy từng trang ref nguồn. Với time bucket, thêm
