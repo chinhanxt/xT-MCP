@@ -15,7 +15,9 @@ Một bản lưu là một tệp tar 0600 gồm các thành phần (chọn bằn
 
 ``manifest.json`` (cuối tar) liệt kê sha256 + kích thước từng tệp; ``<bản lưu>.sha256`` là
 checksum cả tệp. Khôi phục kiểm checksum, giải nén vào thư mục tạm, kiểm lại từng tệp rồi
-mới ghi vào đích; đích không rỗng bị từ chối nếu thiếu ``--force``.
+mới ghi vào đích; đích không rỗng bị từ chối nếu thiếu ``--force``. Thiếu ``.sha256`` là lỗi trừ
+khi có ``--no-sidecar``. Khôi phục dựng objects/Studio vào thư mục tạm cạnh đích, đổi chỗ nguyên tử,
+và ghi PostgreSQL sau cùng.
 
 pg_dump/pg_restore phải có major >= major của server (stack dùng postgres:17, client mặc định của
 Ubuntu 24.04 là 16 và sẽ bị từ chối): trỏ tới client 17 bằng --pg-dump / --pg-restore / --psql.
@@ -41,7 +43,9 @@ import sys
 import tarfile
 import tempfile
 import time
+import uuid
 from collections.abc import Iterator, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -255,13 +259,23 @@ def _load_manifest(tar: tarfile.TarFile) -> dict[str, object]:
     return manifest
 
 
-def verify(archive: Path, extract_to: Path | None = None) -> dict[str, object]:
-    """Kiểm sidecar, manifest và sha256 từng tệp; giải nén vào ``extract_to`` nếu có."""
+def verify(
+    archive: Path, extract_to: Path | None = None, *, allow_missing_sidecar: bool = False
+) -> dict[str, object]:
+    """Kiểm sidecar, manifest và sha256 từng tệp; giải nén vào ``extract_to`` nếu có.
+
+    Thiếu ``.sha256`` là lỗi (manifest nằm cùng tar nên không chống được sửa có chủ ý),
+    trừ khi ``allow_missing_sidecar`` (cờ ``--no-sidecar``).
+    """
     sidecar = archive.with_name(archive.name + ".sha256")
     if sidecar.is_file():
-        expected = sidecar.read_text().split()[0]
-        if sha256_file(archive) != expected:
+        fields = sidecar.read_text().split()
+        if not fields or sha256_file(archive) != fields[0]:
             raise BackupError("checksum của bản lưu không khớp .sha256 (tệp bị đổi hoặc hỏng)")
+    elif not allow_missing_sidecar:
+        raise BackupError(
+            f"thiếu {sidecar.name}; chỉ dùng --no-sidecar nếu chấp nhận bỏ qua bước này"
+        )
     try:
         tar = tarfile.open(archive, "r:")  # noqa: SIM115 - đóng bằng `with tar` bên dưới
     except tarfile.TarError as exc:
@@ -313,19 +327,65 @@ def _pg_nonempty(url_env: str, psql: str | None) -> bool:
     return int(out.strip() or "0") > 0
 
 
-def _place(staged: Path, target: Path, stamp: str, mode: int | None) -> None:
-    if target.exists():
-        target.rename(target.with_name(f"{target.name}.pre-restore-{stamp}"))
+def _suffix() -> str:
+    now = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+    return f"{now}-{uuid.uuid4().hex[:6]}"
+
+
+def _precheck_target(path: Path, *, is_dir: bool, force: bool) -> None:
+    """Mọi lý do khiến việc ghi đích sẽ lỗi phải lộ ra ở đây, trước khi đụng vào đích nào."""
+    if path.exists() or path.is_symlink():
+        if path.is_symlink() or path.is_dir() != is_dir:
+            raise BackupError(f"đích không phải {'thư mục' if is_dir else 'tệp'} thường: {path}")
+        if _nonempty(path) and not force:
+            raise BackupError(f"đích không rỗng: {path}; dùng --force (đích cũ được đổi tên)")
+    parent = path.parent
+    while not parent.exists():
+        parent = parent.parent
+    if not parent.is_dir() or not os.access(parent, os.W_OK | os.X_OK):
+        raise BackupError(f"không ghi được vào {parent} (đích {path})")
+
+
+def _stage_beside(src: Path, target: Path, mode: int | None) -> Path:
+    """Chép ``src`` vào cạnh ``target`` (cùng filesystem) để đổi chỗ bằng rename nguyên tử."""
     target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(staged), target)
+    staged = target.with_name(f".{target.name}.restore-{uuid.uuid4().hex[:8]}")
+    if src.is_dir():
+        shutil.copytree(src, staged, symlinks=True)
+    else:
+        shutil.copyfile(src, staged)
     if mode is not None:
-        target.chmod(mode)
+        staged.chmod(mode)
+    return staged
+
+
+def _swap(staged: Path, target: Path) -> Path | None:
+    """Đưa ``staged`` vào ``target``. Trả về đường dẫn bản cũ (đã đổi tên) nếu có."""
+    old: Path | None = None
+    if target.exists() and not (target.is_dir() and not any(target.iterdir())):
+        old = target.with_name(f"{target.name}.pre-restore-{_suffix()}")
+        target.rename(old)
+    try:
+        staged.rename(target)  # thư mục đích rỗng được rename đè nguyên tử trên POSIX
+    except BaseException:
+        if old is not None:
+            old.rename(target)
+        raise
+    return old
+
+
+def _discard(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path, ignore_errors=True)
+    else:
+        path.unlink(missing_ok=True)
 
 
 def restore(
     archive: Path,
     *,
     force: bool = False,
+    allow_missing_sidecar: bool = False,
     pg_url_env: str | None = None,
     pg_restore: str | None = None,
     psql: str | None = None,
@@ -333,62 +393,86 @@ def restore(
     studio_dir: Path | None = None,
     studio_key: Path | None = None,
 ) -> list[str]:
-    """Trả về danh sách thành phần đã khôi phục. Mọi kiểm tra chạy trước khi ghi đích."""
+    """Trả về danh sách thành phần đã khôi phục.
+
+    Ba pha: (1) kiểm + giải nén + kiểm tra trước mọi đích; (2) dựng objects/Studio vào thư mục
+    tạm cạnh đích; (3) đổi chỗ nguyên tử objects/Studio rồi ghi PostgreSQL CUỐI CÙNG. Lỗi ở
+    pha 1-2 không đụng đích nào; lỗi khi đổi chỗ thì hoàn tác các đích đã đổi.
+    """
     if (studio_dir is None) != (studio_key is None):
         raise BackupError("--studio-dir và --studio-key phải đi cùng nhau")
-    stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime())
-    with tempfile.TemporaryDirectory(prefix="xt-restore-") as tmp:
-        stage = Path(tmp)
-        manifest = verify(archive, stage)
-        comps = manifest["components"]
-        assert isinstance(comps, dict)
-        wanted = [
-            c
-            for c, given in (
-                ("postgres", pg_url_env),
-                ("objects", objects_dir),
-                ("studio", studio_dir),
-            )
-            if given
-        ]
-        if not wanted:
-            raise BackupError("chọn ít nhất một đích khôi phục")
-        for c in wanted:
-            if c not in comps:
-                raise BackupError(f"bản lưu không có thành phần {c}")
-        if "postgres" in wanted:
-            assert pg_url_env
-            if not force and _pg_nonempty(pg_url_env, psql):
-                raise BackupError("database đích không rỗng; dùng --force để ghi đè")
-        for c, paths in (("objects", [objects_dir]), ("studio", [studio_dir, studio_key])):
-            for p in paths:
-                if c in wanted and p is not None and _nonempty(p) and not force:
-                    raise BackupError(f"đích không rỗng: {p}; dùng --force (đích cũ được đổi tên)")
-        if "postgres" in wanted:
-            assert pg_url_env
-            dbname = pg_env(os.environ.get(pg_url_env, ""))["PGDATABASE"]
-            argv = [
-                _tool("pg_restore", pg_restore),
-                "--exit-on-error",
-                "--no-password",
-                "--dbname",
-                dbname,
+    staged: list[tuple[Path, Path]] = []
+    swapped: list[tuple[Path, Path | None]] = []
+    try:
+        with tempfile.TemporaryDirectory(prefix="xt-restore-") as tmp:
+            stage = Path(tmp)
+            manifest = verify(archive, stage, allow_missing_sidecar=allow_missing_sidecar)
+            comps = manifest["components"]
+            assert isinstance(comps, dict)
+            wanted = [
+                c
+                for c, given in (
+                    ("postgres", pg_url_env),
+                    ("objects", objects_dir),
+                    ("studio", studio_dir),
+                )
+                if given
             ]
-            if force:
-                argv += ["--clean", "--if-exists"]
-            _run([*argv, str(stage / PG_FILE)], pg_url_env, "pg_restore")
-        if "objects" in wanted and objects_dir:
-            src = stage / OBJECTS.rstrip("/")
-            src.mkdir(exist_ok=True)
-            _place(src, objects_dir, stamp, None)
-        if "studio" in wanted and studio_dir and studio_key:
-            data = stage / STUDIO_DIR.rstrip("/")
-            for p in data.rglob("*"):
-                p.chmod(0o700 if p.is_dir() else 0o600)
-            _place(data, studio_dir, stamp, 0o700)
-            keysrc = stage / STUDIO_KEY
-            keysrc.chmod(0o600)
-            _place(keysrc, studio_key, stamp, 0o600)
+            if not wanted:
+                raise BackupError("chọn ít nhất một đích khôi phục")
+            for c in wanted:
+                if c not in comps:
+                    raise BackupError(f"bản lưu không có thành phần {c}")
+            # Pha 1: kiểm tra trước toàn bộ đích.
+            restore_argv: list[str] = []
+            if "postgres" in wanted:
+                assert pg_url_env
+                dbname = pg_env(os.environ.get(pg_url_env, ""))["PGDATABASE"]
+                restore_argv = [
+                    _tool("pg_restore", pg_restore),
+                    "--exit-on-error",
+                    "--no-password",
+                    "--dbname",
+                    dbname,
+                ]
+                if force:
+                    restore_argv += ["--clean", "--if-exists"]
+                if not force and _pg_nonempty(pg_url_env, psql):
+                    raise BackupError("database đích không rỗng; dùng --force để ghi đè")
+            if "objects" in wanted and objects_dir:
+                _precheck_target(objects_dir, is_dir=True, force=force)
+            if "studio" in wanted and studio_dir and studio_key:
+                _precheck_target(studio_dir, is_dir=True, force=force)
+                _precheck_target(studio_key, is_dir=False, force=force)
+            # Pha 2: dựng bản mới cạnh đích (chưa đụng đích).
+            if "objects" in wanted and objects_dir:
+                src = stage / OBJECTS.rstrip("/")
+                src.mkdir(exist_ok=True)
+                staged.append((_stage_beside(src, objects_dir, None), objects_dir))
+            if "studio" in wanted and studio_dir and studio_key:
+                data = stage / STUDIO_DIR.rstrip("/")
+                for p in data.rglob("*"):
+                    p.chmod(0o700 if p.is_dir() else 0o600)
+                staged.append((_stage_beside(data, studio_dir, 0o700), studio_dir))
+                staged.append((_stage_beside(stage / STUDIO_KEY, studio_key, 0o600), studio_key))
+            # Pha 3: đổi chỗ objects/Studio, PostgreSQL ghi sau cùng.
+            try:
+                for new, target in staged:
+                    swapped.append((target, _swap(new, target)))
+            except BaseException:
+                for target, old in reversed(swapped):
+                    _discard(target)
+                    if old is not None:
+                        old.rename(target)
+                swapped.clear()
+                raise
+            staged.clear()
+            if "postgres" in wanted:
+                assert pg_url_env
+                _run([*restore_argv, str(stage / PG_FILE)], pg_url_env, "pg_restore")
+    finally:
+        for new, _ in staged:
+            _discard(new)
     return wanted
 
 
@@ -401,6 +485,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     state = _default_state()
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("verify")
     for name in ("backup", "restore"):
         p = sub.add_parser(name)
         p.add_argument("--pg-url-env", help="tên biến môi trường chứa URL PostgreSQL")
@@ -423,9 +508,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     sub.choices["backup"].add_argument("--pg-dump")
     sub.choices["restore"].add_argument("archive", type=Path)
     sub.choices["restore"].add_argument("--force", action="store_true")
+    for name in ("restore", "verify"):
+        sub.choices[name].add_argument(
+            "--no-sidecar",
+            action="store_true",
+            help="chấp nhận bản lưu không có .sha256 (mặc định: thiếu sidecar là lỗi)",
+        )
     sub.choices["restore"].add_argument("--pg-restore")
     sub.choices["restore"].add_argument("--psql")
-    sub.add_parser("verify").add_argument("archive", type=Path)
+    sub.choices["verify"].add_argument("archive", type=Path)
     a = ap.parse_args(argv)
     try:
         if a.cmd == "backup":
@@ -442,6 +533,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             done = restore(
                 a.archive,
                 force=a.force,
+                allow_missing_sidecar=a.no_sidecar,
                 pg_url_env=a.pg_url_env,
                 pg_restore=a.pg_restore,
                 psql=a.psql,
@@ -451,7 +543,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             print("OK: đã khôi phục " + ", ".join(done))
         else:
-            m = verify(a.archive)
+            m = verify(a.archive, allow_missing_sidecar=a.no_sidecar)
             print(f"OK: {len(m['files'])} tệp khớp sha256")  # type: ignore[arg-type]
     except BackupError as exc:
         print(f"LỖI: {exc}", file=sys.stderr)

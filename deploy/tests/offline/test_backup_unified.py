@@ -213,8 +213,105 @@ class BackupRestore(unittest.TestCase):
         # 2) không có sidecar: sha256 trong manifest bắt được
         archive.with_name(archive.name + ".sha256").unlink()
         with self.assertRaisesRegex(bu.BackupError, "sha256 không khớp"):
-            bu.restore(archive, force=True, objects_dir=new / "objects")
+            bu.restore(archive, force=True, allow_missing_sidecar=True, objects_dir=new / "objects")
         self.assertEqual(tree(new), before)
+
+    def restore_all(self, new: Path, **kw: object) -> list[str]:
+        args: dict[str, object] = {
+            "pg_url_env": "XT_TEST_PG_URL",
+            "objects_dir": new / "objects",
+            "studio_dir": new / "studio",
+            "studio_key": new / "studio.key",
+        }
+        args.update(kw)
+        return bu.restore(self.backup(), **args)  # type: ignore[arg-type]
+
+    def assert_pg_untouched(self) -> None:
+        self.assertNotIn("RARG", self.log.read_text())
+        self.assertFalse(self.restored.exists())
+
+    def test_studio_stage_failure_never_invokes_pg_restore(self) -> None:
+        new = self.root / "new"
+        real = bu._stage_beside
+
+        def boom(src: Path, target: Path, mode: int | None) -> Path:
+            if target.name == "studio":
+                raise OSError("đĩa đầy (giả lập)")
+            return real(src, target, mode)
+
+        with (
+            mock.patch.object(bu, "_stage_beside", boom),
+            self.assertRaisesRegex(OSError, "đĩa đầy"),
+        ):
+            self.restore_all(new)
+        self.assert_pg_untouched()
+        self.assertEqual(tree(new), {})
+        self.assertEqual([p.name for p in new.iterdir()], [])  # không để lại thư mục tạm
+
+    def test_studio_precheck_failure_never_invokes_pg_restore(self) -> None:
+        new = self.root / "new"
+        new.mkdir()
+        (new / "blocker").write_text("là tệp, không phải thư mục")
+        with self.assertRaisesRegex(bu.BackupError, "không ghi được|không phải"):
+            self.restore_all(new, studio_key=new / "blocker/studio.key")
+        self.assert_pg_untouched()
+        self.assertFalse((new / "objects").exists())
+        self.assertFalse((new / "studio").exists())
+
+    def test_swap_failure_rolls_back_and_skips_pg(self) -> None:
+        new = self.root / "new"
+        (new / "objects").mkdir(parents=True)
+        (new / "objects/old").write_text("old")
+        real, calls = bu._swap, []
+
+        def flaky(staged: Path, target: Path) -> Path | None:
+            calls.append(target.name)
+            if len(calls) == 2:
+                raise OSError("rename lỗi (giả lập)")
+            return real(staged, target)
+
+        with (
+            mock.patch.object(bu, "_swap", flaky),
+            self.assertRaisesRegex(OSError, "rename lỗi"),
+        ):
+            self.restore_all(new, force=True)
+        self.assert_pg_untouched()
+        self.assertEqual(tree(new), {"objects/old": b"old"})
+        self.assertEqual([p.name for p in new.iterdir()], ["objects"])
+
+    def test_postgres_is_written_after_files_are_in_place(self) -> None:
+        new = self.root / "new"
+        seen: list[bool] = []
+        real = bu._run
+
+        def spy(argv: list[str], url_env: str | None = None, what: str = "") -> str:
+            if what == "pg_restore":
+                seen.append(
+                    (new / "objects/top.txt").exists()
+                    and (new / "studio/credential.key").exists()
+                    and (new / "studio.key").exists()
+                )
+            return real(argv, url_env, what)
+
+        with mock.patch.object(bu, "_run", spy):
+            self.restore_all(new)
+        self.assertEqual(seen, [True])
+
+    def test_verify_requires_sidecar_unless_opted_out(self) -> None:
+        archive = self.backup()
+        archive.with_name(archive.name + ".sha256").unlink()
+        with self.assertRaisesRegex(bu.BackupError, r"\.sha256"):
+            bu.verify(archive)
+        self.assertEqual(bu.main(["verify", str(archive)]), 1)
+        self.assertEqual(bu.main(["verify", "--no-sidecar", str(archive)]), 0)
+        with self.assertRaisesRegex(bu.BackupError, r"\.sha256"):
+            bu.restore(archive, objects_dir=self.root / "new/objects")
+        self.assertFalse((self.root / "new").exists())
+
+    def test_pre_restore_suffix_has_microseconds_and_uuid(self) -> None:
+        a, b = bu._suffix(), bu._suffix()
+        self.assertNotEqual(a, b)
+        self.assertRegex(a, r"^\d{8}T\d{6}\d{6}Z-[0-9a-f]{6}$")
 
     def test_refuses_partial_studio_backup(self) -> None:
         (self.studio / "credential.key").unlink()

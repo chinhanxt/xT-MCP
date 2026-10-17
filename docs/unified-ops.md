@@ -3,7 +3,7 @@
 
 # Vận hành bản tích hợp: sao lưu, khôi phục, health check, truy vết lỗi
 
-Áp dụng cho bản chạy local theo [unified-local.md](unified-local.md). **Trạng thái:** công cụ sao lưu/khôi phục `deploy/scripts/backup_unified.py` (mục 1) **đang làm**: nằm ở PR #30, chưa vào `staging`, nên lệnh ở mục 1 chưa chạy được trên nhánh này cho tới khi PR đó được duyệt. Đây là hướng dẫn cho bản tích hợp/demo (G7), **không** phải cam kết production: chưa có HA, backup tự động hay giám sát liên tục.
+Áp dụng cho bản chạy local theo [unified-local.md](unified-local.md). Đây là hướng dẫn cho bản tích hợp/demo (G7), **không** phải cam kết production: chưa có HA, backup tự động hay giám sát liên tục.
 
 ## 1. Sao lưu và khôi phục
 
@@ -49,12 +49,13 @@ uv run xt audit verify --against-checkpoint latest
 
 Quy tắc của `restore`:
 
-- Kiểm `.sha256`, rồi manifest và sha256 từng tệp, giải nén vào thư mục tạm; chỉ khi đạt mới ghi đích. Bản bị sửa hoặc thiếu `studio.sqlite`/`credential.key`/`studio.key` bị từ chối và đích không đổi.
-- Đích không rỗng (database có bảng, thư mục có tệp, tệp khóa đã tồn tại) bị từ chối. `--force` đổi tên đích cũ thành `*.pre-restore-<UTC>` (database dùng `pg_restore --clean --if-exists`, nên đã ghi đè).
+- Kiểm `.sha256`, rồi manifest và sha256 từng tệp, giải nén vào thư mục tạm; chỉ khi đạt mới ghi đích. Bản bị sửa hoặc thiếu `studio.sqlite`/`credential.key`/`studio.key` bị từ chối và đích không đổi. Thiếu tệp `.sha256` cũng là lỗi (cả `verify` lẫn `restore`, thoát mã khác 0) trừ khi thêm `--no-sidecar`: manifest nằm cùng tar nên không chống được việc sửa có chủ ý.
+- Thứ tự: (1) kiểm bản lưu và kiểm tra trước cả ba đích (PostgreSQL, thư mục đối tượng, thư mục Studio cùng `credential.key`/`studio.key`: loại đích, quyền ghi, đích không rỗng); (2) dựng objects/Studio vào thư mục tạm cạnh đích; (3) đổi chỗ nguyên tử (rename) objects/Studio, **ghi PostgreSQL sau cùng**. Lỗi ở bước 1-2 không đụng đích nào; lỗi khi đổi chỗ thì hoàn tác; nếu `pg_restore` lỗi thì tệp đã đổi chỗ được giữ (khớp bản lưu).
+- Đích không rỗng (database có bảng, thư mục có tệp, tệp khóa đã tồn tại) bị từ chối. `--force` đổi tên đích cũ thành `*.pre-restore-<UTC có micro giây>-<6 ký tự uuid>` (database dùng `pg_restore --clean --if-exists`, nên đã ghi đè).
 - `pg_dump`/`pg_restore` giữ owner và ACL; role cụm không nằm trong dump nên phải tồn tại trước.
 - Quyền sau khôi phục: tệp 0600, thư mục Studio 0700.
 
-Chưa kiểm: restore vào PostgreSQL thật và `xt audit verify` sau restore (test tích hợp cho việc này nằm ở PR #44, chưa vào `staging`, chưa chạy); khôi phục đồng bộ ba thành phần khi hệ thống đang ghi.
+Chưa kiểm: restore vào PostgreSQL thật và `xt audit verify` sau restore (test tích hợp cho việc này nằm ở PR #44, chưa vào `staging`, chưa chạy); `--clean --if-exists` không xóa đối tượng có trong database đích mà không có trong dump (nên restore vào database trống); khôi phục đồng bộ ba thành phần khi hệ thống đang ghi.
 
 ## 2. Health check
 
@@ -73,7 +74,10 @@ Chưa kiểm: restore vào PostgreSQL thật và `xt audit verify` sau restore (
 
 ## 3. Truy vết lỗi theo mã yêu cầu (correlation ID)
 
-Mã hiện có là `trace_id`:
+Có hai mã:
+
+- **`X-Request-Id`** (PR #28, đã vào `staging`): proxy `/studio-api/*` tạo `request_id` cho mỗi yêu cầu (`studio_http.py:107`), trả về client ở header `x-request-id` trên phản hồi thành công, 401 và 502 (`studio_http.py:110`), ký vào assertion gửi Studio (`request_id` trong `xt-auth.ts`), và Studio ghi vào log yêu cầu dạng `METHOD path status ms request_id=<mã>` (`server.ts:215`). Cũng là `trace_id` của envelope lỗi do proxy tạo (`studio_http.py:254`). Truy: lấy `x-request-id` từ phản hồi lỗi, rồi `grep 'request_id=<mã>'` trong log Studio và `trace_id=<mã>` trong log `xt-api`.
+- **`trace_id`**:
 
 - Mọi phản hồi tool/REST (MCP, `/workflow/v1`, `/files/v1`) chứa `meta.trace_id` ở envelope (`src/xt/application/tools/dispatcher.py:736`).
 - Khi tool lỗi, log của `xt-api` ghi dòng `... trace_id=<mã> tool=<tên> exc=<kiểu lỗi> at <tệp:dòng:hàm>` (`dispatcher.py:349,352`; định dạng trong `src/xt/application/tools/safe_log.py`). Log cố ý **không** chứa message lỗi, DSN hay dữ liệu cá nhân.
@@ -88,7 +92,5 @@ docker compose -f deploy/compose.yaml logs xt-api xt-worker | grep 'trace_id=<m�
 
 Giới hạn đã biết (việc còn lại của G7, **chưa có**):
 
-- Không có header `X-Request-Id` đi xuyên APISIX → lõi → Studio; trình duyệt không nhận mã nếu lỗi xảy ra trước khi có envelope.
-- `/studio-api/*`: proxy tạo `trace_id` mới cho mỗi yêu cầu (`studio_http.py:239`) nhưng không trả về client, nên lỗi Studio không dò ngược được từ phía người dùng.
-- Log yêu cầu của Studio Node chỉ có `METHOD path status ms` (`server.ts:212`), không có mã yêu cầu.
+- `X-Request-Id` chỉ có trên đường `/studio-api/*`; các route MCP, `/workflow/v1`, `/files/v1` vẫn chỉ có `meta.trace_id` trong envelope, và trình duyệt không nhận mã nếu lỗi xảy ra trước khi có envelope.
 - Truy ngược actor → phiếu → giao dịch → báo cáo (lớp 7) dựa vào audit và `xt audit verify`; báo cáo D phụ thuộc `aggregate_records`, hiện còn `unavailable` ở lõi (`src/xt/entrypoints/composition/records.py:364`; D-UNI-AGG-1 chưa hiện thực).
