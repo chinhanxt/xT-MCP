@@ -129,3 +129,31 @@ test('document text cannot add tools: injected decide_request is refused and nev
     } finally { await model.close(); }
   } finally { await s.close(); }
 });
+
+test('direct document read re-checks the xT source: revoked, deleted or stale text is not returned', async () => {
+  const s = await integratedStudio();
+  try {
+    s.records.set('document:luong', { revision: 1, title: 'Bảng lương', pages: ['Lương giám đốc là 500 triệu.'] });
+    const kb = (await s.call('/api/knowledge', 'POST', { name: 'HR' })).value.id;
+    const doc = (await s.call(`/api/knowledge/${kb}/documents`, 'POST', { xt_ref: 'document:luong' })).value.id;
+    const read = () => s.call(`/api/documents/${doc}`);
+    const ok = await read();
+    assert.equal(ok.status, 200);
+    assert.ok(JSON.stringify(ok.value).includes('500 triệu'));
+    s.records.get('document:luong')!.denied = true;
+    for (const response of [await read(), await s.call(`/api/documents/${doc}`, 'GET', undefined, { capability: false })]) {
+      assert.ok([404, 503].includes(response.status));
+      assert.ok(!JSON.stringify(response.value).includes('500 triệu'));
+    }
+    s.records.set('document:luong', { revision: 2, title: 'Bảng lương', pages: ['Đã sửa.'] });
+    const stale = await read();
+    assert.equal(stale.status, 404);
+    assert.ok(!JSON.stringify(stale.value).includes('500 triệu'));
+    assert.equal((await s.call(`/api/documents/${doc}`, 'PUT', {})).status, 200);
+    const fresh = await read();
+    assert.equal(fresh.status, 200);
+    assert.ok(JSON.stringify(fresh.value).includes('Đã sửa.') && !JSON.stringify(fresh.value).includes('500 triệu'));
+    s.records.delete('document:luong');
+    assert.equal((await read()).status, 404);
+  } finally { await s.close(); }
+});

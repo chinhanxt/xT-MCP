@@ -140,11 +140,18 @@ export async function routeResources(ctx: RouteContext): Promise<boolean> {
   if (docMatch) {
     const doc = store.db
       .prepare(
-        'SELECT d.id,d.knowledge_id,d.name,d.content,d.status,d.xt_ref FROM documents d JOIN knowledge k ON k.id=d.knowledge_id WHERE d.id=? AND k.workspace_id=?',
+        'SELECT d.id,d.knowledge_id,d.name,d.content,d.status,d.xt_ref,d.xt_revision FROM documents d JOIN knowledge k ON k.id=d.knowledge_id WHERE d.id=? AND k.workspace_id=?',
       )
       .get(docMatch[1], workspace);
     if (!doc) throw new HttpError(404, 'Không tìm thấy tài liệu.');
     if (method === 'GET') {
+      if (doc.xt_ref) {
+        // Cached xT text is shown only while the caller can still read the same revision in xT.
+        const check = sourceCheck(ctx.coreTools);
+        if (!check) throw new HttpError(503, 'Không kiểm tra nguồn xT được cho tài liệu này.');
+        if ((await check(String(doc.xt_ref))) !== Number(doc.xt_revision))
+          throw new HttpError(404, 'Không tìm thấy bản ghi xT hoặc bạn không có quyền xem; đồng bộ lại tài liệu.');
+      }
       const offset = Number(ctx.url.searchParams.get('offset') ?? 0);
       if (!Number.isInteger(offset) || offset < 0) throw new HttpError(400, 'Offset không hợp lệ.');
       const chunks = store.db
