@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
 // Desk THẬT (container xt-desk sau APISIX) + Keycloak thật + xT thật, Chromium headless của Playwright.
-// Không phục vụ bản build qua route: mọi https://xt*.freepro.online đều đi APISIX 127.0.0.1:9080 với Host gốc.
+// Không phục vụ bản build qua route: mọi https://xt*.freepro.online đều đi APISIX 127.0.0.1:${APISIX_HTTP_PORT:-9080} với Host gốc.
 // LLM (chỉ chế độ chat): URL DESK_LLM_URL nướng trong ảnh Desk (http://ollama:11434/v1) -> Ollama host 127.0.0.1:11434.
 //   stdin JSON: ["oidc", user, password, totp_seed]
 //   stdin JSON: ["chat", user, password, totp_seed, prompt]
@@ -19,7 +19,7 @@ const { chromium } = require("@playwright/test");
 
 const [MODE, USER, PASS, SEED, PROMPT] = JSON.parse(readFileSync(0, "utf8"));
 const SW = MODE === "switch" ? PROMPT : null;
-const GW = process.env.GW || "127.0.0.1:9080";
+const GW = process.env.GW || `127.0.0.1:${process.env.APISIX_HTTP_PORT || 9080}`;
 const LLM = process.env.LLM_HOST || "127.0.0.1:11434";
 const H = { desk: "xt.freepro.online", auth: "xt-auth.freepro.online", mcp: "xt-mcp.freepro.online", api: "xt-api.freepro.online" };
 const ip = `203.0.113.${1 + Math.floor(Math.random() * 250)}`;

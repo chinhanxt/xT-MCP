@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
 // E2E headless: Desk (build thật) -> Keycloak thật qua APISIX. Không sửa /etc/hosts, không đụng display thật.
-// https://xt*.freepro.online được ánh xạ bằng Playwright route tới APISIX 127.0.0.1:9080 (Host giữ nguyên) và thư mục dist của Desk.
+// https://xt*.freepro.online được ánh xạ bằng Playwright route tới APISIX 127.0.0.1:${APISIX_HTTP_PORT:-9080} (Host giữ nguyên) và thư mục dist của Desk.
 // Dùng: node desk_oidc_e2e.mjs <desk-dist-dir> <username> <password>   (chạy qua desk_oidc_e2e.sh)
 import { createRequire } from "node:module";
 import http from "node:http";
@@ -13,7 +13,7 @@ const require = createRequire(path.resolve(here, "../../desk/package.json"));
 const { chromium } = require("@playwright/test");
 
 const [dist, USER, PASS] = process.argv.slice(2);
-const GW = process.env.GW || "127.0.0.1:9080";
+const GW = process.env.GW || `127.0.0.1:${process.env.APISIX_HTTP_PORT || 9080}`;
 const H = { desk: "xt.freepro.online", auth: "xt-auth.freepro.online", mcp: "xt-mcp.freepro.online", api: "xt-api.freepro.online" };
 const CID = "xt-desk-agent";
 const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon" };

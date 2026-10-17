@@ -82,6 +82,12 @@ class Settings:
     def api(self) -> str:
         return f"https://{self.hosts['api']}"
 
+    def script_env(self) -> dict[str, str]:
+        """Môi trường cho script con (desk_real.mjs, security_smoke.sh, ...): cổng host
+        APISIX/Keycloak cùng nguồn với harness (`deploy/.env` hoặc shell), mặc định 9080/18080."""
+        ports = {k: self.env[k] for k in ("APISIX_HTTP_PORT", "KC_HTTP_PORT") if self.env.get(k)}
+        return {**os.environ, **ports}
+
     def compose_env(self) -> dict[str, str]:
         """Môi trường cho `docker compose`: biến shell được ưu tiên hơn --env-file."""
         return {**os.environ, **STACK_OVERRIDES}
