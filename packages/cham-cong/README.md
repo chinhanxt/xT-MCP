@@ -41,7 +41,7 @@ Không ai xóa được bản ghi (`cc.deny-delete`).
 ## Cài, tắt, bật
 Cài như mọi gói: `plan_install` rồi `install(confirm=digest)`. Gói không phụ thuộc gói khác.
 
-Manifest ứng dụng: bổ sung khi lõi hỗ trợ (khối `app` của `pack.json` do nền tảng định nghĩa; gói chưa khai để không phá bộ nạp hiện tại).
+Ứng dụng nhóm `thoi-gian-du-an` (khối `app` trong `pack.json`, giao diện generic, bộ tool đọc/ghi bản ghi và đề nghị).
 
 ## Giới hạn đã biết
 `total_hours_milli` do người nộp khai, chưa tự cộng từ `cham_cong`. Bảng công được duyệt chưa khóa các dòng `cham_cong` của tuần đó (khóa theo trạng thái là việc của lõi).
