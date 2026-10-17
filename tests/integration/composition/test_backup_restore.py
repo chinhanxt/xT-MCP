@@ -9,9 +9,12 @@ byte, và `xt audit verify` đạt trên database đã khôi phục.
 
 from __future__ import annotations
 
+import argparse
 import importlib.util
+import re
 import secrets
 import shutil
+import subprocess
 import uuid
 from pathlib import Path
 from typing import Any
@@ -23,15 +26,17 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from psycopg import sql
 
 from tests.integration.composition import pgfixture
-from tests.integration.composition.test_warehouse import (  # noqa: F401  (fixture dùng chung)
+from tests.integration.composition.test_warehouse import (  # noqa: F401  (stock dùng chung)
+    Warehouse,
     balance,
     confirm,
+    install_warehouse,
     movements,
     stock,
-    warehouse,
 )
 from xt.application.tools.ports import PendingStatus
 from xt.entrypoints import audit_cli
+from xt.entrypoints.serve import prepare
 
 pytestmark = pytest.mark.integration
 
@@ -42,6 +47,30 @@ spec = importlib.util.spec_from_file_location(
 assert spec and spec.loader
 bu = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bu)
+
+
+@pytest.fixture(scope="module")
+def warehouse(stack_base, mcp_port, tmp_path_factory):
+    """Tenant riêng (`backupit`): cùng cách dựng với test_warehouse nhưng không trùng alias, vì
+    fixture module-scope của module kia sẽ được dựng lại ở đây và `tenant create` không lặp được."""
+    alias = "backupit"
+    tenant = install_warehouse(stack_base.env, tmp_path_factory, alias)
+    prepared = prepare(
+        stack_base.env,
+        argparse.Namespace(transport="http", host="127.0.0.1", port=mcp_port, profile="full"),
+    )
+    comp = prepared.services
+    try:
+        yield Warehouse(comp.runtime, comp.engine, tenant, {}, prepared.dispatcher, alias=alias)
+    finally:
+        prepared.close()
+
+
+def client_major(tool: str) -> int:
+    out = subprocess.run([tool, "--version"], capture_output=True, text=True, check=True).stdout
+    found = re.search(r"(\d+)", out)
+    assert found, out
+    return int(found.group(1))
 
 
 def fingerprint(conn: psycopg.Connection[Any], schema: str) -> dict[str, tuple[int, str]]:
@@ -68,7 +97,7 @@ def fingerprint(conn: psycopg.Connection[Any], schema: str) -> dict[str, tuple[i
 
 
 def test_pg_dump_restore_into_fresh_database_keeps_ledger_and_audit(
-    warehouse,  # noqa: F811
+    warehouse,
     stock,  # noqa: F811
     pg,
     tmp_path,
@@ -77,6 +106,12 @@ def test_pg_dump_restore_into_fresh_database_keeps_ledger_and_audit(
     for tool in ("pg_dump", "pg_restore", "psql"):
         if shutil.which(tool) is None:
             pytest.skip(f"cần {tool} trên PATH")
+    with pg.su() as su:
+        row = su.execute("SHOW server_version_num").fetchone()
+    server_major = int(row[0]) // 10000
+    for tool in ("pg_dump", "pg_restore"):
+        if client_major(tool) < server_major:
+            pytest.skip(f"{tool} cũ hơn server PostgreSQL {server_major}")
     w = warehouse
     # 1. Dữ liệu nghiệp vụ thật: một phiếu nhập được duyệt và ghi sổ.
     row = w.request(stock)
