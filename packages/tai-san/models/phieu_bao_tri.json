@@ -1,0 +1,50 @@
+{
+  "id": "ts_phieu_bao_tri",
+  "name": "phieu_bao_tri",
+  "label": "Phiếu bảo trì",
+  "title_field": "code",
+  "fields": [
+    {"id": "f1", "name": "code", "type": "text", "label": "Mã phiếu", "pii": "none", "required": true, "unique": true, "min": 1, "max": 40},
+    {"id": "f2", "name": "asset", "type": "ref", "label": "Tài sản", "pii": "none", "required": true, "ref": "tai_san"},
+    {"id": "f3", "name": "title", "type": "text", "label": "Việc cần làm", "pii": "none", "required": true, "min": 3, "max": 200},
+    {"id": "f4", "name": "description", "type": "text", "label": "Mô tả sự cố", "pii": "none", "max": 4000},
+    {
+      "id": "f5",
+      "name": "priority",
+      "type": "enum",
+      "label": "Mức ưu tiên",
+      "pii": "none",
+      "required": true,
+      "default": "trung-binh",
+      "options": [{"value": "thap", "label": "Thấp"}, {"value": "trung-binh", "label": "Trung bình"}, {"value": "cao", "label": "Cao"}, {"value": "khan", "label": "Khẩn"}]
+    },
+    {"id": "f6", "name": "est_cost", "type": "money", "label": "Chi phí dự kiến (VND)", "pii": "none", "required": true, "default": 0, "min": 0, "max": 9000000000000},
+    {
+      "id": "f7",
+      "name": "state",
+      "type": "enum",
+      "label": "Trạng thái",
+      "pii": "none",
+      "required": true,
+      "default": "draft",
+      "managed_by": "workflow",
+      "options": [
+        {"value": "draft", "label": "Nháp"},
+        {"value": "in_review", "label": "Chờ duyệt"},
+        {"value": "returned", "label": "Trả lại"},
+        {"value": "approved", "label": "Đã duyệt"},
+        {"value": "rejected", "label": "Từ chối"},
+        {"value": "withdrawn", "label": "Đã rút"}
+      ]
+    }
+  ],
+  "permissions": {
+    "employee": {"actions": ["create", "read", "update"], "scope": "own"},
+    "technician": {"actions": ["create", "read", "update"], "scope": "own"},
+    "facility_manager": {"actions": ["read"], "scope": "all"},
+    "director": {"actions": ["read"], "scope": "all"},
+    "admin": {"actions": ["read"], "scope": "all"},
+    "agent": {"actions": ["create", "read", "update"], "scope": "own"},
+    "xt_workflow": {"actions": ["create", "read", "update"], "scope": "all"}
+  }
+}
