@@ -42,7 +42,7 @@ Không ai xóa được bản ghi (`ts.deny-delete`).
 ## Cài, tắt, bật
 Cài như mọi gói: `plan_install` rồi `install(confirm=digest)`. Gói không phụ thuộc gói khác.
 
-Manifest ứng dụng: bổ sung khi lõi hỗ trợ (khối `app` của `pack.json` do nền tảng định nghĩa; gói chưa khai để không phá bộ nạp hiện tại).
+Ứng dụng nhóm `tai-san-khong-gian` (khối `app` trong `pack.json`, giao diện generic, bộ tool đọc/ghi bản ghi và đề nghị).
 
 ## Giới hạn đã biết
 Phiếu bảo trì được duyệt chưa tự đổi `tai_san.status` sang "đang bảo trì"; người quản lý đổi tay. Chưa có model vị trí theo không gian (tọa độ, sơ đồ); `location` là chuỗi.
