@@ -886,6 +886,7 @@ EXCLUDED_OK = {
     "telegram_link_code", "telegram_update",            # mã liên kết dùng một lần / chống lặp
     "confirmation_binding", "confirmation_session", "single_use_key",  # nonce xác nhận, hết hạn
     "workflow_instance", "workflow_request",  # trạng thái engine; chuyển trạng thái: process_event
+    "aggregate_explain",      # metadata truy vấn dẫn xuất, hết hạn 24h (META_AUDIT_EXEMPT, #77)
 }  # fmt: skip
 
 
