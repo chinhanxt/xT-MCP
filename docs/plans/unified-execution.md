@@ -31,6 +31,10 @@ Kiểm chứng lần thay module: `make unified-build` thành công; `make unifi
 
 ## Bằng chứng hiện có
 
+- 18/10/2026 00:27: `make e2e` trên `staging` (commit c453771 + docs) với Keycloak/APISIX/PostgreSQL/SeaweedFS thật: 24 passed (E0–E11, gồm E09 đăng nhập OIDC Desk trong container và E10 security smoke). Stack tự dọn.
+- 17/10/2026: toàn bộ integration suite (gồm r3) trên `staging` a74be4c: 563 passed; 4 lỗi còn lại đã sửa (#81 r3 inventory; dpop do thiếu node_modules) và chạy lại pass.
+- Browser e2e trên bản build hợp nhất (unified-preview, backend giả lập): 5/5 passed (#68).
+
 Điều phối đã chạy trên nhánh `staging` (17/10/2026), trên PostgreSQL thật:
 
 - `test_warehouse.py` 8/8 (gồm tổng hợp nhập/xuất theo kho và theo tháng).
@@ -42,7 +46,7 @@ Kiểm chứng lần thay module: `make unified-build` thành công; `make unifi
 
 Test không cần stack: unit Python 2000 passed; Desk vitest 235, Studio 65, WareTrack 37.
 
-**Chưa chạy:** Playwright e2e cho cổng hợp nhất, Keycloak SSO thật cho bản hợp nhất, ChatGPT thật trên bản hợp nhất, deploy public. Vì vậy chưa chặng nào được nghiệm thu đầy đủ.
+**Chưa chạy:** ChatGPT thật trên bản hợp nhất; nghiệm thu đổi doanh nghiệp (#7) trên Keycloak thật với ≥2 tổ chức; deploy public; neo lại checkpoint audit v2 khi deploy. Vì vậy chưa chặng nào được nghiệm thu đầy đủ.
 
 ## Tiến độ
 
