@@ -8,6 +8,7 @@ import json
 import secrets
 import time
 from collections.abc import Iterator
+from importlib.resources import files
 from typing import Any
 from uuid import uuid4
 
@@ -23,13 +24,19 @@ from xt.adapters.db.integration import register_tenant
 from xt.adapters.db.migrations import LEDGER, available, migrate
 from xt.adapters.db.migrator import PgMigrator
 from xt.adapters.db.records import PgRecordRepository
-from xt.adapters.db.tenancy import bootstrap, install_postgrest_role, postgrest_sql
+from xt.adapters.db.tenancy import (
+    bootstrap,
+    install_meta_audit,
+    install_postgrest_role,
+    postgrest_sql,
+)
 from xt.application.model_engine.service import RecordService
 from xt.domain.model.context import ModelActor, TenantRef
 from xt.domain.model.spec import Catalog
 
 pytestmark = pytest.mark.integration
 MIGRATION = "0019_postgrest_app_roles.sql"
+VIEW_MIGRATION = "0021_postgrest_app_role_views.sql"
 ISSUER = "https://idp.example/realms/xt"
 
 
@@ -39,6 +46,52 @@ def pg() -> Iterator[pgmod.Pg]:
         yield pgmod.start()
     finally:
         pgmod.stop()  # docker rm -f -v, including failed setup
+
+
+@pytest.mark.parametrize("shape", ["no_postgrest", "current", "applied_0019"])
+def test_migrator_supersedes_protected_gate_migration(pg: pgmod.Pg, shape: str) -> None:
+    with pg.su() as su:
+        if shape == "no_postgrest":
+            su.execute(files("xt.adapters.db").joinpath("sql/bootstrap.sql").read_bytes())
+            su.execute(
+                sql.SQL("ALTER ROLE xt_migrator PASSWORD {}").format(
+                    sql.Literal(pg.migrator_password)
+                )
+            )
+            install_meta_audit(su)
+        else:
+            bootstrap(
+                su,
+                migrator_password=pg.migrator_password,
+                app_password=pg.app_password,
+                pepper=pg.pepper,
+            )
+        if shape == "applied_0019":
+            with su.transaction():
+                su.execute("SET LOCAL ROLE xt_migrator")
+                su.execute(LEDGER)
+                for name, body in available():
+                    if name <= MIGRATION:
+                        su.execute(body.encode())
+                        su.execute(
+                            "INSERT INTO xt_meta.schema_migration (name) VALUES (%s)", (name,)
+                        )
+        before = su.execute(
+            "SELECT pg_get_functiondef(to_regprocedure('xt.pgrst_gate(text,text)'))"
+        ).fetchone()
+        with pg.migrator() as m:
+            assert VIEW_MIGRATION in migrate(m)
+            assert migrate(m) == []
+        assert (
+            su.execute(
+                "SELECT pg_get_functiondef(to_regprocedure('xt.pgrst_gate(text,text)'))"
+            ).fetchone()
+            == before
+        )
+        assert install_data_prerequisites(su) == []
+        assert su.execute("SELECT to_regprocedure('xt.pgrst_gate(text,text)')").fetchone() == (
+            "xt.pgrst_gate(text,text)",
+        )
 
 
 def test_postgrest_effective_roles_and_disabled_pack_rows(pg: pgmod.Pg) -> None:
@@ -158,11 +211,29 @@ def test_postgrest_effective_roles_and_disabled_pack_rows(pg: pgmod.Pg) -> None:
         disabled_end = legacy.index("    'd', CASE", disabled_start)
         legacy = legacy[:disabled_start] + legacy[disabled_end:]
         su.execute(legacy.encode())
-        with pg.migrator() as m, pytest.raises(psycopg.errors.InsufficientPrivilege):
-            migrate(m)  # Audit protection must still reject an ordinary login changing the gate.
-        assert install_data_prerequisites(su) == [
-            name for name, _ in available() if name >= MIGRATION
-        ]
+        gate_before = su.execute(
+            "SELECT pg_get_functiondef('xt.pgrst_gate(text,text)'::regprocedure)"
+        ).fetchone()
+        with pg.migrator() as m:
+            with pytest.raises(psycopg.errors.InsufficientPrivilege), m.transaction():
+                m.execute(dict(available())[MIGRATION].encode())
+            assert migrate(m) == [name for name, _ in available() if name >= MIGRATION]
+            assert migrate(m) == []
+            with pytest.raises(psycopg.errors.InsufficientPrivilege), m.transaction():
+                m.execute("ALTER FUNCTION xt.pgrst_gate(text,text) SECURITY INVOKER")
+        # The gate remains legacy until the administrator explicitly updates it.
+        assert (
+            su.execute(
+                "SELECT pg_get_functiondef('xt.pgrst_gate(text,text)'::regprocedure)"
+            ).fetchone()
+            == gate_before
+        )
+        assert install_data_prerequisites(su) == []
+        gate_after = su.execute(
+            "SELECT pg_get_functiondef('xt.pgrst_gate(text,text)'::regprocedure)"
+        ).fetchone()
+        assert gate_after is not None and gate_after != gate_before
+        assert "person_role_grant" in gate_after[0] and "disabled_models" in gate_after[0]
         upgraded = su.execute("SELECT pg_get_viewdef(%s::regclass)", (view,)).fetchone()
         assert upgraded is not None and "disabled_models" in upgraded[0]
         assert (
@@ -172,14 +243,14 @@ def test_postgrest_effective_roles_and_disabled_pack_rows(pg: pgmod.Pg) -> None:
             == before
         )
         with pg.migrator() as m, m.transaction():
-            m.execute(dict(available())[MIGRATION].encode())  # Exact replay is idempotent.
+            m.execute(dict(available())[VIEW_MIGRATION].encode())  # View replay is idempotent.
             assert m.execute("SELECT current_user").fetchone() == ("xt_migrator",)
         install_postgrest_role(
             su, authenticator_password=password, issuer=ISSUER, clients=["xt-cli"]
         )
         with pg.migrator() as m:
             assert migrate(m) == []
-        # Future compiled views must have the same gate as views upgraded by 0019.
+        # Future compiled views must have the same gate as views upgraded by 0021.
         future = cat.dump()
         future["version"] = 2
         future["models"].append({**future["models"][0], "id": "future", "name": "future"})
