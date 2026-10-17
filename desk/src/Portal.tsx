@@ -9,6 +9,7 @@ import { RequestForm } from './RequestForm';
 import { ReportPanel } from './ReportPanel';
 import type { Area } from './portal-nav';
 import { DepartmentsPanel } from './DepartmentsPanel';
+import { MembersPanel } from './MembersPanel';
 import { parseMilli, readToolResult } from './portal-result';
 import { classifyError, stateHint, stateTitle, type ErrorKind } from './portal-state';
 
@@ -99,7 +100,7 @@ function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNa
         if (name === 'create_record' && ['warehouse','warehouse_location','stock_item'].includes(String(args.model_id))) void call('search_records',{model_id:args.model_id,limit:100,fields:fields(String(args.model_id))},'picklist');
       }
       return value;
-    } catch (e) { if (live()) fail((e as Error).message, classifyError(e)); return null; }
+    } catch (e) { if (live()) { if (target === 'catalog') setWorkspace(null); fail((e as Error).message, classifyError(e)); } return null; }
     finally { if (live() && target === 'main') setLoading(false); }
   }
   useEffect(() => {
@@ -135,6 +136,7 @@ function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNa
     {area==='H' && <>{workspace && <article className="portal-entry"><strong>{display(obj(workspace.tenant).name || obj(workspace.workspace).name || 'Doanh nghiệp')}</strong><p>{display(obj(workspace.me).name)}</p></article>}<p>Nhân sự, trách nhiệm, công việc và tài liệu theo quyền của bạn.</p><form onSubmit={e=>{e.preventDefault();void call('find_people',{query,limit:50});}}><input aria-label="Tìm nhân sự" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Tên, email hoặc chức danh"/><button disabled={!mcp}>Tìm người</button></form><div className="portal-actions"><button onClick={()=>void call('find_people',{manager_of:'me'})}>Quản lý của tôi</button><button onClick={()=>void call('find_people',{direct_reports_of:'me'})}>Nhóm của tôi</button><button onClick={()=>void call('get_inbox',{kinds:['task','notification','mention']})}>Việc của tôi</button></div></>}
     {area==='H' && <DocumentsPanel mcp={mcp} tools={tools} models={workspace ? catalog : null}/>}
     {area==='H' && <DepartmentsPanel mcp={mcp} tools={tools}/>}
+    {area==='H' && <MembersPanel mcp={mcp} tools={tools} workspace={workspace} onRefresh={()=>void call('inspect_workspace',{},'catalog')}/>}
     {area==='P' && <><p>Yêu cầu và bước duyệt theo quyền của bạn.</p><div className="portal-actions"><button onClick={()=>void call('get_inbox',{kinds:['approval']})}>Chờ tôi duyệt</button><button onClick={()=>void call('get_inbox',{})}>Toàn bộ inbox</button>{catalog.filter(row=>row.primitive==='request').map(row=><button key={String(row.id)} onClick={()=>void call('search_records',{model_id:row.id,limit:50})}>{label(row)}</button>)}</div>{workspace && Array.isArray(workspace.processes) && <p>Quy trình: {(workspace.processes as Data[]).map(label).join(', ') || 'Chưa có quy trình'}</p>}</>}
     {area==='P' && <RequestForm mcp={mcp} tools={tools} models={workspace ? catalog : null}/>}
     {area==='D' && <><p>Danh mục, tìm kiếm và số liệu từ xT Core.</p><label>Loại dữ liệu <select aria-label="Loại dữ liệu" value={model} onChange={e=>setModel(e.target.value)}>{!catalog.length && <option value="">Chưa có danh mục</option>}{catalog.map(row=><option key={String(row.id)} value={String(row.id)}>{label(row)}</option>)}</select></label><form onSubmit={e=>{e.preventDefault();void call('search_records',{model_id:model,limit:50,...(query?{query}:{})});}}><input aria-label="Tìm bản ghi" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Từ khóa"/><button disabled={!mcp||!model}>Tìm</button></form><div className="portal-actions"><button onClick={()=>void call('inspect_workspace',{},'catalog')}>Làm mới danh mục</button></div>{!data && <div className="portal-results">{catalog.map(row=><article className="portal-entry" key={String(row.id)}><strong>{label(row)}</strong><p>{String(row.primitive)}</p><button onClick={()=>{setModel(String(row.id));void call('search_records',{model_id:row.id,limit:50});}}>Xem dữ liệu</button></article>)}</div>}</>}
