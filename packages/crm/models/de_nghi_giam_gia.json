@@ -1,0 +1,39 @@
+{
+  "id": "crm_giam_gia",
+  "name": "de_nghi_giam_gia",
+  "label": "Đề nghị giảm giá",
+  "title_field": "code",
+  "fields": [
+    {"id": "f1", "name": "code", "type": "text", "label": "Mã đề nghị", "pii": "none", "required": true, "unique": true, "min": 1, "max": 40},
+    {"id": "f2", "name": "customer", "type": "ref", "label": "Khách hàng", "pii": "none", "required": true, "ref": "khach_hang"},
+    {"id": "f3", "name": "opportunity", "type": "ref", "label": "Cơ hội liên quan", "pii": "none", "ref": "co_hoi"},
+    {"id": "f4", "name": "discount_percent", "type": "number", "label": "Mức giảm giá (%)", "pii": "none", "required": true, "default": 0, "min": 0, "max": 100},
+    {"id": "f5", "name": "reason", "type": "text", "label": "Lý do", "pii": "none", "required": true, "min": 3, "max": 2000},
+    {
+      "id": "f6",
+      "name": "state",
+      "type": "enum",
+      "label": "Trạng thái",
+      "pii": "none",
+      "required": true,
+      "default": "draft",
+      "managed_by": "workflow",
+      "options": [
+        {"value": "draft", "label": "Nháp"},
+        {"value": "in_review", "label": "Chờ duyệt"},
+        {"value": "returned", "label": "Trả lại"},
+        {"value": "approved", "label": "Đã duyệt"},
+        {"value": "rejected", "label": "Từ chối"},
+        {"value": "withdrawn", "label": "Đã rút"}
+      ]
+    }
+  ],
+  "permissions": {
+    "sales": {"actions": ["create", "read", "update"], "scope": "own"},
+    "sales_manager": {"actions": ["read"], "scope": "all"},
+    "director": {"actions": ["read"], "scope": "all"},
+    "admin": {"actions": ["read"], "scope": "all"},
+    "agent": {"actions": ["create", "read", "update"], "scope": "own"},
+    "xt_workflow": {"actions": ["create", "read", "update"], "scope": "all"}
+  }
+}
