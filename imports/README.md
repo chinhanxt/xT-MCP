@@ -9,7 +9,8 @@ WareTrack 3D currently uses simulated data. Its `npm test` (Node built-in test r
 
 ## waretrack-3d: provenance and license
 
-- Upstream: <https://github.com/NguyenThong251/waretrack-3d>
+- Author: NguyenThong251
+- Upstream: <https://github.com/NguyenThong251/waretrack-3d> (upstream `.git` history removed from this copy)
 - Imported commit: `14b8edc`
-- License status: **chưa xác định — cần xin phép tác giả trước khi phát hành.** The upstream repository has no LICENSE file; no license is assumed or granted here. Do not publish or redistribute this module (including release tarballs) until the author's permission or a license is recorded in this section.
-- Local changes: the upstream GitHub Pages workflow (`.github/workflows/deploy.yml`) was removed so this repository never deploys the upstream site; a `tests/` directory and an `npm test` script were added. Other files under `waretrack-3d/` keep their upstream form (no SPDX headers).
+- License: chia sẻ cho dự án bởi thành viên team (NguyenThong251), phát hành theo Apache-2.0 của xT (decision D-UNI-WT-1, `docs/decisions.md`). The upstream repository itself has no LICENSE file; the Apache-2.0 grant applies to this copy as shared by the author for the xT project.
+- Local changes: the upstream GitHub Pages workflow (`.github/workflows/deploy.yml`) was removed so this repository never deploys the upstream site; a `tests/` directory and an `npm test` script were added. SPDX headers (`Apache-2.0`, `2026 NguyenThong251 and xT contributors`) are added to source files as they are touched.

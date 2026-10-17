@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// SPDX-FileCopyrightText: 2026 xT contributors
+// SPDX-FileCopyrightText: 2026 NguyenThong251 and xT contributors
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { db, ENTITY_TYPES } from '../src/data/db.js'
