@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import type { AppConfig, Graph, RunResult, Trace } from './contracts.ts';
 import type { Store } from './store.ts';
 import { HttpError } from './validation.ts';

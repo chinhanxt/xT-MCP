@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 export type AppKind = 'chat' | 'workflow' | 'agent';
 export type NodeKind = 'start' | 'llm' | 'retrieval' | 'condition' | 'template' | 'aggregate' | 'http' | 'output';
 export interface GenerationOptions {

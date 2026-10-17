@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import type { ChatMessage, GenerationOptions, Model, ToolCall } from './contracts.ts';
 import { defaultGeneration } from './contracts.ts';
 import type { Store } from './store.ts';

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Store } from './store.ts';
 import type { XtTools } from './xt-tools.ts';

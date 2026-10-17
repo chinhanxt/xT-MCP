@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { useCallback, useMemo, useState } from 'react';
 import { ReactFlow, Background, Controls, Handle, Position, addEdge, applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
 import type { Connection, NodeChange, EdgeChange, NodeProps, Node } from '@xyflow/react';

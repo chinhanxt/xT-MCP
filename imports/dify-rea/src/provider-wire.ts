@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import type { ChatMessage, GenerationOptions, Model } from './contracts.ts';
 import type { FunctionTool } from './models.ts';
 export function wireRequest(model: Model, messages: ChatMessage[], tools: FunctionTool[], options: GenerationOptions, stream: boolean) {

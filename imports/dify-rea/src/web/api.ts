@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { readLines } from '../streams.ts';
 import type { RunResult, StreamEvent } from '../contracts.ts';
 const integrated = new URLSearchParams(location.search).get('integrated') === '1';
