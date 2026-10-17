@@ -40,6 +40,7 @@ it('keeps the error code and request id from a failed tool result', () => {
     expect((e as ToolError).message).toBe('Không được xem (mã yêu cầu: req-42)');
   }
   expect(() => readToolResult({ isError: true, _meta: { 'x-request-id': 'abc' }, content: [{ type: 'text', text: JSON.stringify({ error: { code: 'x', message: 'Lỗi' } }) }] })).toThrow('Lỗi (mã yêu cầu: abc)');
+  expect(() => readToolResult({ isError: true, content: [{ type: 'text', text: JSON.stringify({ ok: false, meta: { trace_id: 'tr_01' }, error: { code: 'x', message: 'Lỗi envelope' } }) }] })).toThrow('Lỗi envelope (mã yêu cầu: tr_01)');
   expect(() => readToolResult(fail('x', 'Lỗi thường'))).toThrow(/^Lỗi thường$/);
 });
 

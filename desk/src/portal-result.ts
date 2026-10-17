@@ -9,9 +9,9 @@ export class ToolError extends Error {
 }
 
 function requestIdOf(result: ToolResult, value: Data, error: Data): string {
-  const meta = obj(result._meta), details = obj(error.details);
-  for (const source of [error, details, value, meta]) {
-    for (const key of ['request_id', 'x-request-id', 'x_request_id']) {
+  const meta = obj(result._meta), details = obj(error.details), envelope = obj(value.meta);
+  for (const source of [error, details, value, meta, envelope]) {
+    for (const key of ['request_id', 'x-request-id', 'x_request_id', 'trace_id']) {
       const found = source[key];
       if (typeof found === 'string' && found.trim()) return found.trim().slice(0, 100);
     }
