@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, readFileSync, copyFileSync, existsSync } from 'node:fs';

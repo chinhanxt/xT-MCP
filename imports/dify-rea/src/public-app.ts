@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { randomBytes } from 'node:crypto';
 import { hashToken } from './http.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';

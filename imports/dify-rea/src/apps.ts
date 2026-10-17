@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { body, hashToken, now, type RouteContext } from './http.ts';
 import type { Store } from './store.ts';
 import { randomBytes } from 'node:crypto';

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';

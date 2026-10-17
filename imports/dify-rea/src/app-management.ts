@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import { body, now, type RouteContext } from './http.ts';
 import { configInput, HttpError, kind, object, text } from './validation.ts';
 import { validateAppReferences } from './apps.ts';

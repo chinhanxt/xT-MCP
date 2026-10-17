@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: 2026 xT contributors
 import type { AppConfig, StudioApp, Model, Knowledge, McpConnector } from '../contracts.ts';
 import { defaultGeneration } from '../contracts.ts';
 import { api } from './api.ts';

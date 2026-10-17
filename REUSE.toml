@@ -37,3 +37,33 @@ SPDX-License-Identifier = "Apache-2.0"
 path = "seed/**"
 SPDX-FileCopyrightText = "2026 xT contributors"
 SPDX-License-Identifier = "Apache-2.0"
+
+# imports/waretrack-3d: NguyenThong251 chia sẻ cho dự án, phát hành Apache-2.0 (docs/decisions.md D-UNI-WT-1).
+# Cố ý KHÔNG phủ docs/ref/**: khung hình từ video tham chiếu chưa rõ chủ sở hữu (docs/unified-role-matrix.md, mục 6).
+[[annotations]]
+path = [
+  "imports/waretrack-3d/src/**",
+  "imports/waretrack-3d/dev/**",
+  "imports/waretrack-3d/tests/**",
+  "imports/waretrack-3d/.claude/**",
+  "imports/waretrack-3d/.gitignore",
+  "imports/waretrack-3d/index.html",
+  "imports/waretrack-3d/package.json",
+  "imports/waretrack-3d/package-lock.json",
+  "imports/waretrack-3d/vite.config.js",
+]
+SPDX-FileCopyrightText = "2026 NguyenThong251 and xT contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+# imports/dify-rea: tệp không phải mã (mã đã có header SPDX từng tệp).
+[[annotations]]
+path = [
+  "imports/dify-rea/.gitignore",
+  "imports/dify-rea/config/prettier.json",
+  "imports/dify-rea/docs/evidence/**",
+  "imports/dify-rea/package.json",
+  "imports/dify-rea/package-lock.json",
+  "imports/dify-rea/tsconfig.json",
+]
+SPDX-FileCopyrightText = "2026 xT contributors"
+SPDX-License-Identifier = "Apache-2.0"
