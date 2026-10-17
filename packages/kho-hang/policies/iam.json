@@ -20,7 +20,8 @@
         "xrn:binhminh:stock_item:*",
         "xrn:binhminh:stock_request:*",
         "xrn:binhminh:stock_balance:*",
-        "xrn:binhminh:stock_movement:*"
+        "xrn:binhminh:stock_movement:*",
+        "xrn:binhminh:stock_level:*"
       ],
       "conditions": []
     },
@@ -113,7 +114,8 @@
       ],
       "resources": [
         "xrn:binhminh:stock_balance:*",
-        "xrn:binhminh:stock_movement:*"
+        "xrn:binhminh:stock_movement:*",
+        "xrn:binhminh:stock_level:*"
       ],
       "conditions": []
     },
@@ -132,7 +134,8 @@
         "xrn:binhminh:stock_item:*",
         "xrn:binhminh:stock_request:*",
         "xrn:binhminh:stock_balance:*",
-        "xrn:binhminh:stock_movement:*"
+        "xrn:binhminh:stock_movement:*",
+        "xrn:binhminh:stock_level:*"
       ],
       "conditions": []
     },

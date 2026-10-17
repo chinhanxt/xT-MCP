@@ -36,6 +36,7 @@ Dữ liệu AI mặc định ở `~/.local/state/xt-unified/studio`; secret ký 
 - Tạo kho → vị trí → hàng hóa → phiếu nhập/xuất → gửi duyệt → người có quyền xác nhận. Số lượng hiển thị theo đơn vị, backend dùng số nguyên phần nghìn.
 - Sửa phiếu đã ghi nhận bằng phiếu đảo: `kind=reversal`, `reverses` trỏ phiếu nhập/xuất gốc đã ghi nhận, dòng hàng trùng toàn bộ phiếu gốc. Phiếu đảo đi qua đúng quy trình duyệt, ghi biến động ngược dấu với khóa `<phiếu gốc>:<dòng>:rev`; mỗi phiếu gốc chỉ đảo được một lần, không đảo phiếu đảo, không làm âm kho. Biến động cũ không bị sửa hay xóa.
 - `stock_balance` và `stock_movement` mang ref `warehouse` do quy trình ghi kho điền, nên tồn theo kho và nhập/xuất theo kho lọc được bằng `search_records` (`where` trên `warehouse`). Tồn cũ chưa có kho được điền ở lần ghi kế tiếp.
+- `stock_level` là tồn theo hàng × kho, cập nhật trong cùng transaction ghi kho: `on_hand_milli`, `reorder_level_milli`, `below_reorder`, `last_movement` (biến động gần nhất). Hàng dưới ngưỡng là `search_records` với `where` `below_reorder = true`. Ngưỡng là giá trị của hàng tại lần ghi kho gần nhất; đổi `reorder_level_milli` của hàng chỉ có hiệu lực ở lần ghi kế tiếp.
 - `approved` của phiếu kho là đã ghi nhận tồn và sổ biến động trong cùng giao dịch. Khi ghi kho lỗi, quyết định và biến động phải rollback để thử lại được.
 - Dữ liệu mô phỏng 3D nằm trong trình duyệt, không sửa tồn kho nghiệp vụ. Tải lại mô phỏng sẽ đặt lại hoạt cảnh.
 

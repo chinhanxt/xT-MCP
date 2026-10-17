@@ -19,8 +19,10 @@ WAREHOUSE_MODELS = frozenset(
         "stock_request",
         "stock_balance",
         "stock_movement",
+        "stock_level",
     }
 )
+LEDGER_MODELS = ("stock_balance", "stock_movement", "stock_level")
 
 
 def validate_write(
@@ -34,7 +36,7 @@ def validate_write(
 ) -> None:
     if model not in WAREHOUSE_MODELS:
         return
-    if model in ("stock_balance", "stock_movement"):
+    if model in LEDGER_MODELS:
         if actor.roles != ("xt_workflow",):
             raise ModelError(
                 "access_denied", "Tồn kho và biến động chỉ được ghi bởi quy trình duyệt."
@@ -47,6 +49,8 @@ def validate_write(
         quantity(row.get("reorder_level_milli", 0))
     if model == "stock_balance":
         quantity(row.get("quantity_milli", 0))
+    if model == "stock_level":
+        quantity(row.get("on_hand_milli", 0))
     if (
         model == "warehouse_location"
         and previous is not None
