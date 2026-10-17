@@ -17,7 +17,7 @@ function mem(): KvStorage & { data: Map<string, string> } {
   return { data, getItem: (k) => data.get(k) ?? null, setItem: (k, v) => void data.set(k, v), removeItem: (k) => void data.delete(k) };
 }
 
-function setup(over: { token?: (form: URLSearchParams, n: number) => { status?: number; body: unknown }; issuer?: string; endpointOrigin?: string; dpop?: DpopSigner; endSession?: string } = {}) {
+function setup(over: { token?: (form: URLSearchParams, n: number) => { status?: number; body: unknown }; issuer?: string; endpointOrigin?: string; dpop?: DpopSigner; endSession?: string; scope?: string; organizationParam?: string } = {}) {
   const session = mem();
   let t = 1_000_000;
   const nav: string[] = [];
@@ -35,7 +35,7 @@ function setup(over: { token?: (form: URLSearchParams, n: number) => { status?: 
     const r = over.token?.(form, forms.length) ?? { body: { access_token: `at${++issued}`, refresh_token: `rt${issued}`, expires_in: 300 } };
     return new Response(JSON.stringify(r.body), { status: r.status ?? 200 });
   });
-  const s = new OidcSession({ ...CFG, postLogoutRedirectUri: "https://desk.example/" }, { fetch: fetchMock as never, session, navigate: (u) => nav.push(u), now: () => t, dpop: over.dpop });
+  const s = new OidcSession({ ...CFG, scope: over.scope ?? CFG.scope, organizationParam: over.organizationParam, postLogoutRedirectUri: "https://desk.example/" }, { fetch: fetchMock as never, session, navigate: (u) => nav.push(u), now: () => t, dpop: over.dpop });
   return { s, session, nav, forms, tokenHeaders, fetchMock, advance: (ms: number) => (t += ms) };
 }
 
@@ -320,6 +320,168 @@ describe("DPoP (RFC 9449)", () => {
       jtis.add(p.jti);
     }
     expect(jtis.size).toBe(seen.length);
+  });
+});
+
+describe("đổi doanh nghiệp", () => {
+  const END = "https://kc.example/realms/xt/logout";
+  it("targets one organization in the scope and configured login hint", async () => {
+    for (const organizationParam of [undefined, "org_hint"]) {
+      const h = setup({ scope: "openid organization:* mcp-xt organization organization:old", organizationParam });
+      await h.s.startLogin("binh-minh");
+      const q = new URL(h.nav.at(-1)!).searchParams;
+      expect(q.get(organizationParam ?? "organization")).toBe("binh-minh");
+      expect(q.get("scope")).toBe("openid mcp-xt organization:binh-minh");
+    }
+  });
+  it("rejects organization hints that can change scope selection", async () => {
+    for (const alias of ["", "*", "alpha beta", "alpha\nadmin", "organization:*"]) {
+      const h = setup();
+      await h.s.startLogin(alias);
+      expect(h.nav).toEqual([]);
+      expect(h.s.state.status).toBe("error");
+    }
+  });
+  it("rejects an organization hint parameter that overwrites OIDC security parameters", () => {
+    for (const organizationParam of ["scope", "state", "nonce", "client_id", "redirect_uri", "code_challenge", "response_type", "code_challenge_method"])
+      expect(() => setup({ organizationParam })).toThrow(/organizationParam/);
+  });
+  it("ends SSO, resets DPoP and resumes a single targeted login with fresh PKCE", async () => {
+    const dpop = new DpopSigner({ store: memoryKeyStore(), subtle: webcrypto.subtle as SubtleCrypto });
+    const h = await loggedIn({ dpop, endSession: END });
+    const initial = new URL(h.nav[0]).searchParams;
+    const before = await dpop.thumbprint();
+    await h.s.switchTenant("second");
+    expect(await h.s.getAccessToken()).toBeNull();
+    expect(new URL(h.nav.at(-1)!).pathname).toBe("/realms/xt/logout");
+    expect(await dpop.thumbprint()).not.toBe(before);
+    const resumed = new OidcSession(CFG, { fetch: h.fetchMock as never, session: h.session, navigate: u => h.nav.push(u), now: Date.now });
+    expect(await resumed.resumeTenantSwitch()).toBe(true);
+    const next = new URL(h.nav.at(-1)!).searchParams;
+    expect(next.get("organization")).toBe("second");
+    expect(next.get("scope")).toBe("openid mcp-xt organization:second");
+    expect(next.get("state")).not.toBe(initial.get("state"));
+    expect(next.get("code_challenge")).not.toBe(initial.get("code_challenge"));
+    expect(await resumed.resumeTenantSwitch()).toBe(false);
+  });
+  it("refuses switching when discovery has no logout endpoint", async () => {
+    const h = await loggedIn();
+    await h.s.switchTenant("second");
+    expect(h.nav).toHaveLength(1);
+    expect(h.s.state.status).toBe("error");
+    expect(await h.s.getAccessToken()).toBeNull();
+    expect(await h.s.resumeTenantSwitch()).toBe(false);
+  });
+  it("refuses switching without a configured return URL", async () => {
+    const h = setup({ endSession: END });
+    const s = new OidcSession(CFG, { fetch: h.fetchMock as never, session: h.session, navigate: u => h.nav.push(u), now: Date.now });
+    await s.switchTenant("second");
+    expect(h.nav).toEqual([]);
+    expect(s.state.status).toBe("error");
+    expect(await s.resumeTenantSwitch()).toBe(false);
+  });
+  it("ordinary logout clears pending tenant switches and PKCE", async () => {
+    const h = await loggedIn({ endSession: END });
+    await h.s.switchTenant("second");
+    h.s.logout();
+    await h.s.loggingOut;
+    expect(await h.s.resumeTenantSwitch()).toBe(false);
+    expect(h.session.data.size).toBe(0);
+  });
+  it("does not resume a switch after DPoP reset or discovery fails", async () => {
+    const dpop = new DpopSigner({ store: memoryKeyStore(), subtle: webcrypto.subtle as SubtleCrypto });
+    const h = await loggedIn({ dpop });
+    vi.spyOn(dpop, "reset").mockRejectedValueOnce(new Error("reset unavailable"));
+    await h.s.switchTenant("second");
+    expect(h.nav).toHaveLength(1);
+    expect(await h.s.resumeTenantSwitch()).toBe(false);
+    expect(await h.s.getAccessToken()).toBeNull();
+    const other = setup();
+    other.fetchMock.mockRejectedValueOnce(new Error("network unavailable"));
+    await other.s.switchTenant("second");
+    expect(other.nav).toEqual([]);
+    expect(await other.s.resumeTenantSwitch()).toBe(false);
+  });
+  it("reads organization display hints from object and list claims without persisting tokens", async () => {
+    for (const [claim, aliases] of [[{ first: { id: "one" }, second: {} }, ["first", "second"]], [["second", "first"], ["second", "first"]], [null, []]] as const) {
+      const h = await loggedIn({ token: () => ({ body: { access_token: idToken({ organization: claim }), expires_in: 300 } }) });
+      expect(h.s.organizations()).toEqual(aliases);
+      h.s.logout();
+      expect(h.s.organizations()).toEqual([]);
+    }
+  });
+});
+
+describe("async logout isolation", () => {
+  it("discards a pending DPoP authorization proof when refresh fails", async () => {
+    const dpop = new DpopSigner({ store: memoryKeyStore(), subtle: webcrypto.subtle as SubtleCrypto });
+    const h = await loggedIn({ dpop, token: () => ({ body: { access_token: "AT", refresh_token: "RT", token_type: "DPoP", expires_in: 300 } }) });
+    let finish!: (proof: string) => void;
+    const pending = new Promise<string>(resolve => { finish = resolve; });
+    const proof = vi.spyOn(dpop, "proof").mockImplementationOnce(() => pending);
+    const headers = h.s.authHeaders({ method: "POST", url: "https://desk.example/mcp" });
+    await vi.waitFor(() => expect(proof).toHaveBeenCalledOnce());
+    h.advance(290_000);
+    h.fetchMock.mockRejectedValueOnce(new Error("revoked"));
+    expect(await h.s.getAccessToken()).toBeNull();
+    finish("old-proof");
+    await expect(headers).rejects.toBeInstanceOf(AuthRequiredError);
+  });
+  it("does not recreate the reset DPoP key when an obsolete token response arrives", async () => {
+    const store = memoryKeyStore();
+    const dpop = new DpopSigner({ store, subtle: webcrypto.subtle as SubtleCrypto });
+    const h = await loggedIn({ dpop });
+    let finish!: (response: Response) => void;
+    h.fetchMock.mockImplementationOnce(() => new Promise<Response>(resolve => { finish = resolve; }));
+    h.advance(290_000);
+    const refreshed = h.s.getAccessToken();
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    h.s.logout();
+    await h.s.loggingOut;
+    expect(await store.get()).toBeUndefined();
+    finish(new Response(JSON.stringify({ access_token: "late", expires_in: 300 })));
+    expect(await refreshed).toBeNull();
+    expect(await store.get()).toBeUndefined();
+  });
+  it("discards a successful refresh that completes after logout", async () => {
+    const h = await loggedIn();
+    let finish!: (response: Response) => void;
+    const pending = new Promise<Response>(resolve => { finish = resolve; });
+    h.fetchMock.mockImplementationOnce(() => pending);
+    h.advance(290_000);
+    const refreshed = h.s.getAccessToken();
+    await vi.waitFor(() => expect(h.fetchMock).toHaveBeenCalledTimes(3));
+    h.s.logout();
+    finish(new Response(JSON.stringify({ access_token: "late", refresh_token: "late-refresh", expires_in: 300 })));
+    expect(await refreshed).toBeNull();
+    expect(await h.s.getAccessToken()).toBeNull();
+    expect(h.s.state.status).toBe("unauthenticated");
+  });
+  it("discards a callback token exchange that completes after logout", async () => {
+    const h = setup();
+    const { cb } = await loginUrl(h);
+    let finish!: (response: Response) => void;
+    h.fetchMock.mockImplementationOnce(() => new Promise<Response>(resolve => { finish = resolve; }));
+    const callback = h.s.handleCallback(cb);
+    await vi.waitFor(() => expect(finish).toBeDefined());
+    h.s.logout();
+    finish(new Response(JSON.stringify({ access_token: "late", expires_in: 300 })));
+    expect(await callback).toBe(false);
+    expect(await h.s.getAccessToken()).toBeNull();
+    expect(h.s.state.status).toBe("unauthenticated");
+  });
+  it("does not navigate a login whose discovery finishes after logout", async () => {
+    const h = setup();
+    let finish!: (response: Response) => void;
+    h.fetchMock.mockImplementationOnce(() => new Promise<Response>(resolve => { finish = resolve; }));
+    const login = h.s.startLogin();
+    h.s.logout();
+    finish(new Response(JSON.stringify({ issuer: ISS, authorization_endpoint: `${ISS}/auth`, token_endpoint: `${ISS}/token` })));
+    await login;
+    await h.s.loggingOut;
+    expect(h.nav).toEqual([]);
+    expect(h.session.data.size).toBe(0);
+    expect(h.s.state.status).toBe("unauthenticated");
   });
 });
 

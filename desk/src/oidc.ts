@@ -12,6 +12,8 @@ export interface OidcConfig {
   redirectUri: string;
   /** Đích sau RP-initiated logout (phải đăng ký ở `post.logout.redirect.uris` của client). */
   postLogoutRedirectUri?: string;
+  /** Gợi ý tương thích IdP; scope organization:<alias> mới chọn tenant Keycloak. */
+  organizationParam?: string;
 }
 
 export interface KvStorage {
@@ -69,6 +71,8 @@ interface TokenResponse {
   token_type?: string;
 }
 const PKCE_KEY = "xt.desk.oidc.pending";
+const TENANT_KEY = "xt.desk.oidc.tenant-switch";
+export const validOrganization = (alias: string) => !!alias && !/[\s\u0000-\u001f\u007f:*]/.test(alias);
 
 const b64url = (b: ArrayBuffer | Uint8Array) =>
   btoa(String.fromCharCode(...new Uint8Array(b instanceof Uint8Array ? b : new Uint8Array(b))))
@@ -85,6 +89,9 @@ export function validateConfig(c: Partial<OidcConfig>): OidcConfig {
   const miss = (["issuer", "clientId", "scope", "redirectUri"] as const).filter((k) => !c[k]);
   if (miss.length) throw new AuthRequiredError(`OIDC chưa cấu hình (thiếu ${miss.join(", ")}): Desk không gọi MCP/LLM.`);
   if (!c.scope!.split(/\s+/).includes("openid")) throw new AuthRequiredError("OIDC scope phải có openid");
+  if (c.organizationParam !== undefined && (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(c.organizationParam) ||
+      ["response_type", "client_id", "redirect_uri", "scope", "state", "nonce", "code_challenge", "code_challenge_method"].includes(c.organizationParam)))
+    throw new AuthRequiredError("OIDC organizationParam không hợp lệ");
   return c as OidcConfig;
 }
 
@@ -101,6 +108,7 @@ export class OidcSession {
   private disc: Promise<Discovery> | null = null;
   private refreshing: Promise<string | null> | null = null;
   private listeners = new Set<(s: AuthState) => void>();
+  private epoch = 0;
   state: AuthState = { status: "unauthenticated" };
 
   constructor(cfg: Partial<OidcConfig>, private d: OidcDeps) {
@@ -136,33 +144,44 @@ export class OidcSession {
   }
 
   /** Bắt đầu đăng nhập: chuyển hướng top-level tới Keycloak. */
-  async startLogin(): Promise<void> {
+  async startLogin(organization?: string): Promise<void> {
+    const epoch = ++this.epoch;
+    this.tokens = null;
+    this.refreshing = null;
+    this.d.session.removeItem(TENANT_KEY);
+    this.d.session.removeItem(PKCE_KEY);
     this.set({ status: "authenticating" });
     try {
+      if (organization !== undefined && !validOrganization(organization)) throw new Error("Doanh nghiệp không hợp lệ");
       const disc = await this.discover();
+      if (epoch !== this.epoch) return;
       const state = rand();
       const verifier = rand(48);
       const nonce = rand();
+      const challenge = await pkceChallenge(verifier);
+      if (epoch !== this.epoch) return;
       this.d.session.setItem(PKCE_KEY, JSON.stringify({ state, verifier, nonce }));
       const u = new URL(disc.authorization_endpoint);
       u.search = new URLSearchParams({
         response_type: "code",
         client_id: this.cfg.clientId,
         redirect_uri: this.cfg.redirectUri,
-        scope: this.cfg.scope,
+        scope: organization === undefined ? this.cfg.scope : [...this.cfg.scope.split(/\s+/).filter(s => s && s !== "organization" && !s.startsWith("organization:")), `organization:${organization}`].join(" "),
         state,
         nonce,
-        code_challenge: await pkceChallenge(verifier),
+        code_challenge: challenge,
         code_challenge_method: "S256",
       }).toString();
+      if (organization !== undefined) u.searchParams.set(this.cfg.organizationParam ?? "organization", organization);
       this.d.navigate(u.toString());
     } catch (e) {
-      this.set({ status: "error", error: (e as Error).message });
+      if (epoch === this.epoch) this.set({ status: "error", error: (e as Error).message });
     }
   }
 
   /** Xử lý redirect về redirect_uri. Trả true nếu đăng nhập thành công. */
   async handleCallback(url: string): Promise<boolean> {
+    const epoch = ++this.epoch;
     const q = new URL(url).searchParams;
     const raw = this.d.session.getItem(PKCE_KEY);
     this.d.session.removeItem(PKCE_KEY); // dùng một lần
@@ -174,6 +193,7 @@ export class OidcSession {
       const pending = JSON.parse(raw) as { state: string; verifier: string; nonce: string };
       if (q.get("state") !== pending.state) throw new Error("state không khớp (có thể là CSRF)");
       const disc = await this.discover();
+      if (epoch !== this.epoch) return false;
       const body = new URLSearchParams({
         grant_type: "authorization_code",
         code,
@@ -181,7 +201,7 @@ export class OidcSession {
         client_id: this.cfg.clientId,
         code_verifier: pending.verifier,
       });
-      const tok = await this.tokenRequest(disc, body);
+      const tok = await this.tokenRequest(disc, body, epoch);
       if (tok.id_token) {
         const c = jwtClaims(tok.id_token);
         const aud = Array.isArray(c.aud) ? c.aud : [c.aud];
@@ -189,21 +209,26 @@ export class OidcSession {
         if (!aud.includes(this.cfg.clientId)) throw new Error("id_token: aud sai");
         if (c.nonce !== pending.nonce) throw new Error("id_token: nonce sai");
       }
-      this.store(tok, await this.bindingOf(tok));
+      const bound = await this.bindingOf(tok);
+      if (epoch !== this.epoch) return false;
+      this.store(tok, bound);
       this.set({ status: "authenticated" });
       return true;
     } catch (e) {
+      if (epoch !== this.epoch) return false;
       this.tokens = null;
       this.set({ status: "error", error: (e as Error).message });
       return false;
     }
   }
 
-  private async tokenRequest(disc: Discovery, body: URLSearchParams): Promise<TokenResponse> {
+  private async tokenRequest(disc: Discovery, body: URLSearchParams, epoch: number): Promise<TokenResponse> {
     const headers: Record<string, string> = { "content-type": "application/x-www-form-urlencoded" };
     if (this.d.dpop) headers.DPoP = await this.d.dpop.proof("POST", disc.token_endpoint);
+    if (epoch !== this.epoch) throw new AuthRequiredError();
     const r = await this.d.fetch(disc.token_endpoint, { method: "POST", headers, body });
     const j = await r.json().catch(() => ({}));
+    if (epoch !== this.epoch) throw new AuthRequiredError();
     if (!r.ok || !j.access_token) throw new Error(`Đổi token thất bại (${j.error ?? r.status})`);
     return j;
   }
@@ -237,21 +262,29 @@ export class OidcSession {
     if (!t) return null;
     const skew = (this.d.skewSeconds ?? 30) * 1000;
     if (t.expiresAt - skew > this.d.now()) return t.access;
-    this.refreshing ??= this.refresh(t).finally(() => (this.refreshing = null));
+    if (!this.refreshing) {
+      const refreshing = this.refresh(t, this.epoch).finally(() => { if (this.refreshing === refreshing) this.refreshing = null; });
+      this.refreshing = refreshing;
+    }
     return this.refreshing;
   }
 
-  private async refresh(t: Tokens): Promise<string | null> {
+  private async refresh(t: Tokens, epoch: number): Promise<string | null> {
     try {
       if (!t.refresh) throw new Error("Không có refresh token");
       const disc = await this.discover();
       const tok = await this.tokenRequest(
         disc,
         new URLSearchParams({ grant_type: "refresh_token", refresh_token: t.refresh, client_id: this.cfg.clientId }),
+        epoch,
       );
-      this.store(tok, await this.bindingOf(tok)); // refresh token mới thay thế cái cũ (rotation); cái cũ không dùng lại
+      const bound = await this.bindingOf(tok);
+      if (epoch !== this.epoch) return null;
+      this.store(tok, bound); // refresh token mới thay thế cái cũ (rotation); cái cũ không dùng lại
       return this.tokens!.access;
     } catch (e) {
+      if (epoch !== this.epoch) return null;
+      this.epoch++;
       this.tokens = null;
       this.set({ status: "unauthenticated", error: `Phiên đã hết hạn: ${(e as Error).message}` });
       return null;
@@ -260,9 +293,54 @@ export class OidcSession {
 
   logout(): void {
     const idToken = this.tokens?.idToken;
+    this.clearLocal();
+    const epoch = this.epoch;
+    this.loggingOut = this.endSession(idToken, epoch).then(() => undefined).catch(e => {
+      if (epoch === this.epoch) this.set({ status: "unauthenticated", error: (e as Error).message });
+    });
+  }
+
+  private clearLocal(): void {
+    this.epoch++;
     this.tokens = null;
+    this.refreshing = null;
+    this.d.session.removeItem(PKCE_KEY);
+    this.d.session.removeItem(TENANT_KEY);
     this.set({ status: "unauthenticated" });
-    this.loggingOut = this.endSession(idToken);
+  }
+
+  /** Xóa phiên trước; chỉ alias (không credential) tồn tại qua chuyển hướng đăng xuất SSO. */
+  async switchTenant(organization: string): Promise<void> {
+    if (!validOrganization(organization)) throw new Error("Doanh nghiệp không hợp lệ");
+    const idToken = this.tokens?.idToken;
+    this.clearLocal();
+    const epoch = this.epoch;
+    this.d.session.setItem(TENANT_KEY, organization);
+    this.loggingOut = this.endSession(idToken, epoch, true).then(() => undefined).catch(e => {
+      if (epoch !== this.epoch) return;
+      this.d.session.removeItem(TENANT_KEY);
+      this.set({ status: "error", error: (e as Error).message });
+    });
+    await this.loggingOut;
+  }
+
+  /** Một lần duy nhất sau post_logout_redirect_uri; luôn tạo state/verifier mới. */
+  async resumeTenantSwitch(): Promise<boolean> {
+    const organization = this.d.session.getItem(TENANT_KEY);
+    this.d.session.removeItem(TENANT_KEY);
+    if (organization === null) return false;
+    await this.startLogin(organization);
+    return true;
+  }
+
+  /** Chỉ nhãn hiển thị; backend xác minh JWT và membership trên từng request. */
+  organizations(): string[] {
+    if (!this.tokens) return [];
+    try {
+      const claim = jwtClaims(this.tokens.access).organization;
+      const aliases = Array.isArray(claim) ? claim : claim && typeof claim === "object" ? Object.keys(claim) : [];
+      return [...new Set(aliases.filter((alias): alias is string => typeof alias === "string" && validOrganization(alias)))];
+    } catch { return []; }
   }
 
   /** Promise của lần đăng xuất gần nhất (test/UI chờ được). */
@@ -270,21 +348,20 @@ export class OidcSession {
 
   /** DPA-03: xoay khóa DPoP (xóa khỏi IndexedDB) rồi kết thúc phiên SSO Keycloak (RP-initiated
    * logout, `id_token_hint`), để người đăng nhập sau trên cùng trình duyệt có khóa và phiên mới. */
-  private async endSession(idToken: string | undefined): Promise<void> {
+  private async endSession(idToken: string | undefined, epoch: number, switching = false): Promise<boolean> {
     await this.d.dpop?.reset?.();
-    let end: string | undefined;
-    try {
-      end = (await this.discover()).end_session_endpoint;
-    } catch {
-      return; // không đọc được discovery: token đã xóa, khóa đã xoay
-    }
-    if (!end) return;
+    if (epoch !== this.epoch) return true;
+    const end = (await this.discover()).end_session_endpoint;
+    if (epoch !== this.epoch) return true;
+    if (switching && (!end || !this.cfg.postLogoutRedirectUri)) throw new Error("Không đổi doanh nghiệp: OIDC thiếu endpoint đăng xuất hoặc URL quay về");
+    if (!end) return false;
     const u = new URL(end);
     const q = new URLSearchParams({ client_id: this.cfg.clientId });
     if (idToken) q.set("id_token_hint", idToken);
     if (this.cfg.postLogoutRedirectUri) q.set("post_logout_redirect_uri", this.cfg.postLogoutRedirectUri);
     u.search = q.toString();
     this.d.navigate(u.toString());
+    return true;
   }
 
   /** Phiên hiện tại có token ràng khóa DPoP. */
@@ -302,10 +379,13 @@ export class OidcSession {
    * Bound + có request => `Authorization: DPoP` + proof mới (jti mới, ath của token); không có request (LLM gateway) => Bearer.
    */
   authHeaders = async (req?: AuthRequest): Promise<Record<string, string>> => {
+    const epoch = this.epoch;
     const t = await this.getAccessToken();
-    if (!t) throw new AuthRequiredError();
+    if (!t || epoch !== this.epoch) throw new AuthRequiredError();
     if (req && this.d.dpop && this.tokens?.bound) {
-      return { Authorization: `DPoP ${t}`, DPoP: await this.d.dpop.proof(req.method, req.url, { accessToken: t }) };
+      const proof = await this.d.dpop.proof(req.method, req.url, { accessToken: t });
+      if (epoch !== this.epoch) throw new AuthRequiredError();
+      return { Authorization: `DPoP ${t}`, DPoP: proof };
     }
     return { Authorization: `Bearer ${t}` };
   };

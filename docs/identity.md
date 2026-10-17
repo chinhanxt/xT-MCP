@@ -91,6 +91,18 @@ Không có host, realm hay secret mặc định. Thiếu hoặc sai thì hàm `l
 
 Các trường còn lại: `client_id` (= `azp`), `issuer`, `username`, `organizations` + `tenant` (đúng một Organization, nhiều thì `tenant_ambiguous`), `roles` (`realm_access.roles`), `scopes`, `auth_time`, `acr`, `amr`, `token_id`, `issued_at`, `expires_at`, `dpop_jkt` (thumbprint khóa DPoP đã kiểm; None với Bearer, đi vào `Actor.dpop_jkt`). Vai trò nghiệp vụ vẫn lấy từ bảng tổ chức của xT (arch §5.1); `roles` trong token chỉ để tham khảo.
 
+### Chuyển doanh nghiệp trong Desk
+
+Desk chuyển tenant bằng một lượt đăng nhập OIDC mới. `DESK_OIDC_ORGANIZATIONS` là danh sách alias doanh nghiệp phân cách bằng dấu phẩy do quản trị viên cấu hình cho bộ chọn; mặc định rỗng, không có doanh nghiệp mẫu. Bộ chọn chỉ hiện khi hợp các alias cấu hình và claim token có hơn một alias hợp lệ, sau khi bỏ trùng. Alias rỗng, có khoảng trắng/ký tự điều khiển, `:` hoặc `*` bị bỏ qua. Danh sách này chỉ gợi ý đích đăng nhập, không cấp quyền thành viên. Keycloak và resource server vẫn quyết định tenant từ token đã xác thực.
+
+`DESK_OIDC_ORG_PARAM` cấu hình tên query parameter gợi ý tổ chức trên URL authorize, mặc định `organization`. Selector thực tế của Keycloak là **scope** `organization:<alias>`: khi chọn doanh nghiệp, Desk thay các scope `organization`/`organization:*`/`organization:<alias-cũ>` bằng đúng một scope của alias mới và giữ các scope khác. Không được chỉ thêm query parameter rồi giả định Keycloak đã chọn đúng tenant. [Tài liệu Keycloak 26.6.3](https://github.com/keycloak/keycloak/blob/26.6.3/docs/documentation/server_admin/topics/organizations/mapping-organization-claims.adoc) quy định `organization` chọn một tổ chức (hiển thị lựa chọn khi có nhiều), `organization:<alias>` chọn tổ chức cụ thể, và `organization:*` đưa mọi tổ chức vào claim.
+
+Claim `organization` của token đã chọn tenant thường chỉ chứa doanh nghiệp hiện tại. `inspect_workspace` cũng chỉ trả ngữ cảnh tenant hiện tại, không phải danh bạ mọi doanh nghiệp mà người dùng là thành viên. Vì vậy không thể suy ra đầy đủ các doanh nghiệp khác từ hai nguồn này. Các alias cấu hình và claim phía trình duyệt chỉ phục vụ hiển thị; không dùng `organization:*` cho token gọi MCP để tạo bộ chọn, vì resource server từ chối token có nhiều tenant (`tenant_ambiguous`).
+
+Khi chuyển, Desk vô hiệu hóa cầu nối Studio/WareTrack, hủy lượt trợ lý, đóng kết nối MCP, xóa dữ liệu Portal/chat/lịch sử/khóa idempotency và đặt lại route không gian. Desk xóa phiên token trong bộ nhớ và xoay khóa DPoP, rồi kết thúc phiên SSO bằng RP-initiated logout. Discovery phải có `end_session_endpoint` và Desk phải có URL quay về đã đăng ký; thiếu cấu hình hoặc reset/discovery lỗi thì dừng chuyển, không đăng nhập tiếp bằng phiên SSO cũ. Alias đích được lưu tạm qua redirect; khi quay về Desk, continuation dùng một lần bắt đầu authorization-code + PKCE mới cho alias đó. Portal của phiên mới được mount lại để bỏ dữ liệu doanh nghiệp cũ. Các phản hồi bất đồng bộ của phiên đã kết thúc không được khôi phục token cũ.
+
+Đây không phải cam kết thu hồi tức thời mọi bản sao access token cũ: JWT vẫn có thể hợp lệ đến `exp` nếu endpoint không kiểm introspection/thu hồi phiên; xóa khóa DPoP ở trình duyệt không làm thay đổi chữ ký JWT. AC kiểm `/studio-api` trả 401 với token cũ cần bằng chứng riêng trên Keycloak thật và cấu hình bảo vệ endpoint tương ứng. Kiểm thử Keycloak live nằm ngoài phạm vi thay đổi giao diện/chuyển phiên này; không suy ra kết quả đó từ unit test.
+
 ### JWKS và xoay khóa
 
 - Gọi JWKS nằm ngoài lock theo kiểu single-flight: request dùng kid đã biết không bao giờ chờ mạng; request cần kid lạ thì chờ đúng lần fetch đang chạy.
