@@ -104,13 +104,16 @@ export async function routeResources(ctx: RouteContext): Promise<boolean> {
       return true;
     }
     if (method === 'GET' && knowledgeMatch[2] === 'documents') {
-      send(
-        store.db
-          .prepare(
-            'SELECT d.id,d.name,d.status,d.error,d.enabled,d.xt_ref,d.xt_revision,length(d.content) AS characters,(SELECT count(*) FROM chunks c WHERE c.document_id=d.id) AS chunk_count FROM documents d WHERE knowledge_id=?',
-          )
-          .all(id),
-      );
+      const rows = store.db
+        .prepare(
+          'SELECT d.id,d.name,d.status,d.error,d.enabled,d.xt_ref,d.xt_revision,length(d.content) AS characters,(SELECT count(*) FROM chunks c WHERE c.document_id=d.id) AS chunk_count FROM documents d WHERE knowledge_id=?',
+        )
+        .all(id);
+      // Integrated: titles of xT sources the caller can no longer read are not listed.
+      const check = ctx.identity ? sourceCheck(ctx.coreTools, true)! : undefined;
+      const visible = [];
+      for (const row of rows) if (!check || !row.xt_ref || (await check(String(row.xt_ref))) !== null) visible.push(row);
+      send(visible);
       return true;
     }
     if (method === 'POST' && knowledgeMatch[2] === 'documents') {
@@ -126,7 +129,7 @@ export async function routeResources(ctx: RouteContext): Promise<boolean> {
     }
     if (method === 'POST' && knowledgeMatch[2] === 'search') {
       const v = await body(req);
-      send(await retrieve(store, workspace, [id], text(v.query, 'Truy vấn', 2000), 5, undefined, sourceCheck(ctx.coreTools)));
+      send(await retrieve(store, workspace, [id], text(v.query, 'Truy vấn', 2000), 5, undefined, sourceCheck(ctx.coreTools, !!ctx.identity)));
       return true;
     }
     if (method === 'DELETE' && !knowledgeMatch[2]) {
@@ -147,6 +150,8 @@ export async function routeResources(ctx: RouteContext): Promise<boolean> {
       .get(docMatch[1], workspace);
     if (!doc) throw new HttpError(404, 'Không tìm thấy tài liệu.');
     if (method === 'GET') {
+      // Integrated: text without an xT source (legacy/mapped workspace) is never served.
+      if (ctx.identity && !doc.xt_ref) throw new HttpError(404, 'Không tìm thấy tài liệu.');
       if (doc.xt_ref) {
         // Cached xT text is shown only while the caller can still read the same revision in xT.
         const check = sourceCheck(ctx.coreTools);
