@@ -35,6 +35,7 @@ Dữ liệu AI mặc định ở `~/.local/state/xt-unified/studio`; secret ký 
 - Kho: cài gói `packages/kho-hang` qua CLI `xt pack install` có dry-run/digest theo [Model Engine](model-engine.md). Người có `warehouse_manager` quản lý danh mục và duyệt; người tạo phiếu phải khác người duyệt.
 - Tạo kho → vị trí → hàng hóa → phiếu nhập/xuất → gửi duyệt → người có quyền xác nhận. Số lượng hiển thị theo đơn vị, backend dùng số nguyên phần nghìn.
 - Sửa phiếu đã ghi nhận bằng phiếu đảo: `kind=reversal`, `reverses` trỏ phiếu nhập/xuất gốc đã ghi nhận, dòng hàng trùng toàn bộ phiếu gốc. Phiếu đảo đi qua đúng quy trình duyệt, ghi biến động ngược dấu với khóa `<phiếu gốc>:<dòng>:rev`; mỗi phiếu gốc chỉ đảo được một lần, không đảo phiếu đảo, không làm âm kho. Biến động cũ không bị sửa hay xóa.
+- `stock_balance` và `stock_movement` mang ref `warehouse` do quy trình ghi kho điền, nên tồn theo kho và nhập/xuất theo kho lọc được bằng `search_records` (`where` trên `warehouse`). Tồn cũ chưa có kho được điền ở lần ghi kế tiếp.
 - `approved` của phiếu kho là đã ghi nhận tồn và sổ biến động trong cùng giao dịch. Khi ghi kho lỗi, quyết định và biến động phải rollback để thử lại được.
 - Dữ liệu mô phỏng 3D nằm trong trình duyệt, không sửa tồn kho nghiệp vụ. Tải lại mô phỏng sẽ đặt lại hoạt cảnh.
 

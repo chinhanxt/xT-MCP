@@ -103,6 +103,26 @@ def test_receive_retry_and_issue_reconcile():
     assert sum(r["quantity_milli"] for r in db.rows_by_model["stock_movement"].values()) == 600
 
 
+def test_posting_tags_ledger_rows_with_warehouse():
+    db, rid, manager = fixture()
+    line = db.rows_by_model["stock_request"][str(rid)]["lines"][0]
+    legacy = db.create(
+        "stock_balance", {"key": f"{line['item']}:{line['location']}", "quantity_milli": 0}
+    )
+    post_stock(db, rid, manager)
+    warehouse = db.get("stock_request", rid)["warehouse"]
+    assert db.get("stock_balance", UUID(legacy["id"]))["warehouse"] == warehouse
+    assert [m["warehouse"] for m in db.rows_by_model["stock_movement"].values()] == [warehouse]
+
+
+@pytest.mark.parametrize("model", ["stock_balance", "stock_movement"])
+def test_workflow_ledger_write_requires_warehouse(model):
+    actor = ModelActor(TenantRef(1, uuid4()), uuid4(), ("xt_workflow",))
+    with pytest.raises(ModelError, match="kho"):
+        validate_write(None, actor, model, {"quantity_milli": 0}, workflow=True)
+    validate_write(None, actor, model, {"quantity_milli": 0, "warehouse": str(uuid4())})
+
+
 def test_insufficient_stock_and_sod_write_nothing():
     db, rid, manager = fixture("issue")
     with pytest.raises(ModelError, match="Không đủ tồn"):

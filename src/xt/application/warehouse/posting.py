@@ -90,13 +90,20 @@ def post_stock(db: StockData, request_id: UUID, approver: UUID) -> dict[str, Any
         planned.append((key, item, location_id, delta, balance_key, balance, total))
     posted_at = datetime.now(UTC).isoformat()
     # Validate every line before the first write. Outer UoW also rolls back late DB failures.
+    warehouse = str(row["warehouse"])
     for key, item, location_id, delta, balance_key, balance, total in planned:
         if balance is None:
             balance = db.create(
                 "stock_balance",
-                {"key": balance_key, "item": str(item), "location": str(location_id)},
+                {
+                    "key": balance_key,
+                    "item": str(item),
+                    "location": str(location_id),
+                    "warehouse": warehouse,
+                },
             )
-        db.write("stock_balance", balance, {"quantity_milli": total})
+        # Also backfills balances created before the warehouse reference existed.
+        db.write("stock_balance", balance, {"quantity_milli": total, "warehouse": warehouse})
         db.create(
             "stock_movement",
             {
@@ -104,6 +111,7 @@ def post_stock(db: StockData, request_id: UUID, approver: UUID) -> dict[str, Any
                 "request": str(request_id),
                 "item": str(item),
                 "location": str(location_id),
+                "warehouse": warehouse,
                 "quantity_milli": delta,
                 "posted_at": posted_at,
                 "approved_by": str(approver),

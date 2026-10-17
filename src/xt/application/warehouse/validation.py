@@ -41,6 +41,8 @@ def validate_write(
             )
         if previous is not None and (model == "stock_movement" or not workflow):
             raise ModelError("access_denied", "Không được sửa lịch sử kho hoặc ghi tồn trực tiếp.")
+        if not row.get("warehouse"):
+            raise invalid("Tồn kho và biến động phải gắn kho để đối soát và báo cáo.")
     if model == "stock_item":
         quantity(row.get("reorder_level_milli", 0))
     if model == "stock_balance":
