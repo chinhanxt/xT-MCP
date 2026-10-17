@@ -89,6 +89,7 @@ Kết quả tại `docs/evidence/live-smoke.json`. `LIVE_KEEP_OPEN=1` giữ serv
 - Reindex tạo chunk/vector mới trước, chỉ thay nội dung cũ khi thành công. Nếu lỗi hoặc server restart, tài liệu đã có chunk vẫn truy xuất được; xem lỗi và thử lại. Extraction/indexing hiện chạy trong request, chưa có job queue bền vững.
 - Server mặc định loopback. `PORT` đổi cổng, `STUDIO_DATA_DIR` chọn thư mục dữ liệu. Log phát triển ghi method/path/status/thời gian; `LOG_LEVEL=silent` tắt log request.
 - Một owner/workspace tạo qua UI. Chưa có onboarding nhiều doanh nghiệp, mời thành viên, vai trò, SSO, quota hoặc kiểm thử tải production.
+- Chế độ tích hợp xT không tự nhận workspace cũ. Người vận hành chọn từng cặp workspace/tenant: `npm run map-legacy -- --data-dir DIR --workspace ID --tenant UUID` chỉ in kế hoạch và số bản ghi (dry-run); thêm `--apply` để ghi. Lệnh từ chối workspace đã gắn tenant khác, tenant đã có workspace (kể cả workspace tự tạo ở lần đăng nhập tích hợp đầu tiên, nên map trước lần đó) và lần chạy lặp lại. Dừng Studio và sao lưu trước khi `--apply`.
 - File tối đa 5 MB, văn bản tối đa 1 triệu ký tự; PDF scan chưa có OCR. Chưa có crawler/connector đồng bộ, hybrid/rerank hoặc vector index cho tập lớn.
 - Workflow DAG tối đa 50 node, chưa có loop/iteration, code sandbox, chạy riêng từng node, lịch chạy và worker. HTTP node chỉ GET/POST, URL có origin cố định, không redirect; chưa có UI cấu hình header xác thực.
 - Chat chưa có ảnh/file đa phương thức hoặc widget iframe. Model discovery, chi phí/token usage, marketplace chưa có. Chưa nối MCP xT hiện có.
