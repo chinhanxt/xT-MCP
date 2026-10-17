@@ -330,7 +330,8 @@ describe("đổi doanh nghiệp", () => {
       const h = setup({ scope: "openid organization:* mcp-xt organization organization:old", organizationParam });
       await h.s.startLogin("binh-minh");
       const q = new URL(h.nav.at(-1)!).searchParams;
-      expect(q.get(organizationParam ?? "organization")).toBe("binh-minh");
+      expect(q.has("organization")).toBe(false);
+      if (organizationParam) expect(q.get(organizationParam)).toBe("binh-minh");
       expect(q.get("scope")).toBe("openid mcp-xt organization:binh-minh");
     }
   });
@@ -358,7 +359,7 @@ describe("đổi doanh nghiệp", () => {
     const resumed = new OidcSession(CFG, { fetch: h.fetchMock as never, session: h.session, navigate: u => h.nav.push(u), now: Date.now });
     expect(await resumed.resumeTenantSwitch()).toBe(true);
     const next = new URL(h.nav.at(-1)!).searchParams;
-    expect(next.get("organization")).toBe("second");
+    expect(next.has("organization")).toBe(false);
     expect(next.get("scope")).toBe("openid mcp-xt organization:second");
     expect(next.get("state")).not.toBe(initial.get("state"));
     expect(next.get("code_challenge")).not.toBe(initial.get("code_challenge"));

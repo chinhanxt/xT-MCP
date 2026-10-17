@@ -113,7 +113,7 @@ it('switches using full logout, clears the route and remounts real Portal withou
   expect(new URL(nav.at(-1)!).pathname).toBe('/realms/xt/logout');
   expect(connections[0].client.close).toHaveBeenCalled();
   await finishSwitch();
-  expect(new URL(nav.at(-1)!).searchParams.get('organization')).toBe('beta');
+  expect(new URL(nav.at(-1)!).searchParams.get('scope')).toContain('organization:beta');
   await click('H');
   expect(container.textContent).toContain('beta@private.test');
   expect(container.querySelector('.portal')!.textContent).not.toContain('alpha');
@@ -225,7 +225,7 @@ it('automatically restarts targeted PKCE when Desk mounts after the logout redir
   await vi.waitFor(() => expect(new URL(nav.at(-1)!).pathname).toBe('/realms/xt/auth'));
   const url = new URL(nav.at(-1)!);
   expect(url.pathname).toBe('/realms/xt/auth');
-  expect(url.searchParams.get('organization')).toBe('beta');
+  expect(url.searchParams.get('scope')).toContain('organization:beta');
   expect(url.searchParams.get('code_challenge_method')).toBe('S256');
   expect(container.textContent).toContain('Đang đăng nhập');
 });

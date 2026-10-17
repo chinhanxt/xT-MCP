@@ -12,7 +12,7 @@ export interface OidcConfig {
   redirectUri: string;
   /** Đích sau RP-initiated logout (phải đăng ký ở `post.logout.redirect.uris` của client). */
   postLogoutRedirectUri?: string;
-  /** Gợi ý tương thích IdP; scope organization:<alias> mới chọn tenant Keycloak. */
+  /** Tùy chọn (mặc định tắt): tên query param gợi ý thêm cho IdP khác; Keycloak chọn tenant bằng scope organization:<alias>. */
   organizationParam?: string;
 }
 
@@ -89,7 +89,7 @@ export function validateConfig(c: Partial<OidcConfig>): OidcConfig {
   const miss = (["issuer", "clientId", "scope", "redirectUri"] as const).filter((k) => !c[k]);
   if (miss.length) throw new AuthRequiredError(`OIDC chưa cấu hình (thiếu ${miss.join(", ")}): Desk không gọi MCP/LLM.`);
   if (!c.scope!.split(/\s+/).includes("openid")) throw new AuthRequiredError("OIDC scope phải có openid");
-  if (c.organizationParam !== undefined && (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(c.organizationParam) ||
+  if (c.organizationParam && (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(c.organizationParam) ||
       ["response_type", "client_id", "redirect_uri", "scope", "state", "nonce", "code_challenge", "code_challenge_method"].includes(c.organizationParam)))
     throw new AuthRequiredError("OIDC organizationParam không hợp lệ");
   return c as OidcConfig;
@@ -172,7 +172,7 @@ export class OidcSession {
         code_challenge: challenge,
         code_challenge_method: "S256",
       }).toString();
-      if (organization !== undefined) u.searchParams.set(this.cfg.organizationParam ?? "organization", organization);
+      if (organization !== undefined && this.cfg.organizationParam) u.searchParams.set(this.cfg.organizationParam, organization);
       this.d.navigate(u.toString());
     } catch (e) {
       if (epoch === this.epoch) this.set({ status: "error", error: (e as Error).message });

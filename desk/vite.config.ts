@@ -83,7 +83,7 @@ export default defineConfig(({ mode }) => {
         oidcIssuer: env.DESK_OIDC_ISSUER.replace(/\/$/, ""),
         oidcClientId: env.DESK_OIDC_CLIENT_ID,
         oidcScope: env.DESK_OIDC_SCOPE,
-        oidcOrgParam: env.DESK_OIDC_ORG_PARAM || "organization",
+        oidcOrgParam: env.DESK_OIDC_ORG_PARAM || "",
         oidcOrganizations: [...new Set((env.DESK_OIDC_ORGANIZATIONS || "").split(",").map(alias => alias.trim()).filter(Boolean))],
         appCallsPerSec: posInt("DESK_APP_CALLS_PER_SEC"),
         appCallBurst: posInt("DESK_APP_CALL_BURST"),
