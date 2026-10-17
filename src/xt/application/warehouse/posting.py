@@ -4,9 +4,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Iterator, Mapping
 from datetime import UTC, datetime
 from decimal import Decimal
+from itertools import islice
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -28,6 +29,34 @@ class StockData(Protocol):
     def write(
         self, model: str, row: Mapping[str, Any], patch: Mapping[str, Any]
     ) -> dict[str, Any]: ...
+    def scan(self, model: str, where: Mapping[str, Any]) -> Iterator[dict[str, Any]]: ...
+
+
+BACKFILL_BATCH = 100
+MAX_SCAN = 10_000
+
+
+def scan_pages(
+    search: Callable[[int, int], tuple[list[dict[str, Any]], bool]], page: int
+) -> Iterator[dict[str, Any]]:
+    """Every row of a stable-sorted search, page by page (`search(limit, offset)`).
+
+    Offsets stay consistent because posting holds `lock_stock` and only postings write the
+    ledger models; fails closed past the engine's offset cap instead of silently truncating.
+    """
+    offset = 0
+    while True:
+        if offset > MAX_SCAN:
+            raise invalid(f"Quá {MAX_SCAN} bản ghi cần đọc trong một lần ghi kho.")
+        rows, more = search(page, offset)
+        yield from rows
+        if not more:
+            return
+        offset += len(rows)
+
+
+def _eq(field: str, value: Any) -> dict[str, Any]:
+    return {"field": field, "op": "=", "value": value}
 
 
 def _sources(
@@ -81,7 +110,8 @@ def post_stock(db: StockData, request_id: UUID, approver: UUID) -> dict[str, Any
     items: dict[UUID, dict[str, Any]] = {}
     level_delta: dict[UUID, int] = {}
     for key, item, location_id, delta in sources:
-        if db.rows("stock_movement", {"field": "key", "op": "=", "value": key}):
+        # Only reversal keys can pre-exist under another slip (`<original>:<i>:rev`).
+        if row["kind"] == "reversal" and db.rows("stock_movement", _eq("key", key)):
             raise invalid("Phiếu gốc đã được đảo; không đảo lần thứ hai.")
         items[item] = db.get("stock_item", item)
         location = db.get("warehouse_location", location_id)
@@ -126,7 +156,8 @@ def post_stock(db: StockData, request_id: UUID, approver: UUID) -> dict[str, Any
                 "location": str(location_id),
                 "warehouse": warehouse,
                 "quantity_milli": delta,
-                "posted_at": posted_at,
+                "posted_at": posted_at,  # received/posted by the system
+                "occurred_on": row.get("doc_date"),  # business date on the slip, if given
                 "approved_by": str(approver),
             },
         )
@@ -146,13 +177,59 @@ def post_stock(db: StockData, request_id: UUID, approver: UUID) -> dict[str, Any
                 "last_movement": last_movement[item],
             },
         )
+    _refresh_levels(db, warehouse, set(level_delta))
+    _backfill_warehouse(db)
     return {"request": str(request_id), "posted": len(planned), "already": False}
+
+
+def _refresh_levels(db: StockData, warehouse: str, posted: set[UUID]) -> None:
+    """D-UNI-STOCK-1: keep every reorder-tracked item of this warehouse visible in stock_level.
+
+    Creates the missing rows (never posted here, or posted before stock_level existed) and
+    re-applies the item's current reorder level; writes only on change.
+    """
+    levels = {
+        str(r["item"]): r
+        for r in db.scan("stock_level", _eq("warehouse", warehouse))
+        if UUID(str(r["item"])) not in posted
+    }
+    tracked = {
+        str(r["id"]): r
+        for r in db.scan("stock_item", {"field": "reorder_level_milli", "op": ">", "value": 0})
+        if UUID(str(r["id"])) not in posted
+    }
+    for item_id in sorted(set(levels) | set(tracked)):
+        item = tracked.get(item_id)
+        reorder = quantity(Decimal(str(item.get("reorder_level_milli") or 0))) if item else 0
+        level = levels.get(item_id)
+        if level is None:
+            on_hand = _opening(db, UUID(item_id), warehouse)
+            level = db.create(
+                "stock_level",
+                {"key": f"{item_id}:{warehouse}", "item": item_id, "warehouse": warehouse},
+            )
+            patch = {"on_hand_milli": on_hand, "reorder_level_milli": reorder}
+        else:
+            on_hand = quantity(Decimal(str(level["on_hand_milli"])))
+            patch = {"reorder_level_milli": reorder}
+        patch["below_reorder"] = on_hand < reorder
+        if level.get("on_hand_milli") is None or any(level.get(k) != v for k, v in patch.items()):
+            db.write("stock_level", level, patch)
+
+
+def _backfill_warehouse(db: StockData) -> None:
+    """Bounded, idempotent backfill of `warehouse` on ledger rows posted before it existed."""
+    for model in ("stock_movement", "stock_balance"):
+        legacy = db.scan(model, {"field": "warehouse", "op": "is_null"})
+        for row in list(islice(legacy, BACKFILL_BATCH)):
+            location = db.get("warehouse_location", UUID(str(row["location"])))
+            db.write(model, row, {"warehouse": str(location["warehouse"])})
 
 
 def _opening(db: StockData, item: UUID, warehouse: str) -> int:
     """On-hand of an item in a warehouse before its stock_level row existed (older postings)."""
     total = 0
-    for balance in db.rows("stock_balance", {"field": "item", "op": "=", "value": str(item)}):
+    for balance in db.scan("stock_balance", _eq("item", str(item))):
         where = balance.get("warehouse")
         if not where:
             where = db.get("warehouse_location", UUID(str(balance["location"])))["warehouse"]

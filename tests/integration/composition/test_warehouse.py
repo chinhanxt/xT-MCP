@@ -315,6 +315,39 @@ def test_reversal_posts_once_through_approval(warehouse, stock):
     assert int(balance(w, stock)[0]["quantity_milli"]) == 0
 
 
+def test_aggregate_in_out_by_warehouse_and_business_month(warehouse, stock):
+    w = warehouse
+    dated = {**stock, "doc_date": "2026-09-15"}
+    assert confirm(w, w.request(dated))[0].status is PendingStatus.CONFIRMED
+    issue = {**dated, "kind": "issue", "lines": [{**stock["lines"][0], "quantity_milli": 400}]}
+    assert confirm(w, w.request(issue))[0].status is PendingStatus.CONFIRMED
+    result = w.tool(
+        "NV-0002",
+        "aggregate_records",
+        {
+            "model_id": "stock_movement",
+            "metrics": ["count", "sum:quantity_milli"],
+            "where": {"warehouse": f"warehouse:{stock['warehouse']}"},
+            "group_by": ["warehouse"],
+            "time_bucket": "month",
+            "date_field": "occurred_on",
+            "period": "2026-09",
+        },
+    )
+    assert result["ok"], result
+    data = result["data"]
+    assert data["as_of"] and data["scope"] == "authorized_records"
+    assert data["rows"] == [
+        {
+            "keys": {
+                "warehouse": f"warehouse:{stock['warehouse']}",
+                "occurred_on:month": "2026-09-01",
+            },
+            "values": {"count": 2, "sum:quantity_milli": "600"},
+        }
+    ]
+
+
 def test_competing_issues_cannot_overspend(warehouse, stock):
     w = warehouse
     assert confirm(w, w.request(stock))[0].status is PendingStatus.CONFIRMED

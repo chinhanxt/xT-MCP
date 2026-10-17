@@ -15,7 +15,7 @@ Ràng buộc chung (docs/decisions.md "Op dịch vụ của gói giao việc / v
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextvars import ContextVar
 from datetime import UTC, date, datetime, time
 from typing import TYPE_CHECKING, Any
@@ -129,6 +129,19 @@ class _Data:
         if res["has_more"]:
             raise OpInputError(f"{model}: quá {MAX_ROWS} bản ghi cho một bước dịch vụ")
         return [dict(r) for r in res["items"]]
+
+    def scan(self, model: str, where: Mapping[str, Any]) -> Iterator[dict[str, Any]]:
+        from xt.application.warehouse.posting import scan_pages
+
+        def page(limit: int, offset: int) -> tuple[list[dict[str, Any]], bool]:
+            res = engine_call(
+                lambda: self.records.search(
+                    self.actor, model, where, ("created_at",), limit, offset
+                )
+            )
+            return [dict(r) for r in res["items"]], bool(res["has_more"])
+
+        return scan_pages(page, MAX_ROWS)
 
     def fields(self, model: str) -> set[str]:
         current = self.pc.rt.catalogs.current(self.actor)

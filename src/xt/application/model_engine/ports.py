@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Literal, Protocol
 from uuid import UUID
 
@@ -56,6 +57,24 @@ class Page:
     rows: list[dict[str, Any]]
 
 
+@dataclass(frozen=True)
+class AggregateQuery:
+    """Validated by the engine: field names exist, are not PII, and fit their role."""
+
+    group_by: tuple[str, ...] = ()
+    sums: tuple[str, ...] = ()
+    # (unit, field, timezone): date_trunc of a date/datetime field in the tenant timezone.
+    bucket: tuple[str, str, str] | None = None
+
+
+@dataclass(frozen=True)
+class AggregatePage:
+    as_of: datetime
+    # One row per group, ordered by group keys: keys (group_by..., bucket), count, sums.
+    rows: list[tuple[tuple[Any, ...], int, tuple[Any, ...]]]
+    truncated: bool
+
+
 class RecordRepository(Protocol):
     def insert(
         self, actor: ModelActor, m: ModelSpec, values: Mapping[str, Any]
@@ -88,6 +107,16 @@ class RecordRepository(Protocol):
         offset: int,
         scope_hint: Literal["all", "scoped"],
     ) -> Page: ...
+
+    def aggregate(
+        self,
+        actor: ModelActor,
+        m: ModelSpec,
+        where: Expr | None,
+        query: AggregateQuery,
+        max_groups: int,
+        scope_hint: Literal["all", "scoped"],
+    ) -> AggregatePage: ...
 
 
 class CatalogReader(Protocol):

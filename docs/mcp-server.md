@@ -28,7 +28,7 @@ Dùng lowlevel `Server` thay cho `MCPServer` + decorator: schema, `outputSchema`
 1. Xác thực (HTTP: `AuthGate`; stdio: token đọc lại mỗi lời gọi) và tenant (đúng một Organization; không có → `unauthenticated`, nhiều → `access_denied` `tenant_ambiguous`).
 2. Tool có trong hồ sơ đang quảng bá; JSON không có khóa trùng (`invalid_request` `duplicate_key`); args qua `input_schema` (`invalid_request` `schema`).
 3. **IAM + SoD trước tiên** (`AccessGuard.check`, action = `iam[0]` của contract) → `access_denied` + `explain_ref`. Không bao giờ ra link xác nhận trước bước này (storyboard S2a).
-4. Cờ năng lực theo mốc: `upload_file`, `aggregate_records` trả `capability_unavailable` (remediation, không giả thành công) cho tới khi bật `XT_MCP_CAPABILITIES`.
+4. Cờ năng lực theo mốc: `upload_file` trả `capability_unavailable` (remediation, không giả thành công) cho tới khi bật `XT_MCP_CAPABILITIES`. `aggregate_records` đã hiện thực phía server (D-UNI-AGG-1), không còn cờ.
 5. Kiểm chéo field của handler (C3: không combinator ở root): một quan hệ trong `find_people`; `query` khi không có `model_id`; `metric` xor `metrics`; `text`/`base64` theo `source`; `reason` khi reject/return, `delegate_to` khi delegate; `create_record(model task)` → `wrong_tool` + continuation `create_task`; `update_record(set.state)` → `precondition_failed` `state_field` + continuation `transition_record`.
 6. Ghi: token `[PII:…]` ghi ngược → `masked_value`. Từ đây tới commit chạy trong **một** `TransactionRunner.run`: `OperationStore.claim(key)` (insert-or-get theo UNIQUE, namespace tenant + effective actor + tool) **trước** khi plan. Transaction khác đang giữ key thì chờ; quá hạn → `rate_limited` `idempotency_in_progress`. Cùng args → replay (`meta.receipt.replayed=true`), khác args → `idempotency_conflict`, đang chờ → `confirmation_required` cũ, bị từ chối/hết hạn/vô hiệu → `confirmation_declined`. Lỗi bất kỳ → rollback (nhả claim), không bao giờ thực thi hai lần.
 7. `plan_*` của port: validate theo model, CAS (`revision_conflict` + `current_revision`), rule (`rule_violation` + `explain_ref`), tính `effective_level`.
@@ -83,7 +83,7 @@ Port nhận `args` đã qua schema, ném `ToolError` (có hàm tạo sẵn: `not
 | `--profile full\|core-10` | không (`full`) | Hồ sơ catalog quảng bá |
 | `XT_MCP_SERVICES` | có | `package.module:factory`, `factory(env) -> ToolServices` |
 | `XT_DESK_URL` | có | URL công khai của xT Desk cho `confirm_url` |
-| `XT_MCP_CAPABILITIES` | không | Bật `upload_file`, `aggregate_records` (v0.2) |
+| `XT_MCP_CAPABILITIES` | không | Bật `upload_file` (v0.2) |
 | `XT_CONFIRM_CHANNELS` | không (`desk`) | `desk[,telegram]` |
 | `XT_CONFIRMATION_TTL_SECONDS` | không (`600`) | 60..3600 |
 | `XT_MCP_LOCAL_CLIENTS` | không | `azp` tier `local` (PII full). Chỉ client **confidential** phía server, phải có trong `XT_MCP_CONFIDENTIAL_CLIENTS` và `XT_MCP_ALLOWED_CLIENTS`. Client public (kể cả `xt-desk-agent`) tối đa masked (`docs/decisions.md`) |
