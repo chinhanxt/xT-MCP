@@ -6,6 +6,7 @@ import type { McpTool, ToolResult } from './types';
 import { DocumentsPanel } from './DocumentsPanel';
 import { RequestForm } from './RequestForm';
 import { ReportPanel } from './ReportPanel';
+import type { Area } from './portal-nav';
 import { parseMilli, readToolResult } from './portal-result';
 import { classifyError, stateHint, stateTitle, type ErrorKind } from './portal-state';
 
@@ -39,13 +40,14 @@ type Props = {
   area: string; mcp: McpConnection | null; tools: McpTool[]; sandboxUrl: URL;
   onOpenLink: (url: string, frame: Element | null) => boolean;
   revealDpop: ComponentProps<typeof ToolItem>['dpop'];
+  onNavigate?: (area: Area) => void;
 };
 export function Portal(props: Props) {
   const session = useRef({mcp:props.mcp, epoch:0});
   if (session.current.mcp !== props.mcp) session.current = {mcp:props.mcp, epoch:session.current.epoch+1};
   return <PortalView key={`${props.area}:${session.current.epoch}`} {...props}/>;
 }
-function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop }: Props) {
+function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNavigate }: Props) {
   const [data, setData] = useState<Data | null>(null), [error, setErrorText] = useState(''), [errorKind, setErrorKind] = useState<ErrorKind>('error'), [rejecting, setRejecting] = useState(false), [reason, setReason] = useState(''), [loading, setLoading] = useState(false);
   const [query, setQuery] = useState(''), [model, setModel] = useState(''), [catalogModel, setCatalogModel] = useState('stock_item');
   const [catalog, setCatalog] = useState<Data[]>([]), [workspace, setWorkspace] = useState<Data | null>(null);
@@ -126,7 +128,7 @@ function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop }: Pr
   const canSubmit = selectedRef.startsWith('stock_request:') && ['draft','returned'].includes(selectedState) && typeof revision === 'number';
   const canDecide = selected && ['in_review','submitted'].includes(selectedState) && typeof revision === 'number';
   const resultRows = rows(data), isList = !!data && ['items','people','rows','events'].some(key => Array.isArray(data[key]));
-  return <section className="portal" aria-label={title[area]}><h2>{title[area]}</h2>
+  return <section className="portal" aria-label={title[area]}><h2 tabIndex={-1}>{title[area]}</h2>
     {!mcp && <p role="status">Đang kết nối xT…</p>}
     {area==='H' && <>{workspace && <article className="portal-entry"><strong>{display(obj(workspace.tenant).name || obj(workspace.workspace).name || 'Doanh nghiệp')}</strong><p>{display(obj(workspace.me).name)}</p></article>}<p>Nhân sự, trách nhiệm, công việc và tài liệu theo quyền của bạn.</p><form onSubmit={e=>{e.preventDefault();void call('find_people',{query,limit:50});}}><input aria-label="Tìm nhân sự" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Tên, email hoặc chức danh"/><button disabled={!mcp}>Tìm người</button></form><div className="portal-actions"><button onClick={()=>void call('find_people',{manager_of:'me'})}>Quản lý của tôi</button><button onClick={()=>void call('find_people',{direct_reports_of:'me'})}>Nhóm của tôi</button><button onClick={()=>void call('get_inbox',{kinds:['task','notification','mention']})}>Việc của tôi</button></div></>}
     {area==='H' && <DocumentsPanel mcp={mcp} tools={tools} models={workspace ? catalog : null}/>}
@@ -134,7 +136,7 @@ function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop }: Pr
     {area==='P' && <RequestForm mcp={mcp} tools={tools} models={workspace ? catalog : null}/>}
     {area==='D' && <><p>Danh mục, tìm kiếm và số liệu từ xT Core.</p><label>Loại dữ liệu <select aria-label="Loại dữ liệu" value={model} onChange={e=>setModel(e.target.value)}>{!catalog.length && <option value="">Chưa có danh mục</option>}{catalog.map(row=><option key={String(row.id)} value={String(row.id)}>{label(row)}</option>)}</select></label><form onSubmit={e=>{e.preventDefault();void call('search_records',{model_id:model,limit:50,...(query?{query}:{})});}}><input aria-label="Tìm bản ghi" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Từ khóa"/><button disabled={!mcp||!model}>Tìm</button></form><div className="portal-actions"><button disabled={!model} onClick={()=>void call('aggregate_records',{model_id:model,metrics:['count']})}>Thống kê</button><button onClick={()=>void call('inspect_workspace',{},'catalog')}>Làm mới danh mục</button></div>{!data && <div className="portal-results">{catalog.map(row=><article className="portal-entry" key={String(row.id)}><strong>{label(row)}</strong><p>{String(row.primitive)}</p><button onClick={()=>{setModel(String(row.id));void call('search_records',{model_id:row.id,limit:50});}}>Xem dữ liệu</button></article>)}</div>}</>}
     {area==='D' && <ReportPanel mcp={mcp} tools={tools} models={workspace ? catalog : null}/>}
-    {area==='I' && <><p>Studio dùng phiên xT của bạn. Trợ lý Desk ở tab bên cạnh.</p><iframe className="portal-frame" title="xT Studio" src="/studio/?integrated=1"/></>}
+    {area==='I' && <><p>Studio dùng phiên xT của bạn (khung bên dưới). Trợ lý Desk dùng cùng danh tính và quyền.</p><div className="portal-actions"><button onClick={()=>onNavigate?.('Desk')} disabled={!onNavigate}>Mở trợ lý Desk</button></div><iframe className="portal-frame" title="xT Studio" src="/studio/?integrated=1"/></>}
     {area==='Kho' && <><p>Phiếu và tồn kho nghiệp vụ từ xT Core. Số lượng có độ chính xác 0,001 đơn vị.</p><div className="portal-actions">{warehouseModels.map(x=><button key={x} onClick={()=>void call('search_records',{model_id:x,limit:50,fields:fields(x)})}>{labels[x]}</button>)}</div>
       <form onSubmit={e=>{e.preventDefault();const milli=parseMilli(reorder,true);if(catalogModel==='stock_item' && milli===null){fail('Ngưỡng đặt lại không hợp lệ');return;}const values=catalogModel==='warehouse'?{code,name}:catalogModel==='stock_item'?{sku:code,name,unit,reorder_level_milli:milli}:{code,name,warehouse};void call('create_record',{model_id:catalogModel,values});}}><h3>Thêm danh mục</h3><label>Loại <select aria-label="Loại danh mục" value={catalogModel} onChange={e=>setCatalogModel(e.target.value)}><option value="warehouse">Kho</option><option value="warehouse_location">Vị trí</option><option value="stock_item">Hàng hóa</option></select></label><input aria-label="Mã danh mục" placeholder="Mã" value={code} onChange={e=>setCode(e.target.value)} maxLength={100} required/><input aria-label="Tên danh mục" placeholder="Tên" value={name} onChange={e=>setName(e.target.value)} maxLength={200} required/>{catalogModel==='warehouse_location' && select('warehouse',warehouse,value=>{setWarehouse(value);setLocation('');})}{catalogModel==='stock_item' && <><input aria-label="Đơn vị" value={unit} onChange={e=>setUnit(e.target.value)} maxLength={30} required/><input aria-label="Ngưỡng đặt lại" type="number" min="0" step="0.001" value={reorder} onChange={e=>setReorder(e.target.value)}/></>}<button disabled={!mcp||loading}>Tạo</button></form>
       <form onSubmit={e=>{e.preventDefault();const milli=parseMilli(quantity);if(milli===null){fail('Số lượng phải lớn hơn 0 và có tối đa 3 chữ số thập phân');return;}if(!warehouse||!item||!locationRows.some(row=>uuid(row)===location)){fail('Chọn kho, hàng hóa và vị trí thuộc kho');return;}void call('create_record',{model_id:'stock_request',values:{code:requestCode,kind,warehouse,lines:[{item,location,quantity_milli:milli}],note}});}}><h3>Phiếu nhập/xuất</h3><label>Loại phiếu <select value={kind} onChange={e=>setKind(e.target.value as 'receive'|'issue')}><option value="receive">Nhập</option><option value="issue">Xuất</option></select></label><input aria-label="Mã phiếu" value={requestCode} onChange={e=>setRequestCode(e.target.value)} maxLength={100} required/>{select('warehouse',warehouse,value=>{setWarehouse(value);setLocation('');})}{select('stock_item',item,setItem)}{select('warehouse_location',location,setLocation,locationRows)}<input aria-label="Số lượng" type="number" min="0.001" step="0.001" value={quantity} onChange={e=>setQuantity(e.target.value)} required/><input aria-label="Ghi chú" value={note} onChange={e=>setNote(e.target.value)} maxLength={2000}/><button disabled={!mcp||loading}>Tạo nháp</button></form>
