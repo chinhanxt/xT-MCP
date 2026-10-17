@@ -39,9 +39,11 @@ def test_stock_level_is_read_only_ledger_view():
     assert level["last_movement"].ref == "stock_movement"
     for name in ("on_hand_milli", "reorder_level_milli", "below_reorder"):
         assert level[name].managed_by == "workflow"
-    statements = {s["id"]: s for s in pack.policies[0]["statements"]}
+    policy = pack.policies[0]
+    statements = {s["id"]: s for s in policy["statements"]}
+    resource = f"xrn:{policy['tenant']}:stock_level:*"
     for sid in ("wh.read", "wh.deny-ledger-write", "wh.deny-delete"):
-        assert "xrn:binhminh:stock_level:*" in statements[sid]["resources"], sid
+        assert resource in statements[sid]["resources"], sid
 
 
 def test_upgrade_from_previous_release_is_safe():
