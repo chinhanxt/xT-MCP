@@ -35,6 +35,7 @@ from xt.adapters.db.integration import (
     connect,
     tenant_by_alias,
 )
+from xt.adapters.db.lineage import PgLineageStore
 from xt.adapters.db.migrator import PgMigrator
 from xt.adapters.db.records import PgRecordRepository
 from xt.application.model_engine.service import ModelService as EngineModels
@@ -144,6 +145,7 @@ class Runtime:
         self.uow = PgUnitOfWork(app_db)
         db = cast(Database, self.uow)
         self.store = PgIntegrationStore(self.uow)
+        self.lineage = PgLineageStore(self.uow)
         self.catalogs = PgCatalogReader(db)
         self.repo = PgRecordRepository(db)
         self.records = EngineRecords(self.catalogs, self.repo)
