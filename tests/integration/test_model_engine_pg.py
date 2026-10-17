@@ -29,6 +29,7 @@ from xt.adapters.db.connection import AuditKey, Database
 from xt.adapters.db.migrator import PgMigrator
 from xt.adapters.db.records import PgRecordRepository
 from xt.adapters.db.tenancy import bind_bi_login, bootstrap, drop_tenant, provision_tenant
+from xt.application.model_engine.ports import DisabledApps
 from xt.application.model_engine.service import ModelService, RecordService
 from xt.contracts.model import ProposeModelChange
 from xt.domain.model.context import ModelActor, TenantRef
@@ -144,6 +145,25 @@ def q1(conn: psycopg.Connection[Any], query: str, *args: Any) -> Any:
 
 
 # --------------------------------------------------------------------------- tests ----
+def test_missing_pack_install_leaves_model_engine_connection_usable(env: Env) -> None:
+    with env.pg.su() as su:
+        assert q1(su, "SELECT to_regclass('xt_meta.pack_install')") is None
+    # A single pooled connection must be reusable after the missing-table rollback.
+    db = Database(env.pg.app_dsn, max_size=1)
+    try:
+        reader = PgCatalogReader(db)
+        caller = actor(env, "A", "hr")
+        with db.connection() as conn:
+            backend_pid = conn.info.backend_pid
+        for _ in range(2):
+            assert reader.disabled(caller) == DisabledApps()
+            assert reader.current(caller) is None
+            with db.connection() as conn:
+                assert conn.info.backend_pid == backend_pid
+    finally:
+        db.close()
+
+
 def test_three_packs_into_two_tenants_with_different_versions(env: Env) -> None:
     a, b = env.tenants["A"], env.tenants["B"]
     apply(env, a, cat_of(1, PACKS[0]))

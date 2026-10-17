@@ -63,12 +63,20 @@ class PgCatalogReader:
 
     def disabled(self, actor: ModelActor) -> DisabledApps:
         """Gói đang tắt của tenant (RLS xt_meta.pack_install); không cache để tắt có hiệu lực
-        ngay ở lời gọi kế tiếp."""
+        ngay ở lời gọi kế tiếp. DB chỉ có model engine chưa có bảng pack_install."""
+        querying_packs = False
         try:
             with self.db.tenant_tx(actor) as cur:
+                querying_packs = True
                 rows = cur.execute(
                     "SELECT pack, models FROM xt_meta.pack_install WHERE status = 'disabled'"
                 ).fetchall()
+        except psycopg.errors.UndefinedTable as e:
+            if not querying_packs:
+                raise translate(e) from e
+            # tenant_tx đã rollback trước khi trả connection về pool. Không cache bảng thiếu:
+            # migration 0003 có thể được cài ngay sau lời gọi này.
+            return DisabledApps()
         except psycopg.Error as e:
             raise translate(e) from e
         models = {str(m): str(r["pack"]) for r in rows for m in (r["models"] or [])}

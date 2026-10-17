@@ -160,7 +160,9 @@ def test_postgrest_effective_roles_and_disabled_pack_rows(pg: pgmod.Pg) -> None:
         su.execute(legacy.encode())
         with pg.migrator() as m, pytest.raises(psycopg.errors.InsufficientPrivilege):
             migrate(m)  # Audit protection must still reject an ordinary login changing the gate.
-        assert install_data_prerequisites(su) == [MIGRATION]
+        assert install_data_prerequisites(su) == [
+            name for name, _ in available() if name >= MIGRATION
+        ]
         upgraded = su.execute("SELECT pg_get_viewdef(%s::regclass)", (view,)).fetchone()
         assert upgraded is not None and "disabled_models" in upgraded[0]
         assert (

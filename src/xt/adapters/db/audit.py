@@ -124,6 +124,7 @@ META_AUDIT_EXEMPT: dict[str, str] = {
     "telegram_update": "chống lặp update Telegram",
     "confirmation_binding": "nonce xác nhận, hết hạn",
     "confirmation_session": "nonce xác nhận, hết hạn",
+    "aggregate_explain": "metadata truy vấn dẫn xuất, hết hạn 24h; không chứa kết quả aggregate",
     "single_use_key": "nonce dùng một lần",
     "workflow_instance": "trạng thái engine; chuyển trạng thái ghi process_event (có audit)",
     "workflow_request": "trạng thái engine; chuyển trạng thái ghi process_event (có audit)",
