@@ -1,0 +1,11 @@
+{
+  "tenant": "binhminh",
+  "operators": {"hr": "NV-0026", "it_creator": "NV-0031", "it_approver": "NV-0032", "accounting": "NV-0005"},
+  "department": {"code": "KD", "name": "Kinh doanh"},
+  "grants": [
+    {"person": "NV-0010", "roles": ["sales_manager", "project_manager"], "manager": "NV-0001"},
+    {"person": "NV-0013", "roles": ["sales", "technician"], "manager": "NV-0010"},
+    {"person": "NV-0014", "roles": ["warehouse_manager", "sales"], "manager": "NV-0010"},
+    {"person": "NV-0004", "roles": ["facility_manager"], "manager": "NV-0001"}
+  ]
+}

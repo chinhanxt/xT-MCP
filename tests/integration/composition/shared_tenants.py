@@ -48,6 +48,9 @@ PEOPLE = [
     ("NV-0011", "Nhân Viên Mới", "KD", "NV-0009", []),
     ("NV-0012", "Nhân Viên Nghỉ", "KD", "NV-0009", []),
     ("NV-0013", "Nhân Viên Mới Hai", "KD", "NV-0009", []),
+    ("NV-0014", "Quản Trị IT Hai", "IT", "NV-0004", ["it_admin"]),
+    ("NV-0015", "Nhân Viên Cấp Quyền", "KD", "NV-0009", []),
+    ("NV-0016", "Nhân Viên Cấp Quyền Hai", "KD", "NV-0009", []),
 ]
 
 
