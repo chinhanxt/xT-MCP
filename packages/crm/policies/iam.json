@@ -19,6 +19,14 @@
       "conditions": []
     },
     {
+      "id": "crm.agent-record-write",
+      "effect": "Allow",
+      "subjects": ["role:agent"],
+      "actions": ["record.create", "record.update"],
+      "resources": ["xrn:binhminh:khach_hang:*", "xrn:binhminh:co_hoi:*", "xrn:binhminh:cham_soc:*"],
+      "conditions": []
+    },
+    {
       "id": "crm.request-write",
       "effect": "Allow",
       "subjects": ["role:sales", "role:sales_manager", "role:admin"],
