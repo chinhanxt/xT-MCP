@@ -265,7 +265,11 @@ def collect(
                                     (field, field, tenant, model, row["id"], since, until, field),
                                 )
                             )
-                identities = [UUID(warehouse[k]) for k in ("approver", "requester")]
+                identities = [
+                    UUID(entry[k])
+                    for entry in (warehouse, *warehouse.get("also", []))
+                    for k in ("approver", "requester")
+                ]
                 result["people"] = _rows(
                     cur,
                     """SELECT id,subject,active FROM xt_meta.person

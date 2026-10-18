@@ -83,15 +83,22 @@ Lần 1 chưa chạy: lần `decide_request` của người duyệt kho, xác nh
 
 ## Hậu kiểm độc lập
 
+Lần 1 (sau bước 3–4) `verify.py` trả 18 PASS và 7 FAIL (bản trước ghi nhầm 17/8). Nguyên nhân từng FAIL và cách xử lý:
+
+| FAIL | Nguyên nhân gốc | Xử lý |
+|---|---|---|
+| `operation/0` (create) | **Lỗi của verifier**: receipt `create_record` có ref ở `data.record.ref`, verifier đọc `data.ref` (fixture tự viết sai khớp với lỗi). `submit`/`decide` đọc đúng `data.request.ref` | Sửa `scripts/live/verify.py` và fixture, thêm test hồi quy |
+| `warehouse/movements`, `warehouse/balances` | Định dạng plan chỉ cho một phiếu xuất (dòng âm), không biểu diễn phiếu nhập (+) và chuỗi audit tạo dòng tồn mới (INSERT 0, UPDATE 0→10000) | verifier: dấu dòng theo `kind` (receive +, issue −), nhiều phiếu qua `warehouse.also`, chuỗi tồn theo `posted_at`, bỏ INSERT khởi tạo |
+| `warehouse/draft`, `negative/self`, `disabled/app`, `pii/egress` | Ca chưa chạy mà plan vẫn khẳng định | `self_request`, `foreign`, `disabled_pack`, `pii`, nháp `draft` thành tùy chọn: chỉ có check khi plan liệt kê |
+| (phiếu xuất `PX-8CA93F` tạo trước lượt) | create/submit không thuộc lượt | record `baseline: true`: chỉ yêu cầu thao tác của lượt (`decide_request`) |
+
+Kết quả chạy lại (verifier đã sửa, plan khớp cấu trúc thật: phiếu nhập +10000 làm phiếu đầu, phiếu xuất −2000 trong `warehouse.also`, ba bản ghi `BAD-*` bằng 0, `foreign`, `pii` trên `advance_request.bank_account`): cửa sổ 2026-10-18T05:38:00Z → ~07:12Z, **25 PASS, 0 FAIL, exit 0**, gồm `operation/0..3`, `warehouse/movements|decision|workflow` cho cả hai phiếu, `warehouse/balances` (8000 qua hai movement), `negative/foreign`, `pii/egress`, `audit/chain`. `disabled/app` không có trong plan vì không chụp trạng thái DB lúc crm tắt. Unit test `tests/unit/live`: 129 passed.
+
 | Kiểm | Kết quả/nguồn |
 |---|---|
-| Plan, cửa sổ | Plan riêng tư ngoài repo (0600), sửa theo kết quả lần 2; cửa sổ 2026-10-18T05:38:00Z → 06:09:58Z. Plan chỉ mô tả phiếu **nhập** là `issue`, vì định dạng `xt-live-plan/1` bắt buộc một phiếu xuất duyệt có dòng delta âm, một phiếu SELF, ref ngoài tenant, app tắt và PII |
-| Lệnh | `python -m scripts.live.verify --plan … --tenant binhminh --since … --until …` với `XT_LIVE_VERIFY_DSN` dựng từ env postgres đã khôi phục (không in); exit **1** |
-| PASS (17) | `record/issue` (nhập: 1 bản ghi `approved` rev 3, audit INSERT 1/UPDATE 2), `audit/issue`; `record/self`, `bad_obo`, `bad_obo2`, `bad_xt` và audit = 0; `record/balance`, `record/level` (8000); `operation/1` (submit), `operation/2` (decide); `warehouse/decision` (một approval bởi người duyệt khác người tạo, xác nhận người); `warehouse/workflow` (hoàn tất, không candidate); `negative/foreign`; `audit/chain` |
-| FAIL (8) | `operation/0` (create; chưa phân tích nguyên nhân); `warehouse/movements`, `warehouse/balances` (kỳ vọng dòng delta âm cho một phiếu xuất, còn phiếu nhập là +10000 nên lệch cấu trúc plan); `warehouse/draft`, `negative/self`, `disabled/app`, `pii/egress` (ca chưa chạy) |
-| Truy vấn READ ONLY riêng | `stock_request`: nhập `approved` rev 3, xuất `PX-8CA93F` `approved` rev 3; `stock_movement`: +10000 (`occurred_on` 2026-10-18) và -2000 (`occurred_on` NULL), đều `approved_by` Trâm; `stock_balance`=8000; không có bản ghi `20261018-k3x9-BAD%`; `tool_operation`: 4 key `done` (create, submit của Dũng; 2 decide của Trâm) |
-| `xt audit verify --against-checkpoint latest` | rc 0: checkpoint `audit-checkpoint-20261018T055745357110Z.json`, 2/2 tenant toàn vẹn (binhminh seq 898, 743 sự kiện), catalog bảo mật không đổi. Checkpoint này có trước các lần duyệt (06:05Z) nên chưa neo các sự kiện mới |
-| Neo audit ngoài DB | Có chữ ký qua luồng checkpoint của người deploy; chưa tạo checkpoint mới sau lượt này |
+| Truy vấn READ ONLY riêng | `stock_request` nhập và xuất đều `approved` rev 3; `stock_movement` +10000 (`occurred_on` 2026-10-18) và −2000 (`occurred_on` NULL vì phiếu không có `doc_date`, lỗi đã được sửa riêng ở #108 cho phiếu mới); `stock_balance`=8000; không có `20261018-k3x9-BAD%` |
+| `xt audit verify --against-checkpoint latest` | rc 0, checkpoint `audit-checkpoint-20261018T062247113577Z.json`, 2/2 tenant toàn vẹn (binhminh seq 920, 751 sự kiện), catalog bảo mật không đổi |
+| Neo audit ngoài DB | Có chữ ký qua luồng checkpoint của người deploy; checkpoint 06:22Z có trước các lượt CRM/PII sau đó |
 
 ## Ghi chú và việc cần quyết
 
@@ -103,8 +110,22 @@ Lần 1 chưa chạy: lần `decide_request` của người duyệt kho, xác nh
 
 Lịch sử: lần chạy đầu bị `blocked_prerequisite` ở bước 3/4 vì NV-0014 chưa có agent grant (`implicit_deny` ở `inspect_workspace`, `tr_77c54f94be534706a6ba`); đã xử lý bởi người deploy trong #106. `describe_model(khach_hang)` từng `internal_error` ở phase 1 (`tr_ad0de04238144c6a803e` và hai trace khác), đã sửa. `view=audit` của employee từng đọc được ở phase 1 (`tr_f0b49cad52554cf39822`); đã đổi theo thiết kế sau #106.
 
+## Bổ sung: SOP, tắt/bật app Tầng 3, PII trên dữ liệu thật (lượt 3, 06:35Z–07:10Z)
+
+| Hạng mục | Kết quả | Trace | Trạng thái |
+|---|---|---|---|
+| (a) Đọc SOP/tài liệu | `describe_model(tai_lieu)` ok (primitive `record`; `tieu_de`, `tep` (file), `loai` bắt buộc); `search_records(tai_lieu)` trả 0; DB `tai_lieu`=0. Không tạo được SOP qua MCP vì `tep` là tệp bắt buộc và catalog không có tool tải tệp | `tr_2fffd37e33004208b1fc`, `tr_a9617be311cd4fa8ba5a`, `tr_e1115981cc974f999a59` | blocked_prerequisite (cần tải một tệp qua Desk/files API) |
+| (b) Tắt crm | Người vận hành chạy `xt pack disable --tenant binhminh crm --proposed-by person:NV-0031 --approved-by person:NV-0001` rồi `--confirm` lúc 06:54Z. Lần đầu kế hoạch bị chặn: bốn gói cài trước khi có vòng đời ứng dụng (`kenh-pii`, `quan-tri-mo-hinh`, `tep-dinh-kem`, `thong-bao`: `depends_on` NULL) nên "chưa rõ phụ thuộc". Đã cài lại đúng bốn gói qua `xt pack install` hai bước (kế hoạch không đổi model, cùng phiên bản) rồi mới tắt được | — | thao tác vận hành |
+| (b) Khi crm tắt (người đại diện Hoàng Quốc Bảo, NV-0010) | `inspect_workspace`: app `crm` vắng khỏi `apps`; `create_record(khach_hang)` → `capability_unavailable`, `details.reason=app_disabled`, `pack=crm`, `model=khach_hang`; `search_records` cũng `app_disabled`. Có trace server nên không phải host chặn | `tr_f6b21179fa7045e39c7a`, `tr_ada45e67dbda42138a6a`, `tr_66a2d09e3fa54fe088b9` | server_rejected_expected (`passed_with_evidence`) |
+| (b) Bật lại crm | `xt pack enable … --confirm` lúc 06:58:04Z (dữ liệu giữ nguyên). `inspect_workspace` `crm` `enabled` 0.1.3; `search_records`, `aggregate_records`, `describe_model(khach_hang)` ok (0 bản ghi) | `tr_c3f874a883974b81b856`, `tr_e9b5cfc4365d4fb184ba`, `tr_0cb89a7f837b479e8cf1`, `tr_62f8aa7961734ef2801e` | passed_with_evidence |
+| (c) PII dữ liệu thật | `advance_request.bank_account` (dữ liệu thật của các lượt 16–17/10): `search_records` cloud trả `meta.pii.mode=masked`, `masked_fields=["advance_request.bank_account"]`, bản ghi có giá trị hiển thị dạng token `[PII:…]`, các bản ghi còn lại `null`. Đối chiếu độc lập: giá trị gốc trong DB không xuất hiện trong transcript và payload tool; bảng `xt_meta.pii_egress` có đúng dòng `search_records`/`cloud`/`masked`/`{advance_request.bank_account}` (07:05:55Z); verifier `pii/egress` PASS | `tr_ddfc237e540a43b89cf7` | passed_with_evidence |
+| (c) CCCD/điện thoại nhân sự | Không có dữ liệu để kiểm: `employee_pii` rỗng và `employee` có 4 dòng nhưng agent của Trâm, Bảo không thấy dòng nào (`total=0`); `find_people` không trả email/điện thoại | `tr_616419af8e5a46e1bd81`, `tr_3d5008442a674e6bb158` | thiếu fixture |
+| CRM ghi | `create_record(khach_hang)` khi crm **đang bật** bị `access_denied`/`implicit_deny` cho cả Trâm (`tr_caef7376e19344e2932d`) và Bảo, vai trò `sales_manager` (`tr_1f445fa77e5f471a99a8`); nên chưa có khách hàng để kiểm PII phone/email của CRM | — | phát hiện: agent chưa tạo được CRM record |
+
+Lưu ý: `describe_model(khach_hang)` liệt kê `kind`, `status` bắt buộc ở mô tả trường nhưng `required` của JSON Schema chỉ có `code`, `name` (ChatGPT ghi nhận khác biệt này). Connector được đổi giữa Dũng, Trâm, Bảo bằng Reconnect OAuth; token connector hết hạn sau khoảng 30 phút nhàn rỗi nên phải Reconnect.
+
 ## Manifest bằng chứng và bàn giao
 
-Tệp thô (0600, ngoài repo) trong `/tmp/live/phase1/` và `/tmp/live/phase2/`: ảnh chụp màn hình, `sN-*.txt` (transcript), `*-calls.json`/`*-raw.json` (args + kết quả tool thô, chứa ref và PII đã masked), `plan.json`. Chưa tính SHA-256 từng tệp; liên hệ run/ref/trace nằm trong các bảng trên. Browser (Xvfb :90, CDP/noVNC loopback) giữ nguyên, đã đăng nhập, connector hiện đang là Trâm (NV-0014).
+Tệp thô (0600, ngoài repo) trong `/tmp/live/phase1/` và `/tmp/live/phase2/`: ảnh chụp màn hình, `sN-*.txt` (transcript), `*-calls.json`/`*-raw.json` (args + kết quả tool thô, chứa ref và PII đã masked), `plan.json`. Chưa tính SHA-256 từng tệp; liên hệ run/ref/trace nằm trong các bảng trên. Browser (Xvfb :90, CDP/noVNC loopback) giữ nguyên, đã đăng nhập, connector hiện đang là Dũng (NV-0013).
 
 Tóm tắt: ca có bằng chứng đạt = tạo/gửi/duyệt/replay phiếu nhập và xuất, tự duyệt bị từ chối, thay mặt người khác bị từ chối, ref tenant khác bị từ chối, báo cáo+nguồn, CRM `describe_model`; thất bại/phát hiện = 1 (báo cáo tháng bỏ movement thiếu `occurred_on`); chưa chạy = SOP, WareTrack/UI, app disabled, PII có dữ liệu, nháp AI, SoD đúng nghĩa. Unit/fixture không chuyển thành live pass. PASS của verifier là trạng thái DB trong phạm vi kiểm; §9 chưa đạt toàn bộ.
