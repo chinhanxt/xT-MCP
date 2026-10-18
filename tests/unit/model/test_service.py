@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
@@ -13,6 +14,8 @@ import pytest
 from tests.unit.model.support import PACKS, catalog, customer, pack_models
 from xt.application.model_engine.operations import apply_operations
 from xt.application.model_engine.ports import (
+    AggregatePage,
+    AggregateQuery,
     ApplyOutcome,
     ConstraintViolated,
     DisabledApps,
@@ -351,6 +354,20 @@ class FakeRepo:
         scope_hint: Literal["all", "scoped"],
     ) -> Page:
         return Page(len(self.rows), list(self.rows.values())[offset : offset + limit])
+
+    def aggregate(
+        self,
+        actor: ModelActor,
+        m: ModelSpec,
+        where: Expr | None,
+        query: AggregateQuery,
+        max_groups: int,
+        scope_hint: Literal["all", "scoped"],
+    ) -> AggregatePage:
+        """Only unfiltered all-scope counts are used by these permission tests."""
+        assert where is None and query == AggregateQuery() and scope_hint == "all"
+        assert max_groups >= 1
+        return AggregatePage(datetime.now(UTC), [((), len(self.rows), ())], False)
 
 
 def crud() -> tuple[RecordService, FakeRepo]:

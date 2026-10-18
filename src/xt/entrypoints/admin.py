@@ -35,7 +35,6 @@ from xt.adapters.db.integration import (
     import_org,
     installed_packs,
     org_populated,
-    pack_rows,
     register_tenant,
     tenant_of_alias,
 )
@@ -158,7 +157,7 @@ def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
         print(f"đã nạp vào {args.tenant}: {counts}")
         return 0
     if args.cmd in ("disable", "enable"):
-        return _lifecycle(args, dsn)
+        return _lifecycle(args, dsn, env)
     from xt.entrypoints.composition.packs import install, load_pack, plan_install
 
     pack = load_pack(args.path)
@@ -195,14 +194,14 @@ def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
     return 0
 
 
-def _lifecycle(args: argparse.Namespace, dsn: str) -> int:
+def _lifecycle(args: argparse.Namespace, dsn: str, env: Mapping[str, str]) -> int:
     from xt.entrypoints.composition import pack_lifecycle as lc
 
     with connect(dsn) as conn:
         ref = tenant_of_alias(conn, args.tenant)
         if not args.confirm:
-            plan = lc.plan_lifecycle(
-                pack_rows(conn, ref),
+            plan = lc.read_lifecycle_plan(
+                conn,
                 tenant=ref,
                 alias=args.tenant,
                 pack=args.pack,
@@ -223,9 +222,16 @@ def _lifecycle(args: argparse.Namespace, dsn: str) -> int:
         confirm=args.confirm,
         proposed_by=args.proposed_by,
         approved_by=args.approved_by,
+        app_dsn=env.get("XT_DB_APP_URL", "").strip() or None,
+        audit_key=_audit_key(env) if args.cmd == "enable" else None,
     )
     verb = "tắt" if args.cmd == "disable" else "bật lại"
     print(f"đã {verb} {args.pack} ở {args.tenant} ({plan.digest})")
+    if args.cmd == "enable":
+        print(
+            f"eligible={len(plan.incidents)} retried={plan.retried} "
+            f"failed={plan.failed} skipped={plan.skipped}"
+        )
     return 0
 
 

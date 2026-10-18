@@ -84,6 +84,8 @@ hiệu lực và danh sách model thuộc gói `disabled` của chính tenant. N
 lực `admin` nhận 0 dòng của các model này, kể cả khi
 đọc qua quan hệ nhúng; model khác vẫn đọc theo RLS. Admin vẫn phải có quyền đọc model theo RLS.
 Không cấp thêm quyền: `xt_web` vẫn chỉ SELECT view, bảng model vẫn FORCE RLS.
+Tên vai trò hiện cố định là `admin`, chưa cấu hình theo tenant; hành vi đầy đủ của MCP,
+workspace và `/data` được ghi tại [quyền đọc ứng dụng đang tắt](app-disabled-access.md).
 
 `0019_postgrest_app_roles.sql` đã phát hành được giữ nguyên, nhưng runner chỉ ghi nhận tên
 migration này vào ledger, không chạy lại SQL của nó. `0021` thay phần cập nhật view, kể cả khi

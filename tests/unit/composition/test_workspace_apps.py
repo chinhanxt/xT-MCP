@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
+import pytest
 from jsonschema import Draft202012Validator
 
 from xt.application.model_engine.ports import DisabledApps
@@ -139,6 +140,16 @@ def test_me_includes_caller_effective_roles() -> None:
     out = _inspect(("staff", "admin", "staff"), [], ["me"])
     assert out["me"]["roles"] == ["admin", "staff"]
     Draft202012Validator(BY_NAME["inspect_workspace"].output_schema).validate(out)
+
+
+@pytest.mark.parametrize("role", ["admin", "it", "director", "administrator", "tenant_admin"])
+def test_disabled_app_launcher_exception_requires_literal_admin_role(role: str) -> None:
+    packs = [_row("kho-hang", "disabled", KHO_APP, ["stock_item"])]
+    out = _inspect((role,), packs, ["models", "apps"])
+    assert "stock_item" not in {model["id"] for model in out["models"]}
+    assert [(app["id"], app["status"]) for app in out["apps"]] == (
+        [("kho-hang", "disabled")] if role == "admin" else []
+    )
 
 
 def test_limits_report_group_cap_bounded_by_hard_cap() -> None:

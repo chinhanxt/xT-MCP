@@ -8,6 +8,8 @@ from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
+import pytest
+
 from xt.application.model_engine.ports import DisabledApps
 from xt.application.tools.ports import APP_DISABLED, AccessCheck
 from xt.entrypoints.composition.runtime import iam_person
@@ -28,7 +30,9 @@ POLICY = {
 }
 
 
-def guard(roles: tuple[str, ...], disabled: Any) -> tuple[ToolAccessGuard, Any]:
+def guard(
+    roles: tuple[str, ...], disabled: Any, policy: dict[str, Any] | None = None
+) -> tuple[ToolAccessGuard, Any]:
     person: Any = SimpleNamespace(
         id=uuid4(), roles=roles, active=True, unit_key=None, limit_amount=None
     )
@@ -39,7 +43,10 @@ def guard(roles: tuple[str, ...], disabled: Any) -> tuple[ToolAccessGuard, Any]:
         alias="acme",
         iam=lambda: iam_person("acme", person),
     )
-    store = SimpleNamespace(active_policy=lambda actor: (1, POLICY), person=lambda a, i: person)
+    store = SimpleNamespace(
+        active_policy=lambda actor: (1, POLICY if policy is None else policy),
+        person=lambda a, i: person,
+    )
     rt: Any = SimpleNamespace(
         store=store,
         caller=lambda ctx: caller,
@@ -97,3 +104,11 @@ def test_admin_read_keeps_iam_decision_but_admin_write_is_app_disabled() -> None
     assert g.check(ctx, AccessCheck("get_record", "record.read", ref)).allowed
     d = g.check(ctx, AccessCheck("update_record", "record.update", ref))
     assert not d.allowed and d.reason == APP_DISABLED
+
+
+@pytest.mark.parametrize("role", ["admin", "it", "director", "administrator", "tenant_admin"])
+def test_only_literal_admin_preserves_iam_read_denial_for_disabled_models(role: str) -> None:
+    g, ctx = guard((role,), off, {**POLICY, "statements": []})
+    d = g.check(ctx, AccessCheck("get_record", "record.read", f"stock_item:{uuid4()}"))
+    assert not d.allowed
+    assert d.reason == ("implicit_deny" if role == "admin" else APP_DISABLED)

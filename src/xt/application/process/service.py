@@ -59,6 +59,33 @@ def summary(inst: ProcessInstance, user: str | None = None) -> dict[str, Any]:
     return {"instance": inst.id, "status": inst.status(), "tasks": inst.inbox(user)}
 
 
+def replayable_incident(incident: Mapping[str, Any]) -> bool:
+    """Only structured disabled-app failures with complete, recognized arguments can replay."""
+    if (
+        incident.get("status") != "open"
+        or incident.get("reason") != "app_disabled"
+        or incident.get("code") != "capability_unavailable"
+    ):
+        return False
+    replay = incident.get("retry")
+    if not isinstance(replay, Mapping):
+        return False
+    if replay.get("operation") == "tick":
+        return set(replay) == {"operation"}
+    if replay.get("operation") != "act":
+        return False
+    values = [replay.get(k) for k in ("task_id", "actor", "outcome")]
+    kwargs = replay.get("kwargs", {})
+    return (
+        all(isinstance(v, str) and v.strip() for v in values)
+        and (replay.get("comment") is None or isinstance(replay["comment"], str))
+        and isinstance(kwargs, Mapping)
+        and set(kwargs) <= {"delegate_to", "ask", "updates"}
+        and all(kwargs.get(k) is None or isinstance(kwargs[k], str) for k in ("delegate_to", "ask"))
+        and (kwargs.get("updates") is None or isinstance(kwargs["updates"], Mapping))
+    )
+
+
 class ProcessService:
     def __init__(self, catalog: ProcessCatalog, store: InstanceStore):
         self.catalog = catalog
@@ -165,3 +192,52 @@ class ProcessService:
     def tick(self, instance_id: str) -> dict[str, Any]:
         """Worker gọi khi `next_due` tới (đánh thức qua `TimerScheduler`)."""
         return self._apply(instance_id, lambda i: i.tick())
+
+    def retry_incident(
+        self, instance_id: str, incident_id: str, *, retried_by: str
+    ) -> dict[str, Any]:
+        """Replay one open app-disabled incident in the caller's atomic unit of work.
+
+        Lock/load first; successful or stale attempts are idempotent. Reuse the public
+        act/tick methods so deployment subclasses keep their task execution context.
+        """
+        inst = self._load(instance_id)
+        incident = next(
+            (i for i in inst.meta.get("incidents", []) if i.get("id") == incident_id), None
+        )
+        if incident is None:
+            raise DecisionError(f"không có sự cố {incident_id!r}", code="not_found")
+        if not replayable_incident(incident) or inst.status() != "running":
+            return {**summary(inst), "retried": False}
+        replay = incident["retry"]
+        if replay["operation"] == "act":
+            if replay.get("task_id") not in {t["task_id"] for t in inst.inbox()}:
+                return {**summary(inst), "retried": False}
+            self.act(
+                instance_id,
+                replay["task_id"],
+                replay["actor"],
+                replay["outcome"],
+                replay.get("comment"),
+                **replay.get("kwargs", {}),
+            )
+        else:
+            self.tick(instance_id)
+        updated = self._load(instance_id)
+        resolved = next(i for i in updated.meta["incidents"] if i.get("id") == incident_id)
+        resolved.update(
+            status="resolved", attempts=incident.get("attempts", 0) + 1, retried_by=retried_by
+        )
+        updated._emit(
+            {
+                "type": "incident.retry",
+                "instance": instance_id,
+                "incident_id": incident_id,
+                "retried_by": retried_by,
+                "operation": replay["operation"],
+                "result": "resolved",
+            }
+        )
+        updated._dispatch(required=True)
+        self.store.save(instance_id, _record(updated))
+        return {**summary(updated), "retried": True}

@@ -31,6 +31,7 @@ from xt.adapters.db.integration import (
     active_definitions,
     connect,
     current_policy,
+    installed_packs,
     save_pack,
 )
 from xt.adapters.db.migrator import PgMigrator
@@ -483,26 +484,35 @@ def install(
         raise AdminError(
             f"mã xác nhận không khớp kế hoạch hiện tại ({plan.digest}); xem lại kế hoạch rồi duyệt"
         )
-    migrator = PgMigrator(lambda: connect(migrator_dsn), audit_key=audit_key)
-    if plan.model_plan_text and plan.catalog.models:
-        current = migrator.current(tenant)
-        if (
-            current is None
-            or current.digest()
-            != plan.catalog.model_copy(update={"version": current.version}).digest()
-        ):
-            migrator.apply(
-                tenant,
-                plan.catalog,
-                plan.model_plan_hash,
-                set(),
-                proposed_by=proposed_by,
-                approved_by=approved_by,
-            )
-            stats = migrator.run_jobs(tenant.seq)
-            if stats.failed or stats.dead:
-                raise AdminError(f"pha 2 của DDL lỗi: {stats}")
-    with connect(migrator_dsn) as conn:
+    with connect(migrator_dsn) as conn, conn.transaction():
+        # Lifecycle changes and every pack install share this tenant lock. Keep it
+        # through DDL and save_pack so a dependency cannot be disabled after this read.
+        conn.execute(
+            "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (f"xt:pack:{tenant.id}",)
+        )
+        enabled = installed_packs(conn, tenant)
+        missing = [dep for dep in pack.manifest.depends_on if dep not in enabled]
+        if missing:
+            raise AdminError(f"thiếu gói phụ thuộc: {missing}")
+        migrator = PgMigrator(lambda: connect(migrator_dsn), audit_key=audit_key)
+        if plan.model_plan_text and plan.catalog.models:
+            current = migrator.current(tenant)
+            if (
+                current is None
+                or current.digest()
+                != plan.catalog.model_copy(update={"version": current.version}).digest()
+            ):
+                migrator.apply(
+                    tenant,
+                    plan.catalog,
+                    plan.model_plan_hash,
+                    set(),
+                    proposed_by=proposed_by,
+                    approved_by=approved_by,
+                )
+                stats = migrator.run_jobs(tenant.seq)
+                if stats.failed or stats.dead:
+                    raise AdminError(f"pha 2 của DDL lỗi: {stats}")
         save_pack(
             conn,
             tenant,
