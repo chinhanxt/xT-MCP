@@ -18,7 +18,7 @@
 | Mỗi người, dự án, ngày một dòng | index unique `i1` của `cham_cong` |
 | Tuần kết thúc >= tuần bắt đầu; ngày kết thúc dự án >= ngày bắt đầu | rule của `bang_cong_tuan`, `du_an` |
 | Tổng giờ tuần tối đa 168 | `max` của `bang_cong_tuan.total_hours_milli` |
-| Người nộp không tự duyệt; agent không duyệt | SoD của lõi; Deny `cc.deny-agent-approve` |
+| Người nộp không tự duyệt; agent chỉ chuyển quyết định của người duyệt được đại diện, luôn qua xác nhận Desk | SoD của lõi; `cc.agent-on-behalf` + kiểm lại quyền người được đại diện; Deny `cc.deny-agent-approve` (`record.approve`); D-UNI-AGENT-1 |
 
 ## Quy trình `duyet_bang_cong`
 Nộp bằng `submit_request` trên `bang_cong_tuan`. Đầu vào `total_hours_milli` lấy từ chính bảng công. Quản lý dự án (`project_manager`) duyệt mọi bảng; **trên 60 giờ/tuần** thêm giám đốc (`director`). Duyệt, từ chối hoặc trả lại bổ sung; bị trả thì người nộp sửa rồi nộp lại.

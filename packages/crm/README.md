@@ -22,7 +22,7 @@
 | `sales_manager` | Ghi toàn bộ khách, cơ hội, chăm sóc; duyệt giảm giá |
 | `director` | Đọc toàn bộ; duyệt giảm giá trên 20% |
 | `admin` | Quản trị danh mục |
-| `agent` | Đọc; soạn nháp đề nghị giảm giá. Deny `crm.deny-agent-approve`: không bao giờ duyệt |
+| `agent` | Đọc; soạn/gửi đề nghị giảm giá của chính người được đại diện; `decide_request` chỉ thay người duyệt được đại diện và luôn cần người đó xác nhận trên Desk (D-UNI-AGENT-1). Deny `crm.deny-agent-approve`: không `record.approve` |
 | `xt_workflow` | Danh tính dịch vụ duy nhất ghi `state` của đề nghị |
 
 Không ai xóa được bản ghi (`crm.deny-delete`).

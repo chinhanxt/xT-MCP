@@ -49,8 +49,7 @@
       "subjects": [
         "role:employee",
         "role:warehouse_manager",
-        "role:admin",
-        "role:agent"
+        "role:admin"
       ],
       "actions": [
         "record.create",
@@ -70,6 +69,24 @@
           }
         }
       ]
+    },
+    {
+      "id": "wh.agent-on-behalf",
+      "effect": "Allow",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "record.create",
+        "record.update",
+        "request.submit",
+        "record.transition",
+        "request.decide"
+      ],
+      "resources": [
+        "xrn:binhminh:stock_request:*"
+      ],
+      "conditions": []
     },
     {
       "id": "wh.approve",
@@ -93,8 +110,7 @@
         "role:agent"
       ],
       "actions": [
-        "record.approve",
-        "request.decide"
+        "record.approve"
       ],
       "resources": [
         "xrn:binhminh:stock_request:*"

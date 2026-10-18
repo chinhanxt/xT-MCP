@@ -21,7 +21,7 @@ Không có quy trình, op hay trigger nào đọc `su_kien_cam_bien` để đổ
 - Người xem sự kiện bất thường tự lập `phieu_bao_tri`; phiếu đi qua phê duyệt như mọi đề nghị.
 
 ## Quy trình `duyet_bao_tri`
-Đầu vào `est_cost` lấy từ phiếu. Quản lý tài sản (`facility_manager`) duyệt mọi phiếu; **trên 20 triệu đồng** thêm giám đốc (`director`). Người lập phiếu không tự duyệt (SoD của lõi); agent không bao giờ duyệt (`ts.deny-agent-approve`).
+Đầu vào `est_cost` lấy từ phiếu. Quản lý tài sản (`facility_manager`) duyệt mọi phiếu; **trên 20 triệu đồng** thêm giám đốc (`director`). Người lập phiếu không tự duyệt (SoD của lõi); agent không tự duyệt: `decide_request` qua agent chỉ thay người duyệt được đại diện và luôn cần người đó xác nhận trên Desk; `record.approve` bị Deny (`ts.deny-agent-approve`, D-UNI-AGENT-1).
 
 ## Vai trò
 | Vai trò | Việc được làm |

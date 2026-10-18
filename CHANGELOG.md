@@ -29,6 +29,7 @@ Cập nhật hợp nhất sau bản ghi ngày 17/10/2026 (`1882811`), đến `c4
 - Launcher chia bốn nhóm, đặt Kho ở nhóm 1; màn hình ứng dụng chung dùng manifest và schema nghiệp vụ (#55, #56).
 - Bổ sung CRM nhẹ, chấm công dự án theo bảng công tuần có duyệt, tài sản và bảo trì; khai báo khối ứng dụng cho ba gói. Sự kiện cảm biến của gói tài sản chỉ là dữ liệu mô phỏng (#51, #52, #53, #64).
 - Bổ sung e2e trình duyệt cho ứng dụng Tầng 3 trên bundle hợp nhất đã build (#68).
+- Sửa policy `kho-hang` 0.3.1, `crm`/`cham-cong`/`tai-san` 0.1.2: agent tạo/gửi phiếu thay đúng người được đại diện (trước đây luôn `implicit_deny`), quản lý duyệt phiếu qua Desk bằng xác nhận của chính mình; `record.approve` của agent vẫn bị chặn (D-UNI-AGENT-1). E13 chạy kịch bản demo §9 trên stack thật.
 
 ### Studio/AI
 
