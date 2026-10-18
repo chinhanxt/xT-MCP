@@ -1,7 +1,7 @@
 {
   "id": "employee_onboarding",
   "name": "Tiếp nhận nhân sự mới (HR, IT, Kế toán, Quản lý)",
-  "version": 6,
+  "version": 7,
   "roles": [
     "hr",
     "it_admin",
@@ -99,7 +99,7 @@
             "op": "sync_access_grants",
             "params": {
               "case_id": "case_id",
-              "allowed_roles": "'employee,hr,it_admin,payment_accountant,dept_head'"
+              "allowed_roles": "'employee,hr,it_admin,payment_accountant,dept_head,warehouse_manager,sales,sales_manager,project_manager,facility_manager,technician'"
             }
           }
         ],

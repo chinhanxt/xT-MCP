@@ -37,6 +37,25 @@ export class ToolCallAccumulator {
   }
 }
 
+/** LLM của Desk chưa bật hoặc không tới được (route /llm chưa cấu hình, upstream lỗi kết nối, gateway hết hạn).
+ *  Đây là trạng thái cấu hình của máy chủ, không phải lỗi của người dùng: Desk báo rõ thay vì in lỗi HTTP thô. */
+export class LlmUnavailableError extends Error {
+  constructor(readonly status?: number) {
+    super(LLM_UNAVAILABLE_NOTE);
+    this.name = "LlmUnavailableError";
+  }
+}
+export const LLM_UNAVAILABLE_NOTE =
+  "Chưa cấu hình LLM: trợ lý trò chuyện của Desk đang tắt trên máy chủ này. Các không gian nghiệp vụ trên thanh điều hướng vẫn dùng bình thường.";
+// 404: xt-api chưa đăng ký /llm (XT_DESK_LLM_URL rỗng); 502 llm_unavailable/503/504: upstream không tới được.
+const UNAVAILABLE = new Set([404, 502, 503, 504]);
+
+/** Dòng ghi chú trong khung chat cho lỗi của một lượt agent. */
+export function chatFailureNote(e: unknown): string {
+  if (e instanceof LlmUnavailableError) return e.message;
+  return `Lỗi: ${e instanceof Error ? e.message : String(e)}`;
+}
+
 export function createLlm(o: LlmOptions): LlmClient {
   return {
     async complete({ messages, tools, signal }, onDelta): Promise<LlmReply> {
@@ -45,12 +64,19 @@ export function createLlm(o: LlmOptions): LlmClient {
       if (o.reasoningEffort) body.reasoning_effort = o.reasoningEffort;
       const url = `${o.baseUrl}/chat/completions`;
       const auth = await o.authHeaders({ method: "POST", url: new URL(url, globalThis.location?.href).href });
-      const r = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json", ...auth },
-        body: JSON.stringify(body),
-        signal,
-      });
+      let r: Response;
+      try {
+        r = await fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json", ...auth },
+          body: JSON.stringify(body),
+          signal,
+        });
+      } catch (e) {
+        if (e instanceof TypeError && !signal?.aborted) throw new LlmUnavailableError(); // không tới được máy chủ
+        throw e;
+      }
+      if (UNAVAILABLE.has(r.status)) throw new LlmUnavailableError(r.status);
       if (!r.ok) throw new Error(`LLM trả lỗi ${r.status}: ${(await r.text()).slice(0, 300)}`);
 
       if (!(r.headers.get("content-type") || "").includes("text/event-stream")) {

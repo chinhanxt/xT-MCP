@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 xT contributors
+# Context = gốc repo; chỉ gửi những gì bản build hợp nhất (scripts/unified.mjs) cần.
+*
+!scripts/unified.mjs
+!desk
+!imports/dify-rea
+!imports/waretrack-3d
+!skills
+**/node_modules
+**/dist
+**/.data
+**/.env
+**/.env.*
+!desk/.env.example
+**/test-results
+**/playwright-report

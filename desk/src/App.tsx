@@ -6,7 +6,7 @@ import { config, LLM_PATH, MCP_PATH } from "./config";
 import { AuthRequiredError, CALLBACK_PATH, createSession } from "./auth";
 import { validOrganization, type AuthState, type OidcSession } from "./oidc";
 import { checkOpenLink, formatOpenLinkPrompt, isActivationInFrame } from "./bridge";
-import { createLlm } from "./llm";
+import { chatFailureNote, createLlm } from "./llm";
 import { connectMcp, type McpConnection } from "./mcp";
 import { renderMarkdown } from "./markdown";
 import { selectTools } from "./profiles";
@@ -205,7 +205,7 @@ export function App() {
       });
     } catch (e) {
       if (epoch === generation.current && !controller.signal.aborted)
-        setItems((p) => [...p, { kind: "note", id: nid(), text: `Lỗi: ${(e as Error).message}` }]);
+        setItems((p) => [...p, { kind: "note", id: nid(), text: chatFailureNote(e) }]);
     } finally {
       if (epoch === generation.current) { setBusy(false); agentRun.current = null; }
     }

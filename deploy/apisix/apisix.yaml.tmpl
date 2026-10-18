@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
 # TEMPLATE: @@XT_DOMAIN_*@@ được thay bởi scripts/render_apisix.py từ deploy/.env. Đừng sửa tệp đã render.
+# Route riêng của máy (hostname ngoài xT): deploy/apisix/extra-routes.json (không commit), renderer chèn trước #END.
 # Định tuyến theo Host (docs/deployment-public.md). KHÔNG route nào chèn Authorization/bearer tĩnh
 # (docs/audit-desk.md, mục LOW). Gateway không xác thực /mcp: xt-api tự trả 401 + PRM (D12).
 routes:
@@ -96,6 +97,21 @@ routes:
       type: roundrobin
       nodes: {"xt-api:8000": 1}
       timeout: {connect: 5, send: 420, read: 420}
+  - id: desk-healthz            # liveness xt-api cho smoke qua gateway (scripts/unified-smoke.mjs); chỉ trả {"status":"ok"}
+    hosts: ["@@XT_DOMAIN_DESK@@"]
+    uri: "/healthz"
+    methods: ["GET"]
+    priority: 10
+    plugins:
+      limit-req:
+        rate: 5
+        burst: 10
+        key_type: var
+        key: remote_addr
+        rejected_code: 429
+    upstream:
+      type: roundrobin
+      nodes: {"xt-api:8000": 1}
   - id: desk-static
     hosts: ["@@XT_DOMAIN_DESK@@"]
     uri: "/*"

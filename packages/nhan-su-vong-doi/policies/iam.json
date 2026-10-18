@@ -125,6 +125,20 @@
       "conditions": []
     },
     {
+      "id": "hr.it-admin-grant-create",
+      "effect": "Allow",
+      "subjects": [
+        "role:it_admin"
+      ],
+      "actions": [
+        "record.create"
+      ],
+      "resources": [
+        "xrn:binhminh:access_grant:*"
+      ],
+      "conditions": []
+    },
+    {
       "id": "hr.it-admin-agg",
       "effect": "Allow",
       "subjects": [

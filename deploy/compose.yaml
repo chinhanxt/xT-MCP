@@ -141,10 +141,9 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
 
-  # Cấu hình thiếu/sai: `xt serve` thoát ngay với danh sách lỗi; on-failure:5 thử tối đa 5 lần rồi dừng (không lặp vô hạn).
+  # Dịch vụ chạy lâu: unless-stopped (sống qua reboot). Cấu hình thiếu/sai: `xt serve` thoát ngay với danh sách lỗi.
   xt-api:
-    <<: [*hardened]
-    restart: on-failure:5
+    <<: [*restart, *hardened]
     read_only: true
     tmpfs: [/tmp]
     cpus: 1.0
@@ -236,6 +235,9 @@ services:
       # Desk gọi /mcp cùng origin qua host Desk (route desk-mcp): thêm host + origin Desk
       XT_MCP_ALLOWED_HOSTS: ${XT_DOMAIN_MCP},${XT_DOMAIN_DESK}
       XT_MCP_ALLOWED_ORIGINS: https://${XT_DOMAIN_DESK}
+      # Studio (service `studio`, không publish cổng): proxy /studio-api/* ký assertion HMAC bằng khóa chung (docs/unified-ops.md)
+      XT_STUDIO_URL: http://studio:4327
+      XT_STUDIO_SECRET_FILE: /run/secrets/xt/studio.key
     volumes:
       - type: bind
         source: ${XT_SECRETS_DIR:-${HOME}/.config/xt}/app
@@ -318,8 +320,7 @@ services:
       start_period: 5s
 
   xt-worker:
-    <<: [*hardened]
-    restart: on-failure:5
+    <<: [*restart, *hardened]
     read_only: true
     tmpfs: [/tmp]
     cpus: 1.0
@@ -371,11 +372,9 @@ services:
     tmpfs: [/tmp]
     cpus: 0.5
     image: xt/desk:dev
-    build:
-      context: ../desk
-      dockerfile: ../deploy/docker/desk.Dockerfile
-      additional_contexts:
-        xt-skills: ../skills
+    build:   # bản build hợp nhất: Desk + /studio/ + /waretrack/ (scripts/unified.mjs)
+      context: ..
+      dockerfile: deploy/docker/desk.Dockerfile
       args:
         DESK_MCP_URL: https://${XT_DOMAIN_MCP}/mcp
         DESK_LLM_URL: ${DESK_LLM_URL}
@@ -399,6 +398,40 @@ services:
         DESK_APP_GLOBAL_BURST: ${DESK_APP_GLOBAL_BURST}
     profiles: [minimal, full, public]
     mem_limit: 64m
+
+  # Studio (imports/dify-rea, chế độ tích hợp): chỉ xt-api gọi tới (XT_STUDIO_URL), không publish cổng, không route APISIX trực tiếp.
+  # Dữ liệu SQLite ở volume `studio`; khóa HMAC chung với xt-api là đúng một tệp studio.key (make env sinh, không mount audit/pii key).
+  studio:
+    <<: [*restart, *hardened]
+    read_only: true
+    tmpfs: [/tmp]
+    cpus: 0.5
+    image: xt/studio:dev
+    build:
+      context: ../imports/dify-rea
+      dockerfile: ../../deploy/docker/studio.Dockerfile
+    profiles: [minimal, full, public]
+    environment:
+      STUDIO_XT_MODE: "1"
+      HOST: 0.0.0.0
+      PORT: "4327"
+      STUDIO_DATA_DIR: /data/studio
+      STUDIO_XT_CORE_URL: http://xt-api:8000
+      XT_STUDIO_SECRET_FILE: /run/secrets/studio.key
+    volumes:
+      - studio:/data
+      - type: bind
+        source: ${XT_SECRETS_DIR:-${HOME}/.config/xt}/app/studio.key
+        target: /run/secrets/studio.key
+        read_only: true
+        bind: {create_host_path: false}
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4327/api/apps').then(r=>process.exit(r.status===401?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
 
   # ---------------- profile full (ảnh OSI, pin phiên bản) ----------------
   ollama:
@@ -492,6 +525,7 @@ services:
 
 volumes:
   pgdata:
+  studio:
   ollama:
   nats:
   seaweed:

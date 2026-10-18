@@ -2,3 +2,4 @@
 # SPDX-FileCopyrightText: 2026 xT contributors
 .env
 apisix/rendered/
+apisix/extra-routes.json

@@ -3,7 +3,7 @@
 
 # Vận hành bản tích hợp: sao lưu, khôi phục, health check, truy vết lỗi
 
-Áp dụng cho bản chạy local theo [unified-local.md](unified-local.md). Đây là hướng dẫn cho bản tích hợp/demo (G7), **không** phải cam kết production: chưa có HA, backup tự động hay giám sát liên tục.
+Áp dụng cho bản chạy local theo [unified-local.md](unified-local.md) và bản Docker Compose (`deploy/compose.yaml`, mục 4). Đây là hướng dẫn cho bản tích hợp/demo (G7), **không** phải cam kết production: chưa có HA, backup tự động hay giám sát liên tục.
 
 ## 1. Sao lưu và khôi phục
 
@@ -96,3 +96,51 @@ Khả năng truy nguồn và giới hạn:
 
 - `X-Request-Id` chỉ có trên đường `/studio-api/*`; các route MCP, `/workflow/v1`, `/files/v1` vẫn chỉ có `meta.trace_id` trong envelope, và trình duyệt không nhận mã nếu lỗi xảy ra trước khi có envelope.
 - Báo cáo D dùng `aggregate_records` đã hiện thực, có `as_of` và `lineage_ref` dạng `explain:<trace_id>`. `get_history` mở tham chiếu này, kiểm lại quyền và trả truy vấn nguồn trong thời hạn 24 giờ (PR #72). Đọc lại truy vấn dùng dữ liệu hiện tại, không phải ảnh chụp lịch sử; kiểm toàn vẹn audit bằng `xt audit verify` không thay thế đối soát số liệu báo cáo.
+
+## 4. Bản tích hợp trên Docker Compose (demo công khai)
+
+`deploy/compose.yaml` chạy cùng bản tích hợp với launcher local, theo cách nối dây sau:
+
+| Thành phần | Compose | Ghi chú |
+|---|---|---|
+| Portal | `xt-desk` (ảnh `xt/desk:dev`) | Build từ gốc repo bằng `scripts/unified.mjs build`, gồm Desk, `/studio/` và `/waretrack/`. nginx phục vụ hai đường dẫn này với CSP riêng (`desk/nginx.conf`). Biến `DESK_*` được nướng vào ảnh lúc build, vì vậy đổi `DESK_OIDC_ORGANIZATIONS` thì phải build lại |
+| Studio | `studio` (ảnh `xt/studio:dev`, `deploy/docker/studio.Dockerfile`) | Node 24, `STUDIO_XT_MODE=1`, nghe `0.0.0.0:4327` trong mạng compose. Không publish cổng, không có route APISIX trực tiếp. Dữ liệu SQLite và `credential.key` nằm ở volume `<project>_studio` (`/data/studio`) |
+| Khóa HMAC | `${XT_SECRETS_DIR}/app/studio.key` | `make env` sinh nếu chưa có và không ghi đè. xt-api đọc ở `/run/secrets/xt/studio.key`. Studio chỉ được mount đúng tệp này, không thấy khóa audit/PII |
+| Proxy | `xt-api`: `XT_STUDIO_URL=http://studio:4327`, `XT_STUDIO_SECRET_FILE` | Route APISIX `desk-studio` chuyển `/studio-api/*` trên host Desk tới xt-api. xt-api kiểm token Desk (DPoP, origin, tenant) rồi ký assertion gửi Studio. Studio gọi lại `http://xt-api:8000/studio-internal/tools`; đường này không có route công khai |
+| Liveness qua gateway | route `desk-healthz`: `GET /healthz` trên host Desk | Trả `{"status":"ok"}` của xt-api, dùng cho `unified-smoke.mjs` |
+
+Mọi dịch vụ chạy lâu (`postgres`, `keycloak`, `apisix`, `postgrest`, `seaweedfs`, `xt-api`, `xt-worker`, `xt-desk`, `studio`) dùng `restart: unless-stopped`. `xt-init` chạy một lần (`restart: "no"`).
+
+### Route riêng của máy
+
+Một dịch vụ khác dùng chung APISIX/tunnel được khai trong `deploy/apisix/extra-routes.json`. Tệp này không commit (đã có trong `deploy/.gitignore`); mẫu ở `extra-routes.example.json`, có thể đổi đường dẫn bằng `XT_APISIX_EXTRA_ROUTES`. `make render` (`scripts/render_apisix.py`) chèn các route này trước `#END` và từ chối render khi:
+
+- route không khai `hosts` tường minh, hoặc dùng `host`;
+- route dùng hostname trùng một trong các `XT_DOMAIN_*`, nên không thể chiếm `xt-mcp` hay host Desk;
+- `id` trùng với route có sẵn.
+
+### Smoke qua gateway
+
+```bash
+node scripts/unified-smoke.mjs --core https://<XT_DOMAIN_DESK> --portal https://<XT_DOMAIN_DESK> \
+  --issuer https://<XT_DOMAIN_AUTH>/realms/xt --out build/unified-smoke-public.json
+```
+
+Trên host Desk, `/healthz`, `/mcp` và `/studio-api/*` đều được định tuyến tới xt-api, nên cả 7 kiểm đều đi qua gateway. Muốn chạy local trước khi bật tunnel, dùng container node trên mạng project, `--add-host <hostname>:<IP APISIX>` và `http://`.
+
+### Sao lưu Studio của stack compose
+
+```bash
+P=<project>; OUT=$HOME/xt-backups/<UTC>; mkdir -m 700 -p "$OUT/studio-volume"
+docker compose -p "$P" --env-file .env stop studio            # dừng ghi
+docker run --rm -v "${P}_studio:/v:ro" -v "$OUT/studio-volume:/out" alpine sh -c 'cp -a /v/. /out/'
+docker compose -p "$P" --env-file .env start studio
+python3 deploy/scripts/backup_unified.py backup --out "$OUT" --pg-url-env XT_PG_URL_FOR_BACKUP \
+  --objects-dir <bản xuất seaweed> --studio-dir "$OUT/studio-volume/studio" --studio-key "$XT_SECRETS_DIR/app/studio.key"
+```
+
+Khi khôi phục, chép thư mục Studio đã restore vào volume (`docker run … cp -a`), giữ owner uid 1000, và đặt `studio.key` trở lại `${XT_SECRETS_DIR}/app/`.
+
+### LLM của Desk đang tắt
+
+Nếu `XT_DESK_LLM_URL` rỗng và `DESK_LLM_URL` trỏ tới dịch vụ không chạy (ví dụ `ollama` thuộc profile `full`), `/llm/chat/completions` trả 404 (route chưa đăng ký) hoặc 502 `llm_unavailable`. Khi đó khung chat Desk hiện ghi chú "Chưa cấu hình LLM: …" thay cho lỗi HTTP thô (`desk/src/llm.ts`, `LlmUnavailableError`). 401, 413 và 429 vẫn hiện là lỗi thật. Các không gian nghiệp vụ, Studio và WareTrack không phụ thuộc LLM của Desk.

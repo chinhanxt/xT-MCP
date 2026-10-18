@@ -98,7 +98,7 @@ def ensure_app_secrets(env: dict[str, str]) -> Path:
     d = private_secrets_dir(env) / "app"
     d.mkdir(parents=True, exist_ok=True)
     d.chmod(0o755)
-    for name in ("audit.key", "cursor.key", "pii.key"):
+    for name in ("audit.key", "cursor.key", "pii.key", "studio.key"):  # studio.key: HMAC xt-api <-> Studio
         f = d / name
         if not f.exists():
             f.write_text(secrets.token_hex(32) + "\n")
