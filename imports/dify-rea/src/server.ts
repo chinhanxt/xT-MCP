@@ -15,7 +15,7 @@ import { routeApps } from './apps.ts';
 import { routeAppManagement } from './app-management.ts';
 import { publicAppRequest } from './public-app.ts';
 import type { RouteContext } from './http.ts';
-import { assertionVerifier, authorizeStudioRoute, studioSecret } from './xt-auth.ts';
+import { assertionVerifier, authorizeStudioRoute, safeRequestId, studioSecret } from './xt-auth.ts';
 import { xtTools } from './xt-tools.ts';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const scrypt = promisify(scryptCallback);
@@ -25,7 +25,7 @@ async function passwordHash(value: string, salt = randomBytes(16).toString('hex'
 export function createStudio(store: Store, options: { log?: boolean; integrated?: boolean; secret?: Buffer } = {}) {
   const integrated = options.integrated ?? process.env.STUDIO_XT_MODE === '1';
   const secret = integrated ? options.secret ?? studioSecret() : undefined;
-  const verify = secret ? assertionVerifier(secret) : undefined;
+  const verify = secret ? assertionVerifier(secret, store) : undefined;
   const busy = new Set<string>();
   const loginAttempts = new Map<string, { count: number; until: number }>();
   return createServer(async (req, res) => {
@@ -34,7 +34,7 @@ export function createStudio(store: Store, options: { log?: boolean; integrated?
     let path = url.pathname;
     const method = req.method ?? 'GET';
     let status = 200;
-    let requestId = '';
+    let requestId = safeRequestId(req.headers['x-request-id']);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'same-origin');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -100,7 +100,7 @@ export function createStudio(store: Store, options: { log?: boolean; integrated?
         if (req.headers['sec-fetch-site'] === 'cross-site') throw new HttpError(403, 'Yêu cầu cross-site bị từ chối.');
       }
       const identity = verify ? await verify(req) : undefined;
-      requestId = identity?.request_id ?? '';
+      requestId = identity?.request_id ?? requestId;
       if (identity) authorizeStudioRoute(path, method, identity.role);
       const coreTools = identity?.capability && process.env.STUDIO_XT_CORE_URL && secret
         ? xtTools(process.env.STUDIO_XT_CORE_URL, secret, identity.capability) : undefined;
@@ -212,7 +212,7 @@ export function createStudio(store: Store, options: { log?: boolean; integrated?
     } finally {
       if (options.log)
         console.log(
-          `${method} ${path.startsWith('/public/apps/') ? '/public/apps/:share_id' : path} ${status} ${Date.now() - started}ms${requestId ? ' request_id=' + requestId : ''}`,
+          `${method} ${path.startsWith('/public/apps/') ? '/public/apps/:share_id' : path} ${status} ${Date.now() - started}ms request_id=${requestId}`,
         );
     }
   });

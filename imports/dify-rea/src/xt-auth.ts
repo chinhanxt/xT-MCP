@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { IncomingMessage } from 'node:http';
+import type { Store } from './store.ts';
 import { HttpError } from './validation.ts';
 
 export type StudioRole = 'admin' | 'editor' | 'viewer';
@@ -54,8 +55,13 @@ export function studioSecret(): Buffer {
   return secret;
 }
 
-export function assertionVerifier(secret: Buffer) {
-  const nonces = new Map<string, number>();
+export function safeRequestId(value: unknown): string {
+  return typeof value === 'string' && requestId.test(value) ? value : randomBytes(16).toString('hex');
+}
+
+export function assertionVerifier(secret: Buffer, store: Store) {
+  // The wire has no issuer claim; the trusted signing key identifies its issuer.
+  const issuer = createHash('sha256').update(secret).digest('hex');
   return async (req: IncomingMessage): Promise<XtIdentity> => {
     const assertion = req.headers['x-xt-assertion'];
     const signature = req.headers['x-xt-signature'];
@@ -83,9 +89,10 @@ export function assertionVerifier(secret: Buffer) {
       throw new HttpError(401, 'Assertion xT không hợp lệ hoặc đã hết hạn.');
     const role = studioRole(claim.roles as string[]);
     if (!role) throw new HttpError(403, 'Chưa được cấp quyền Studio.');
-    for (const [key, expires] of nonces) if (expires < now) nonces.delete(key);
-    if (nonces.has(claim.nonce as string) || nonces.size >= 10000) throw new HttpError(401, 'Assertion xT đã dùng hoặc quá tải.');
-    nonces.set(claim.nonce as string, (claim.iat as number) + 31);
+    // Signature and claims are verified before any nonce storage access. Keep the
+    // full iat-based validity window, including accepted future clock skew.
+    if (!store.consumeAssertionNonce(issuer, (claim.tenant as string).toLowerCase(), (claim.nonce as string).toLowerCase(), (claim.iat as number) + 31, now))
+      throw new HttpError(401, 'Assertion xT đã dùng hoặc quá tải.');
     const parts: Buffer[] = []; let size = 0;
     for await (const part of req) {
       size += part.length;

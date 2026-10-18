@@ -29,6 +29,8 @@ export class Store {
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS workspaces(id TEXT PRIMARY KEY,name TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS xt_workspace_map(tenant_id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL UNIQUE REFERENCES workspaces(id));
+      CREATE TABLE IF NOT EXISTS xt_assertion_nonces(issuer TEXT NOT NULL,tenant_id TEXT NOT NULL,nonce TEXT NOT NULL,expires_at INTEGER NOT NULL,PRIMARY KEY(issuer,tenant_id,nonce)) WITHOUT ROWID;
+      CREATE INDEX IF NOT EXISTS xt_assertion_nonces_expiry ON xt_assertion_nonces(expires_at);
       CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id),email TEXT UNIQUE NOT NULL,password TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS mcp_connectors(id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL,name TEXT NOT NULL,url TEXT NOT NULL,secret TEXT NOT NULL,tools TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1);
@@ -64,6 +66,17 @@ export class Store {
   }
   id() {
     return randomUUID();
+  }
+  consumeAssertionNonce(issuer: string, tenant: string, nonce: string, expiresAt: number, now: number): boolean {
+    return this.transaction(() => {
+      // Only expired entries may be removed: evicting live entries would reopen replay.
+      this.db.prepare('DELETE FROM xt_assertion_nonces WHERE expires_at<=?').run(now);
+      return this.db.prepare(`
+        INSERT INTO xt_assertion_nonces(issuer,tenant_id,nonce,expires_at)
+        SELECT ?,?,?,? WHERE (SELECT count(*) FROM xt_assertion_nonces WHERE issuer=? AND tenant_id=?) < 10000
+        ON CONFLICT(issuer,tenant_id,nonce) DO NOTHING
+      `).run(issuer, tenant, nonce, expiresAt, issuer, tenant).changes === 1;
+    });
   }
   encrypt(value: string) {
     if (!value) return '';
