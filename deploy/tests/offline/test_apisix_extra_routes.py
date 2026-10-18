@@ -80,6 +80,36 @@ class ExtraRoutes(unittest.TestCase):
         with self.assertRaises(SystemExit):
             render.insert_routes(template(), self.routes_from({"routes": [{**OTHER, "id": "mcp"}]}))
 
+    def test_rendered_file_is_readable_by_gateway(self) -> None:
+        """APISIX chạy non-root: bản render phải 0644 kể cả khi tệp cũ là 0600 (giữ inode cho bind mount)."""
+        import contextlib
+        import io
+        import os
+        import shutil
+
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "apisix" / "rendered").mkdir(parents=True)
+            shutil.copy(DEPLOY / "apisix" / "apisix.yaml.tmpl", root / "apisix" / "apisix.yaml.tmpl")
+            (root / ".env").write_text("".join(f"{k}={v}\n" for k, v in ENV.items()))
+            dest = root / "apisix" / "rendered" / "apisix.yaml"
+            dest.write_text("old")
+            dest.chmod(0o600)
+            inode = dest.stat().st_ino
+            saved, env = render.DEPLOY, dict(os.environ)
+            render.DEPLOY = root
+            os.environ.pop("XT_APISIX_EXTRA_ROUTES", None)
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(render.main(), 0)
+            finally:
+                render.DEPLOY = saved
+                os.environ.clear()
+                os.environ.update(env)
+            self.assertEqual(dest.stat().st_mode & 0o777, 0o644)
+            self.assertEqual(dest.stat().st_ino, inode)
+            self.assertIn("xt.example.test", dest.read_text())
+
     def test_example_file_is_valid(self) -> None:
         example = json.loads((DEPLOY / "apisix" / "extra-routes.example.json").read_text())
         self.assertEqual(len(self.routes_from(example)), 1)
