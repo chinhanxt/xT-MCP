@@ -15,7 +15,7 @@ from pathlib import Path
 from xte2e.config import DEPLOY, ROOT, settings
 
 # Dịch vụ của profile minimal. postgrest khởi động sau khi có JWKS (demo-seed), xem seed.py.
-CORE = ["postgres", "keycloak", "apisix", "xt-init", "xt-api", "xt-worker", "xt-desk"]
+CORE = ["postgres", "keycloak", "apisix", "xt-init", "xt-api", "xt-worker", "xt-desk", "studio"]
 
 
 def override_file() -> Path:

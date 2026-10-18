@@ -408,8 +408,40 @@ class DeskNginx(unittest.TestCase):
         self.assertIn("frame-ancestors 'none'", conf)
         self.assertIn("nosniff", conf)
         df = (DEPLOY / "docker" / "desk.Dockerfile").read_text()
-        self.assertIn("COPY --from=build /desk/nginx.rendered.conf /etc/nginx/conf.d/default.conf", df)
+        self.assertIn("COPY --from=build /src/desk/nginx.rendered.conf /etc/nginx/conf.d/default.conf", df)
         self.assertIn("node scripts/render-nginx.mjs", df)
+        # Bản build hợp nhất: /studio/ và /waretrack/ nằm trong ảnh Desk (scripts/unified.mjs gộp vào desk/dist)
+        self.assertIn("node scripts/unified.mjs build", df)
+        self.assertRegex(conf, r"location ~ \^/\(studio\|waretrack\)/")
+
+
+class ComposeStudio(unittest.TestCase):
+    def setUp(self):
+        self.text = (DEPLOY / "compose.yaml").read_text()
+
+    def block(self, name):
+        return self.text.split(f"\n  {name}:\n", 1)[1].split("\n\n  ", 1)[0]
+
+    def test_studio_service_private_and_persistent(self):
+        studio = self.block("studio")
+        self.assertNotIn("ports:", studio)
+        self.assertIn("- studio:/data", studio)
+        self.assertIn("/app/studio.key", studio)
+        self.assertNotIn("/app\n", studio)  # chỉ mount đúng tệp studio.key, không mount audit/pii key
+        self.assertIn("*restart", studio)
+        self.assertIn("\n  studio:\n", self.text.split("\nvolumes:\n", 1)[1])
+
+    def test_xt_api_points_to_studio(self):
+        api = self.block("xt-api")
+        self.assertIn("XT_STUDIO_URL: http://studio:4327", api)
+        self.assertIn("XT_STUDIO_SECRET_FILE: /run/secrets/xt/studio.key", api)
+
+    def test_long_running_services_restart_unless_stopped(self):
+        for name in ("postgres", "keycloak", "apisix", "xt-api", "xt-worker", "postgrest", "xt-desk", "studio", "seaweedfs"):
+            with self.subTest(service=name):
+                self.assertIn("*restart", self.block(name).splitlines()[0])
+                self.assertNotIn("on-failure", self.block(name))
+        self.assertIn('restart: "no"', self.block("xt-init"))
 
 
 class ComposeDefaults(unittest.TestCase):

@@ -22,6 +22,12 @@ const scrypt = promisify(scryptCallback);
 async function passwordHash(value: string, salt = randomBytes(16).toString('hex')) {
   return `${salt}:${((await scrypt(value, salt, 64)) as Buffer).toString('hex')}`;
 }
+// Loopback unless the operator opts in (compose: HOST=0.0.0.0 on a private network, no published port).
+export function listenHost(value: string | undefined): string {
+  const host = value?.trim() || '127.0.0.1';
+  if (!/^(?:[0-9.]+|[0-9a-f:]+|[A-Za-z0-9.-]+)$/i.test(host)) throw new Error('HOST must be an IP address or hostname');
+  return host;
+}
 export function createStudio(store: Store, options: { log?: boolean; integrated?: boolean; secret?: Buffer } = {}) {
   const integrated = options.integrated ?? process.env.STUDIO_XT_MODE === '1';
   const secret = integrated ? options.secret ?? studioSecret() : undefined;
@@ -226,8 +232,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       "UPDATE documents SET status=CASE WHEN EXISTS(SELECT 1 FROM chunks WHERE document_id=documents.id) THEN 'ready' ELSE 'error' END,error='Server khởi động lại khi lập chỉ mục; hãy thử lại.' WHERE status='indexing'",
     )
     .run();
-  server.listen(Number(process.env.PORT || 4317), '127.0.0.1', () =>
-    console.log(`xT Studio: http://127.0.0.1:${process.env.PORT || 4317}`),
+  const host = listenHost(process.env.HOST);
+  server.listen(Number(process.env.PORT || 4317), host, () =>
+    console.log(`xT Studio: http://${host}:${process.env.PORT || 4317}`),
   );
   const stop = () => {
     server.close(() => {

@@ -1,0 +1,12 @@
+{
+  "routes": [
+    {
+      "id": "example-other-service",
+      "hosts": ["other-service.example.invalid"],
+      "uris": ["/*"],
+      "priority": 200,
+      "plugins": {"proxy-buffering": {"disable_proxy_buffering": true}, "client-control": {"max_body_size": 104857600}},
+      "upstream": {"type": "roundrobin", "nodes": {"172.17.0.1:8000": 1}, "timeout": {"connect": 5, "send": 3600, "read": 3600}}
+    }
+  ]
+}

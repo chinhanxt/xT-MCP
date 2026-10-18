@@ -24,6 +24,8 @@ Người mới đến có máy, tài khoản, mã lương, kế hoạch; ngườ
 ## Quy trình
 `employee_onboarding`: sinh checklist, rồi HR, IT, Kế toán, Quản lý, rồi kích hoạt nhân viên. SLA 24 giờ (HR, IT, KT), 48 giờ (Quản lý).
 
+Bước IT áp các `access_grant` (system `keycloak`) của nhân viên thành vai trò xT (`sync_access_grants`). Allow-list (0.4.2, quy trình v7): `employee, hr, it_admin, payment_accountant, dept_head` và vai trò của các gói nghiệp vụ `warehouse_manager` (kho-hang), `sales`, `sales_manager` (crm), `project_manager` (cham-cong), `facility_manager`, `technician` (tai-san). `it_admin` tạo `access_grant` (chọn vai trò); người hoàn thành bước IT phải khác người khởi tạo hồ sơ, người tạo `access_grant` và người được cấp.
+
 `employee_offboarding`: sinh checklist, HR xác nhận, Quản lý xác nhận bàn giao, **IT thu hồi (SLA 4 giờ, "trong ngày")**, kiểm tra tài sản/quyền còn lại, kiểm tra tạm ứng chưa hoàn, Kế toán quyết toán, Kế toán trưởng xử lý nếu còn nợ hoặc còn tài sản, HR ẩn danh dữ liệu và đóng hồ sơ. Bước đóng hồ sơ (`close_lifecycle_case`) **phải raise** nếu còn tài sản hoặc quyền chưa thu hồi: đây là chốt "không đóng được khi chưa thu hồi".
 
 Các bước IT, Kế toán và Quản lý có thể chạy song song về nghiệp vụ nhưng compiler chưa hỗ trợ cổng song song, nên pack chạy tuần tự (REPORT.md, G1).

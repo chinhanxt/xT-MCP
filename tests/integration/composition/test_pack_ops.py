@@ -44,7 +44,7 @@ pytestmark = pytest.mark.integration
 def test_packs_install_with_registered_ops(ops: Ops) -> None:
     assert "task_normal v4" in ops.plans["giao-viec-sla"]
     assert "weekly_digest v3" in ops.plans["giao-viec-sla"]
-    assert "employee_onboarding v6" in ops.plans["nhan-su-vong-doi"]
+    assert "employee_onboarding v7" in ops.plans["nhan-su-vong-doi"]
     assert "employee_offboarding v4" in ops.plans["nhan-su-vong-doi"]
 
 
