@@ -10,6 +10,7 @@ from decimal import Decimal
 from itertools import islice
 from typing import Any, Protocol
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from xt.domain.warehouse import (
     REQUEST_KINDS,
@@ -88,7 +89,9 @@ def _sources(
     ]
 
 
-def post_stock(db: StockData, request_id: UUID, approver: UUID) -> dict[str, Any]:
+def post_stock(
+    db: StockData, request_id: UUID, approver: UUID, timezone: str = "UTC"
+) -> dict[str, Any]:
     row = db.get("stock_request", request_id)
     if str(row["owner_id"]) == str(approver):
         raise invalid("Người tạo phiếu không được duyệt phiếu của mình.")
@@ -131,7 +134,10 @@ def post_stock(db: StockData, request_id: UUID, approver: UUID) -> dict[str, Any
         on_hand = after_post(Decimal(str(current)), delta)
         reorder = quantity(Decimal(str(items[item].get("reorder_level_milli") or 0)))
         levels.append((item, level_key, found[0] if found else None, on_hand, reorder))
-    posted_at = datetime.now(UTC).isoformat()
+    now = datetime.now(UTC)
+    posted_at = now.isoformat()
+    # Slip without a business date: it happened when it was posted (tenant-local date).
+    occurred_on = row.get("doc_date") or now.astimezone(ZoneInfo(timezone)).date().isoformat()
     # Validate every line before the first write. Outer UoW also rolls back late DB failures.
     last_movement: dict[UUID, str] = {}
     for key, item, location_id, delta, balance_key, balance, total in planned:
@@ -157,7 +163,7 @@ def post_stock(db: StockData, request_id: UUID, approver: UUID) -> dict[str, Any
                 "warehouse": warehouse,
                 "quantity_milli": delta,
                 "posted_at": posted_at,  # received/posted by the system
-                "occurred_on": row.get("doc_date"),  # business date on the slip, if given
+                "occurred_on": occurred_on,  # slip business date, else the posting date
                 "approved_by": str(approver),
             },
         )

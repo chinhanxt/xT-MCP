@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -144,9 +146,14 @@ def test_movement_keeps_business_date_apart_from_posting_time():
     assert movement["occurred_on"] == "2026-10-01"
     assert movement["posted_at"][:10] != "2026-10-01"
     db, rid, manager = fixture()
-    post_stock(db, rid, manager)
+    post_stock(db, rid, manager, "Asia/Ho_Chi_Minh")
     (movement,) = db.rows_by_model["stock_movement"].values()
-    assert movement["occurred_on"] is None and movement["posted_at"]
+    # No doc_date on the slip: occurred_on defaults to the posting date in the tenant timezone.
+    posted = datetime.fromisoformat(movement["posted_at"])
+    assert (
+        movement["occurred_on"]
+        == posted.astimezone(ZoneInfo("Asia/Ho_Chi_Minh")).date().isoformat()
+    )
 
 
 def test_insufficient_stock_and_sod_write_nothing():
