@@ -1,0 +1,544 @@
+{
+  "description": "Synthetic offline verifier fixture; never evidence of a live run.",
+  "plan": {
+    "format": "xt-live-plan/1",
+    "run_id": "live-synthetic-unique",
+    "records": [
+      {
+        "label": "issue",
+        "model": "stock_request",
+        "match": {
+          "code": "live-synthetic-unique-issue"
+        },
+        "count": 1,
+        "fields": {
+          "state": "approved",
+          "revision": 3,
+          "owner_id": "00000000-0000-4000-8000-000000000003"
+        },
+        "audit": {
+          "INSERT": 1,
+          "UPDATE": 2
+        },
+        "in_window": true
+      },
+      {
+        "label": "draft",
+        "model": "stock_request",
+        "match": {
+          "code": "live-synthetic-unique-draft"
+        },
+        "count": 1,
+        "fields": {
+          "state": "draft",
+          "revision": 1,
+          "owner_id": "00000000-0000-4000-8000-000000000003"
+        },
+        "audit": {
+          "INSERT": 1,
+          "UPDATE": 0
+        },
+        "in_window": true
+      },
+      {
+        "label": "disabled_probe",
+        "model": "time_entry",
+        "match": {
+          "code": "live-synthetic-unique-disabled_probe"
+        },
+        "count": 0,
+        "fields": {},
+        "audit": {
+          "INSERT": 0,
+          "UPDATE": 0
+        },
+        "in_window": true
+      },
+      {
+        "label": "balance",
+        "model": "stock_balance",
+        "match": {
+          "key": "00000000-0000-4000-8000-000000000005:00000000-0000-4000-8000-000000000006"
+        },
+        "count": 1,
+        "fields": {
+          "quantity_milli": 9000,
+          "revision": 2,
+          "owner_id": "00000000-0000-4000-8000-000000000003"
+        },
+        "in_window": false
+      },
+      {
+        "label": "level",
+        "model": "stock_level",
+        "match": {
+          "key": "00000000-0000-4000-8000-000000000005:00000000-0000-4000-8000-000000000007"
+        },
+        "count": 1,
+        "fields": {
+          "on_hand_milli": 9000,
+          "revision": 2,
+          "owner_id": "00000000-0000-4000-8000-000000000003"
+        },
+        "in_window": false
+      },
+      {
+        "label": "self",
+        "model": "stock_request",
+        "match": {
+          "code": "live-synthetic-unique-SELF"
+        },
+        "count": 1,
+        "fields": {
+          "state": "in_review",
+          "owner_id": "00000000-0000-4000-8000-000000000004",
+          "revision": 2
+        },
+        "audit": {
+          "INSERT": 1,
+          "UPDATE": 1
+        },
+        "in_window": true
+      }
+    ],
+    "operations": [
+      {
+        "actor_key": "synthetic-actor",
+        "tool": "create_record",
+        "key": "live-synthetic-unique-issue-create",
+        "record": "issue"
+      },
+      {
+        "actor_key": "synthetic-actor",
+        "tool": "submit_request",
+        "key": "live-synthetic-unique-issue-submit",
+        "record": "issue"
+      },
+      {
+        "actor_key": "synthetic-manager",
+        "tool": "decide_request",
+        "key": "live-synthetic-unique-issue-approve",
+        "record": "issue"
+      },
+      {
+        "actor_key": "synthetic-actor",
+        "tool": "create_record",
+        "key": "live-synthetic-unique-ai-draft-create",
+        "record": "draft"
+      },
+      {
+        "actor_key": "synthetic-manager",
+        "tool": "create_record",
+        "key": "live-synthetic-unique-neg-self-create",
+        "record": "self"
+      },
+      {
+        "actor_key": "synthetic-manager",
+        "tool": "submit_request",
+        "key": "live-synthetic-unique-neg-self-submit",
+        "record": "self"
+      }
+    ],
+    "warehouse": {
+      "request": "issue",
+      "requester": "00000000-0000-4000-8000-000000000003",
+      "approver": "00000000-0000-4000-8000-000000000004",
+      "approver_subject": "sub-manager",
+      "lines": [
+        {
+          "item": "00000000-0000-4000-8000-000000000005",
+          "location": "00000000-0000-4000-8000-000000000006",
+          "warehouse": "00000000-0000-4000-8000-000000000007",
+          "quantity_milli": -1000
+        }
+      ],
+      "balances": [
+        {
+          "balance": "balance",
+          "level": "level",
+          "before": 10000,
+          "level_before": 10000,
+          "item": "00000000-0000-4000-8000-000000000005",
+          "location": "00000000-0000-4000-8000-000000000006",
+          "warehouse": "00000000-0000-4000-8000-000000000007"
+        }
+      ]
+    },
+    "disabled_pack": "timesheet",
+    "pii": {
+      "trace_id": "tr_pii",
+      "tool": "get_record",
+      "fields": [
+        "email"
+      ]
+    },
+    "self_request": "self",
+    "foreign": {
+      "tenant": "synthetic-other",
+      "ref": "stock_request:00000000-0000-4000-8000-000000000099",
+      "revision": 1
+    }
+  },
+  "snapshot": {
+    "format": "xt-live-snapshot/1",
+    "tenant": "synthetic-demo",
+    "tenant_id": "00000000-0000-4000-8000-000000000008",
+    "since": "2026-10-18T10:00:00Z",
+    "until": "2026-10-18T11:00:00Z",
+    "records": {
+      "issue": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "revision": 3,
+          "owner_id": "00000000-0000-4000-8000-000000000003",
+          "created_at": "2026-10-18T10:30:00Z",
+          "updated_at": "2026-10-18T10:30:00Z",
+          "code": "live-synthetic-unique-issue",
+          "state": "approved"
+        }
+      ],
+      "draft": [
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "revision": 1,
+          "owner_id": "00000000-0000-4000-8000-000000000003",
+          "created_at": "2026-10-18T10:30:00Z",
+          "updated_at": "2026-10-18T10:30:00Z",
+          "code": "live-synthetic-unique-draft",
+          "state": "draft"
+        }
+      ],
+      "disabled_probe": [],
+      "balance": [
+        {
+          "id": "00000000-0000-4000-8000-000000000021",
+          "key": "00000000-0000-4000-8000-000000000005:00000000-0000-4000-8000-000000000006",
+          "quantity_milli": 9000,
+          "revision": 2,
+          "owner_id": "00000000-0000-4000-8000-000000000003",
+          "created_at": "2026-10-17T10:00:00Z",
+          "updated_at": "2026-10-18T10:30:00Z"
+        }
+      ],
+      "level": [
+        {
+          "id": "00000000-0000-4000-8000-000000000022",
+          "key": "00000000-0000-4000-8000-000000000005:00000000-0000-4000-8000-000000000007",
+          "on_hand_milli": 9000,
+          "revision": 2,
+          "owner_id": "00000000-0000-4000-8000-000000000003",
+          "created_at": "2026-10-17T10:00:00Z",
+          "updated_at": "2026-10-18T10:30:00Z"
+        }
+      ],
+      "self": [
+        {
+          "id": "00000000-0000-4000-8000-000000000030",
+          "code": "live-synthetic-unique-SELF",
+          "state": "in_review",
+          "owner_id": "00000000-0000-4000-8000-000000000004",
+          "revision": 2,
+          "created_at": "2026-10-18T10:30:00Z",
+          "updated_at": "2026-10-18T10:30:00Z"
+        }
+      ]
+    },
+    "operations": [
+      {
+        "actor_key": "synthetic-actor",
+        "tool": "create_record",
+        "idempotency_key": "live-synthetic-unique-issue-create",
+        "id": "00000000-0000-4000-8000-000000000040",
+        "state": "done",
+        "fingerprint": "synthetic-fingerprint-0",
+        "receipt": {
+          "operation_ref": "op_0",
+          "commit_state": "committed",
+          "committed_at": "2026-10-18T10:30:00Z",
+          "data": {
+            "ref": "stock_request:00000000-0000-4000-8000-000000000001"
+          }
+        }
+      },
+      {
+        "actor_key": "synthetic-actor",
+        "tool": "submit_request",
+        "idempotency_key": "live-synthetic-unique-issue-submit",
+        "id": "00000000-0000-4000-8000-000000000041",
+        "state": "done",
+        "fingerprint": "synthetic-fingerprint-1",
+        "receipt": {
+          "operation_ref": "op_1",
+          "commit_state": "committed",
+          "committed_at": "2026-10-18T10:30:00Z",
+          "data": {
+            "request": {
+              "ref": "stock_request:00000000-0000-4000-8000-000000000001"
+            }
+          }
+        }
+      },
+      {
+        "actor_key": "synthetic-manager",
+        "tool": "decide_request",
+        "idempotency_key": "live-synthetic-unique-issue-approve",
+        "id": "00000000-0000-4000-8000-000000000042",
+        "state": "done",
+        "fingerprint": "synthetic-fingerprint-2",
+        "receipt": {
+          "operation_ref": "op_2",
+          "commit_state": "committed",
+          "committed_at": "2026-10-18T10:30:00Z",
+          "data": {
+            "request": {
+              "ref": "stock_request:00000000-0000-4000-8000-000000000001"
+            }
+          }
+        }
+      },
+      {
+        "actor_key": "synthetic-actor",
+        "tool": "create_record",
+        "idempotency_key": "live-synthetic-unique-ai-draft-create",
+        "id": "00000000-0000-4000-8000-000000000043",
+        "state": "done",
+        "fingerprint": "synthetic-fingerprint-3",
+        "receipt": {
+          "operation_ref": "op_3",
+          "commit_state": "committed",
+          "committed_at": "2026-10-18T10:30:00Z",
+          "data": {
+            "ref": "stock_request:00000000-0000-4000-8000-000000000002"
+          }
+        }
+      },
+      {
+        "actor_key": "synthetic-manager",
+        "tool": "create_record",
+        "idempotency_key": "live-synthetic-unique-neg-self-create",
+        "id": "00000000-0000-4000-8000-000000000044",
+        "state": "done",
+        "fingerprint": "synthetic-fingerprint-4",
+        "receipt": {
+          "operation_ref": "op_4",
+          "commit_state": "committed",
+          "committed_at": "2026-10-18T10:30:00Z",
+          "data": {
+            "ref": "stock_request:00000000-0000-4000-8000-000000000030"
+          }
+        }
+      },
+      {
+        "actor_key": "synthetic-manager",
+        "tool": "submit_request",
+        "idempotency_key": "live-synthetic-unique-neg-self-submit",
+        "id": "00000000-0000-4000-8000-000000000045",
+        "state": "done",
+        "fingerprint": "synthetic-fingerprint-5",
+        "receipt": {
+          "operation_ref": "op_5",
+          "commit_state": "committed",
+          "committed_at": "2026-10-18T10:30:00Z",
+          "data": {
+            "request": {
+              "ref": "stock_request:00000000-0000-4000-8000-000000000030"
+            }
+          }
+        }
+      }
+    ],
+    "movements": [
+      {
+        "id": "00000000-0000-4000-8000-000000000010",
+        "key": "00000000-0000-4000-8000-000000000001:0",
+        "request": "00000000-0000-4000-8000-000000000001",
+        "item": "00000000-0000-4000-8000-000000000005",
+        "location": "00000000-0000-4000-8000-000000000006",
+        "warehouse": "00000000-0000-4000-8000-000000000007",
+        "quantity_milli": -1000,
+        "approved_by": "00000000-0000-4000-8000-000000000004",
+        "posted_at": "2026-10-18T10:30:00Z"
+      }
+    ],
+    "decisions": [
+      {
+        "ref": "stock_request:00000000-0000-4000-8000-000000000001",
+        "decision": "approve",
+        "requester": "00000000-0000-4000-8000-000000000003",
+        "approver": "00000000-0000-4000-8000-000000000004",
+        "confirmed_by": [
+          "sub-manager"
+        ],
+        "decided_at": "2026-10-18T10:30:00Z"
+      }
+    ],
+    "workflow": [
+      {
+        "ref": "stock_request:00000000-0000-4000-8000-000000000001",
+        "status": "completed",
+        "candidates": []
+      },
+      {
+        "ref": "stock_request:00000000-0000-4000-8000-000000000030",
+        "status": "running",
+        "candidates": [
+          "other-manager"
+        ]
+      }
+    ],
+    "packs": [
+      {
+        "pack": "timesheet",
+        "status": "disabled",
+        "models": [
+          "time_entry"
+        ]
+      }
+    ],
+    "pii": [
+      {
+        "trace_id": "tr_pii",
+        "tool": "get_record",
+        "mode": "masked",
+        "fields": [
+          "email"
+        ],
+        "at": "2026-10-18T10:30:00Z",
+        "client_class": "cloud"
+      }
+    ],
+    "audit_status": {
+      "n": 10,
+      "first_bad_seq": null
+    },
+    "audit": [
+      {
+        "model": "stock_request",
+        "record_id": "00000000-0000-4000-8000-000000000001",
+        "op": "INSERT",
+        "at": "2026-10-18T10:30:00Z"
+      },
+      {
+        "model": "stock_request",
+        "record_id": "00000000-0000-4000-8000-000000000001",
+        "op": "UPDATE",
+        "at": "2026-10-18T10:30:00Z"
+      },
+      {
+        "model": "stock_request",
+        "record_id": "00000000-0000-4000-8000-000000000001",
+        "op": "UPDATE",
+        "at": "2026-10-18T10:30:00Z"
+      },
+      {
+        "model": "stock_request",
+        "record_id": "00000000-0000-4000-8000-000000000002",
+        "op": "INSERT",
+        "at": "2026-10-18T10:30:00Z"
+      },
+      {
+        "model": "stock_request",
+        "record_id": "00000000-0000-4000-8000-000000000030",
+        "op": "INSERT",
+        "at": "2026-10-18T10:30:00Z"
+      },
+      {
+        "model": "stock_request",
+        "record_id": "00000000-0000-4000-8000-000000000030",
+        "op": "UPDATE",
+        "at": "2026-10-18T10:30:00Z"
+      }
+    ],
+    "captured_at": "2026-10-18T11:01:00Z",
+    "people": [
+      {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "subject": "sub-requester",
+        "active": true
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000004",
+        "subject": "sub-manager",
+        "active": true
+      }
+    ],
+    "foreign": {
+      "tenant": "synthetic-other",
+      "ref": "stock_request:00000000-0000-4000-8000-000000000099",
+      "revision": 1,
+      "tenant_id": "00000000-0000-4000-8000-000000000098",
+      "records": [
+        {
+          "id": "00000000-0000-4000-8000-000000000099",
+          "revision": 1
+        }
+      ],
+      "changes": 0
+    },
+    "record_audit": {
+      "issue": [
+        {
+          "model": "stock_request",
+          "record_id": "00000000-0000-4000-8000-000000000001",
+          "op": "INSERT",
+          "at": "2026-10-18T10:30:00Z"
+        },
+        {
+          "model": "stock_request",
+          "record_id": "00000000-0000-4000-8000-000000000001",
+          "op": "UPDATE",
+          "at": "2026-10-18T10:30:00Z"
+        },
+        {
+          "model": "stock_request",
+          "record_id": "00000000-0000-4000-8000-000000000001",
+          "op": "UPDATE",
+          "at": "2026-10-18T10:30:00Z"
+        }
+      ],
+      "draft": [
+        {
+          "model": "stock_request",
+          "record_id": "00000000-0000-4000-8000-000000000002",
+          "op": "INSERT",
+          "at": "2026-10-18T10:30:00Z"
+        }
+      ],
+      "disabled_probe": [],
+      "balance": [],
+      "level": [],
+      "self": [
+        {
+          "model": "stock_request",
+          "record_id": "00000000-0000-4000-8000-000000000030",
+          "op": "INSERT",
+          "at": "2026-10-18T10:30:00Z"
+        },
+        {
+          "model": "stock_request",
+          "record_id": "00000000-0000-4000-8000-000000000030",
+          "op": "UPDATE",
+          "at": "2026-10-18T10:30:00Z"
+        }
+      ]
+    },
+    "stock_changes": [
+      {
+        "model": "stock_balance",
+        "record_id": "00000000-0000-4000-8000-000000000021",
+        "op": "UPDATE",
+        "before": 10000,
+        "after": 9000,
+        "at": "2026-10-18T10:30:00Z"
+      },
+      {
+        "model": "stock_level",
+        "record_id": "00000000-0000-4000-8000-000000000022",
+        "op": "UPDATE",
+        "before": 10000,
+        "after": 9000,
+        "at": "2026-10-18T10:30:00Z"
+      }
+    ]
+  }
+}
