@@ -915,7 +915,8 @@ def pack_rows(migrator: psycopg.Connection[Any], tenant: TenantRef) -> list[dict
     """Mọi gói đã cài của tenant kèm trạng thái/model/phụ thuộc (kế hoạch vòng đời ứng dụng)."""
     with migrator.cursor(row_factory=dict_row) as cur:
         rows = cur.execute(
-            "SELECT pack, version, status, models, depends_on FROM xt_meta.pack_install"
+            "SELECT pack, version, status, models, depends_on, status_digest"
+            " FROM xt_meta.pack_install"
             " WHERE tenant_id = %s ORDER BY pack",
             (tenant.id,),
         ).fetchall()

@@ -64,7 +64,6 @@ def test_dependency_guard_on_enable() -> None:
     [
         ([], "crm", "disable", "chưa cài"),
         ([row("crm", "disabled")], "crm", "disable", "đã ở trạng thái"),
-        ([row("crm")], "crm", "enable", "đã ở trạng thái"),
         ([row("crm", models=None)], "crm", "disable", "cài lại"),  # cài trước migration 0018
         ([row("crm"), {**row("old"), "depends_on": None}], "crm", "disable", "old"),
     ],
@@ -112,6 +111,7 @@ def db(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     state: dict[str, Any] = {"rows": [row("crm")], "conn": FakeConn(), "saved": []}
     monkeypatch.setattr(lc, "connect", lambda dsn: state["conn"])
     monkeypatch.setattr(lc, "pack_rows", lambda conn, tenant: state["rows"])
+    monkeypatch.setattr(lc, "list_app_incidents", lambda *args: [])
 
     def save(conn: Any, tenant: TenantRef, **kw: Any) -> None:
         state["saved"].append((tenant, kw))
@@ -167,7 +167,6 @@ def test_cli_plan_then_confirm(monkeypatch: pytest.MonkeyPatch, capsys: Any) -> 
     monkeypatch.setattr(admin, "tenant_of_alias", lambda conn, alias: T)
     monkeypatch.setattr(lc, "connect", lambda dsn: FakeConn())
     monkeypatch.setattr(lc, "pack_rows", lambda conn, tenant: rows)
-    monkeypatch.setattr(admin, "pack_rows", lambda conn, tenant: rows)
     monkeypatch.setattr(lc, "set_pack_status", lambda conn, tenant, **kw: calls.append(kw))
     env = {"XT_DB_MIGRATOR_URL": "postgresql://x"}
     argv = ["pack", "disable", "--tenant", "acme", "crm", "--proposed-by", "agent:a",

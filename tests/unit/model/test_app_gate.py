@@ -6,6 +6,7 @@ dùng lại được. Catalog KHÔNG bị lọc (lọc sẽ khiến lần đổi
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from uuid import UUID, uuid4
 
 import pytest
@@ -109,12 +110,62 @@ def test_disabled_app_reads_only_for_admin() -> None:
         read(who(A, APP_ADMIN_ROLE))  # admin vẫn đọc được để đối soát
 
 
+@pytest.mark.parametrize("role", ["admin", "it", "director", "administrator", "tenant_admin"])
+def test_disabled_app_read_exception_requires_literal_admin_role(role: str) -> None:
+    cats, rs, rid = setup()
+    # Every candidate can read the enabled model; only the lifecycle gate differs.
+    cats.cat.model("lead").permissions[role] = cats.cat.model("lead").permissions["sales"]
+    actor = who(A, role)
+    ms = ModelService(cats, None, None)  # type: ignore[arg-type]
+    reads: tuple[Callable[[], object], ...] = (
+        lambda: rs.get(actor, "lead", rid),
+        lambda: rs.search(actor, "lead"),
+        lambda: rs.aggregate(actor, "lead", None, AggregateQuery()),
+        lambda: ms.describe_model(actor, "lead"),
+    )
+    for read in reads:
+        read()
+    disable(cats, A)
+    for read in reads:
+        if role == "admin":
+            read()
+        else:
+            with pytest.raises(ModelError) as ex:
+                read()
+            assert_app_disabled(ex)
+
+
+def test_disabled_app_admin_exception_still_requires_model_permission() -> None:
+    cats, rs, rid = setup()
+    del cats.cat.model("lead").permissions["admin"]
+    disable(cats, A)
+    actor = who(A, "admin")
+    ms = ModelService(cats, None, None)  # type: ignore[arg-type]
+    reads: tuple[Callable[[], object], ...] = (
+        lambda: rs.get(actor, "lead", rid),
+        lambda: rs.search(actor, "lead"),
+        lambda: rs.aggregate(actor, "lead", None, AggregateQuery()),
+        lambda: ms.describe_model(actor, "lead"),
+    )
+    for read in reads:
+        with pytest.raises(ModelError) as ex:
+            read()
+        assert ex.value.code == "access_denied"
+
+
 def test_disabled_app_blocks_aggregate_for_non_admin() -> None:
     cats, rs, _ = setup()
     disable(cats, A)
     with pytest.raises(ModelError) as ex:
         rs.aggregate(who(A), "lead", None, AggregateQuery())
     assert_app_disabled(ex)
+
+
+def test_disabled_app_admin_can_count_existing_records() -> None:
+    cats, rs, _ = setup()
+    disable(cats, A)
+    result = rs.aggregate(who(A, "admin"), "lead", None, AggregateQuery())
+    assert result["rows"] == [((), 1, ())]
 
 
 def test_other_models_and_other_tenants_unaffected() -> None:

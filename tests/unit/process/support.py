@@ -84,11 +84,11 @@ class Services(dict[str, Callable[..., Any]]):
         self.notes: list[str] = []
         self.calls: list[Any] = []
         self.overdue: dict[str, int] = {}
-        self.keys: list[str] = []
+        self.service_keys: list[str] = []
         self.unreturned = 0
 
         def post_to_ledger(amount: int, requester: str, idempotency_key: str) -> dict[str, Any]:
-            self.keys.append(idempotency_key)
+            self.service_keys.append(idempotency_key)
             self.ledger.append((requester, amount))
             return {"so": f"PC-{len(self.ledger):04d}"}
 
