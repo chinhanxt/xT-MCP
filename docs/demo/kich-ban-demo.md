@@ -45,25 +45,18 @@ Giữ lại mã SOP, kho, hàng hóa, vị trí, phiếu và tồn đầu kỳ t
 | 6. AI tạo nháp | Cùng người dùng; ChatGPT/Studio | “Dựa trên SOP vừa dẫn, tạo nháp phiếu xuất mới [số lượng] của [hàng] tại [kho/vị trí]. Để người có quyền xem và quyết định bước duyệt.” | Nháp mới có ref thật; chưa có Decision hay biến động kho. MCP có thể chứng minh nháp và quyền; kiểm thử client có script không chứng minh LLM đã chọn đúng tool. |
 | 7. Audit và sai quyền | Quản lý mở Lịch sử; phiên người dùng không đủ quyền | Xem người tạo, người duyệt, phiên bản và giao dịch của phiếu. Thử thao tác duyệt bằng người tạo hoặc đọc bằng tenant khác như E13 quy định. | Audit có tác nhân và sự kiện tương ứng, chuỗi kiểm hợp lệ; thao tác bị chặn có mã lỗi thật và không đổi trạng thái/tồn. Không sửa dữ liệu để tạo minh họa lỗi. |
 
-## E13-BUG-01: agent không tạo được phiếu xuất
+## E13-BUG-01/02 (đã sửa, D-UNI-AGENT-1)
 
-Lượt chạy thật đầu tiên ghi nhận lỗi tại `e2e/reports/20261018-105439/E13.json` (report local bị gitignore; báo cáo cuối sẽ được bổ sung riêng). MCP `create_record` cho `stock_request`, `kind=issue` trả `access_denied`, `details.reason=implicit_deny`, `details.principal=agent:xt-desk-agent`.
-
-Nguyên nhân đã xác định tại `packages/kho-hang/policies/iam.json`: điều kiện `wh.request-write` so sánh `resource.owner` là UUID của người với `subject.id` là principal agent/client, nên không khớp trong phiên MCP thật. Helper `Warehouse.agent()` của integration test hiện dùng chủ thể HUMAN nên không tái hiện ranh giới này. Không đổi sang người gọi HUMAN hay nới quyền để làm demo xanh.
-
-Hướng sửa đề xuất (ngoài phạm vi PR này): tách `role:agent` khỏi `wh.request-write` thành một statement riêng không điều kiện, như `apv.agent-l0-l1` của gói đề xuất–phê duyệt; `guard.py` vẫn đánh giá lại quyền của người được đại diện với điều kiện `owner == subject.id`. Cùng nguyên nhân còn ở `crm.request-write` (`de_nghi_giam_gia`), `cc.request-write` (cham-cong) và `ts.request-write` (tai-san); E13 không chạm các gói đó.
-
-Rủi ro thứ hai chưa được chạy: `wh.deny-agent-approve` chặn `request.decide` của `role:agent`. Phần chuẩn bị dữ liệu của E13 vì vậy cấp cho quản lý kho một ủy quyền agent không có vai trò `agent` ở client phê duyệt (qua `xt org import`). Cần chủ sản phẩm quyết định đó là cách cấp quyền chủ đích hay xung đột chính sách với luồng xác nhận; kết quả của bước phê duyệt chỉ có giá trị sau khi sửa E13-BUG-01.
-
-`test_demo_story` dùng `xfail(strict=True, raises=StockAgentOwnershipBug)`. Ngoại lệ riêng chỉ được phát khi đúng tool, model, `kind=issue`, mã lỗi, reason và principal nêu trên. Lỗi khác vẫn FAIL; nếu toàn bộ test chạy qua thì XPASS cũng làm suite thất bại để buộc bỏ đánh dấu lỗi đã biết. **XFAIL không phải PASS và không chứng minh luồng kho hoạt động.**
-
-Điểm dừng là bước §9.2 tạo nháp phiếu xuất. Vì vậy chưa có bằng chứng chạy thành công cho nháp kho, gửi duyệt, phê duyệt/TOTP, chống tự duyệt của phiếu kho, biến động đúng một lần, tồn kho/D/lineage nhất quán, nháp tiếp theo không đổi tồn và audit tác nhân/phiên bản của phiếu (§9.3–7). Không dùng số dự kiến 10/4/6 để trình bày như số liệu đã được quan sát.
+- **BUG-01**: `wh.request-write` (và `crm`/`cc`/`ts.request-write`) so `resource.owner` (UUID người) với `subject.id` của agent (`agent:xt-desk-agent`), nên `create_record` phiếu qua MCP thật luôn `implicit_deny`.
+- **BUG-02**: `*.deny-agent-approve` chặn `request.decide` của `role:agent`; cổng Desk (P/Kho) duyệt qua client `xt-desk-agent` nên quản lý không duyệt được phiếu trên web.
+- Sửa: statement `*.agent-on-behalf` không điều kiện cho `role:agent` (như `apv.agent-l0-l1`); `AccessGuard` giao với quyền của người được đại diện (chỉ phiếu của chính người đó); `decide_request` luôn `human_only`, người duyệt xác nhận trên Desk; `record.approve` của agent vẫn bị chặn. Chi tiết: `docs/decisions.md` D-UNI-AGENT-1.
+- E13 không còn xfail; ủy quyền agent của quản lý kho giữ `role:agent` để bước duyệt chứng minh BUG-02 đã sửa.
 
 ## Phạm vi mã kiểm thử E13
 
-Mã: [`test_e13_demo_story.py`](../../e2e/scenarios/test_e13_demo_story.py). Hợp đồng sau khi sửa E13-BUG-01 yêu cầu nhập 10 đơn vị, xuất 4, tồn 6 (`6000` milli), hai biến động có tổng `6000`, replay cùng key không thêm biến động. `lineage_ref` được giải thích bằng `get_history(view="explain")` và truy vấn nguồn qua mọi cursor. Lineage là `current_data`, `historical_snapshot=false`, không phải snapshot lịch sử bất biến. Mã cũng có assertion nháp tiếp theo chưa phát sinh biến động và audit người tạo/người duyệt/revision; các assertion sau điểm lỗi hiện chưa chạy tới.
+Mã: [`test_e13_demo_story.py`](../../e2e/scenarios/test_e13_demo_story.py). Hợp đồng yêu cầu nhập 10 đơn vị, xuất 4, tồn 6 (`6000` milli), hai biến động có tổng `6000`, replay cùng key không thêm biến động. `lineage_ref` được giải thích bằng `get_history(view="explain")` và truy vấn nguồn qua mọi cursor. Lineage là `current_data`, `historical_snapshot=false`, không phải snapshot lịch sử bất biến. Mã cũng kiểm nháp tiếp theo chưa phát sinh biến động và audit người tạo/người duyệt theo thứ tự chuỗi hash (`seq`; đổi trạng thái do workflow không mang `revision`).
 
-Hai test độc lập không đánh dấu xfail vẫn chạy và cần đọc kết quả riêng:
+Hai test độc lập chạy riêng và cần đọc kết quả riêng:
 
 - `test_sop_document_source`: Files upload bytes thật; tạo/tìm/đọc `tai_lieu`; đối chiếu nội dung, file ref, ref và lưu phiên bản nguồn SOP.
 - `test_crm_lifecycle_tenant_and_final_audit`: CLI cài/disable/enable CRM với proposer khác approver và digest thật; thử tự duyệt bị chặn; tạo khách hàng, chặn ghi khi tắt, ẩn app/model, admin đọc dữ liệu giữ lại, bật lại giữ ref/giá trị; thử đọc chéo tenant; kiểm audit và checkpoint có chữ ký.
@@ -98,7 +91,7 @@ Chỉ dọn container, volume và artifact do lượt demo tạo. Nếu cần d�
 
 ## Biên bản lượt chạy 18/10/2026
 
-- Full non-LLM (`make e2e-run`, report `20261018-112219`, mã thoát 0): 31 passed, 1 deselected (E1/LLM), 1 xfailed (`test_demo_story`, E13-BUG-01). E0, E2–E12 PASS.
-- E13 theo bước §9: đọc SOP (`test_sop_document_source`) PASS; Tier 3 CRM, chặn ghi khi tắt, giữ dữ liệu, tenant khác bị chặn, audit có chữ ký (`test_crm_lifecycle_tenant_and_final_audit`) PASS; tạo phiếu xuất XFAIL (E13-BUG-01). Tự duyệt phiếu, duyệt qua xác nhận, ghi biến động đúng một lần, báo cáo theo kho/tháng và lineage `explain` được viết nhưng **chưa được chạy** vì dừng ở bước tạo phiếu.
+- Sau D-UNI-AGENT-1 (stack `xt-e2e-agt`), full non-LLM (`make e2e-run`, report `20261018-121016`, mã thoát 0): 32 passed, 1 deselected (E1/LLM). E0, E2–E13 PASS.
+- E13 theo bước §9: a. SOP PASS; b. agent tạo phiếu xuất cho chính người được đại diện PASS; c. người tạo và quản lý lập phiếu đều không tự duyệt (`self_approval`) PASS; d. quản lý duyệt qua `confirmation_required` → Desk mật khẩu + TOTP, client giữ `role:agent` PASS; e. đúng một biến động −4000, replay cùng key `replayed=true` không thêm biến động, tồn 6000 PASS; f. aggregate theo kho/tháng (count 2, sum 6000) + `get_history view=explain` (`replay=current_data`) khớp nguồn PASS; g. CRM cài/tắt/bật PASS; h. audit checkpoint ký + verify PASS; i. tenant khác bị chặn PASS.
 - E1/LLM: chưa chạy (`make e2e-llm` riêng).
 - Web/ChatGPT/Studio: chưa có phiên trình diễn thật; bảng trên là kịch bản, không phải bằng chứng.

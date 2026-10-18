@@ -721,7 +721,10 @@ def test_demo_story(ev: Evidence, world: Any, tmp_path: Path) -> None:
         assert created_event["actor"]["ref"] == requester_me["ref"]
         assert approved_event["actor"]["ref"] == manager_me["ref"]
         assert isinstance(created_event["revision"], int)
-        assert approved_event["revision"] > created_event["revision"]
+        # Workflow-managed state changes carry no record revision in the audit view
+        # (revision is null there); the hash-chain sequence orders the events.
+        assert approved_event["seq"] > created_event["seq"]
+        assert approved_event["actor"]["kind"] == "agent"
     _audit(ev, tmp_path / "audit")
 
 
