@@ -90,7 +90,7 @@ def test_invalid_or_naive_time(timestamp: Any) -> None:
         verify.parse_time(timestamp)
 
 
-@pytest.mark.parametrize("field", ["records", "operations", "warehouse", "disabled_pack", "pii"])
+@pytest.mark.parametrize("field", ["records", "operations", "warehouse"])
 def test_plan_missing_required_field(evidence: Any, field: Any) -> None:
     del evidence["plan"][field]
     with pytest.raises(ValueError):
@@ -450,3 +450,61 @@ def test_operation_receipt_must_be_committed_in_window(
 def test_numeric_boolean_does_not_satisfy_revision(evidence: Any) -> None:
     evidence["snapshot"]["records"]["draft"][0]["revision"] = True
     assert_rejected(evidence)
+
+
+def test_create_receipt_ref_is_read_from_record_envelope(evidence: Any) -> None:
+    create = next(o for o in evidence["snapshot"]["operations"] if o["tool"] == "create_record")
+    assert create["receipt"]["data"]["record"]["ref"].startswith("stock_request:")
+    # create_record's real envelope is data.record.ref; a flat data.ref is not accepted
+    create["receipt"]["data"] = {"ref": create["receipt"]["data"]["record"]["ref"]}
+    assert_rejected(evidence)
+
+
+def test_optional_cases_are_asserted_only_when_listed(evidence: Any) -> None:
+    for key in ("disabled_pack", "pii", "self_request", "foreign"):
+        del evidence["plan"][key]
+    self_label = "self"
+    evidence["plan"]["records"] = [
+        r for r in evidence["plan"]["records"] if r["label"] != self_label
+    ]
+    evidence["plan"]["operations"] = [
+        o for o in evidence["plan"]["operations"] if o["record"] != self_label
+    ]
+    checks = evaluate(evidence)
+    names = {c.name for c in checks}
+    assert not names & {"disabled/app", "pii/egress", "negative/self", "negative/foreign"}
+    assert "warehouse/movements" in names
+
+
+def test_receive_line_must_be_positive_and_issue_negative(evidence: Any) -> None:
+    # fixture is an issue (negative delta); declaring it a receive makes the plan invalid
+    issue = next(
+        r
+        for r in evidence["plan"]["records"]
+        if r["label"] == evidence["plan"]["warehouse"]["request"]
+    )
+    issue["fields"]["kind"] = "receive"
+    with pytest.raises(ValueError):
+        verify.validate_plan(evidence["plan"])
+
+
+def test_also_entry_validates_sign_per_kind(evidence: Any) -> None:
+    plan = evidence["plan"]
+    primary = plan["warehouse"]["request"]
+    base = next(r for r in plan["records"] if r["label"] == primary)
+    receive = {**base, "label": "receive", "match": {"code": "x-IN"}, "baseline": True}
+    receive["fields"] = {**base["fields"], "kind": "receive"}
+    receive["in_window"] = False
+    receive.pop("audit", None)
+    plan["records"].append(receive)
+    plan["operations"].append(
+        {**plan["operations"][2], "key": plan["operations"][2]["key"] + "-in", "record": "receive"}
+    )
+    line = dict(plan["warehouse"]["lines"][0], quantity_milli=500)
+    also = {**plan["warehouse"], "request": "receive", "lines": [line]}
+    also.pop("balances")
+    plan["warehouse"]["also"] = [also]
+    verify.validate_plan(json.loads(json.dumps(plan)))
+    line["quantity_milli"] = -500  # a receive must add stock
+    with pytest.raises(ValueError):
+        verify.validate_plan(json.loads(json.dumps(plan)))

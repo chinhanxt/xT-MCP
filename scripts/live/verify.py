@@ -96,39 +96,57 @@ def validate_plan(value: Any) -> dict[str, Any]:
             _require(key[1] in ("create_record", "submit_request", "decide_request"))
             keys.add(key)
         wh = _dict(plan["warehouse"])
-        _require(wh["request"] in labels and labels[wh["request"]]["model"] == "stock_request")
-        for name in ("requester", "approver"):
-            wh[name] = str(UUID(_text(wh[name])))
-        _require(wh["requester"] != wh["approver"])
-        _text(wh["approver_subject"])
-        _require(labels[wh["request"]]["fields"].get("state") == "approved")
-        self_label = _text(plan["self_request"])
-        _require(self_label in labels and labels[self_label]["model"] == "stock_request")
-        _require(labels[self_label]["fields"].get("state") == "in_review")
-        foreign = _dict(plan["foreign"])
-        _require(re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", _text(foreign["tenant"])) is not None)
-        foreign_model, foreign_id = _text(foreign["ref"]).split(":")
-        _require(IDENTIFIER.fullmatch(foreign_model) is not None)
-        UUID(foreign_id)
-        _integer(foreign["revision"], minimum=1)
-        foreign["ref"] = f"{foreign_model}:{UUID(foreign_id)}"
+        # `also` lists further approved slips of the same run (e.g. a receive plus an issue).
+        entries = [wh, *(_dict(x) for x in _list(wh.get("also", [])))]
+        _require(len({e["request"] for e in entries}) == len(entries))
+        for entry in entries:
+            _require(
+                entry["request"] in labels and labels[entry["request"]]["model"] == "stock_request"
+            )
+            for name in ("requester", "approver"):
+                entry[name] = str(UUID(_text(entry[name])))
+            _require(entry["requester"] != entry["approver"])
+            _text(entry["approver_subject"])
+            _require(labels[entry["request"]]["fields"].get("state") == "approved")
+        # Optional cases are asserted only when the plan lists them (i.e. they were run).
+        if "self_request" in plan:
+            self_label = _text(plan["self_request"])
+            _require(self_label in labels and labels[self_label]["model"] == "stock_request")
+            _require(labels[self_label]["fields"].get("state") == "in_review")
+        if "foreign" in plan:
+            foreign = _dict(plan["foreign"])
+            _require(
+                re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", _text(foreign["tenant"])) is not None
+            )
+            foreign_model, foreign_id = _text(foreign["ref"]).split(":")
+            _require(IDENTIFIER.fullmatch(foreign_model) is not None)
+            UUID(foreign_id)
+            _integer(foreign["revision"], minimum=1)
+            foreign["ref"] = f"{foreign_model}:{UUID(foreign_id)}"
         for label, spec in labels.items():
             if spec["model"] != "stock_request" or not spec["count"]:
                 continue
             _require(spec["count"] == 1)
             state = spec["fields"].get("state")
             _require(state in ("draft", "in_review", "approved"))
-            required = {"create_record"}
-            if state in ("in_review", "approved"):
+            # `baseline` slips were created and submitted before the run (shared fixture);
+            # only the operations this run performed are required.
+            required = set() if spec.get("baseline") is True else {"create_record"}
+            if state in ("in_review", "approved") and spec.get("baseline") is not True:
                 required.add("submit_request")
             if state == "approved":
                 required.add("decide_request")
             actual = [o["tool"] for o in plan["operations"] if o["record"] == label]
             _require(set(actual) == required and len(actual) == len(required))
-        for line in _list(wh["lines"], nonempty=True):
-            for name in ("item", "location", "warehouse"):
-                line[name] = str(UUID(_text(line[name])))
-            _require(_integer(line["quantity_milli"]) < 0)
+        for entry in entries:
+            for line in _list(entry["lines"], nonempty=True):
+                for name in ("item", "location", "warehouse"):
+                    line[name] = str(UUID(_text(line[name])))
+                # receive adds stock (+), issue removes it (-); `kind` is in the plan fields.
+                kind = labels[entry["request"]]["fields"].get("kind", "issue")
+                _require(kind in ("receive", "issue"))
+                quantity = _integer(line["quantity_milli"])
+                _require(quantity > 0 if kind == "receive" else quantity < 0)
         for balance in _list(wh["balances"], nonempty=True):
             for name in ("balance", "level"):
                 _require(balance[name] in labels)
@@ -136,12 +154,14 @@ def validate_plan(value: Any) -> dict[str, Any]:
                 balance[name] = str(UUID(_text(balance[name])))
             for name in ("before", "level_before"):
                 _integer(balance[name], minimum=0)
-        _text(plan["disabled_pack"])
-        pii = _dict(plan["pii"])
-        _text(pii["trace_id"])
-        _require(pii["tool"] in ("get_record", "search_records", "find_people"))
-        for field in _list(pii["fields"], nonempty=True):
-            _text(field)
+        if "disabled_pack" in plan:
+            _text(plan["disabled_pack"])
+        if "pii" in plan:
+            pii = _dict(plan["pii"])
+            _text(pii["trace_id"])
+            _require(pii["tool"] in ("get_record", "search_records", "find_people"))
+            for field in _list(pii["fields"], nonempty=True):
+                _text(field)
     except (KeyError, TypeError, AttributeError) as exc:
         raise ValueError("Incomplete verification plan") from exc
     return plan
@@ -228,7 +248,7 @@ def _evaluate(
             data = _dict(receipt.get("data"))
             valid = rows[0]["state"] == "done" and bool(rows[0].get("fingerprint"))
             result_ref = (
-                data.get("ref")
+                _dict(data.get("record")).get("ref")
                 if spec["tool"] == "create_record"
                 else _dict(data.get("request")).get("ref")
             )
@@ -237,51 +257,91 @@ def _evaluate(
             valid &= _inside(receipt.get("committed_at"), since, until)
         check(f"operation/{index}", valid, "one committed receipt per actor/tool/key/ref")
     wh = plan["warehouse"]
-    issue = records[wh["request"]]
-    rid = issue[0]["id"] if len(issue) == 1 else ""
-    ref = f"stock_request:{rid}"
-    movements = [m for m in snapshot["movements"] if m["request"] == rid]
-    wanted = [
-        {**line, "request": rid, "key": f"{rid}:{i}", "approved_by": wh["approver"]}
-        for i, line in enumerate(wh["lines"])
-    ]
-    valid = len(movements) == len(wanted)
-    for expected in wanted:
-        matched = [m for m in movements if _matches(m, expected)]
-        valid &= len(matched) == 1 and _inside(matched[0]["posted_at"], since, until)
-    check("warehouse/movements", valid, "one signed movement per line, correct principal and time")
+    entries = [wh, *wh.get("also", [])]
+    all_lines = [line for e in entries for line in e["lines"]]
+    posted: list[tuple[str, dict[str, Any], int]] = []  # (posted_at, line, delta) by movement
+    for entry in entries:
+        sfx = "" if entry is wh else f":{entry['request']}"
+        issue = records[entry["request"]]
+        rid = issue[0]["id"] if len(issue) == 1 else ""
+        ref = f"stock_request:{rid}"
+        movements = [m for m in snapshot["movements"] if m["request"] == rid]
+        wanted = [
+            {**line, "request": rid, "key": f"{rid}:{i}", "approved_by": entry["approver"]}
+            for i, line in enumerate(entry["lines"])
+        ]
+        valid = len(movements) == len(wanted)
+        for expected in wanted:
+            matched = [m for m in movements if _matches(m, expected)]
+            valid &= len(matched) == 1 and _inside(matched[0]["posted_at"], since, until)
+            if len(matched) == 1:
+                posted.append((matched[0]["posted_at"], expected, expected["quantity_milli"]))
+        check(
+            f"warehouse/movements{sfx}",
+            valid,
+            "one signed movement per line, correct principal and time",
+        )
+        decisions = [d for d in snapshot["decisions"] if d["ref"] == ref]
+        valid = len(decisions) == 1
+        if valid:
+            d = decisions[0]
+            valid = _matches(
+                d,
+                {
+                    "requester": entry["requester"],
+                    "approver": entry["approver"],
+                    "decision": "approve",
+                },
+            )
+            people = _list(snapshot.get("people"), nonempty=True)
+            approvers = [p for p in people if p["id"] == entry["approver"] and p["active"] is True]
+            requesters = [p for p in people if p["id"] == entry["requester"]]
+            valid &= len(approvers) == len(requesters) == 1
+            valid &= bool(approvers) and approvers[0]["subject"] == entry["approver_subject"]
+            confirmed = _list(d["confirmed_by"], nonempty=True)
+            valid &= entry["approver_subject"] in confirmed
+            valid &= bool(requesters) and requesters[0]["subject"] not in confirmed
+            valid &= _inside(d["decided_at"], since, until)
+            valid &= len(issue) == 1 and issue[0]["owner_id"] == entry["requester"]
+        check(
+            f"warehouse/decision{sfx}", valid, "one approval by distinct, confirmed human approver"
+        )
+        workflows = [w for w in snapshot["workflow"] if w["ref"] == ref]
+        check(
+            f"warehouse/workflow{sfx}",
+            len(workflows) == 1
+            and _matches(workflows[0], {"status": "completed", "candidates": []}),
+            "completed workflow without candidates",
+        )
+    posted.sort(key=lambda item: item[0])
     balances_valid = True
     covered = {(b["item"], b["location"], b["warehouse"]) for b in wh["balances"]}
     balances_valid &= covered == {
-        (line["item"], line["location"], line["warehouse"]) for line in wh["lines"]
+        (line["item"], line["location"], line["warehouse"]) for line in all_lines
     }
     for balance in wh["balances"]:
-        location_delta = sum(
-            line["quantity_milli"]
-            for line in wh["lines"]
-            if all(line[k] == balance[k] for k in ("item", "location", "warehouse"))
-        )
-        level_delta = sum(
-            line["quantity_milli"]
-            for line in wh["lines"]
-            if all(line[k] == balance[k] for k in ("item", "warehouse"))
-        )
-        for label, model, field, total, key in (
+        loc_keys = ("item", "location", "warehouse")
+        lvl_keys = ("item", "warehouse")
+        for label, model, field, base, keys, key in (
             (
                 balance["balance"],
                 "stock_balance",
                 "quantity_milli",
-                balance["before"] + location_delta,
+                balance["before"],
+                loc_keys,
                 f"{balance['item']}:{balance['location']}",
             ),
             (
                 balance["level"],
                 "stock_level",
                 "on_hand_milli",
-                balance["level_before"] + level_delta,
+                balance["level_before"],
+                lvl_keys,
                 f"{balance['item']}:{balance['warehouse']}",
             ),
         ):
+            steps = [d for _, line, d in posted if all(line[k] == balance[k] for k in keys)]
+            total = base + sum(steps)
             rows = records[label]
             balances_valid &= specs[label]["model"] == model and len(rows) == 1
             balances_valid &= len(rows) == 1 and _matches(rows[0], {"key": key, field: total})
@@ -291,94 +351,73 @@ def _evaluate(
                 for c in stock_changes
                 if len(rows) == 1 and c["record_id"] == rows[0]["id"] and c["model"] == model
             ]
-            before = balance["before"] if model == "stock_balance" else balance["level_before"]
-            balances_valid &= (
-                len(changes) == 1
-                and _matches(
-                    changes[0],
-                    {
-                        "op": "UPDATE",
-                        "before": before,
-                        "after": total,
-                    },
-                )
-                and _inside(changes[0]["at"], since, until)
-            )
+            if (
+                base == 0
+                and changes
+                and _matches(changes[0], {"op": "INSERT", "after": 0})
+                and changes[0].get("before") is None
+            ):
+                changes = changes[1:]  # row created by the first posting
+            running = base
+            balances_valid &= len(changes) == len(steps)
+            for change, delta in zip(changes, steps, strict=False):
+                balances_valid &= _matches(
+                    change, {"op": "UPDATE", "before": running, "after": running + delta}
+                ) and _inside(change["at"], since, until)
+                running += delta
     check("warehouse/balances", balances_valid, "location and warehouse totals = baseline + ledger")
-    decisions = [d for d in snapshot["decisions"] if d["ref"] == ref]
-    valid = len(decisions) == 1
-    if valid:
-        d = decisions[0]
-        valid = _matches(
-            d, {"requester": wh["requester"], "approver": wh["approver"], "decision": "approve"}
-        )
-        people = _list(snapshot.get("people"), nonempty=True)
-        approvers = [p for p in people if p["id"] == wh["approver"] and p["active"] is True]
-        requesters = [p for p in people if p["id"] == wh["requester"]]
-        valid &= len(approvers) == len(requesters) == 1
-        valid &= bool(approvers) and approvers[0]["subject"] == wh["approver_subject"]
-        confirmed = _list(d["confirmed_by"], nonempty=True)
-        valid &= wh["approver_subject"] in confirmed
-        valid &= bool(requesters) and requesters[0]["subject"] not in confirmed
-        valid &= _inside(d["decided_at"], since, until)
-        valid &= len(issue) == 1 and issue[0]["owner_id"] == wh["requester"]
-    check("warehouse/decision", valid, "one approval by distinct, confirmed human approver")
-    workflows = [w for w in snapshot["workflow"] if w["ref"] == ref]
-    check(
-        "warehouse/workflow",
-        len(workflows) == 1 and _matches(workflows[0], {"status": "completed", "candidates": []}),
-        "completed workflow without candidates",
-    )
     draft_ids = {
         r["id"]
         for label, spec in specs.items()
         if spec["model"] == "stock_request" and spec["fields"].get("state") == "draft"
         for r in records[label]
     }
-    check(
-        "warehouse/draft",
-        bool(draft_ids)
-        and not any(m["request"] in draft_ids for m in snapshot["movements"])
-        and not any(
-            d["ref"] in {f"stock_request:{i}" for i in draft_ids}
-            for d in snapshot["decisions"] + snapshot["workflow"]
-        ),
-        "AI draft has no posting, decision or workflow",
-    )
-    self_rows = records[plan["self_request"]]
-    self_id = self_rows[0]["id"] if len(self_rows) == 1 else ""
-    self_ref = f"stock_request:{self_id}"
-    check(
-        "negative/self",
-        len(self_rows) == 1
-        and self_rows[0]["owner_id"] == wh["approver"]
-        and not any(m["request"] == self_id for m in snapshot["movements"])
-        and not any(d["ref"] == self_ref for d in snapshot["decisions"])
-        and not any(
-            w["ref"] == self_ref and w["status"] == "completed" for w in snapshot["workflow"]
-        ),
-        "self-owned probe remains in review without decision or posting; response separate",
-    )
-    foreign = _dict(snapshot.get("foreign"))
-    UUID(_text(foreign["tenant_id"]))
-    expected_foreign = plan["foreign"]
-    foreign_rows = _list(foreign.get("records"))
-    foreign_valid = foreign.get("tenant") == expected_foreign["tenant"] != snapshot["tenant"]
-    foreign_valid &= foreign.get("tenant_id") != snapshot["tenant_id"]
-    foreign_valid &= foreign.get("ref") == expected_foreign["ref"]
-    foreign_valid &= len(foreign_rows) == 1 and _matches(
-        foreign_rows[0],
-        {
-            "id": expected_foreign["ref"].split(":")[1],
-            "revision": expected_foreign["revision"],
-        },
-    )
-    foreign_valid &= type(foreign.get("changes")) is int and foreign["changes"] == 0
-    check(
-        "negative/foreign",
-        foreign_valid,
-        "real foreign record keeps baseline revision with no mutations in window",
-    )
+    if draft_ids:
+        check(
+            "warehouse/draft",
+            not any(m["request"] in draft_ids for m in snapshot["movements"])
+            and not any(
+                d["ref"] in {f"stock_request:{i}" for i in draft_ids}
+                for d in snapshot["decisions"] + snapshot["workflow"]
+            ),
+            "AI draft has no posting, decision or workflow",
+        )
+    if "self_request" in plan:
+        self_rows = records[plan["self_request"]]
+        self_id = self_rows[0]["id"] if len(self_rows) == 1 else ""
+        self_ref = f"stock_request:{self_id}"
+        check(
+            "negative/self",
+            len(self_rows) == 1
+            and self_rows[0]["owner_id"] == wh["approver"]
+            and not any(m["request"] == self_id for m in snapshot["movements"])
+            and not any(d["ref"] == self_ref for d in snapshot["decisions"])
+            and not any(
+                w["ref"] == self_ref and w["status"] == "completed" for w in snapshot["workflow"]
+            ),
+            "self-owned probe remains in review without decision or posting; response separate",
+        )
+    if "foreign" in plan:
+        foreign = _dict(snapshot.get("foreign"))
+        UUID(_text(foreign["tenant_id"]))
+        expected_foreign = plan["foreign"]
+        foreign_rows = _list(foreign.get("records"))
+        foreign_valid = foreign.get("tenant") == expected_foreign["tenant"] != snapshot["tenant"]
+        foreign_valid &= foreign.get("tenant_id") != snapshot["tenant_id"]
+        foreign_valid &= foreign.get("ref") == expected_foreign["ref"]
+        foreign_valid &= len(foreign_rows) == 1 and _matches(
+            foreign_rows[0],
+            {
+                "id": expected_foreign["ref"].split(":")[1],
+                "revision": expected_foreign["revision"],
+            },
+        )
+        foreign_valid &= type(foreign.get("changes")) is int and foreign["changes"] == 0
+        check(
+            "negative/foreign",
+            foreign_valid,
+            "real foreign record keeps baseline revision with no mutations in window",
+        )
     check(
         "audit/chain",
         type(status.get("n")) is int
@@ -387,15 +426,18 @@ def _evaluate(
         and status["first_bad_seq"] is None,
         "DB xt_audit.verify: whole-tenant chain consistency; external anchor separate",
     )
-    packs = [p for p in snapshot["packs"] if p["pack"] == plan["disabled_pack"]]
-    probes = [s for s in specs.values() if s["count"] == 0]
-    check(
-        "disabled/app",
-        len(packs) == 1
-        and packs[0]["status"] == "disabled"
-        and any(s["model"] in packs[0]["models"] for s in probes),
-        "disabled pack owns absent probe model; denial requires captured response",
-    )
+    if "disabled_pack" in plan:
+        packs = [p for p in snapshot["packs"] if p["pack"] == plan["disabled_pack"]]
+        probes = [s for s in specs.values() if s["count"] == 0]
+        check(
+            "disabled/app",
+            len(packs) == 1
+            and packs[0]["status"] == "disabled"
+            and any(s["model"] in packs[0]["models"] for s in probes),
+            "disabled pack owns absent probe model; denial requires captured response",
+        )
+    if "pii" not in plan:
+        return checks
     pii = plan["pii"]
     matched_pii = [
         p

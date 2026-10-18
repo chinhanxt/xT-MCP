@@ -256,7 +256,9 @@
           "commit_state": "committed",
           "committed_at": "2026-10-18T10:30:00Z",
           "data": {
-            "ref": "stock_request:00000000-0000-4000-8000-000000000001"
+            "record": {
+              "ref": "stock_request:00000000-0000-4000-8000-000000000001"
+            }
           }
         }
       },
@@ -308,7 +310,9 @@
           "commit_state": "committed",
           "committed_at": "2026-10-18T10:30:00Z",
           "data": {
-            "ref": "stock_request:00000000-0000-4000-8000-000000000002"
+            "record": {
+              "ref": "stock_request:00000000-0000-4000-8000-000000000002"
+            }
           }
         }
       },
@@ -324,7 +328,9 @@
           "commit_state": "committed",
           "committed_at": "2026-10-18T10:30:00Z",
           "data": {
-            "ref": "stock_request:00000000-0000-4000-8000-000000000030"
+            "record": {
+              "ref": "stock_request:00000000-0000-4000-8000-000000000030"
+            }
           }
         }
       },
