@@ -44,6 +44,14 @@
       "conditions": []
     },
     {
+      "id": "wh.agent-record-write",
+      "effect": "Allow",
+      "subjects": ["role:agent"],
+      "actions": ["record.create", "record.update"],
+      "resources": ["xrn:binhminh:warehouse:*", "xrn:binhminh:warehouse_location:*", "xrn:binhminh:stock_item:*"],
+      "conditions": []
+    },
+    {
       "id": "wh.request-write",
       "effect": "Allow",
       "subjects": [
