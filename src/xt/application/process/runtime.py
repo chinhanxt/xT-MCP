@@ -32,6 +32,8 @@ from xt.application.process.ports import (
     UserTask,
     WorkflowHandle,
 )
+from xt.application.tools.errors import ToolError
+from xt.domain.model.errors import ModelError
 from xt.domain.process.assignment import AssigneeResolver, Assignment, OrgDirectory, OrgUser
 from xt.domain.process.errors import DecisionError, EngineError
 from xt.domain.process.schedule import validate_fire
@@ -44,6 +46,29 @@ MAX_OBJECT_REPR = 16384
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 STEP_SUFFIXES = ("_decision", "_comment", "_actor", "_info", "_result", "_revise")
 DECISION_KINDS = ("decision", "task")
+
+
+def _failure_details(error: BaseException) -> dict[str, Any]:
+    """Read typed failures through engine wrappers; message text never identifies an app."""
+    pending, seen = [error], set()
+    fallback: dict[str, Any] = {"code": "internal_error", "reason": "engine_error"}
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if isinstance(current, ModelError | ToolError):
+            code = current.code.value if isinstance(current, ToolError) else current.code
+            details = current.details
+            found = {"code": code, "reason": details.get("reason", "engine_error")}
+            found.update({k: details[k] for k in ("model", "pack") if k in details})
+            if code == "capability_unavailable" and found["reason"] == "app_disabled":
+                return found
+            fallback = found
+        for nested in (current.__context__, current.__cause__):
+            if nested is not None:
+                pending.append(nested)
+    return fallback
 
 
 def _text(v: object, field_name: str, *, required: bool = False) -> str | None:
@@ -275,13 +300,15 @@ class ProcessInstance:
         self.meta["events"].append(ev)
         self._pending.append(ev)
 
-    def _dispatch(self) -> None:
+    def _dispatch(self, *, required: bool = False) -> None:
         """Sự kiện đã nằm trong meta (outbox); gửi best-effort sau khi state nhất quán."""
         evs, self._pending = self._pending, []
         for ev in evs:
             try:
                 self.rt.on_event(ev)
             except Exception as e:
+                if required:
+                    raise
                 self.meta["events"].append(
                     {"type": "event.delivery_failed", "of": ev["type"],
                      "error": f"{type(e).__name__}: {e}"[:200]}
@@ -650,7 +677,25 @@ class ProcessInstance:
             self.wf.complete(t.id, data, remove)
         except Exception as e:
             self.wf = self.rt._load_wf(snapshot, self.id)
-            raise self._incident(t.name, actor, e, "engine lỗi, đã khôi phục state") from e
+            retry = {
+                "operation": "act",
+                "task_id": t.id,
+                "actor": actor,
+                "outcome": outcome,
+                "comment": comment,
+                "kwargs": {
+                    k: copy.deepcopy(v)
+                    for k, v in {
+                        "delegate_to": delegate_to,
+                        "ask": ask,
+                        "updates": dict(updates) if updates is not None else None,
+                    }.items()
+                    if v is not None
+                },
+            }
+            raise self._incident(
+                t.name, actor, e, "engine lỗi, đã khôi phục state", retry=retry
+            ) from e
         self.meta["overrides"].update(overrides)
         returned = (kind == "revise" and outcome == "resubmit") or (
             kind in DECISION_KINDS
@@ -675,20 +720,44 @@ class ProcessInstance:
         if updates:
             entry["updates"] = dict(updates)
         self.meta["history"].append(entry)
+        for incident in self.meta.get("incidents", []):
+            replay = incident.get("retry") or {}
+            if (
+                incident.get("status") == "open"
+                and isinstance(replay, Mapping)
+                and replay.get("task_id") == t.id
+            ):
+                incident.update(status="resolved", resolved_by=actor)
         self.refresh_assignments()
         self._after_change()
 
     def _incident(
-        self, task: str | None, actor: str | None, err: BaseException, what: str
+        self,
+        task: str | None,
+        actor: str | None,
+        err: BaseException,
+        what: str,
+        *,
+        retry: dict[str, Any] | None = None,
     ) -> EngineError:
         """Ghi sự cố vào meta (quản trị thấy qua `incidents` + sự kiện `engine.error`); wf đã
         được khôi phục. Người gọi lưu meta rồi ném lại (ProcessService làm việc này)."""
         msg = f"{type(err).__name__}: {err}"[:500]
-        inc = {"task": task, "actor": actor, "error": msg}
+        inc = {
+            "id": str(uuid.uuid4()),
+            "status": "open",
+            "task": task,
+            "actor": actor,
+            "error": msg,
+            "attempts": 0,
+            **_failure_details(err),
+        }
+        if retry is not None:
+            inc["retry"] = retry
         self.meta.setdefault("incidents", []).append(inc)
         self._emit({"type": "engine.error", "instance": self.id, **inc})
         self._dispatch()
-        return EngineError(f"{what}: {msg}", reason="engine_incident")
+        return EngineError(f"{what}: {msg}", reason="engine_incident", incident=copy.deepcopy(inc))
 
     def tick(self) -> None:
         """Đánh giá timer (SLA/timer start). Lỗi -> khôi phục state, ném EngineError."""
@@ -697,6 +766,8 @@ class ProcessInstance:
             self.wf.refresh_timers()
         except Exception as e:
             self.wf = self.rt._load_wf(snapshot, self.id)
-            raise self._incident(None, None, e, "engine lỗi khi chạy timer") from e
+            raise self._incident(
+                None, None, e, "engine lỗi khi chạy timer", retry={"operation": "tick"}
+            ) from e
         self.refresh_assignments()
         self._after_change()

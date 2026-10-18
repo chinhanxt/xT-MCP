@@ -7,7 +7,7 @@ key (G-P10), dữ liệu sau join."""
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from lxml import etree
@@ -52,7 +52,7 @@ def test_happy_advance_small_only_dept_head(make_rt: MakeRt, services: Services)
 def test_happy_payment_80m_full_chain_with_reload(make_rt: MakeRt, services: Services) -> None:
     rt = make_rt("de_xuat_phe_duyet")
     i = start_proposal(rt, kind="payment_request", amount=80_000_000)
-    path = []
+    path: list[tuple[str, str]] = []
     for who in ("NV-0005", "NV-0003", "NV-0002", "NV-0001"):
         i = rt.load(jsonb_roundtrip(i.to_state(), seed=len(path)))
         t = only(i)
@@ -116,7 +116,10 @@ def test_gp3_bpmn_decision_gateways_have_no_default_flow(make_rt: MakeRt) -> Non
     rt = make_rt("de_xuat_phe_duyet")
     root = etree.fromstring(rt.compiled.bpmn.encode())
     ns = {"b": "http://www.omg.org/spec/BPMN/20100524/MODEL"}
-    decs = root.xpath("//b:exclusiveGateway[starts-with(@id,'dec_')]", namespaces=ns)
+    decs = cast(
+        list[etree._Element],
+        root.xpath("//b:exclusiveGateway[starts-with(@id,'dec_')]", namespaces=ns),
+    )
     assert decs and all(g.get("default") is None for g in decs)
 
 
@@ -462,7 +465,7 @@ def test_idempotency_key_is_instance_and_task(make_rt: MakeRt, services: Service
     rt = make_rt("de_xuat_phe_duyet")
     i = rt.start({"kind": "advance_request", "amount": 1}, "NV-0006", instance_id="inst-42")
     i.act(only(i)["task_id"], "NV-0005", "approve")
-    assert len(services.keys) == 1 and services.keys[0].startswith("inst-42:")
+    assert len(services.service_keys) == 1 and services.service_keys[0].startswith("inst-42:")
 
 
 # ------------------------------------------------------------------ dữ liệu sau join

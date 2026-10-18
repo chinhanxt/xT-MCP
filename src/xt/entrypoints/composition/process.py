@@ -1196,6 +1196,26 @@ class ProcessToolAdapter:
                 lambda: svc.act(p.instance_id, p.task_id, p.person, p.outcome, p.comment, **kw)
             )
         except EngineError as e:
+            if e.incident is not None and isinstance(e.incident.get("retry"), dict):
+                e.incident["retry"]["request_revision"] = {
+                    "model": p.model,
+                    "record_id": str(p.record_id),
+                    "expected_revision": p.revision,
+                }
+                e.incident["retry"]["decision"] = {
+                    "kind": "request",
+                    "ref": p.ref,
+                    "step": p.step,
+                    "decision": p.outcome,
+                    "approver": p.person,
+                    "requester": str(owner) if owner else None,
+                    "actor_kind": ctx.actor.kind.value,
+                    "actor_client": ctx.actor.client_id,
+                    "confirmed_by": ctx.confirmed_by,
+                    "instance_id": p.instance_id,
+                    "task_id": p.task_id,
+                }
+            self._incident(caller, p.instance_id, e)
             if p.model == "stock_request":
                 cause = e.__cause__
                 while cause is not None:
@@ -1207,7 +1227,6 @@ class ProcessToolAdapter:
                             details=cause.details,
                         ) from e
                     cause = cause.__cause__
-            self._incident(caller, p.instance_id, e)
             raise ToolError(
                 ErrorCode.INTERNAL_ERROR, "Quy trình gặp sự cố; quản trị đã được ghi nhận."
             ) from e
@@ -1248,8 +1267,24 @@ class ProcessToolAdapter:
     def _incident(self, caller: Caller, instance_id: str, e: EngineError) -> None:
         actor = caller.workflow()
         payload = {"instance": instance_id, "error": str(e)[:500], "reason": e.reason}
+        if e.incident is not None:
+            payload.update(
+                {
+                    k: e.incident[k]
+                    for k in ("id", "code", "reason", "model", "pack")
+                    if k in e.incident
+                }
+            )
 
         def write() -> None:
+            if e.incident is not None:
+                store = PgWorkflowStore(self.rt.uow)
+                rec = store.get_for_update(instance_id)
+                if rec is not None:
+                    incidents = rec.state.setdefault("meta", {}).setdefault("incidents", [])
+                    if not any(i.get("id") == e.incident["id"] for i in incidents):
+                        incidents.append(e.incident)
+                        store.save(instance_id, rec)
             self.rt.store.process_event(actor, instance_id, "engine.error", payload)
 
         after_rollback(write)
@@ -1532,6 +1567,15 @@ class ProcessToolAdapter:
                 lambda: svc.act(p.instance_id, p.task_id, p.person, p.outcome, p.comment)
             )
         except EngineError as e:
+            if e.incident is not None and "retry" in e.incident:
+                e.incident["retry"]["record_patch"] = {
+                    "model": p.model,
+                    "record_id": str(p.record_id),
+                    "expected_revision": p.revision,
+                    "values": p.values,
+                    "state_field": p.state_field,
+                    "to_state": p.to_state,
+                }
             self._incident(caller, p.instance_id, e)
             cause: BaseException | None = e.__cause__
             seen: set[int] = set()

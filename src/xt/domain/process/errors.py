@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import Any, ClassVar
 
 
 class ProcessError(Exception):
@@ -48,3 +48,15 @@ class DecisionError(ProcessError, ValueError):
 
 class EngineError(ProcessError, RuntimeError):
     default_code = "internal_error"
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str | None = None,
+        reason: str | None = None,
+        incident: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message, code=code, reason=reason)
+        # The caller may need to persist this after its failed action transaction rolls back.
+        self.incident = incident
