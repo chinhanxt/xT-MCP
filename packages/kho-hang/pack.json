@@ -1,7 +1,7 @@
 {
   "format": "xt-pack/1",
   "pack": "kho-hang",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "title": "Kho hàng: nhập xuất qua phê duyệt",
   "depends_on": [],
   "models": [

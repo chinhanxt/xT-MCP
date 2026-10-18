@@ -1,7 +1,7 @@
 {
   "format": "xt-pack/1",
   "pack": "tai-san",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "title": "Tài sản và bảo trì: phiếu bảo trì qua phê duyệt, sự kiện cảm biến (mô phỏng) chỉ là dữ liệu",
   "depends_on": [],
   "models": ["tai_san", "phieu_bao_tri", "su_kien_cam_bien"],

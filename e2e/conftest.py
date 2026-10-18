@@ -41,7 +41,10 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):  
     if rep.when == "call" or (rep.when in ("setup", "teardown") and rep.outcome != "passed"):
         ev: Evidence | None = getattr(item, "_xt_ev", None)
         msg = ""
-        if rep.outcome != "passed":
+        expected_failure = rep.skipped and hasattr(rep, "wasxfail")
+        if expected_failure:
+            msg = str(rep.wasxfail)
+        elif rep.outcome != "passed":
             msg = str(
                 getattr(rep.longrepr, "reprcrash", None)
                 and rep.longrepr.reprcrash.message
@@ -50,7 +53,7 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):  
         _results[scenario_of(item)].append(
             {
                 "test": item.name,
-                "outcome": rep.outcome,
+                "outcome": "xfailed" if expected_failure else rep.outcome,
                 "duration": rep.duration,
                 "message": msg,
                 "steps": ev.steps if ev else [],

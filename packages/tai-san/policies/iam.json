@@ -29,10 +29,18 @@
     {
       "id": "ts.request-write",
       "effect": "Allow",
-      "subjects": ["role:employee", "role:technician", "role:agent"],
+      "subjects": ["role:employee", "role:technician"],
       "actions": ["record.create", "record.update", "request.submit", "record.transition"],
       "resources": ["xrn:binhminh:phieu_bao_tri:*"],
       "conditions": [{"left": "resource.owner", "op": "eq", "right": {"ref": "subject.id"}}]
+    },
+    {
+      "id": "ts.agent-on-behalf",
+      "effect": "Allow",
+      "subjects": ["role:agent"],
+      "actions": ["record.create", "record.update", "request.submit", "record.transition", "request.decide"],
+      "resources": ["xrn:binhminh:phieu_bao_tri:*"],
+      "conditions": []
     },
     {
       "id": "ts.approve",
@@ -46,7 +54,7 @@
       "id": "ts.deny-agent-approve",
       "effect": "Deny",
       "subjects": ["role:agent"],
-      "actions": ["record.approve", "request.decide"],
+      "actions": ["record.approve"],
       "resources": ["xrn:binhminh:phieu_bao_tri:*"],
       "conditions": []
     },

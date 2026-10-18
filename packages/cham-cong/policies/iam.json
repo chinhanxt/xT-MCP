@@ -29,10 +29,18 @@
     {
       "id": "cc.request-write",
       "effect": "Allow",
-      "subjects": ["role:employee", "role:agent"],
+      "subjects": ["role:employee"],
       "actions": ["record.create", "record.update", "request.submit", "record.transition"],
       "resources": ["xrn:binhminh:bang_cong_tuan:*"],
       "conditions": [{"left": "resource.owner", "op": "eq", "right": {"ref": "subject.id"}}]
+    },
+    {
+      "id": "cc.agent-on-behalf",
+      "effect": "Allow",
+      "subjects": ["role:agent"],
+      "actions": ["record.create", "record.update", "request.submit", "record.transition", "request.decide"],
+      "resources": ["xrn:binhminh:bang_cong_tuan:*"],
+      "conditions": []
     },
     {
       "id": "cc.approve",
@@ -46,7 +54,7 @@
       "id": "cc.deny-agent-approve",
       "effect": "Deny",
       "subjects": ["role:agent"],
-      "actions": ["record.approve", "request.decide"],
+      "actions": ["record.approve"],
       "resources": ["xrn:binhminh:bang_cong_tuan:*"],
       "conditions": []
     },

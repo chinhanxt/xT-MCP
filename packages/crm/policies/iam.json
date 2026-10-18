@@ -21,10 +21,18 @@
     {
       "id": "crm.request-write",
       "effect": "Allow",
-      "subjects": ["role:sales", "role:sales_manager", "role:admin", "role:agent"],
+      "subjects": ["role:sales", "role:sales_manager", "role:admin"],
       "actions": ["record.create", "record.update", "request.submit", "record.transition"],
       "resources": ["xrn:binhminh:de_nghi_giam_gia:*"],
       "conditions": [{"left": "resource.owner", "op": "eq", "right": {"ref": "subject.id"}}]
+    },
+    {
+      "id": "crm.agent-on-behalf",
+      "effect": "Allow",
+      "subjects": ["role:agent"],
+      "actions": ["record.create", "record.update", "request.submit", "record.transition", "request.decide"],
+      "resources": ["xrn:binhminh:de_nghi_giam_gia:*"],
+      "conditions": []
     },
     {
       "id": "crm.approve",
@@ -38,7 +46,7 @@
       "id": "crm.deny-agent-approve",
       "effect": "Deny",
       "subjects": ["role:agent"],
-      "actions": ["record.approve", "request.decide"],
+      "actions": ["record.approve"],
       "resources": ["xrn:binhminh:de_nghi_giam_gia:*"],
       "conditions": []
     },

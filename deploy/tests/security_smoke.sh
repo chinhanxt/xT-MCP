@@ -95,7 +95,7 @@ exp "connector hợp lệ (chatgpt.com) vẫn 201" "201" "$(body '["https://chat
 exp "loopback 127.0.0.1 (Claude Code) vẫn 201" "201" "$(body '["http://127.0.0.1:33333/callback"]')"
 # PKCE: client vừa DCR phải có pkce.code.challenge.method=S256 (đọc bằng service account view-clients)
 ENVF="$(dirname "$0")/../.env"; envv(){ sed -n "s/^$1=\"\?\([^\" #]*\).*/\1/p" "$ENVF" 2>/dev/null | head -1; }
-KCDIRECT="http://127.0.0.1:$(envv KC_HTTP_PORT)"; RID=$(envv XT_IDP_ADMIN_CLIENT_ID); RSEC=$(envv XT_IDP_ADMIN_CLIENT_SECRET)
+KCDIRECT="http://127.0.0.1:${KC_HTTP_PORT:-$(envv KC_HTTP_PORT)}"; RID=$(envv XT_IDP_ADMIN_CLIENT_ID); RSEC=$(envv XT_IDP_ADMIN_CLIENT_SECRET)
 newc=$(jpost "$(body '["https://claude.ai/api/mcp/auth_callback"]')" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("client_id",""))' 2>/dev/null)
 rt=$(curl -s -X POST "$KCDIRECT/realms/${XT_REALM:-xt}/protocol/openid-connect/token" -d grant_type=client_credentials -d "client_id=$RID" --data-urlencode "client_secret=$RSEC" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("access_token",""))' 2>/dev/null)
 if [ -n "$rt" ] && [ -n "$newc" ]; then
