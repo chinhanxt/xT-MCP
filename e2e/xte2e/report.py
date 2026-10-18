@@ -48,6 +48,7 @@ SCENARIOS: dict[str, str] = {
     "E10": "Security smoke + auth âm + SoD",
     "E11": "Audit tamper",
     "E12": "Đổi tenant trên Desk (Organization, đăng xuất RP, token tenant mới)",
+    "E13": "Demo liên tầng: SOP, phiếu xuất, phê duyệt, báo cáo nguồn, CRM và audit",
 }
 
 
@@ -118,8 +119,14 @@ class Checks:
             pytest.fail("; ".join(self.problems), pytrace=False)
 
 
+def _status(results: list[dict[str, Any]]) -> str:
+    if not results or any(r["outcome"] not in ("passed", "xfailed") for r in results):
+        return "FAIL"
+    return "XFAIL" if any(r["outcome"] == "xfailed" for r in results) else "PASS"
+
+
 def write_scenario(dirp: Path, scenario: str, results: list[dict[str, Any]]) -> None:
-    status = "PASS" if results and all(r["outcome"] == "passed" for r in results) else "FAIL"
+    status = _status(results)
     data = {
         "scenario": scenario,
         "title": SCENARIOS.get(scenario, ""),
@@ -155,7 +162,7 @@ def write_summary(
             )
             out[sid] = {"status": status}
             continue
-        status = "PASS" if all(r["outcome"] == "passed" for r in res) else "FAIL"
+        status = _status(res)
         msgs = [
             r["message"].splitlines()[0][:400]
             for r in res
