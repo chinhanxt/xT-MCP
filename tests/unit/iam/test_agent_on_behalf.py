@@ -54,7 +54,7 @@ def _doc(pack: str | None) -> dict[str, Any]:
 
 def _guard(pack: str | None, people: dict[str, Actor]) -> AccessGuard:
     ev = PolicyEvaluator(PolicyDocument.model_validate(_doc(pack)))
-    return AccessGuard(ev, people, {}, {}, catalog=L0)  # type: ignore[arg-type]
+    return AccessGuard(ev, people, {}, {}, catalog=L0)
 
 
 def _person(pid: str, *roles: str) -> Actor:
@@ -159,7 +159,7 @@ def test_decide_is_human_only_for_agents() -> None:
     assert DEFAULT_ACTION_LEVELS["request.decide"] is RiskLevel.HUMAN_ONLY
     people = {"m": _person("m", "warehouse_manager")}
     ev = PolicyEvaluator(PolicyDocument.model_validate(_doc("kho-hang")))
-    guard = AccessGuard(ev, people, {}, {})  # type: ignore[arg-type]
+    guard = AccessGuard(ev, people, {}, {})
     d = guard.evaluate(_req(_agent("m"), "request.decide", "stock_request", owner="p"))
     assert d.reason is Reason.HUMAN_ONLY
 

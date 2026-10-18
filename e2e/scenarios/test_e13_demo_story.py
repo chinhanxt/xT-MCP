@@ -37,10 +37,6 @@ SOP = (
 )
 
 
-class StockAgentOwnershipBug(AssertionError):
-    """E13-BUG-01: agent stock ownership is compared with its client principal ID."""
-
-
 def _call(
     world: Any,
     ev: Evidence,
@@ -51,20 +47,6 @@ def _call(
 ) -> dict[str, Any]:
     out = world.call(who, tool, args)
     ev.step(label or tool, out)
-    failure = err(out)
-    if (
-        out.get("ok") is False
-        and tool == "create_record"
-        and args.get("model_id") == "stock_request"
-        and args.get("values", {}).get("kind") == "issue"
-        and failure.get("code") == "access_denied"
-        and failure.get("details", {}).get("reason") == "implicit_deny"
-        and failure.get("details", {}).get("principal") == f"agent:{seed.AGENT_CLIENT}"
-    ):
-        raise StockAgentOwnershipBug(
-            "E13-BUG-01: create_record stock_request(kind=issue) is denied because "
-            "wh.request-write compares the person's owner UUID with agent:xt-desk-agent."
-        )
     assert out.get("ok") is True, f"{tool}: {dumps(out)[:1200]}"
     return dict(out["data"])
 
@@ -108,9 +90,10 @@ def _search(
 def _org_roles(world: Any, ev: Evidence, directory: Path) -> None:
     """Extend demo input data, preserving existing subjects, mappings and other grants.
 
-    IAM checks both the person and the delegated grant. A warehouse manager delegates the
-    warehouse role, rather than role:agent (which the warehouse policy explicitly denies
-    for approval). L1 still requires the real person's Desk confirmation.
+    IAM checks both the delegated grant and the represented person. Every grant keeps the
+    default role:agent (D-UNI-AGENT-1: agent acts only for its person; decide_request is
+    human_only, so the manager still confirms in Desk). Human roles are added to the grant
+    only for catalog writes that have no role:agent statement (warehouse, CRM customer).
     """
     tenant = world.tenants[A]
     original = Path(tenant["org_file"])
@@ -136,14 +119,11 @@ def _org_roles(world: Any, ev: Evidence, directory: Path) -> None:
     for grant in links["agent_grants"]:
         roles = additions.get(grant["person"])
         if roles:
-            # File/document owner policies use the dedicated role:agent grant and
-            # then intersect it with the human owner's permissions. Preserve that
-            # delegation except on the warehouse approval client, whose policy
-            # explicitly denies role:agent approval.
-            delegated = list(grant["roles"])
-            if grant["person"] == DEPT_HEAD_ACCT and grant["client_id"] == seed.AGENT_CLIENT:
-                delegated = [role for role in delegated if role != "agent"]
-            grant["roles"] = list(dict.fromkeys([*delegated, "employee", *roles]))
+            # Keep role:agent: the Desk portal approves through this agent client, so
+            # the manager's approval below proves agents are not denied request.decide.
+            grant["roles"] = list(dict.fromkeys([*grant["roles"], "employee", *roles]))
+            if grant["client_id"] == seed.AGENT_CLIENT:
+                assert "agent" in grant["roles"], grant
     out = seed.import_org(A, org_file, links, force=True)
     ev.step(
         "xt org import: demo roles + explicit delegated L1 scopes",
@@ -446,7 +426,7 @@ def _warehouse(
         "note": f"Nguồn quy định: {sop}",
     }
     # Keep the first stock write faithful to the staff demo: an issue draft via
-    # the real agent client. E13-BUG-01 is narrowly raised at this product boundary.
+    # the real agent client, owned by the represented person (D-UNI-AGENT-1).
     issue_draft = _create(
         world,
         ev,
@@ -707,11 +687,6 @@ def _wrong_tenant(world: Any, ev: Evidence, ref: str, private_text: str) -> None
     assert private_text not in dumps(denied)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=StockAgentOwnershipBug,
-    reason="E13-BUG-01: real agent cannot create its person's stock issue (owner IAM predicate)",
-)
 def test_demo_story(ev: Evidence, world: Any, tmp_path: Path) -> None:
     """A complete, reproducible §9 story with lineage, Tier 3 and final audit proof."""
     requester, manager, admin = (
@@ -751,13 +726,13 @@ def test_demo_story(ev: Evidence, world: Any, tmp_path: Path) -> None:
 
 
 def test_sop_document_source(ev: Evidence, world: Any, tmp_path: Path) -> None:
-    """SOP proof remains independent while E13-BUG-01 blocks the stock story."""
+    """SOP proof stays independent of the stock story."""
     with _demo_roles(world, ev, tmp_path):
         _sop(world, ev, world.by_key(A, REQUESTER), key("sop")[-8:])
 
 
 def test_crm_lifecycle_tenant_and_final_audit(ev: Evidence, world: Any, tmp_path: Path) -> None:
-    """Tier 3 and final integrity still execute when warehouse ownership is broken."""
+    """Tier 3 and final integrity execute independently of the stock story."""
     tag = key("crm")[-8:]
     with _demo_roles(world, ev, tmp_path):
         requester, admin = world.by_key(A, REQUESTER), world.by_key(A, DIRECTOR)
