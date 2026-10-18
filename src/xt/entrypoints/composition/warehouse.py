@@ -36,7 +36,7 @@ def post_stock_operation(pc: ProcessContext, definition: ProcessDefinition) -> S
         ):
             raise invalid("Ghi kho cần quyết định của quản lý kho trên đúng phiếu đã gửi.")
         lock_stock(pc.rt.uow, pc.actor)
-        return post_stock(_Data(pc), rid, pc.actor.actor_id)
+        return post_stock(_Data(pc), rid, pc.actor.actor_id, pc.timezone)
 
     return op
 
