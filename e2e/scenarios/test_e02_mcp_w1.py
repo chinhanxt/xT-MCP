@@ -192,7 +192,7 @@ def test_w1_end_to_end(ev: Evidence, world, connector: Connector) -> None:  # ty
         and (final.get("data") or {}).get("request", {}).get("state") == "approved",
         "đề nghị approved",
     )
-    hist = connector.call(req, "get_history", {"ref": ref, "view": "audit"})
+    hist = connector.call(dr, "get_history", {"ref": ref, "view": "audit"})
     ev.step("get_history audit", (hist.get("data") or {}).get("chain_verified"))
     c.check((hist.get("data") or {}).get("chain_verified") is True, "chuỗi audit kiểm OK")
     tl = connector.call(req, "get_history", {"ref": ref})

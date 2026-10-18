@@ -249,7 +249,7 @@ async def test_w1_advance_8m_end_to_end(stack: Stack) -> None:
     s.outputs["w1-final"] = json.dumps(final, ensure_ascii=False, indent=1)
 
     # 6. Audit hash-chain kiểm OK, dòng thời gian có sự kiện quy trình.
-    hist = await s.call("acme", REQUESTER, "get_history", {"ref": ref, "view": "audit"})
+    hist = await s.call("acme", DIRECTOR, "get_history", {"ref": ref, "view": "audit"})
     assert hist["ok"] and hist["data"]["chain_verified"] is True, hist
     s.outputs["w1-audit"] = json.dumps(hist["data"]["chain_verified"])
     tl = await s.call("acme", REQUESTER, "get_history", {"ref": ref})

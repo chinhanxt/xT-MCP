@@ -1,7 +1,7 @@
 {
   "format": "xt-pack/1",
   "pack": "tai-san",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "title": "Tài sản và bảo trì: phiếu bảo trì qua phê duyệt, sự kiện cảm biến (mô phỏng) chỉ là dữ liệu",
   "depends_on": [],
   "models": ["tai_san", "phieu_bao_tri", "su_kien_cam_bien"],
@@ -21,7 +21,7 @@
       "xt_workflow": "Danh tính dịch vụ duy nhất ghi trạng thái phiếu bảo trì"
     },
     "step_actions": {"*": "record.approve"},
-    "simulation": "Nguồn mo-phong là dữ liệu giả lập, hiển thị nhãn MÔ PHỎNG; sự kiện chỉ là dữ liệu, không tự ghi tình trạng tài sản.",
+    "simulation": "Nguồn mo_phong là dữ liệu giả lập, hiển thị nhãn MÔ PHỎNG; sự kiện chỉ là dữ liệu, không tự ghi tình trạng tài sản.",
     "tenant_demo": "binhminh"
   },
   "app": {

@@ -7,6 +7,8 @@ Guards the install plan without PostgreSQL: a pack that would print "KHÔNG CÀI
 
 from __future__ import annotations
 
+import copy
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -43,3 +45,14 @@ def test_unknown_binding_field_still_rejected() -> None:
         manifest, {m.name: m for m in catalog.models}, {"stock_approval"}
     )
     assert problems == ["ràng buộc stock_request: input request_id lấy trường lạ 'nope'"]
+
+
+def test_enum_value_rejected_by_describe_model_contract() -> None:
+    loaded = load_pack(ROOT / "packages" / "crm")
+    models = copy.deepcopy(loaded.models)
+    kh = next(m for m in models if m["name"] == "khach_hang")
+    field = next(f for f in kh["fields"] if f.get("options"))
+    field["options"] = [{"value": "ca-nhan", "label": "Cá nhân"}]
+    field.pop("default", None)
+    problems = static_problems(replace(loaded, models=models), "acme", [])
+    assert any("describe_model sai hợp đồng tool" in p and "ca-nhan" in p for p in problems)

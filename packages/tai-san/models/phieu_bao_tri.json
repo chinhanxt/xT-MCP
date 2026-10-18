@@ -15,8 +15,8 @@
       "label": "Mức ưu tiên",
       "pii": "none",
       "required": true,
-      "default": "trung-binh",
-      "options": [{"value": "thap", "label": "Thấp"}, {"value": "trung-binh", "label": "Trung bình"}, {"value": "cao", "label": "Cao"}, {"value": "khan", "label": "Khẩn"}]
+      "default": "trung_binh",
+      "options": [{"value": "thap", "label": "Thấp"}, {"value": "trung_binh", "label": "Trung bình"}, {"value": "cao", "label": "Cao"}, {"value": "khan", "label": "Khẩn"}]
     },
     {"id": "f6", "name": "est_cost", "type": "money", "label": "Chi phí dự kiến (VND)", "pii": "none", "required": true, "default": 0, "min": 0, "max": 9000000000000},
     {

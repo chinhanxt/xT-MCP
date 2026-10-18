@@ -14,12 +14,12 @@
       "label": "Kênh",
       "pii": "none",
       "required": true,
-      "default": "dien-thoai",
+      "default": "dien_thoai",
       "options": [
-        {"value": "dien-thoai", "label": "Điện thoại"},
+        {"value": "dien_thoai", "label": "Điện thoại"},
         {"value": "email", "label": "Email"},
-        {"value": "gap-mat", "label": "Gặp mặt"},
-        {"value": "tin-nhan", "label": "Tin nhắn"}
+        {"value": "gap_mat", "label": "Gặp mặt"},
+        {"value": "tin_nhan", "label": "Tin nhắn"}
       ]
     },
     {"id": "f5", "name": "contacted_at", "type": "datetime", "label": "Thời điểm liên hệ", "pii": "none", "required": true},

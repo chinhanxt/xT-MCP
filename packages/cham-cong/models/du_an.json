@@ -16,12 +16,12 @@
       "label": "Trạng thái",
       "pii": "none",
       "required": true,
-      "default": "dang-chay",
+      "default": "dang_chay",
       "options": [
-        {"value": "ke-hoach", "label": "Kế hoạch"},
-        {"value": "dang-chay", "label": "Đang chạy"},
-        {"value": "tam-dung", "label": "Tạm dừng"},
-        {"value": "hoan-thanh", "label": "Hoàn thành"}
+        {"value": "ke_hoach", "label": "Kế hoạch"},
+        {"value": "dang_chay", "label": "Đang chạy"},
+        {"value": "tam_dung", "label": "Tạm dừng"},
+        {"value": "hoan_thanh", "label": "Hoàn thành"}
       ]
     }
   ],

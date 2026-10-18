@@ -13,8 +13,8 @@
       "label": "Loại khách hàng",
       "pii": "none",
       "required": true,
-      "default": "ca-nhan",
-      "options": [{"value": "ca-nhan", "label": "Cá nhân"}, {"value": "doanh-nghiep", "label": "Doanh nghiệp"}]
+      "default": "ca_nhan",
+      "options": [{"value": "ca_nhan", "label": "Cá nhân"}, {"value": "doanh_nghiep", "label": "Doanh nghiệp"}]
     },
     {"id": "f4", "name": "phone", "type": "text", "label": "Điện thoại", "pii": "basic", "max": 30},
     {"id": "f5", "name": "email", "type": "text", "label": "Email", "pii": "basic", "max": 200},
@@ -25,11 +25,11 @@
       "label": "Trạng thái chăm sóc",
       "pii": "none",
       "required": true,
-      "default": "tiem-nang",
+      "default": "tiem_nang",
       "options": [
-        {"value": "tiem-nang", "label": "Tiềm năng"},
-        {"value": "dang-cham-soc", "label": "Đang chăm sóc"},
-        {"value": "khach-hang", "label": "Khách hàng"},
+        {"value": "tiem_nang", "label": "Tiềm năng"},
+        {"value": "dang_cham_soc", "label": "Đang chăm sóc"},
+        {"value": "khach_hang", "label": "Khách hàng"},
         {"value": "ngung", "label": "Ngừng chăm sóc"}
       ]
     },

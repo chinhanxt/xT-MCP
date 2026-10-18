@@ -16,9 +16,9 @@
       "default": "moi",
       "options": [
         {"value": "moi", "label": "Mới"},
-        {"value": "tiep-can", "label": "Tiếp cận"},
-        {"value": "bao-gia", "label": "Báo giá"},
-        {"value": "dam-phan", "label": "Đàm phán"},
+        {"value": "tiep_can", "label": "Tiếp cận"},
+        {"value": "bao_gia", "label": "Báo giá"},
+        {"value": "dam_phan", "label": "Đàm phán"},
         {"value": "thang", "label": "Thắng"},
         {"value": "thua", "label": "Thua"}
       ]

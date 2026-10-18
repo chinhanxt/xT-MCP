@@ -15,12 +15,12 @@
       "label": "Tình trạng",
       "pii": "none",
       "required": true,
-      "default": "hoat-dong",
+      "default": "hoat_dong",
       "options": [
-        {"value": "hoat-dong", "label": "Hoạt động"},
-        {"value": "bao-tri", "label": "Đang bảo trì"},
-        {"value": "ngung-su-dung", "label": "Ngừng sử dụng"},
-        {"value": "thanh-ly", "label": "Đã thanh lý"}
+        {"value": "hoat_dong", "label": "Hoạt động"},
+        {"value": "bao_tri", "label": "Đang bảo trì"},
+        {"value": "ngung_su_dung", "label": "Ngừng sử dụng"},
+        {"value": "thanh_ly", "label": "Đã thanh lý"}
       ]
     }
   ],

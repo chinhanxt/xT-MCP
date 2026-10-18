@@ -45,6 +45,8 @@ DEFAULT_ACTION_LEVELS: ActionCatalog = MappingProxyType(
         "record.aggregate": _L.L0,
         "inbox.read": _L.L0,
         "history.read": _L.L0,
+        # get_history view=audit (tool-contracts-v1 §5.9): xem nhật ký audit cần quyền riêng.
+        "audit.read": _L.L0,
         "record.transition": _L.L3,
         "file.create": _L.L1,
         # REST /files/v1 (docs/files-api.md): đọc metadata/tải về; xóa mềm (khôi phục được).

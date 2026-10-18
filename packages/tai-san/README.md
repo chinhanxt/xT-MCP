@@ -12,7 +12,7 @@
 | `su_kien_cam_bien` | Sự kiện đo: `source`, `metric`, `value`, `unit`, `observed_at`. **Chỉ là dữ liệu** |
 
 ## Nguồn mô phỏng
-`source` có ba giá trị: `cam-bien` (thiết bị thật), `nhap-tay`, `mo-phong`. Nhãn của `mo-phong` là "MÔ PHỎNG: dữ liệu giả lập, không phải thiết bị thật", hiển thị nguyên văn ở mọi giao diện sinh từ `describe_model`. Dữ liệu mẫu chỉ dùng `mo-phong` và `nhap-tay`; gói không kết nối thiết bị nào.
+`source` có ba giá trị: `cam_bien` (thiết bị thật), `nhap_tay`, `mo_phong`. Nhãn của `mo_phong` là "MÔ PHỎNG: dữ liệu giả lập, không phải thiết bị thật", hiển thị nguyên văn ở mọi giao diện sinh từ `describe_model`. Dữ liệu mẫu chỉ dùng `mo_phong` và `nhap_tay`; gói không kết nối thiết bị nào.
 
 ## Sự kiện không tự ghi nghiệp vụ
 Không có quy trình, op hay trigger nào đọc `su_kien_cam_bien` để đổi `tai_san.status` hoặc tạo phiếu. Việc này được chặn ở dữ liệu:
@@ -37,7 +37,7 @@ Không có quy trình, op hay trigger nào đọc `su_kien_cam_bien` để đổ
 Không ai xóa được bản ghi (`ts.deny-delete`).
 
 ## Dữ liệu mẫu (`seed/`)
-3 tài sản, 3 sự kiện (2 `mo-phong`, 1 `nhap-tay`). Tenant mẫu `binhminh` trong IAM được đổi sang tenant đích lúc cài.
+3 tài sản, 3 sự kiện (2 `mo_phong`, 1 `nhap_tay`). Tenant mẫu `binhminh` trong IAM được đổi sang tenant đích lúc cài.
 
 ## Cài, tắt, bật
 Cài như mọi gói: `plan_install` rồi `install(confirm=digest)`. Gói không phụ thuộc gói khác.

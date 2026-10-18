@@ -65,6 +65,14 @@
       "actions": ["workspace.read", "model.read", "process.read", "person.read", "record.search", "record.aggregate", "inbox.read", "history.read"],
       "resources": ["xrn:binhminh:*"],
       "conditions": []
+    },
+    {
+      "id": "crm.audit",
+      "effect": "Allow",
+      "subjects": ["role:admin", "role:director"],
+      "actions": ["audit.read"],
+      "resources": ["xrn:binhminh:*"],
+      "conditions": []
     }
   ]
 }

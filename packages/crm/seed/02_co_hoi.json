@@ -5,7 +5,7 @@
       "_key": "CH-0001",
       "title": "Gói dịch vụ năm cho khách A",
       "customer": "@khach_hang:KH-0001",
-      "stage": "bao-gia",
+      "stage": "bao_gia",
       "value_milli": 120000000000,
       "owner_person": "@user:NV-0006",
       "owner_id": "@user:NV-0006",
@@ -15,7 +15,7 @@
       "_key": "CH-0002",
       "title": "Mua lẻ cho khách B",
       "customer": "@khach_hang:KH-0002",
-      "stage": "tiep-can",
+      "stage": "tiep_can",
       "value_milli": 8000000000,
       "owner_person": "@user:NV-0007",
       "owner_id": "@user:NV-0007"
