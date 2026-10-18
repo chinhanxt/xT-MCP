@@ -164,6 +164,94 @@ def test_onboarding_happy_path(ops: Ops) -> None:
     assert {t["state"] for t in tasks} == {"done"}
 
 
+def _grant_case(
+    ops: Ops, no: str, dept_code: str, grantee: str
+) -> tuple[dict[str, Any], dict[str, Any], str]:
+    """Hồ sơ tiếp nhận do HR (NV-0003) khởi tạo + access_grant keycloak do IT A (NV-0005) tạo."""
+    dept = ops.create("NV-0003", "department", {"code": dept_code, "name": "Kinh doanh"})
+    emp = _employee(ops, f"NV-{no}", grantee, dept)
+    case = ops.create(
+        "NV-0003",
+        "lifecycle_case",
+        {"code": f"ON-2026-{no}", "employee": emp["id"], "kind": "onboarding",
+         "effective_on": "2026-11-02", "initiated_by": ops.pid("NV-0003")},
+    )  # fmt: skip
+    grant = ops.create(
+        "NV-0005",
+        "access_grant",
+        {"employee": emp["id"], "system": "keycloak", "role": "sales_manager",
+         "issued_on": "2026-11-02"},
+    )  # fmt: skip
+    data = {"case_id": case["id"], "employee_id": emp["id"], "employee_user": ops.pid(grantee)}
+    iid, s = ops.start("employee_onboarding", data, "NV-0003")
+    assert ops.steps(s) == {"hr"}
+    return case, grant, iid
+
+
+def _role_grant(ops: Ops, grant: dict[str, Any]) -> dict[str, Any] | None:
+    def body(c: Caller, _: ProcessContext) -> dict[str, Any] | None:
+        with ops.rt.uow.tenant_tx(c.actor) as cur:
+            row = cur.execute(
+                "SELECT person, role, requested_by, approved_by, revoked_at"
+                " FROM xt_meta.person_role_grant WHERE grant_ref = %s",
+                (f"access_grant:{grant['id']}",),
+            ).fetchone()
+        return dict(row) if row else None
+
+    out: dict[str, Any] | None = ops.run("NV-0001", body)
+    return out
+
+
+def _assert_applied(ops: Ops, grant: dict[str, Any], grantee: str, approver: str) -> None:
+    row = _role_grant(ops, grant)
+    assert row is not None, "access_grant keycloak chưa được áp thành vai trò"
+    assert str(row["person"]) == ops.pid(grantee) and row["role"] == "sales_manager"
+    assert str(row["requested_by"]) == ops.pid("NV-0003")
+    assert str(row["approved_by"]) == ops.pid(approver) and row["revoked_at"] is None
+    person = ops.run(grantee, lambda c, _: c.person)
+    assert "sales_manager" in person.roles
+
+
+def test_onboarding_it_step_applies_access_grant_by_other_it_admin(ops: Ops) -> None:
+    """HR khởi tạo, IT A tạo access_grant, IT B (khác HR, A, người được cấp) hoàn thành bước `it`
+    -> sync_access_grants áp vai trò, người duyệt = B (SoD không chặn nhầm)."""
+    _, grant, iid = _grant_case(ops, "0915", "KDGA", "NV-0015")
+    assert ops.steps(ops.act(iid, "hr", "NV-0003")) == {"it", "accounting", "manager"}
+    ops.act(iid, "it", "NV-0014")
+    _assert_applied(ops, grant, "NV-0015", "NV-0014")
+
+
+def test_onboarding_it_step_rejects_grant_creator_as_approver(ops: Ops) -> None:
+    """SoD giữ nguyên khi created_by đọc được: IT A tự tạo access_grant rồi tự duyệt -> chặn."""
+    _, grant, iid = _grant_case(ops, "0917", "KDGC", "NV-0015")
+    ops.act(iid, "hr", "NV-0003")
+    with pytest.raises(EngineError, match="người duyệt phải khác"):
+        ops.act(iid, "it", "NV-0005")
+    assert _role_grant(ops, grant) is None
+
+
+def test_onboarding_it_step_via_confirmation_applies_access_grant(ops: Ops) -> None:
+    """Như trên nhưng qua đường thật của Desk: transition_record trên lifecycle_task (human_only)
+    -> confirmation_required -> chính người được giao xác nhận (/desk/confirm)."""
+    from xt.application.tools.ports import PendingStatus
+
+    case, grant, _ = _grant_case(ops, "0916", "KDGB", "NV-0016")
+    tasks = {t["step"]: t for t in ops.search("lifecycle_task", _of_case(case))}
+
+    def finish(step: str, who: str) -> Any:
+        ref = f"lifecycle_task:{tasks[step]['id']}"
+        pending = ops.complete(who, ref, "done", f"it-sod-0916-{step}")
+        assert pending["error"]["code"] == "confirmation_required", pending
+        return ops.confirm(pending, who, who)
+
+    hr = finish("hr", "NV-0003")
+    assert hr.status is PendingStatus.CONFIRMED, hr
+    it = finish("it", "NV-0014")
+    assert it.status is PendingStatus.CONFIRMED and not it.error, it
+    _assert_applied(ops, grant, "NV-0016", "NV-0014")
+    assert ops.get("lifecycle_task", tasks["it"]["id"])["state"] == "done"
+
+
 def test_offboarding_happy_path_with_unreturned_asset(ops: Ops) -> None:
     dept = ops.create("NV-0003", "department", {"code": "KDOFF", "name": "Kinh doanh"})
     emp = _employee(ops, "NV-0012", "NV-0012", dept, state="permanent", hired_on="2020-01-01")

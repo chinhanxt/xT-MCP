@@ -35,7 +35,10 @@ from xt.domain.model.expr import Expr, coerce_literal
 from xt.domain.model.spec import FieldSpec, ModelSpec
 from xt.domain.model.values import with_system_fields
 
-SYSTEM_OUT = ("id", "revision", "owner_id", "team_id", "department_id", "created_at", "updated_at")
+SYSTEM_OUT = (
+    "id", "revision", "owner_id", "team_id", "department_id", "created_at", "updated_at",
+    "created_by",
+)  # fmt: skip
 
 
 def _param(v: Any) -> Any:
