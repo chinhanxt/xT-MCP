@@ -86,6 +86,7 @@ def main() -> int:
     dest.parent.mkdir(exist_ok=True)
     with dest.open("w") as f:  # ghi tại chỗ: giữ inode cho bind mount
         f.write(out)
+    dest.chmod(0o644)  # APISIX chạy non-root: tệp chép tay 0600 làm gateway không nạp được route (404 mọi host)
     print(f"đã sinh {dest}" + (f" (+{len(extra)} route riêng: {', '.join(r['id'] for r in extra)})" if extra else ""))
     return 0
 

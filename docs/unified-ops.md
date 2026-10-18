@@ -144,3 +144,17 @@ Khi khôi phục, chép thư mục Studio đã restore vào volume (`docker run 
 ### LLM của Desk đang tắt
 
 Nếu `XT_DESK_LLM_URL` rỗng và `DESK_LLM_URL` trỏ tới dịch vụ không chạy (ví dụ `ollama` thuộc profile `full`), `/llm/chat/completions` trả 404 (route chưa đăng ký) hoặc 502 `llm_unavailable`. Khi đó khung chat Desk hiện ghi chú "Chưa cấu hình LLM: …" thay cho lỗi HTTP thô (`desk/src/llm.ts`, `LlmUnavailableError`). 401, 413 và 429 vẫn hiện là lỗi thật. Các không gian nghiệp vụ, Studio và WareTrack không phụ thuộc LLM của Desk.
+
+### Gán vai trò gói cho người demo (luồng sản phẩm)
+
+Vai trò gói (`warehouse_manager`, `sales`, `sales_manager`, `project_manager`, `facility_manager`, `technician`) được cấp qua `access_grant` và bước IT của `employee_onboarding` (gói `nhan-su-vong-doi` >= 0.4.2). Không ghi thẳng vào bảng. Công cụ vận hành:
+
+```bash
+cd e2e   # của worktree triển khai; deploy/.env trỏ đúng stack
+XT_E2E_PROJECT=<project> PYTHONPATH=. uv run --project .. python -m xte2e.demo_roles demo-roles.binhminh.json           # chỉ in kế hoạch
+XT_E2E_PROJECT=<project> PYTHONPATH=. uv run --project .. python -m xte2e.demo_roles demo-roles.binhminh.json --apply   # chạy
+```
+
+SoD được kiểm trước khi ghi và được kiểm lại ở op `sync_access_grants`: người duyệt IT phải khác HR (người đề nghị), khác người tạo grant và khác người được cấp. Mỗi bước human-only được xác nhận trên `/desk/confirm` bằng mật khẩu + TOTP. Nếu một lần xác nhận bị từ chối hoặc hết hạn, chạy lại với `--attempt N` để bước đó có idempotency_key mới.
+
+Theo D-UNI-AGENT-1, `role:agent` không được ghi danh mục (kho, vị trí, hàng hóa, khách hàng CRM). Desk và connector đều gọi MCP bằng client agent. Muốn một người quản lý danh mục qua Desk, người vận hành phải thêm vai trò người đó vào agent grant một cách tường minh bằng `xt org import --links`, ví dụ `roles: ["agent","employee","warehouse_manager"]`, rồi ghi lại trong nhật ký triển khai.
