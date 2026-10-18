@@ -84,7 +84,8 @@ TENANTS: list[dict[str, Any]] = [
         "domain": "binhminh.example",
         "org": ROOT / "seed" / "binh-minh" / "org.json",
         "mapping": ROOT / "seed" / "binh-minh" / "mapping.json",
-        # 3 gói nghiệp vụ lõi trước, sau đó mọi gói khác có trong packages/ (vd. quản trị mô hình, kênh PII).
+        # CRM được cài theo nhu cầu trong E13 để chứng minh vòng đời ứng dụng Tầng 3.
+        # 3 gói nghiệp vụ lõi trước, sau đó các gói khác (quản trị mô hình, kênh PII, ...).
         "packs": [
             "de-xuat-phe-duyet",
             "giao-viec-sla",
@@ -92,7 +93,8 @@ TENANTS: list[dict[str, Any]] = [
             *sorted(
                 p.parent.name
                 for p in (ROOT / "packages").glob("*/pack.json")
-                if p.parent.name not in ("de-xuat-phe-duyet", "giao-viec-sla", "nhan-su-vong-doi")
+                if p.parent.name
+                not in ("de-xuat-phe-duyet", "giao-viec-sla", "nhan-su-vong-doi", "crm")
             ),
         ],
         # giám đốc, kế toán, 2 trưởng phòng (Kinh doanh, Kế toán), 3 nhân viên Kinh doanh
