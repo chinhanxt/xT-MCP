@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from jsonschema import Draft202012Validator
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from xt.adapters.db.connection import AuditKey
@@ -36,6 +37,7 @@ from xt.adapters.db.integration import (
 )
 from xt.adapters.db.migrator import PgMigrator
 from xt.adapters.workflow.bpmn.spiff import SpiffProcessEngine
+from xt.contracts.model import describe_model
 from xt.contracts.tools import BY_NAME
 from xt.domain.iam import PolicyDocument, loads_policy_json, policy_digest
 from xt.domain.model.context import TenantRef
@@ -415,6 +417,7 @@ def static_problems(pack: LoadedPack, alias: str, deps: list[LoadedPack]) -> lis
     for cls in (RiskClass.DESTRUCTIVE, RiskClass.BLOCKED):
         if plan.ids(cls):
             problems.append(f"kế hoạch model có thao tác {cls.value}: {plan.ids(cls)}")
+    problems += _contract_problems(catalog, {m.get("name") for m in pack.models})
     processes, bad = _compile(pack)
     problems += bad
     _merge_policy([p for d in deps for p in d.policies] + list(pack.policies), alias, None)
@@ -423,6 +426,20 @@ def static_problems(pack: LoadedPack, alias: str, deps: list[LoadedPack]) -> lis
     dep_ids = {str(spec["id"]) for d in deps for spec in d.processes}
     problems += binding_problems(pack.manifest, by_name, {p[0] for p in processes} | dep_ids)[0]
     return problems
+
+
+def _contract_problems(catalog: Catalog, names: set[Any]) -> list[str]:
+    """`describe_model` của mỗi model trong gói phải qua output schema của tool contract
+    (vd enum value theo `^[a-z][a-z0-9_]{0,62}$`); nếu không, tool trả `internal_error` khi chạy."""
+    validator = Draft202012Validator(BY_NAME["describe_model"].output_schema)
+    out: list[str] = []
+    for m in catalog.models:
+        if m.name not in names:
+            continue
+        for e in validator.iter_errors(describe_model(m, 1)):
+            where = "/".join(str(x) for x in e.absolute_path)
+            out.append(f"model {m.name}: describe_model sai hợp đồng tool tại {where}: {e.message}")
+    return out
 
 
 def _complete_via_problems(

@@ -259,6 +259,7 @@ def _cas(r: Rec, expected: int | None) -> None:
 class FakeAccess:
     ceiling: RiskLevel = RiskLevel.L1
     deny_tools: dict[str, str] = field(default_factory=dict)
+    deny_actions: dict[str, str] = field(default_factory=dict)
     checks: list[AccessCheck] = field(default_factory=list)
     store: Store | None = None
 
@@ -267,6 +268,10 @@ class FakeAccess:
         if check.tool in self.deny_tools:
             return AccessDecision(
                 False, self.deny_tools[check.tool], "Policy denies it.", "explain:deny-0001"
+            )
+        if check.action in self.deny_actions:
+            return AccessDecision(
+                False, self.deny_actions[check.action], "Policy denies it.", "explain:deny-0002"
             )
         if check.tool == "decide_request" and self.store and check.resource:
             r = self.store.records.get(check.resource)

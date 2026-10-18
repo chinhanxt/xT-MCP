@@ -10,11 +10,12 @@ Kiểm chéo field mà schema không diễn đạt (C3: không combinator ở ro
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from xt.application.tools.context import CallContext
 from xt.application.tools.errors import (
+    access_denied,
     continuation,
     invalid_request,
     not_found,
@@ -209,6 +210,24 @@ class GetInbox(ReadHandler):
 
 class GetHistory(ReadHandler):
     name = "get_history"
+
+    def precheck(self, s: ToolServices, ctx: CallContext, args: Args) -> None:
+        """`view=audit` cần thêm `audit.read` (tool-contracts-v1 §5.9), ngoài `history.read`."""
+        if args.get("view") != "audit":
+            return
+        decision = s.access.check(ctx, replace(self.access(s, ctx, args), action="audit.read"))
+        if not decision.allowed:
+            raise access_denied(
+                decision.message or "Not allowed.",
+                decision.reason,
+                decision.explain_ref,
+                remediation=(
+                    "view=audit needs audit.read; use view=timeline or ask an admin."
+                    if decision.explain_ref is None
+                    else None
+                ),
+                **dict(decision.details),
+            )
 
     def read(self, s: ToolServices, ctx: CallContext, args: Args) -> Data:
         return _found(s.history.get_history(ctx, args), args["ref"])

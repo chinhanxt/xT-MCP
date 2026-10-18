@@ -12,11 +12,11 @@
       "label": "Nguồn dữ liệu",
       "pii": "none",
       "required": true,
-      "default": "mo-phong",
+      "default": "mo_phong",
       "options": [
-        {"value": "cam-bien", "label": "Cảm biến thật"},
-        {"value": "nhap-tay", "label": "Nhập tay"},
-        {"value": "mo-phong", "label": "MÔ PHỎNG: dữ liệu giả lập, không phải thiết bị thật"}
+        {"value": "cam_bien", "label": "Cảm biến thật"},
+        {"value": "nhap_tay", "label": "Nhập tay"},
+        {"value": "mo_phong", "label": "MÔ PHỎNG: dữ liệu giả lập, không phải thiết bị thật"}
       ]
     },
     {"id": "f3", "name": "metric", "type": "text", "label": "Chỉ số đo", "pii": "none", "required": true, "min": 1, "max": 100},

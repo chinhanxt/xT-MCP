@@ -2755,7 +2755,7 @@ Thêm tool là thay đổi minor, không breaking. `explain`, `add_comment`, `ac
 
 - Mức: **L0** · effects: `idempotent` · annotations: readOnly=True, destructive=False, idempotent=True, openWorld=False
 - Kích thước: input 859 B, data 1617 B, outputSchema (envelope) 2684 B.
-- Ghi chú: `view=audit` cần `audit.read`; `explain` nhận `explain_ref`/`lineage_ref` từ lỗi hoặc aggregate.
+- Ghi chú: `view=audit` cần **thêm** `audit.read` (ngoài `history.read`; policy gói cấp cho `admin`, `director`; thiếu thì `access_denied`); `explain` nhận `explain_ref`/`lineage_ref` từ lỗi hoặc aggregate.
 
 `aggregate_records` lineage được giữ 24 giờ, theo tenant và đúng actor (kind/client/subject/behalf)
 đã gọi, hoặc admin cùng tenant; luôn kiểm lại IAM `record.read`, quyền đọc model và RLS hiện tại.

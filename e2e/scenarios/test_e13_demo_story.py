@@ -641,7 +641,7 @@ def _crm(
         {
             "code": f"E13-{tag}",
             "name": f"Khách hàng demo {tag}",
-            "kind": "doanh-nghiep",
+            "kind": "doanh_nghiep",
         },
     )
     _pack(world, ev, "disable")
@@ -714,7 +714,7 @@ def test_demo_story(ev: Evidence, world: Any, tmp_path: Path) -> None:
         )
         ev.step("Direct ledger mutation is forbidden", forbidden)
         assert forbidden.get("ok") is False and err(forbidden).get("code") == "access_denied"
-        history = _call(world, ev, requester, "get_history", {"ref": issued, "view": "audit"})
+        history = _call(world, ev, admin, "get_history", {"ref": issued, "view": "audit"})
         assert history["chain_verified"] is True
         created_event = next(e for e in history["events"] if e["action"] == "stock_request.created")
         approved_event = next(e for e in history["events"] if e.get("to_state") == "approved")
@@ -741,6 +741,6 @@ def test_crm_lifecycle_tenant_and_final_audit(ev: Evidence, world: Any, tmp_path
         requester, admin = world.by_key(A, REQUESTER), world.by_key(A, DIRECTOR)
         ref = _crm(world, ev, requester, admin, tag)
         _wrong_tenant(world, ev, ref, f"Khách hàng demo {tag}")
-        history = _call(world, ev, requester, "get_history", {"ref": ref, "view": "audit"})
+        history = _call(world, ev, admin, "get_history", {"ref": ref, "view": "audit"})
         assert history["chain_verified"] is True and history["events"]
     _audit(ev, tmp_path / "audit")

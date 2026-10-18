@@ -361,6 +361,14 @@
         "xrn:binhminh:*"
       ],
       "conditions": []
+    },
+    {
+      "id": "apv.audit",
+      "effect": "Allow",
+      "subjects": ["role:admin", "role:director"],
+      "actions": ["audit.read"],
+      "resources": ["xrn:binhminh:*"],
+      "conditions": []
     }
   ]
 }

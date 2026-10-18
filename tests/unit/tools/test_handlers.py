@@ -218,6 +218,18 @@ def test_reads_not_found(d: ToolDispatcher) -> None:
     assert code(call(d, "get_history", {"ref": "task:t9"})) == "not_found"
 
 
+def test_history_audit_view_needs_audit_read(d: ToolDispatcher, world: World) -> None:
+    """tool-contracts-v1 §5.9: `view=audit` cần `audit.read` ngoài `history.read`."""
+    args = {"ref": "task:t9", "view": "audit"}
+    assert code(call(d, "get_history", args)) == "not_found"  # được phép -> qua cổng IAM
+    assert [c.action for c in world.access.checks[-2:]] == ["history.read", "audit.read"]
+    world.access.deny_actions["audit.read"] = "implicit_deny"
+    out = call(d, "get_history", args)
+    assert code(out) == "access_denied" and err(out)["details"]["reason"] == "implicit_deny"
+    # timeline không cần audit.read.
+    assert code(call(d, "get_history", {"ref": "task:t9"})) == "not_found"
+
+
 def test_reads_success(d: ToolDispatcher, world: World) -> None:
     assert data(call(d, "describe_model", {"model_id": "task"}))["model"]["primitive"] == "task"
     assert data(call(d, "describe_process", {"process_id": "advance_approval"}))["process"]

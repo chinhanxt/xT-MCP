@@ -5,7 +5,7 @@
       "subject": "Gọi xác nhận nhu cầu",
       "customer": "@khach_hang:KH-0001",
       "opportunity": "@co_hoi:CH-0001",
-      "channel": "dien-thoai",
+      "channel": "dien_thoai",
       "contacted_at": "2026-10-05T09:30:00+07:00",
       "by_person": "@user:NV-0006",
       "owner_id": "@user:NV-0006",
