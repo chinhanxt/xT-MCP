@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Audit tấn công REST /files/v1 (docs/audit-files.md).
+"""Audit tấn công REST /files/v1 (docs/archive/audit-files.md).
 
 Test thường = thuộc tính an toàn đã kiểm là ĐÚNG (giữ làm hồi quy).
-`xfail(strict=True)` = lỗi đã tái hiện (FB-xx trong docs/audit-files.md): khi sửa xong test sẽ
+`xfail(strict=True)` = lỗi đã tái hiện (FB-xx trong docs/archive/audit-files.md): khi sửa xong test sẽ
 XPASS -> strict làm đỏ -> bỏ marker.
 """
 

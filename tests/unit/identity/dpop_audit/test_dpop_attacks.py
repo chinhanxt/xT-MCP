@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Audit DPoP (docs/audit-dpop.md): tấn công vào `DpopVerifier` / `AccessTokenVerifier`.
+"""Audit DPoP (docs/archive/audit-dpop.md): tấn công vào `DpopVerifier` / `AccessTokenVerifier`.
 
 Test thường = hành vi đã kiểm là đúng (PASS, giữ làm hồi quy). `xfail(strict=True)` = lỗi còn mở
 (DPA-xx); sửa xong thì test sẽ XPASS -> bỏ marker.

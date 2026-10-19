@@ -66,7 +66,7 @@ Sửa hostname xong chạy lại `make -C deploy render` (sinh `deploy/apisix/re
 |---|---|---|
 | `make setup` | `uv sync`: tạo `.venv`, cài xt và công cụ dev theo `uv.lock` | [đã chạy] |
 | `make unified-setup` | `npm ci` theo lockfile của Studio, WareTrack 3D và Desk | Lệnh đối chiếu với `scripts/unified.mjs`; xem hướng dẫn bản hợp nhất bên dưới |
-| `make unified-build` | Build ba frontend, gộp Studio/WareTrack vào `desk/dist/` | Bằng chứng và giới hạn: [nhật ký thực thi](docs/plans/unified-execution.md) |
+| `make unified-build` | Build ba frontend, gộp Studio/WareTrack vào `desk/dist/` | Bằng chứng và giới hạn: [nhật ký thực thi](docs/archive/unified-execution.md) |
 | `make unified-test` | Test Studio, WareTrack 3D và Desk theo `npm test` của từng thành phần; không chạy backend/Playwright | Lệnh đối chiếu với `scripts/unified.mjs` và ba `package.json` |
 | `make unified-start` | Build lại theo runtime env rồi chạy lõi, Studio và portal local; không tạo hạ tầng/seed | Cần `XT_UNIFIED_ENV_FILE`; xem [unified-local.md](docs/unified-local.md) |
 | `make lint` | `ruff check`, `ruff format --check`, `mypy` (strict) | [đã chạy]: ruff xanh; mypy xanh khi mã nguồn nhất quán (lần chạy 16/10 báo 1 lỗi kiểu trong `src/` đang được sửa dở, không thuộc phần tài liệu/phát hành) |
@@ -113,7 +113,7 @@ XT_UNIFIED_ENV_FILE="$HOME/.config/xt/unified.env" make unified-start
 
 Ba bước setup/build/test không cần Docker. Bước start cần PostgreSQL/Keycloak đã provision và cấu hình runtime quyền 0600, có kết nối host hợp lệ; launcher không tạo tenant, không cấp quyền và không seed. Cổng mặc định: lõi `127.0.0.1:8010`, Studio `127.0.0.1:4327`, portal `http://localhost:5173` (Studio tại `/studio/`, WareTrack tại `/waretrack/`). Ctrl+C dừng các tiến trình launcher đã tạo; cổng bị chiếm làm launcher báo lỗi.
 
-Biến môi trường, redirect OIDC và giới hạn kiểm thử: [docs/unified-local.md](docs/unified-local.md). Sao lưu PostgreSQL/tệp/Studio kèm khóa, health check và truy vết lỗi: [docs/unified-ops.md](docs/unified-ops.md). [Sơ đồ kiến trúc hợp nhất](docs/diagrams/xt-unified-architecture.html); [kế hoạch G7](docs/plans/2026-10-17-unified-xt-studio-waretrack.md) và [tiến độ/bằng chứng](docs/plans/unified-execution.md).
+Biến môi trường, redirect OIDC và giới hạn kiểm thử: [docs/unified-local.md](docs/unified-local.md). Sao lưu PostgreSQL/tệp/Studio kèm khóa, health check và truy vết lỗi: [docs/unified-ops.md](docs/unified-ops.md). [Sơ đồ kiến trúc hợp nhất](docs/diagrams/xt-unified-architecture.html); [kế hoạch G7](docs/archive/2026-10-17-unified-xt-studio-waretrack.md) và [tiến độ/bằng chứng](docs/archive/unified-execution.md).
 
 ### Ứng dụng Tầng 3: cài, tắt, bật lại
 

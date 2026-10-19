@@ -4,7 +4,7 @@
 
 ## Process engine (`xt.application.process`, `xt.adapters.workflow.bpmn`)
 
-Chi tiết: `docs/process-engine.md`. API công khai giữ nguyên từ bản port đầu; các thay đổi sau audit (`docs/audit-process.md`) đều là bổ sung tương thích ngược:
+Chi tiết: `docs/process-engine.md`. API công khai giữ nguyên từ bản port đầu; các thay đổi sau audit (`docs/archive/audit-process.md`) đều là bổ sung tương thích ngược:
 
 | Thay đổi | Ảnh hưởng tới lớp tích hợp |
 |---|---|
@@ -76,9 +76,9 @@ VALUES ('<uuid>', 'xt_t<seq>', 'xt_job_t<seq>');
 
 ### 5. Kiểm chứng
 
-`make check-worker`, `make test-worker-integration`, `uv run pytest -m integration tests/integration/queue_audit --no-cov`; kết quả ở `docs/audit-queue.md` §6.
+`make check-worker`, `make test-worker-integration`, `uv run pytest -m integration tests/integration/queue_audit --no-cov`; kết quả ở `docs/archive/audit-queue.md` §6.
 
-## MCP / tool pipeline (`xt.application.tools`), sau audit `docs/audit-mcp.md`
+## MCP / tool pipeline (`xt.application.tools`), sau audit `docs/archive/audit-mcp.md`
 
 Thay đổi hợp đồng port (**breaking**, adapter thật phải theo):
 
@@ -95,7 +95,7 @@ Thay đổi hợp đồng port (**breaking**, adapter thật phải theo):
 
 Quyết định M6 (chủ dự án): bề mặt MCP **không bao giờ** nhận principal `human`. Token `kind=human` (client trong `XT_MCP_HUMAN_CLIENTS`) bị 401 ở `/mcp`. Desk chat dùng client agent (`xt-desk-agent`: `kind=agent`, `on_behalf_of=user`), đặt vào `XT_MCP_LOCAL_CLIENTS` (tier `local` -> PII `full`). Chỉ trang `/desk/confirm` là người, và chỉ đi qua `ConfirmationService`. Trong dispatcher, actor người cũng không được làm L2+ trực tiếp (luôn qua xác nhận).
 
-## Model engine (`xt.adapters.db`, `xt.application.model_engine`) sau audit `docs/audit-model-engine.md`
+## Model engine (`xt.adapters.db`, `xt.application.model_engine`) sau audit `docs/archive/audit-model-engine.md`
 
 | Thay đổi | Ảnh hưởng tới lớp tích hợp |
 |---|---|
@@ -250,7 +250,7 @@ Mã: `src/xt/adapters/http/workflow_api.py` (Starlette, chỉ phụ thuộc appl
 | APISIX `api-workflow`: chỉ `/workflow/v1/*`, `GET`/`POST`, body ≤ 64 KiB, `real-ip` + `limit-req` theo IP; không chèn/bỏ header (JWT kiểm ở xt-api) | Cần render lại `deploy/apisix/rendered/apisix.yaml` khi triển khai (chưa render để không đụng stack đang chạy) |
 | Idempotency: `POST /instances` dùng khóa con `<Idempotency-Key>.create` / `.submit`; `POST /tasks/{ref}/decision` dùng nguyên khóa. Cùng namespace actor+tool với MCP | Gửi cùng khóa qua MCP và REST cho hai hành động khác nhau → `idempotency_conflict` (đúng thiết kế) |
 | `request_info` chưa có trong `decide_request` → REST trả 400 `decision_not_supported` | Khi mở rộng contract: thêm vào enum + `DECISIONS` của composition, REST tự hết chặn (bỏ `None` trong `workflow_api.DECISIONS`) |
-| Chưa có: JWT ở gateway (W7), rate-limit theo `azp`, `ToolContract.rest` | Theo `docs/gap-review.md` mục 8 |
+| Chưa có: JWT ở gateway (W7), rate-limit theo `azp`, `ToolContract.rest` | Theo `docs/archive/gap-review.md` mục 8 |
 
 ### I-AUD-META: audit cho bảng `xt_meta.*` (16/10/2026, model engine)
 
@@ -292,7 +292,7 @@ Test: `tests/integration/model_audit/test_audit_meta_pg.py`, 6 test, PG17 thật
 | `Prepared.http_app()` gọi `with_workflow_api(self, env, app)` | REST `/workflow/v1` chạy cùng tiến trình `xt serve` |
 | Deploy: `xt-worker` thêm `XT_WORKFLOW_RELAY_SECONDS`, `XT_DB_MIGRATOR_URL`; `xt-init` thêm `XT_WORKFLOW_RELAY_SECONDS`, `XT_DB_OWNER_URL` (để `docker compose run --rm xt-init xt tenant bind-queue --tenant <alias>`); `xt-api` thêm `XT_PII_REVEAL_*`, `XT_MCP_CONFIDENTIAL_CLIENTS`. `deploy/.env` sinh sẵn: bỏ `XT_MCP_LOCAL_CLIENTS=xt-desk-agent` (bị `serve` từ chối) | E2E harness |
 
-### Sau audit `docs/audit-workflow-api.md` (WA-01…WA-10, 16/10/2026)
+### Sau audit `docs/archive/audit-workflow-api.md` (WA-01…WA-10, 16/10/2026)
 
 | Thay đổi API | Ảnh hưởng |
 |---|---|
@@ -304,7 +304,7 @@ Test: `tests/integration/model_audit/test_audit_meta_pg.py`, 6 test, PG17 thật
 | REST: `instance.tasks[].task_id` = ref đề nghị; 404/405 envelope; ETag RFC 9110; token có aud MCP bị 401 (`IdentityWorkflowAuth.foreign_audiences`); `definition_id` + `model_id` cùng lúc → 400; OpenAPI khai 304/405/413/422/428/429/501 | Client REST |
 | `deploy/compose.yaml` xt-api: `XT_WORKFLOW_ALLOWED_CLIENTS: ${XT_WORKFLOW_CLIENTS:-xt-cli}`, `XT_WORKFLOW_AUDIENCE`, `XT_WORKFLOW_PUBLIC_URL` | Tối thiểu để `xt-api` khởi động: ít nhất một client workflow (mặc định `xt-cli`); `XT_MCP_ALLOWED_CLIENTS` được rỗng khi `XT_MCP_CLIENT_REGISTRY=keycloak` |
 
-### Sau audit `/pii/reveal` (PIIR-01…08, `docs/audit-pii-reveal.md`)
+### Sau audit `/pii/reveal` (PIIR-01…08, `docs/archive/audit-pii-reveal.md`)
 
 - Gateway: route `desk-pii` (host Desk, `/pii/*` → xt-api, body ≤ 4 KiB, `limit-req` 5/s burst 10 theo IP) trong `deploy/apisix/apisix.yaml.tmpl`; test offline `tests/integration/pii_audit/test_gateway_pii_route.py`.
 - Migration `0006_pii_reveal.sql` đổi tên `0007_pii_reveal.sql`, viết idempotent (`IF NOT EXISTS`, `CREATE OR REPLACE`, policy có kiểm): DB đã áp tên cũ chạy lại an toàn, DB mới áp một lần. Thêm `pii_token_source`, `pii_token_seen`, `pii_reveal_ticket.key_thumbprint` (unique), cột `pii_egress.outcome/tokens/records/denied`.
@@ -343,7 +343,7 @@ Tài liệu: `docs/files-api.md`. Quyết định: `docs/decisions.md` "REST /fi
 | Quét lại tệp `scanning` (clamd từng lỗi): `CompositionFilesBackend.rescan(tenant_alias)` | Worker: thêm job định kỳ gọi `rescan` theo tenant khi bật ClamAV (chưa nối, cần sửa `composition/worker.py`) |
 | `submit_request` với tệp đính kèm chưa `clean`/`not_scanned` → `precondition_failed file_not_clean` (TCV1 §5.14) | Composition process: đọc `xt_meta.file_object.status` của field `file` lúc plan (chưa làm) |
 
-### REST `/files/v1` sau audit (`docs/audit-files.md`, FB-01…FB-10)
+### REST `/files/v1` sau audit (`docs/archive/audit-files.md`, FB-01…FB-10)
 
 | Thay đổi | Ai cần làm gì |
 |---|---|

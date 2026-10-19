@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
 # ruff: noqa: F811  (fixture cluster/envs dùng lại từ vòng 3)
-"""Audit Model Engine vòng 4 (docs/audit-model-engine.md "Vòng 4") trên Postgres 17 thật.
+"""Audit Model Engine vòng 4 (docs/archive/audit-model-engine.md "Vòng 4") trên Postgres 17 thật.
 
 Dùng lại cụm của vòng 3 (một container `postgres:17-alpine`, tên/cổng ngẫu nhiên, `docker rm -f
 -v`; CSDL `xt` cài mới và `xt_up` nâng cấp từ 07bf5f5). Mục tiêu: các bề mặt mới sau sửa vòng 3

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Regressions from docs/audit-queue.md; each test failed before its fix."""
+"""Regressions from docs/archive/audit-queue.md; each test failed before its fix."""
 
 from __future__ import annotations
 

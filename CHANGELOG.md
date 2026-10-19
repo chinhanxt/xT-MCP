@@ -55,11 +55,11 @@ Cập nhật hợp nhất sau bản ghi ngày 17/10/2026 (`1882811`), đến `c4
 
 **Ghi chú lịch sử trước đợt cập nhật này:**
 
-- 17/10/2026: sửa thuộc tính phòng ban/quyền đọc của người duyệt, bổ sung metadata `withdrawn` cho chủ giấy, binding `create_task` và ánh xạ priority trên gói `giao-viec-sla` 0.3.4. Kiểm lại bằng ChatGPT thật, xác nhận Desk password/TOTP, 19 test tích hợp tập trung và `make check` (1.789 Python, 154 Vitest, 19 Playwright). [Báo cáo và giới hạn](docs/mcp-chatgpt-20261017.md); mô tả tool đã làm gọn nhưng host vẫn có lúc cảnh báo “Suspicious Instruction”.
+- 17/10/2026: sửa thuộc tính phòng ban/quyền đọc của người duyệt, bổ sung metadata `withdrawn` cho chủ giấy, binding `create_task` và ánh xạ priority trên gói `giao-viec-sla` 0.3.4. Kiểm lại bằng ChatGPT thật, xác nhận Desk password/TOTP, 19 test tích hợp tập trung và `make check` (1.789 Python, 154 Vitest, 19 Playwright). [Báo cáo và giới hạn](docs/archive/mcp-chatgpt-20261017.md); mô tả tool đã làm gọn nhưng host vẫn có lúc cảnh báo “Suspicious Instruction”.
 
-- Kiểm thử MCP thật trên Claude/ChatGPT và SDK: [báo cáo kết quả, lỗi và giới hạn](docs/mcp-live-20261016.md). Sửa APISIX response header buffer để reconnect OAuth có `id_token_hint` không trả 502; xác minh URL lỗi trước đó trả 200 sau sửa, 53 test triển khai offline đạt.
+- Kiểm thử MCP thật trên Claude/ChatGPT và SDK: [báo cáo kết quả, lỗi và giới hạn](docs/archive/mcp-live-20261016.md). Sửa APISIX response header buffer để reconnect OAuth có `id_token_hint` không trả 502; xác minh URL lỗi trước đó trả 200 sau sửa, 53 test triển khai offline đạt.
 
-Trạng thái kiểm và giới hạn bằng chứng: `docs/verification-20261016.md` và `docs/mcp-chatgpt-20261017.md`. Catalog hiện có 19 model tool + 3 app-only, gồm `notify` với inbox nội bộ. E0–E11 đã đạt ở hai chế độ DPoP; các số liệu và ghi chú “chờ e2e”, “đang làm” bên dưới là lịch sử trước các lượt kiểm này.
+Trạng thái kiểm và giới hạn bằng chứng: `docs/archive/verification-20261016.md` và `docs/archive/mcp-chatgpt-20261017.md`. Catalog hiện có 19 model tool + 3 app-only, gồm `notify` với inbox nội bộ. E0–E11 đã đạt ở hai chế độ DPoP; các số liệu và ghi chú “chờ e2e”, “đang làm” bên dưới là lịch sử trước các lượt kiểm này.
 
 ### Added
 
@@ -86,7 +86,7 @@ Trạng thái kiểm và giới hạn bằng chứng: `docs/verification-2026101
 - Audit metadata `xt_meta.*` vào hash-chain của tenant (`xt_audit.install_meta`, migration `0006`), checkpoint Ed25519 ngoài DB và lệnh `xt audit checkpoint|verify --against-checkpoint`.
 - Lệnh vận hành `xt db migrate`, `xt tenant create|bind-queue`, `xt org import [--mapping]`, `xt pack install`, `xt audit ...`.
 - 3 gói lõi dạng dữ liệu (`de-xuat-phe-duyet`, `giao-viec-sla`, `nhan-su-vong-doi`) cùng `kenh-pii`, `thong-bao`; seed `seed/binh-minh` và tenant thứ hai `seed/hoa-mai`; `mapping.json` ánh xạ vai trò/phòng của seed sang từ vựng gói; 4 skill agent.
-- Bộ eval agent (`evals/`, 73 scenario, qwen3.5:4b core-10 x3: 62% không skill / 59% có skill, đo trên mock), `docs/evals.md`.
+- Bộ eval agent (`evals/`, 73 scenario, qwen3.5:4b core-10 x3: 62% không skill / 59% có skill, đo trên mock), `docs/archive/evals.md`.
 
 **Bảo mật**
 
@@ -102,7 +102,7 @@ Trạng thái kiểm và giới hạn bằng chứng: `docs/verification-2026101
 
 **Dự án và phát hành**
 
-- `INSTALL.md` (build từ nguồn trên Ubuntu 24.04), README tiếng Việt kèm tóm tắt tiếng Anh, deck chung kết `docs/slides/xt-olp2026.html`.
+- `INSTALL.md` (build từ nguồn trên Ubuntu 24.04), README tiếng Việt kèm tóm tắt tiếng Anh, deck chung kết `docs/archive/slides/xt-olp2026.html`.
 - `make release` -> `scripts/release.sh`: wheel, `xt-<version>.tar.gz`, SBOM CycloneDX (Python, Desk), `SHA256SUMS`; workflow `.github/workflows/release.yml` khi đẩy tag `v*`; `.gitattributes` và quy tắc loại đề thi khỏi bản phát hành.
 - Khung dự án: Python (uv, hatchling, `src/xt/`), CLI `xt`, ruff, mypy strict, pytest-cov, import-linter, `reuse lint`, Makefile, GitHub Actions CI, mẫu Issues/PR, CONTRIBUTING, SECURITY.
 
@@ -121,7 +121,7 @@ Trạng thái kiểm và giới hạn bằng chứng: `docs/verification-2026101
 - Model audit R4 ràng bảng ngữ cảnh theo OID, kiểm đầy đủ trigger SoD; checkpoint bao phủ định nghĩa/thuộc tính hàm, view, trigger và domain/constraint.
 - Harness E2E giữ lỗi dựng/dọn stack, bảo vệ bí mật khỏi argv, kiểm thư mục secret riêng tư; fixture integration dùng tài nguyên riêng và dọn cả volume. Lỗi PII có identifier gắn tiền tố được che đồng nhất.
 
-Kiểm thử đối kháng nội bộ do agent độc lập với tác giả thực hiện; mỗi lỗi có test hồi quy. Tổng hợp theo thành phần ở `docs/gap-review.md` mục 0.3 (13 báo cáo `docs/audit-*.md`).
+Kiểm thử đối kháng nội bộ do agent độc lập với tác giả thực hiện; mỗi lỗi có test hồi quy. Tổng hợp theo thành phần ở `docs/archive/gap-review.md` mục 0.3 (13 báo cáo `docs/audit-*.md`).
 
 - model-engine (AUD-01..17, R2-01..05): trigger audit sinh lại từ catalog, dry-run không sửa dữ liệu, khóa HMAC ra khỏi DB, ngữ cảnh RBAC chỉ qua `xt.set_context`, chuỗi audit tuần tự, event trigger chặn tắt/xóa trigger audit, `apply` chặn khi còn job chưa xong, regex chỉ tập con an toàn.
 - mcp (vòng 1-2): idempotency nguyên tử, `ErrorScrubber` cho envelope lỗi, giới hạn độ sâu JSON và khóa trùng, kiểm lại IAM lúc xác nhận, log không chứa message/PII.

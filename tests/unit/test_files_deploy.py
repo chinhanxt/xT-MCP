@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Kiểm offline (không chạy container) cấu hình triển khai SeaweedFS (FB-03, docs/audit-files.md):
+"""Kiểm offline (không chạy container) cấu hình triển khai SeaweedFS (FB-03, docs/archive/audit-files.md):
 mạng nội bộ riêng, không publish cổng, JWT volume/filer, không route gateway nào tới SeaweedFS.
 
 Xác minh trên stack thật: `docker compose exec xt-api python -c "import urllib.request as u;

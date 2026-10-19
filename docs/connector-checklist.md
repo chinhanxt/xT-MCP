@@ -96,4 +96,4 @@ Khi thử, ghi ngày, host/gói, tài khoản/vai trò thử, bước đạt ho�
 - [Triển khai công khai](deployment-public.md): hostname và tunnel.
 - [Danh tính](identity.md): DCR, quyền agent, step-up, thu hồi và cache.
 - [Desk](desk.md): cách mở link, đăng nhập và giới hạn kiểm thử.
-- [Storyboard v1](demo-storyboard-v1.md): S1–S2, dữ liệu Bình Minh, tuyến duyệt và các phần chưa kiểm chứng.
+- [Storyboard v1](archive/demo-storyboard-v1.md): S1–S2, dữ liệu Bình Minh, tuyến duyệt và các phần chưa kiểm chứng.

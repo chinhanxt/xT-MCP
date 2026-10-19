@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Audit vòng 2 REST /files/v1 (docs/audit-files.md "Vòng 2"): test hồi quy phòng thủ R2-F1..F6.
+"""Audit vòng 2 REST /files/v1 (docs/archive/audit-files.md "Vòng 2"): test hồi quy phòng thủ R2-F1..F6.
 
 Test thường = thuộc tính đã kiểm là ĐÚNG. `xfail(strict=True, raises=AssertionError)` = lỗi đã tái
 hiện (mã R2-Fx): sửa xong test XPASS -> strict làm đỏ -> bỏ marker. Điều kiện dựng (setup) hỏng thì

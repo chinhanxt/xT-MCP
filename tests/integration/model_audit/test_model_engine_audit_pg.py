@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Regression của audit model engine trên Postgres 17 thật (docs/audit-model-engine.md).
+"""Regression của audit model engine trên Postgres 17 thật (docs/archive/audit-model-engine.md).
 
 Test `xfail(strict=True)` = lỗi ĐÃ tái hiện, gỡ xfail khi sửa. Test thường = phòng thủ đã đứng
 vững khi tấn công (giữ để không thoái lui). Container riêng `xt-audit-model-pg`, cổng 20303.

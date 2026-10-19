@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Audit lớp MCP vòng 3 (docs/audit-mcp.md "Vòng 3"): kiểm lại R2-H1/M1-M4/L1-L3 sau các thay đổi
+"""Audit lớp MCP vòng 3 (docs/archive/audit-mcp.md "Vòng 3"): kiểm lại R2-H1/M1-M4/L1-L3 sau các thay đổi
 mới (start_process, notify, hoàn thành bước người, DPoP, aud ngoại) trên đường thật.
 
 Hạ tầng: Postgres 17 (fixture phiên, một container, `docker rm -f -v`), IdP test (JWKS thật, RS256),

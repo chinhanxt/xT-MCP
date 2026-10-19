@@ -295,7 +295,7 @@ def test_skills_tool_count_matches_catalog() -> None:
 
 
 def test_core_skills_only_name_core_10_tools() -> None:
-    """Eval qwen3.5:4b core-10: skill nêu tool ngoài hồ sơ -> 34 lời gọi tool ảo (docs/evals.md §5).
+    """Eval qwen3.5:4b core-10: skill nêu tool ngoài hồ sơ -> 34 lời gọi tool ảo (docs/archive/evals.md §5).
     SKILL.md dùng ở mọi hồ sơ chỉ nêu tool core-10; tool của hồ sơ đầy đủ nằm ở references/."""
     hidden = {c.name for c in CATALOG} - set(CORE_10)
     for name in ("xt-core", "xt-approvals", "xt-tasks"):

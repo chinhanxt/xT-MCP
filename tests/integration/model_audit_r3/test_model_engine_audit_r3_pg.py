@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Audit Model Engine vòng 3 (docs/audit-model-engine.md "Vòng 3") trên Postgres 17 thật.
+"""Audit Model Engine vòng 3 (docs/archive/audit-model-engine.md "Vòng 3") trên Postgres 17 thật.
 
 Một container `postgres:17-alpine` (tên ngẫu nhiên, cổng ngẫu nhiên, xóa bằng `docker rm -f -v`),
 hai CSDL:

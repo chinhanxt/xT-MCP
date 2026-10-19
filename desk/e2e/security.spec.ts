@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
-// Hồi quy cho docs/audit-desk.md (BUG-1..5, 7). Các "App" thử nghiệm ở e2e/evil_server.py chỉ là fixture.
+// Hồi quy cho docs/archive/audit-desk.md (BUG-1..5, 7). Các "App" thử nghiệm ở e2e/evil_server.py chỉ là fixture.
 import { login } from "./helpers";
 import { expect, test, type Frame, type Page } from "@playwright/test";
 

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
 #
-# Regression an ninh cho hạ tầng deploy/ (docs/audit-deploy.md).
+# Regression an ninh cho hạ tầng deploy/ (docs/archive/audit-deploy.md).
 # Yêu cầu: stack đang chạy (postgres + keycloak + apisix) qua `make up-minimal` + `make provision-realm`.
 #
 #   [GW=127.0.0.1:${APISIX_HTTP_PORT:-9080}] ./deploy/tests/security_smoke.sh

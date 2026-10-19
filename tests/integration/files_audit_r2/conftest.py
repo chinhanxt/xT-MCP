@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Audit vòng 2 REST /files/v1 (docs/audit-files.md "Vòng 2"): Postgres 17 thật (fixture phiên
+"""Audit vòng 2 REST /files/v1 (docs/archive/audit-files.md "Vòng 2"): Postgres 17 thật (fixture phiên
 `pg`) + MỘT SeaweedFS 4.48 (`xt-it-seaweed-<hex>`, cổng loopback ngẫu nhiên, tmpfs,
 `docker rm -f -v`), composition thật, uvicorn loopback, token ký bằng khóa test qua JWKS tĩnh.
 

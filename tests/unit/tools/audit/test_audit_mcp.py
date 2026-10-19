@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Regression của audit lớp MCP (docs/audit-mcp.md). Các lỗi đã sửa; test giữ làm hồi quy."""
+"""Regression của audit lớp MCP (docs/archive/audit-mcp.md). Các lỗi đã sửa; test giữ làm hồi quy."""
 
 from __future__ import annotations
 

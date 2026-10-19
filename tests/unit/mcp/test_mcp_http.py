@@ -372,7 +372,7 @@ async def test_real_access_token_verifier_end_to_end() -> None:
     assert 'error_description="The access token expired"' in r.headers["www-authenticate"]
 
 
-# ---- sau audit (docs/audit-mcp.md) ----------------------------------------------------------
+# ---- sau audit (docs/archive/audit-mcp.md) ----------------------------------------------------------
 
 
 async def test_human_session_token_is_refused_on_mcp(h: Harness) -> None:

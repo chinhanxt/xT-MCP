@@ -58,4 +58,4 @@ Public share và API key độc lập đang tắt trong chế độ tích hợp.
 
 Sao lưu/khôi phục, health check và truy vết lỗi theo `trace_id`: [unified-ops.md](unified-ops.md). Ma trận quyền: [unified-role-matrix.md](unified-role-matrix.md).
 
-Tiến độ đầy đủ, bằng chứng và các mục chưa đạt nằm trong [nhật ký thực thi](plans/unified-execution.md). Build/test với fixture không phải bằng chứng đã cập nhật server public hoặc đã nghiệm thu ChatGPT live cho bản hợp nhất.
+Tiến độ đầy đủ, bằng chứng và các mục chưa đạt nằm trong [nhật ký thực thi](archive/unified-execution.md). Build/test với fixture không phải bằng chứng đã cập nhật server public hoặc đã nghiệm thu ChatGPT live cho bản hợp nhất.

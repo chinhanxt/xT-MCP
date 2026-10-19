@@ -3,7 +3,7 @@
 
 # Bộ prompt nghiệm thu live ChatGPT — câu chuyện H/P/D/I/WareTrack
 
-Đây là kịch bản để người vận hành chạy sau, không phải báo cáo đã chạy. Dựa trên §9 của `docs/plans/2026-10-17-unified-xt-studio-waretrack.md`, hợp đồng trong `src/xt/contracts/tools/` và pack `packages/kho-hang/`. Kết quả ngày 17/10 trong `docs/mcp-chatgpt-20261017.md` chỉ là baseline lịch sử, không chứng minh checkout/runtime hiện tại. Chưa có bằng chứng mới thì giữ trạng thái `not_run`.
+Đây là kịch bản để người vận hành chạy sau, không phải báo cáo đã chạy. Dựa trên §9 của `docs/archive/2026-10-17-unified-xt-studio-waretrack.md`, hợp đồng trong `src/xt/contracts/tools/` và pack `packages/kho-hang/`. Kết quả ngày 17/10 trong `docs/archive/mcp-chatgpt-20261017.md` chỉ là baseline lịch sử, không chứng minh checkout/runtime hiện tại. Chưa có bằng chứng mới thì giữ trạng thái `not_run`.
 
 ## Điều kiện chuẩn bị do người vận hành xác minh
 

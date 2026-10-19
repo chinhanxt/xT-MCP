@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
-// Hồi quy docs/audit-desk.md: BUG-8 (markdown giả giao diện), BUG-9 (không bearer tĩnh, fail closed), BUG-2/3 (sandbox.html).
+// Hồi quy docs/archive/audit-desk.md: BUG-8 (markdown giả giao diện), BUG-9 (không bearer tĩnh, fail closed), BUG-2/3 (sandbox.html).
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";

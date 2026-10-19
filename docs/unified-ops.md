@@ -32,7 +32,7 @@ python3 deploy/scripts/backup_unified.py verify "$HOME/xt-backups/xt-unified-<UT
 ```
 
 - Dừng ghi trước khi sao lưu để ba thành phần cùng một thời điểm (dừng `make unified-start`; với stack Docker, dừng `xt-api`/`xt-worker`). Script không tự khóa ghi.
-- Bản lưu chứa bí mật: khóa Studio, và dump có `xt_audit.pepper` ([audit-model-engine.md](audit-model-engine.md), mục khóa audit). Lưu ngoài repo, giữ 0600, mã hóa khi đưa ra khỏi máy.
+- Bản lưu chứa bí mật: khóa Studio, và dump có `xt_audit.pepper` ([audit-model-engine.md](archive/audit-model-engine.md), mục khóa audit). Lưu ngoài repo, giữ 0600, mã hóa khi đưa ra khỏi máy.
 - **Thư mục checkpoint audit (`XT_AUDIT_CHECKPOINT_DIR`) nằm ngoài PostgreSQL** để làm bằng chứng; script không sao lưu nó. Sao lưu riêng cùng khóa công khai `XT_AUDIT_VERIFY_KEY_FILE`.
 
 ### Khôi phục
@@ -55,7 +55,7 @@ Quy tắc của `restore`:
 - `pg_dump`/`pg_restore` giữ owner và ACL; role cụm không nằm trong dump nên phải tồn tại trước.
 - Quyền sau khôi phục: tệp 0600, thư mục Studio 0700.
 
-Test restore PostgreSQL thật của PR #44 đã vào `staging`; [nhật ký thực thi](plans/unified-execution.md) ghi 1/1 đạt với client PG17, PR #83 cập nhật docstring theo lượt chạy đó. Đây là bằng chứng đã ghi nhận, không phải lượt kiểm mới. Giới hạn: `--clean --if-exists` không xóa đối tượng có trong database đích mà không có trong dump (nên restore vào database trống); khôi phục đồng bộ ba thành phần khi hệ thống đang ghi chưa được kiểm chứng.
+Test restore PostgreSQL thật của PR #44 đã vào `staging`; [nhật ký thực thi](archive/unified-execution.md) ghi 1/1 đạt với client PG17, PR #83 cập nhật docstring theo lượt chạy đó. Đây là bằng chứng đã ghi nhận, không phải lượt kiểm mới. Giới hạn: `--clean --if-exists` không xóa đối tượng có trong database đích mà không có trong dump (nên restore vào database trống); khôi phục đồng bộ ba thành phần khi hệ thống đang ghi chưa được kiểm chứng.
 
 Nếu khôi phục đi kèm nâng cấp hoặc checkpoint còn digest v1, làm theo [quy trình nâng cấp và neo lại checkpoint](../INSTALL.md#sau-nâng-cấp-postgrest-và-checkpoint-audit). Không coi mã thoát 2 là đã kiểm toàn vẹn; giữ checkpoint cũ và xác minh thay đổi trước khi tạo neo v2.
 

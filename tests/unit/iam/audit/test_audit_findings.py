@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Ca tấn công từ audit IAM (docs/audit-iam.md). Mỗi test mô tả hành vi ĐÚNG (đã sửa, hết xfail)
+"""Ca tấn công từ audit IAM (docs/archive/audit-iam.md). Mỗi test mô tả hành vi ĐÚNG (đã sửa, hết xfail)
 cho tới khi sửa. Sửa xong thì test chuyển XPASS -> fail: khi đó xóa marker tương ứng."""
 
 from __future__ import annotations

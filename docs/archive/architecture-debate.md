@@ -90,7 +90,7 @@ Không mục nào bị bác toàn bộ. Có 3 chỗ tôi giữ lập trường r
 # Vòng 3: hòa giải với `tool-contracts-v1.md` (VERD B1, §8 E1–E12)
 
 Ngày: 15/10/2026.
-- Phán quyết của judge cho v2: **GO-WITH-CONDITIONS** (`docs/architecture-v2-verdict.md`).
+- Phán quyết của judge cho v2: **GO-WITH-CONDITIONS** (`docs/archive/architecture-v2-verdict.md`).
 - TCV1 (17 tool ở v0.1, 21 tool ở v1.0) là nguồn có thẩm quyền về bề mặt tool.
 - Đã sửa `architecture-v2.md` tại chỗ thành v2.1 (changelog ở đầu tệp).
 

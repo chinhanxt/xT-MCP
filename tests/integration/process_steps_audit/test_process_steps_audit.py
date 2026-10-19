@@ -764,7 +764,7 @@ def test_get_instance_unbound_participants_only_same_404(world: World) -> None:
 
 def test_get_instance_timing_reported(world: World) -> None:
     """Đo (không khẳng định chặt) chênh lệch thời gian 404 giữa instance thật của người khác và id
-    ma; ghi vào docs/audit-process-steps.md."""
+    ma; ghi vào docs/archive/audit-process-steps.md."""
     a = world.a
     t = mk_task(a, "NV-0009", "NV-0009", "NV-0010", "Việc đo thời gian")
     iid = iid_of(start_task(a, None, "NV-0009", "NV-0010", "NV-0009", task_id=f"task:{t['id']}"))

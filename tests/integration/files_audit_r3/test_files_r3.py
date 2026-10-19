@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Audit vòng 3: kiểm sâu các bản sửa vòng 2 (docs/audit-files.md).
+"""Audit vòng 3: kiểm sâu các bản sửa vòng 2 (docs/archive/audit-files.md).
 
 - R3-A: purge/finalize đua ở mức cao (20 finalize cùng nội dung + vòng purge) — không 500, không
   mất byte (khóa `(tenant, sha256)` của R2-F3 phải chịu tải, không chỉ 2 luồng).

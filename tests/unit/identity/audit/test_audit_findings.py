@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Test hồi quy cho lỗi tìm thấy trong audit danh tính (`docs/audit-identity.md`).
+"""Test hồi quy cho lỗi tìm thấy trong audit danh tính (`docs/archive/audit-identity.md`).
 
 Mỗi test đánh dấu `xfail(strict=True)`: đang lỗi thì xfail; sửa xong test sẽ XPASS và làm suite đỏ,
 khi đó xóa marker để giữ làm test hồi quy.

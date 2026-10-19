@@ -10,8 +10,8 @@ effects. Reuse psycopg and existing tenant, workflow, operation and audit schema
 Use one repeatable-read, read-only transaction with unconditional rollback and
 explicit tenant predicates. Never invoke the application context setter, which writes.
 
-**Spec:** User request; `docs/mcp-chatgpt-20261017.md` and
-`docs/plans/2026-10-17-unified-xt-studio-waretrack.md` §9.
+**Spec:** User request; `docs/archive/mcp-chatgpt-20261017.md` and
+`docs/archive/2026-10-17-unified-xt-studio-waretrack.md` §9.
 
 ## Constraints
 

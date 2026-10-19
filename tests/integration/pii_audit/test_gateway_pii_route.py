@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""PIIR-01 (docs/audit-pii-reveal.md): Desk POST `{DESK_XT_ORIGIN}/pii/reveal`, DESK_XT_ORIGIN =
+"""PIIR-01 (docs/archive/audit-pii-reveal.md): Desk POST `{DESK_XT_ORIGIN}/pii/reveal`, DESK_XT_ORIGIN =
 host Desk, nhưng APISIX không có route `/pii/*` cho host Desk -> rơi vào `desk-static`
 (nginx, 404/405).
 Không cần docker: đọc template APISIX và mô phỏng chọn route (host + uri + priority)."""

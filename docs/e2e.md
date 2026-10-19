@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # E2E toàn bộ E0–E11 (cổng bàn giao)
 
-Định nghĩa: `docs/gap-review.md` §4.1. Tất cả chạy trên stack compose **thật** profile `minimal` (Postgres, Keycloak, APISIX, PostgREST, xt-api, xt-worker, xt-desk), volume mới, qua APISIX bằng hostname thật. Không mock OIDC, MCP, PII, LLM. Quyết định của harness: `docs/decisions.md` mục "Harness e2e E0–E11" (D-E2E-1..8).
+Định nghĩa: `docs/archive/gap-review.md` §4.1. Tất cả chạy trên stack compose **thật** profile `minimal` (Postgres, Keycloak, APISIX, PostgREST, xt-api, xt-worker, xt-desk), volume mới, qua APISIX bằng hostname thật. Không mock OIDC, MCP, PII, LLM. Quyết định của harness: `docs/decisions.md` mục "Harness e2e E0–E11" (D-E2E-1..8).
 
 E12 (issue #7, `e2e/scenarios/test_e12_tenant_switch.py`) nằm ngoài bảng lịch sử bên dưới: đổi tenant trên Desk container thật với Keycloak thật (user hai tổ chức do kịch bản tự tạo và xóa), chạy trong `make e2e-run`. Kết quả đo và nguyên nhân gốc của scope tổ chức: `docs/identity.md` mục "Chuyển doanh nghiệp trong Desk".
 
@@ -14,7 +14,7 @@ Trên bản nguồn chưa commit `961dcc8893598a2f5c73b42d04c27c98375d37ddae12ec
 | DPoP bật | 2/3 hội thoại thành công, đạt ngưỡng ≥2/3 | 24 passed, 388.46 s |
 | DPoP tắt | 3/3 hội thoại thành công | 24 passed, 427.30 s |
 
-Kết quả trên được ghi từ output lệnh thành công trong hội thoại phát triển; log E2E chi tiết ở `/tmp` đã mất sau khi môi trường bị ngắt. Hash nguồn được đối chiếu lại và trùng hoàn toàn. Không tuyên bố đã chạy lại E2E sau lần ngắt; giới hạn lưu giữ bằng chứng và các kiểm tra vừa chạy lại ở [báo cáo xác minh](verification-20261016.md). Model 4B vẫn có lượt thất bại, không bảo đảm 100%.
+Kết quả trên được ghi từ output lệnh thành công trong hội thoại phát triển; log E2E chi tiết ở `/tmp` đã mất sau khi môi trường bị ngắt. Hash nguồn được đối chiếu lại và trùng hoàn toàn. Không tuyên bố đã chạy lại E2E sau lần ngắt; giới hạn lưu giữ bằng chứng và các kiểm tra vừa chạy lại ở [báo cáo xác minh](archive/verification-20261016.md). Model 4B vẫn có lượt thất bại, không bảo đảm 100%.
 
 ## Cách chạy
 

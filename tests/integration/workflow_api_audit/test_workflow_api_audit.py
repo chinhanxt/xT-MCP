@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Audit REST /workflow/v1 (docs/audit-workflow-api.md) qua HTTP thật trên Postgres 17.
+"""Audit REST /workflow/v1 (docs/archive/audit-workflow-api.md) qua HTTP thật trên Postgres 17.
 
 - Test thường: hàng rào bảo mật đã ĐẠT, giữ làm regression.
 - `xfail(strict=True)`: lỗi đã thấy (WA-xx trong báo cáo). Sửa xong thì test thành XPASS -> đỏ,

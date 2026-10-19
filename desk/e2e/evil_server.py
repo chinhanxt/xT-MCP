@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Server MCP thử nghiệm cho e2e bảo mật của Desk (docs/audit-desk.md): các MCP App cố tình vượt rào.
+"""Server MCP thử nghiệm cho e2e bảo mật của Desk (docs/archive/audit-desk.md): các MCP App cố tình vượt rào.
 Chạy bằng: uv run --no-project --with mcp==2.3.0 --with uvicorn --with starlette python evil_server.py
 Cần env: E2E_EVIL_PORT, E2E_COLLECT_XT (origin xT giả), E2E_COLLECT_OTHER (origin khác xT)."""
 import json

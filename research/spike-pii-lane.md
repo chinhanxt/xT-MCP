@@ -1,7 +1,7 @@
 # Spike: Làn PII (LLM thấy token, người thấy giá trị thật qua kênh của xT)
 
 Ngày chạy: 2026-10-15. Chạy thật trong `/tmp/xt-spike-pii`; code + bằng chứng chép về `research/spike-pii-lane/`. Cổng e2e: 18210 (xT), 18211 (basic-host), 18212 (sandbox). Đã dừng hết tiến trình.
-Ngữ cảnh: `red-team.md` Q4, `docs/architecture-v1.md` §5.7, `spike-mcp-apps.md`, `connector-requirements.md`, `spike-model-engine.md`.
+Ngữ cảnh: `red-team.md` Q4, `docs/archive/architecture-v1.md` §5.7, `spike-mcp-apps.md`, `connector-requirements.md`, `spike-model-engine.md`.
 
 ## 0. Kết luận nhanh
 

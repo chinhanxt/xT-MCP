@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Audit DPoP vòng 2 (docs/audit-dpop.md "Vòng 2") trên PG17 thật: replay giữa hai TIẾN TRÌNH OS
+"""Audit DPoP vòng 2 (docs/archive/audit-dpop.md "Vòng 2") trên PG17 thật: replay giữa hai TIẾN TRÌNH OS
 thật và ngay sau restart, đua đồng thời, DB lỗi/treo, quyền SQL của `xt_identity`, đua purge."""
 
 from __future__ import annotations

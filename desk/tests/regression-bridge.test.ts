@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
-// Hồi quy docs/audit-desk.md: BUG-1 (allowlist/validate), BUG-4 (rate limit), BUG-5 (open-link), BUG-7 (CSP), BUG-6 (confirm_url).
+// Hồi quy docs/archive/audit-desk.md: BUG-1 (allowlist/validate), BUG-4 (rate limit), BUG-5 (open-link), BUG-7 (CSP), BUG-6 (confirm_url).
 import { describe, expect, it, vi } from "vitest";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import { APP_DENYLIST, checkOpenLink, createGlobalToolLimiter, createAppBridgeHandlers, createRateLimiter, sanitizeUiCsp } from "../src/bridge";

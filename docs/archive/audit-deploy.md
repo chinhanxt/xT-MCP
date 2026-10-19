@@ -2,7 +2,7 @@
 # Audit hạ tầng deploy (Opus TESTER) — 15/10/2026
 
 Phạm vi: `deploy/` (compose.yaml, keycloak/provision.py, apisix/apisix.yaml.tmpl + rendered, docker/*.Dockerfile, .env.example, scripts/, Makefile) và `docs/deploy.md`.
-Đối chiếu: `architecture-v2.md` v2.2, `identity.md`, `deployment-public.md`, `research/spike-mcp-auth.md`, `research/spike-hitl.md`, `research/verification-spikes.md`, `research/connector-requirements.md`, `docs/audit-desk.md`.
+Đối chiếu: `architecture-v2.md` v2.2, `identity.md`, `deployment-public.md`, `research/spike-mcp-auth.md`, `research/spike-hitl.md`, `research/verification-spikes.md`, `research/connector-requirements.md`, `docs/archive/audit-desk.md`.
 
 **Phương pháp:** dựng thật bằng `docker compose --profile placeholder up` (postgres:17-alpine, `xt/keycloak:26.6.3-optimized` build tại chỗ, apache/apisix:3.19.0-debian) + `python3 -I keycloak/provision.py`; Keycloak healthy ~10 s. Tấn công qua APISIX `127.0.0.1:9080` bằng header `Host`. `make up-minimal` đầy đủ **không dựng được** (xem BUG-C0). Đã dọn sạch container/volume/image tự tạo.
 

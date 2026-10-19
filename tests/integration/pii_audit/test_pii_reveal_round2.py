@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Vòng 2 audit kênh người xem PII (docs/audit-pii-reveal.md "Vòng 2"): thử vượt các ràng buộc mới
+"""Vòng 2 audit kênh người xem PII (docs/archive/audit-pii-reveal.md "Vòng 2"): thử vượt các ràng buộc mới
 (token gắn nguồn + người/client đã nhận, kiểm lại IAM+RLS, quota vé, khóa khung mới mỗi lần).
 
 Chạy riêng (fixture `stack` tạo tenant `acme`, mỗi phiên pytest chỉ dựng một lần):

@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Storyboard v1: thuyết trình + demo chung kết OLP PMNM 2026 (15 phút)
 
-> Trạng thái: v1, ngày 15/10/2026. Chung kết 10/12/2026. **Thay thế** `docs/demo-storyboard-v0.md` (giữ nguyên v0 để đối chiếu).
+> Trạng thái: v1, ngày 15/10/2026. Chung kết 10/12/2026. **Thay thế** `docs/archive/demo-storyboard-v0.md` (giữ nguyên v0 để đối chiếu).
 > Căn cứ: `CLAUDE.md`, `docs/architecture-v2.md` (D7, D8, D12, §10 mốc), `docs/tool-contracts-v1.md` (17 tool v0.1, 21 tool v1.0; §3.5 `confirm_url`; §3.8 làn PII; §7 ví dụ W4), `research/spike-local-llm.md`, `research/spike-desk.md`, `research/packs-draft/REPORT.md`, `research/connector-requirements.md`, `research/pain-points.md`, `research/vn-forms-verified.yaml`, đề thi §6.
 > Quy ước: **[ĐO]** = số phải lấy từ đo thật trước 06/12, không điền số đoán. **[CHƯA KIỂM CHỨNG]** = chưa chạy trên host/engine thật. Tên tool là **tên thật** trong contracts v1.
 > Điểm tối đa phần sản phẩm: Nguyên gốc, Hoàn thiện, Thân thiện, Bền vững, Trình diễn & cộng đồng (mỗi mục 10đ).
@@ -423,7 +423,7 @@ Toàn bộ CCCD, SĐT, STK, lương là dữ liệu giả, cờ `synthetic=true`
 - Snapshot DB `bình-minh-v1`, reset <30 giây **[ĐO]**.
 - 3 đề dự phòng cho S3 (thiết bị, phòng họp, xe công) + cache đề xuất tương ứng.
 - Tài khoản: 15 user Keycloak (TOTP cho Mai, Long, Hà, Linh) + `giamkhao` (người duyệt bước Giám đốc, nối Telegram qua mã một lần) + 2 tài khoản TOTP dự phòng cho C.
-- **Quy ước đặt tên (đã thống nhất):** id kỹ thuật là tiếng Anh snake_case (`advance_request`, `proposal`, `employee`...), nhãn tiếng Việt nằm ở `label`. Ba gói nháp đã đổi theo, xem `docs/consistency-log.md`.
+- **Quy ước đặt tên (đã thống nhất):** id kỹ thuật là tiếng Anh snake_case (`advance_request`, `proposal`, `employee`...), nhãn tiếng Việt nằm ở `label`. Ba gói nháp đã đổi theo, xem `docs/archive/consistency-log.md`.
 
 ---
 

@@ -96,7 +96,7 @@ table.sm td{font-size:20px;padding:7px 12px;line-height:1.32}table.sm th{font-si
   <div class="card am"><h3>Thái cực 2 · hệ thống nguyên khối đóng</h3><ul><li>Đắt, khó đổi → doanh nghiệp thành <b>con tin nhà cung cấp</b></li><li>Dự án ERP: &gt; 70% không đạt mục tiêu business case (Gartner, dự báo đến 2027)</li></ul></div>
  </div>
  <div class="quote am"><b>Nỗi đau nằm ở quy trình (P):</b> đề xuất kẹt, giao việc rơi rớt, không có dấu vết. Nhưng doanh nghiệp 10–200 người còn chưa xong bước H (con người số).<br><b>xT đảo chuỗi H→P→D→I:</b> dùng agent (I) làm giao diện, kéo H và P lên cùng lúc; dữ liệu (D) tự sinh ra từ quy trình.</div>
- <div class="foot"><span>Nguồn: docs/demo-storyboard-v1.md §3 · research/pain-points.md</span><span>2 / 16</span></div>
+ <div class="foot"><span>Nguồn: docs/archive/demo-storyboard-v1.md §3 · research/pain-points.md</span><span>2 / 16</span></div>
 </section>
 <!-- 3 -->
 <section class="slide" data-time="1:00–2:00" data-title="Số liệu có nguồn">
@@ -227,7 +227,7 @@ table.sm td{font-size:20px;padding:7px 12px;line-height:1.32}table.sm th{font-si
   <tr><td>10:00</td><td><b>S5</b> Rút mạng: LLM local + workflow vẫn chạy</td><td><code>get_inbox</code>, <code>create_task</code></td><td><span class="b wip">đang hoàn thiện</span> (E1 chưa xanh)</td></tr>
   <tr><td>11:00</td><td><b>S6</b> Giải thích được + phát hiện sửa trộm audit</td><td><code>get_history</code>, <code>xt audit verify</code></td><td><span class="b ok">E11 xanh</span> (tamper) · <span class="b wip">aggregate + lineage: đang hoàn thiện</span></td></tr></table>
  <div class="quote" style="font-size:23px;margin-top:16px"><b>Kịch bản dự phòng:</b> mỗi cảnh có video <code>S1.mp4…S6.mp4</code> và ngân sách cứng; quá 20 giây thì C ra hiệu cắt sang video. Mạng ngoài chỉ dùng cho Claude (S4) và Telegram; đường chính chạy offline.</div>
- <div class="foot"><span>Nguồn: docs/demo-storyboard-v1.md §2, §5 · docs/e2e.md</span><span>8 / 16</span></div>
+ <div class="foot"><span>Nguồn: docs/archive/demo-storyboard-v1.md §2, §5 · docs/e2e.md</span><span>8 / 16</span></div>
 </section>
 <!-- 9 -->
 <section class="slide" data-time="live S1 4:00–5:00 · S2 5:00–7:00" data-title="S1–S2">
@@ -239,7 +239,7 @@ table.sm td{font-size:20px;padding:7px 12px;line-height:1.32}table.sm th{font-si
   <div class="card em"><h3>S2b · Người xác nhận</h3><ul><li>Server trả <code>confirmation_required</code> + <code>confirm_url</code> (hết hạn 10 phút)</li><li>Mở link thiếu TOTP → <b>không có Decision</b></li><li>Mai đăng nhập tươi + TOTP → agent gọi lại cùng key → <code>replayed=true</code></li></ul><p style="margin-top:10px"><span class="b ok">E2 xanh</span> <span class="b wip">Telegram: đang hoàn thiện</span></p></div>
  </div>
  <div class="quote in" style="font-size:24px;margin-top:20px"><b>Giới hạn nói thẳng:</b> nút trên thẻ App ở host ngoài chỉ có quyền của agent (iframe dùng chung token) nên chỉ <i>mở</i> trang xác nhận. “Nút trong host đóng không phải bằng chứng là người.”</div>
- <div class="foot"><span>Nguồn: docs/demo-storyboard-v1.md S1–S2 · e2e/reports/…/E2.md, E3.md · docs/gap-review.md F-09/F-10</span><span>9 / 16</span></div>
+ <div class="foot"><span>Nguồn: docs/archive/demo-storyboard-v1.md S1–S2 · e2e/reports/…/E2.md, E3.md · docs/archive/gap-review.md F-09/F-10</span><span>9 / 16</span></div>
 </section>
 <!-- 10 -->
 <section class="slide" data-time="live S3 7:00–9:00" data-title="S3">
@@ -257,7 +257,7 @@ table.sm td{font-size:20px;padding:7px 12px;line-height:1.32}table.sm th{font-si
   <div class="card em"><h3>Điều đã có</h3><ul><li><b>Không có tool apply</b>: agent chỉ đề xuất</li><li>Planner xếp SAFE / RISKY / DESTRUCTIVE / BLOCKED, <code>plan_hash</code> chống TOCTOU</li><li>Thay đổi phá hủy cần 2 người</li><li><span class="b ok">E6 xanh</span> trên stack thật: duyệt qua <code>/desk/confirm</code> + TOTP → worker áp pha 1+2 → cột có trong <code>information_schema</code>; xóa field có dữ liệu mà chỉ 1 người duyệt → cột còn nguyên</li></ul></div>
   <div class="card am"><h3>Chưa kiểm chứng (nói thật)</h3><ul><li>E6 chạy với đề xuất <b>có kịch bản</b> (thêm <code>ma_du_an</code>); đề bài tự do của giám khảo qua LLM 4B chưa đo (E1 chưa xanh)</li><li>Agent tự sinh process mới: chưa kiểm chứng</li><li>Quay lui = đề xuất đổi ngược qua cùng luồng; chưa có tool rollback</li><li>Dự phòng: diff sinh sẵn / video S3</li></ul></div>
  </div>
- <div class="foot"><span>Nguồn: docs/demo-storyboard-v1.md S3 · docs/e2e.md E6 · docs/gap-review.md F-06, F-14</span><span>10 / 16</span></div>
+ <div class="foot"><span>Nguồn: docs/archive/demo-storyboard-v1.md S3 · docs/e2e.md E6 · docs/archive/gap-review.md F-06, F-14</span><span>10 / 16</span></div>
 </section>
 <!-- 11 -->
 <section class="slide" data-time="live S4 9:00–10:00 · S5 10:00–11:00" data-title="S4–S5 chủ quyền">
@@ -275,7 +275,7 @@ table.sm td{font-size:20px;padding:7px 12px;line-height:1.32}table.sm th{font-si
   <div class="card in"><h3>Chủ quyền số</h3><ul><li>Lõi <b>không gọi LLM nào</b>; workflow chạy không cần LLM (REST)</li><li>MCP là chuẩn mở; đổi client không đổi lõi</li><li>Đường chính: Desk + Ollama <code>qwen3.5:4b</code> (Q4, 3,3 GB) tự host; rút mạng vẫn chạy <span class="b wip">E1 đang hoàn thiện</span></li><li>Smoke spike 22 lần gọi: đúng tool 22/22, đúng ngữ nghĩa 18/22 (<i>chỉ là smoke, chưa phải eval</i>)</li><li>Không dùng Open WebUI (điều khoản thương hiệu không thuần OSI)</li></ul></div>
  </div>
  <div class="quote am" style="font-size:23px;margin-top:16px"><b>Không hứa quá mức:</b> chúng em không che dữ liệu bên trong host đóng; dữ liệu đã che mới ra ngoài. Dữ liệu thật chỉ đi tới LLM local hoặc người. Luật 91/2025/QH15 (hiệu lực 01/01/2026): lối ra của LLM là vùng biên cần kiểm soát như API Gateway.</div>
- <div class="foot"><span>Nguồn: docs/decisions.md “Tier PII của Desk chat” · docs/audit-pii-reveal.md · docs/demo-storyboard-v1.md S4–S5</span><span>11 / 16</span></div>
+ <div class="foot"><span>Nguồn: docs/decisions.md “Tier PII của Desk chat” · docs/archive/audit-pii-reveal.md · docs/archive/demo-storyboard-v1.md S4–S5</span><span>11 / 16</span></div>
 </section>
 <!-- 12 -->
 <section class="slide" data-time="12:00–12:50" data-title="PoF">
@@ -289,7 +289,7 @@ table.sm td{font-size:20px;padding:7px 12px;line-height:1.32}table.sm th{font-si
   <tr><td><b>I.6</b> Changelog, tracker, README</td><td><code>CHANGELOG.md</code> (Keep a Changelog), <code>CONTRIBUTING.md</code>, <code>SECURITY.md</code>, <code>.github/ISSUE_TEMPLATE</code>, CI</td><td><span class="b wip">đang hoàn thiện</span> mục phiên bản; tracker chờ forge</td></tr>
   <tr><td><b>I.1</b> Repo công khai</td><td>71 commit lịch sử làm việc; web viewer và truy cập mở khi đẩy lên forge</td><td><span class="b wip">đang hoàn thiện</span> chưa có remote công khai</td></tr></table>
  <div class="quote am" style="font-size:22px;margin-top:14px"><b>Việc bắt buộc trước 17:00 06/12/2026:</b> đẩy repo công khai, tạo tag + release <code>.tar.gz</code> có số phiên bản, thêm mục phiên bản vào CHANGELOG, bật bug tracker, chạy build “clone sạch” trên máy khác. Đề thi và tarball: tệp đề không được phát hành kèm (quyết định 16/10).</div>
- <div class="foot"><span>Nguồn: research/olp-checklist.md · docs/gap-review.md §3.5 · <code>reuse lint</code> chạy 16/10/2026 · dist/</span><span>12 / 16</span></div>
+ <div class="foot"><span>Nguồn: research/olp-checklist.md · docs/archive/gap-review.md §3.5 · <code>reuse lint</code> chạy 16/10/2026 · dist/</span><span>12 / 16</span></div>
 </section>
 <!-- 13 -->
 <section class="slide" data-nozoom="1" data-time="12:50–13:20" data-title="Audit bảo mật">
@@ -372,7 +372,7 @@ table.sm td{font-size:20px;padding:7px 12px;line-height:1.32}table.sm th{font-si
   <div class="card" style="padding:14px 20px"><h3 style="font-size:24px">Smoke bảo mật</h3><p style="font-size:22px">PASS 46 / FAIL 1 trên stack thật</p></div>
  </div>
  <div class="quote am" style="font-size:21px;margin-top:14px"><b>Lần chạy đầy đủ 16/10/2026 (<code>e2e/reports/20261016-023525</code>, E5–E7 chạy lại sau sửa harness).</b> Các mục “chờ e2e” đã có mã sửa và test tích hợp nhưng chưa chạy lại <code>make e2e</code>; không nâng trạng thái khi chưa có báo cáo xanh.</div>
- <div class="foot"><span>Nguồn: docs/e2e.md · docs/gap-review.md mục 0 · INSTALL.md · CHANGELOG.md</span><span>14 / 16</span></div>
+ <div class="foot"><span>Nguồn: docs/e2e.md · docs/archive/gap-review.md mục 0 · INSTALL.md · CHANGELOG.md</span><span>14 / 16</span></div>
 </section>
 <!-- 15 -->
 <section class="slide" data-time="13:45–14:00" data-title="Nguyên gốc + định hướng">
@@ -384,7 +384,7 @@ table.sm td{font-size:20px;padding:7px 12px;line-height:1.32}table.sm th{font-si
  </div>
  <div class="quote in" style="font-size:22px;margin-top:16px"><b>Câu định vị trung thực:</b> “Theo khảo sát đến 15/10/2026, chúng em không tìm thấy dự án mã nguồn mở OSI nào kết hợp đồng thời các yếu tố trên; đó không phải bằng chứng là không có.” Gần nhất ở mã mở: crmkit (MIT, chỉ CRM đơn tenant).</div>
  <p class="src" style="font-size:21px;margin-top:12px"><b>Định hướng:</b> gói Thiết bị/IoT (NGSI-LD, MQTT) · Coraza WAF · ký số PKI/HSM · Kubernetes + ArgoCD · CIBA · Metabase · RAG nội bộ · mô hình dịch vụ (hỗ trợ + gói nghiệp vụ)</p>
- <div class="foot"><span>Nguồn: research/landscape.md §2, §4(a) · docs/demo-storyboard-v1.md slide 10</span><span>15 / 16</span></div>
+ <div class="foot"><span>Nguồn: research/landscape.md §2, §4(a) · docs/archive/demo-storyboard-v1.md slide 10</span><span>15 / 16</span></div>
 </section>
 <!-- 16 -->
 <section class="slide" data-time="14:00–15:00" data-title="Chốt">
@@ -407,7 +407,7 @@ table.sm td{font-size:20px;padding:7px 12px;line-height:1.32}table.sm th{font-si
   <tr><td>3. LLM bịa số, điền sai, duyệt nhầm thì ai chịu?</td><td>LLM không phải nguồn sự thật: số do tool trả; ghi dữ liệu qua schema + CHECK ở DB (E3 xanh); bước nhạy cảm cần người + TOTP; audit tách “agent đề xuất” và “người xác nhận”.</td></tr>
   <tr><td>4. Đẩy lương, CCCD lên ChatGPT có vi phạm Luật BVDLCN?</td><td>Luật 91/2025/QH15 (01/01/2026) phạt tới 5% doanh thu. Client cloud chỉ nhận <code>[PII:token]</code>; giá trị thật chỉ tới người (vé một lần gắn khóa DPoP của Desk) hoặc LLM local; audit ghi egress. Không hứa che dữ liệu trong host đóng. Miễn trừ Đ.20.6(b) cho xử lý bằng LLM nước ngoài: <i>chưa kiểm chứng, cần luật sư</i>.</td></tr>
   <tr><td>5. Nhân viên không biết viết prompt thì sao?</td><td>MCP Prompts thành nút (<code>prepare_request</code>, <code>review_pending_requests</code>, <code>triage_my_work</code>, <code>change_model_safely</code>), thẻ MCP App, Telegram 1 chạm (đang hoàn thiện). Nói thẳng: thẻ trong host ngoài tốn 2 chạm.</td></tr></table>
- <div class="foot"><span>Nguồn: research/red-team.md Q1–Q5 (đã cập nhật theo docs/demo-storyboard-v1.md)</span><span>P1</span></div>
+ <div class="foot"><span>Nguồn: research/red-team.md Q1–Q5 (đã cập nhật theo docs/archive/demo-storyboard-v1.md)</span><span>P1</span></div>
 </section>
 <!-- P2 -->
 <section class="slide" data-time="Phụ lục · Hỏi đáp" data-title="Q&A 6–10">
@@ -419,7 +419,7 @@ table.sm td{font-size:20px;padding:7px 12px;line-height:1.32}table.sm th{font-si
   <tr><td>8. Build từ mã nguồn có chạy trên máy giám khảo?</td><td><code>INSTALL.md</code>, Docker Engine (không Docker Desktop), pin digest, realm import từ JSON. Profile minimal đo ≈ 0,75 GB RAM (7 container; ứng dụng thật ước 150–300 MB mỗi tiến trình, chưa đo). <i><code>make verify-clean</code> đã chạy trên clone HEAD; chưa thử trên máy khác; Podman chưa kiểm chứng.</i></td></tr>
   <tr><td>9. Agent sửa schema production, lỡ xóa cột lương?</td><td>Không có tool apply: đề xuất → Request quản trị → người duyệt qua <code>/confirm</code> (TOTP) → worker apply 2 pha. Planner xếp SAFE/RISKY/DESTRUCTIVE/BLOCKED; phá hủy cần 2 người. Quay lui là đề xuất đổi ngược (chưa có tool rollback). <i>E6 xanh ở e2e 16/10 (đề xuất có kịch bản); xóa field có dữ liệu cần người duyệt thứ hai.</i></td></tr>
   <tr><td>10. Prompt injection trong PDF “hãy duyệt khoản chi này”?</td><td>Quyền nằm ở server: <code>decide_request</code> của agent → <code>access_denied</code>; nội dung tệp gắn untrusted; xác nhận cần người + TOTP tươi, agent không cầm bằng chứng. Có test “agent không tự duyệt ở mọi gói”. <i>Upload: đã có test tích hợp, chờ e2e; ClamAV ở profile full.</i></td></tr></table>
- <div class="foot"><span>Nguồn: research/red-team.md Q6–Q10 · research/footprint.md · docs/demo-storyboard-v1.md</span><span>P2</span></div>
+ <div class="foot"><span>Nguồn: research/red-team.md Q6–Q10 · research/footprint.md · docs/archive/demo-storyboard-v1.md</span><span>P2</span></div>
 </section>
 <!-- P3 -->
 <section class="slide" data-time="Phụ lục · Stack" data-title="Stack + giấy phép">

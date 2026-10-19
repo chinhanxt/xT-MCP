@@ -3,7 +3,7 @@
 # TEMPLATE: @@XT_DOMAIN_*@@ được thay bởi scripts/render_apisix.py từ deploy/.env. Đừng sửa tệp đã render.
 # Route riêng của máy (hostname ngoài xT): deploy/apisix/extra-routes.json (không commit), renderer chèn trước #END.
 # Định tuyến theo Host (docs/deployment-public.md). KHÔNG route nào chèn Authorization/bearer tĩnh
-# (docs/audit-desk.md, mục LOW). Gateway không xác thực /mcp: xt-api tự trả 401 + PRM (D12).
+# (docs/archive/audit-desk.md, mục LOW). Gateway không xác thực /mcp: xt-api tự trả 401 + PRM (D12).
 routes:
   # ---------- xt.freepro.online : Desk ----------
   - id: desk-confirm            # trang confirm server-render của xt-api

@@ -6,7 +6,7 @@
 - **Phiên bản contract:** `1.0.0`. Gồm catalog v0.1 (17 tool) và phần bổ sung v1.0 (4 tool).
 - **Ngày:** 15/10/2026.
 - **Trạng thái:** chốt sau debate vòng 2. Đây là spec, chưa phải code đã chạy.
-- **Thay thế:** `research/tool-contracts-draft.md`. Log debate ở `docs/tool-contracts-debate.md`.
+- **Thay thế:** `research/tool-contracts-draft.md`. Log debate ở `docs/archive/tool-contracts-debate.md`.
 - **Nguồn sinh:** mọi JSON Schema trong tài liệu này sinh từ `contracts.py` (chạy ở `/tmp/xt-contracts-v1/`, bản sao ở `research/tool-contracts-v1-build/`). Tất cả đã qua `jsonschema.Draft202012Validator` (`build.py`, 0 lỗi). Không có schema nào viết tay riêng.
 
 > **Cập nhật triển khai Telegram (16/10/2026):** D-NOTIFY-3 trong [decisions](decisions.md#thông-báo-nội-bộ-và-telegram-hiển-thị-16102026) thay mô tả Telegram tap/nonce duyệt cũ bên dưới. Telegram chỉ hiển thị tóm tắt đã che PII, mã đối chiếu và link Desk; không là bằng chứng xác nhận, không thực thi duyệt. Xem [notifications](notifications.md).

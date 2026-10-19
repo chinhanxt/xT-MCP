@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
-// Hồi quy vòng 2 của docs/audit-desk.md (5 điểm Low).
+// Hồi quy vòng 2 của docs/archive/audit-desk.md (5 điểm Low).
 import { describe, expect, it, vi } from "vitest";
 import { McpError } from "@modelcontextprotocol/sdk/types.js";
 import { closeSchema, createAppBridgeHandlers, createGlobalToolLimiter, createRateLimiter, formatOpenLinkPrompt, isActivationInFrame } from "../src/bridge";

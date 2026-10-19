@@ -2,7 +2,7 @@
 # Phán quyết kiến trúc v2 (JUDGE/VERIFIER)
 
 - Ngày: 15/10/2026. Vai trò: JUDGE độc lập. Không viết lại kiến trúc.
-- Đầu vào: `docs/architecture-v2.md` (V2), `docs/architecture-debate.md` (DEB), `docs/tool-contracts-v1.md` (TCV1, bản chốt), `docs/tool-contracts-debate.md` (TCD, bản chốt), `research/packs-draft/REPORT.md` (PACK), `research/*.md`, `CLAUDE.md`, repo hiện tại.
+- Đầu vào: `docs/architecture-v2.md` (V2), `docs/archive/architecture-debate.md` (DEB), `docs/tool-contracts-v1.md` (TCV1, bản chốt), `docs/archive/tool-contracts-debate.md` (TCD, bản chốt), `research/packs-draft/REPORT.md` (PACK), `research/*.md`, `CLAUDE.md`, repo hiện tại.
 - **Cập nhật 15/10 (vòng 2):** TCV1 và TCD đã chốt: 17 tool ở v0.1, 21 ở v1.0, xác nhận của người không cần tham số. PACK đã chạy 3 gói trên engine thật. Theo chỉ đạo của coordinator, **TCV1 là nguồn sự thật cho bề mặt tool**. V2 phải sửa theo §8. Khoảng trống engine xem §9.
 - Cách trích: `tệp:dòng`. V2 = `docs/architecture-v2.md`.
 - Kiểm thật trong phiên này:

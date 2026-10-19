@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Regression của audit model engine (docs/audit-model-engine.md) — phần không cần DB.
+"""Regression của audit model engine (docs/archive/audit-model-engine.md) — phần không cần DB.
 
 Mỗi test là một lỗi ĐÃ tái hiện; `xfail(strict=True)` cho tới khi sửa (sửa xong phải gỡ xfail).
 """

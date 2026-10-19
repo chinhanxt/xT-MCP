@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Phản biện `architecture-v1.md` (vai CRITIC)
 
-Ngày: 15/10/2026. Đối tượng: `docs/architecture-v1.md` (`arch-v1.0-draft`, 752 dòng). Ký hiệu `A Lnnn` là số dòng trong bản kiến trúc. Bằng chứng trong `research/` viết theo dạng `tệp Lnnn`.
+Ngày: 15/10/2026. Đối tượng: `docs/archive/architecture-v1.md` (`arch-v1.0-draft`, 752 dòng). Ký hiệu `A Lnnn` là số dòng trong bản kiến trúc. Bằng chứng trong `research/` viết theo dạng `tệp Lnnn`.
 Góc nhìn: kỹ sư phải ship v1.0.0 ngày 03/12/2026 với 2 người (chủ dự án + agent Claude) và phải thắng OLP.
 
 **Kết luận chung.** Phần khung đã đúng hướng: tool cố định, nghiệp vụ là dữ liệu, RLS FORCE, audit hash-chain, Spiff có SafeEngine, bỏ Code Mode, Desk làm bề mặt xác nhận. Có 4 blocker cần xử lý trước khi viết code:

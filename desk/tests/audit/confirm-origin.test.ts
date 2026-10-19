@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
-// Audit (docs/audit-desk.md, BUG-5): confirm_url phải trỏ tới trang xác nhận của xT (/desk/confirm/{id}) trên origin xT đã cấu hình.
+// Audit (docs/archive/audit-desk.md, BUG-5): confirm_url phải trỏ tới trang xác nhận của xT (/desk/confirm/{id}) trên origin xT đã cấu hình.
 // Hiện confirmInfo nhận mọi URL http(s) nên các test dưới đây FAIL cho tới khi sửa.
 // Chạy: npx vitest run -c tests/audit/vitest.audit.config.ts
 import { describe, expect, it } from "vitest";

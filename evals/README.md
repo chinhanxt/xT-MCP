@@ -2,7 +2,7 @@
 <!-- SPDX-FileCopyrightText: 2026 xT contributors -->
 # evals: bộ eval agent thật cho xT
 
-Chạy một LLM thật (OpenAI-compatible, mặc định ollama) điều khiển tool MCP của xT qua Streamable HTTP, chấm bằng **chuỗi lời gọi tool, lời gọi bị cấm, JSON đáp án đối chiếu oracle, trạng thái cuối**. Không chấm bằng heuristic văn bản (chỉ dùng cho `soft` fact để chẩn đoán). Thiết kế theo `research/rea-lessons.md` §7 (scenario âm = 0 lời gọi, đáp án JSON đối chiếu oracle). Tài liệu đầy đủ và kết quả: [`docs/evals.md`](../docs/evals.md).
+Chạy một LLM thật (OpenAI-compatible, mặc định ollama) điều khiển tool MCP của xT qua Streamable HTTP, chấm bằng **chuỗi lời gọi tool, lời gọi bị cấm, JSON đáp án đối chiếu oracle, trạng thái cuối**. Không chấm bằng heuristic văn bản (chỉ dùng cho `soft` fact để chẩn đoán). Thiết kế theo `research/rea-lessons.md` §7 (scenario âm = 0 lời gọi, đáp án JSON đối chiếu oracle). Tài liệu đầy đủ và kết quả: [`docs/archive/evals.md`](../docs/archive/evals.md).
 
 ## Chạy ngay (mock, không cần server thật)
 
@@ -111,7 +111,7 @@ evals/
 ## Giới hạn đã biết
 
 - Mock xác định, không phải xT thật; lỗi/độ trễ/phân trang của server thật chưa được đo.
-- Chỉ đo qwen3.5:4b (core-10): kết quả 3 lần lặp (temperature 0.3) pass 62% không skill / 59% skills=auto, xem `docs/evals.md` mục 5 (mẫu lỗi và đề xuất sửa tool description/skill). Chưa đo Claude/GPT, chưa đo profile `full` trên model local.
-- Temperature 0 làm các lần lặp gần như giống nhau (xem `docs/evals.md`); `--temperature` để đo biến thiên.
+- Chỉ đo qwen3.5:4b (core-10): kết quả 3 lần lặp (temperature 0.3) pass 62% không skill / 59% skills=auto, xem `docs/archive/evals.md` mục 5 (mẫu lỗi và đề xuất sửa tool description/skill). Chưa đo Claude/GPT, chưa đo profile `full` trên model local.
+- Temperature 0 làm các lần lặp gần như giống nhau (xem `docs/archive/evals.md`); `--temperature` để đo biến thiên.
 - `skills auto` chỉ nạp `SKILL.md`, không nạp `references/`.
 - Một vài scenario chấm lý do/đáp án bằng regex tiếng Việt (ví dụ "không tìm thấy"); đã giữ ở mức tối thiểu và đánh `soft` khi chỉ để chẩn đoán, nhưng vẫn có thể từ chối oan một câu trả lời đúng bằng cách diễn đạt khác.

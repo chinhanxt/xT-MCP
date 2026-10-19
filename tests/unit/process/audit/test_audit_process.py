@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Hồi quy từ audit process engine (docs/audit-process.md). Ban đầu là xfail(strict=True); cả 10
+"""Hồi quy từ audit process engine (docs/archive/audit-process.md). Ban đầu là xfail(strict=True); cả 10
 đã pass sau bản sửa nên bỏ marker."""
 
 from __future__ import annotations

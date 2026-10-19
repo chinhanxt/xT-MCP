@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 xT contributors
 """Tấn công thật kênh người xem PII (`pii_reveal_ticket` + `POST /pii/reveal`).
 
-Báo cáo: docs/audit-pii-reveal.md.
+Báo cáo: docs/archive/audit-pii-reveal.md.
 
 xT chạy trong tiến trình (uvicorn) + Postgres 17 thật (container tên/cổng ngẫu nhiên) + client `mcp`
 thật qua Streamable HTTP + httpx cho /pii/reveal. Ca PASS là test thường; lỗi đã tìm thấy là

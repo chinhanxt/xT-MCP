@@ -12,7 +12,7 @@ Tầng 1 của đề thi bắt buộc dịch vụ Workflow chạy được mà k
 | Postgres 17 thật + composition thật | 5 test tích hợp (`tests/integration/composition/test_workflow_api.py`, marker `integration`): W1 chạy hết bằng HTTP, cô lập tenant, BPMN hợp lệ, `headless-demo.sh` chạy curl thật |
 | Ghép vào `xt serve` | Có: `serve.Prepared.http_app()` gọi `with_workflow_api` |
 | Deploy | `deploy/compose.yaml` truyền `XT_WORKFLOW_ALLOWED_CLIENTS=${XT_WORKFLOW_CLIENTS:-xt-cli}` (cùng nguồn với `provision_data.py`) và `XT_WORKFLOW_PUBLIC_URL`; kiểm offline ở `tests/unit/http/test_workflow_deploy.py` |
-| Audit `docs/audit-workflow-api.md` | WA-01…WA-10 đã sửa; `tests/integration/workflow_api_audit/` 17 passed, không còn xfail |
+| Audit `docs/archive/audit-workflow-api.md` | WA-01…WA-10 đã sửa; `tests/integration/workflow_api_audit/` 17 passed, không còn xfail |
 | Route APISIX `api-workflow` | Có trong `deploy/apisix/apisix.yaml.tmpl`; chưa render/nạp vào stack công khai |
 | Client scope Keycloak `xt-workflow` | Chưa provision trên Keycloak thật |
 

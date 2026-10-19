@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Audit vòng 2 REST /workflow/v1 (docs/audit-workflow-api.md, "Vòng 2"): ủy quyền đổi trạng thái
+"""Audit vòng 2 REST /workflow/v1 (docs/archive/audit-workflow-api.md, "Vòng 2"): ủy quyền đổi trạng thái
 giữa plan và xác nhận, rút đề nghị (withdraw), ETag. `xfail(strict=True)` = lỗi WA-11/WA-12.
 """
 

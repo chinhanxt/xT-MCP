@@ -15,7 +15,7 @@ make release   # uv build (sdist + wheel) + git archive -> dist/xt-<version>.tar
 
 `make release` dùng `git archive HEAD`: chỉ chứa file đã commit.
 
-Bố cục `src/xt/` theo `docs/architecture-v1.md` mục 4: `domain`, `contracts`, `application`,
+Bố cục `src/xt/` theo `docs/archive/architecture-v1.md` mục 4: `domain`, `contracts`, `application`,
 `adapters/{mcp,http,cli,db,workflow,blob,identity,notify}`, `entrypoints`.
 
 `xt doctor` chỉ đọc: kiểm tra phiên bản Python và, nếu đặt `XT_DATABASE_URL`, kết nối TCP tới

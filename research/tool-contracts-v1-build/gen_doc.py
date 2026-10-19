@@ -213,8 +213,8 @@ for k in sorted(rep, key=len, reverse=True):
 open("/home/chinhan/xT/docs/tool-contracts-v1.md", "w").write(tpl)
 
 # debate log: insert probe summary
-deb = open("/home/chinhan/xT/docs/tool-contracts-debate.md").read()
+deb = open("/home/chinhan/xT/docs/archive/tool-contracts-debate.md").read()
 if "PROBE_RESULTS_PLACEHOLDER" in deb:
     deb = deb.replace("PROBE_RESULTS_PLACEHOLDER", probe_section())
-    open("/home/chinhan/xT/docs/tool-contracts-debate.md", "w").write(deb)
+    open("/home/chinhan/xT/docs/archive/tool-contracts-debate.md", "w").write(deb)
 print("ok")

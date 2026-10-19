@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Audit lớp MCP vòng 2 (docs/audit-mcp.md, mục "Vòng 2"). Đã sửa; giữ làm hồi quy."""
+"""Audit lớp MCP vòng 2 (docs/archive/audit-mcp.md, mục "Vòng 2"). Đã sửa; giữ làm hồi quy."""
 
 from __future__ import annotations
 

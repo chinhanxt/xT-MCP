@@ -108,7 +108,7 @@ Byte đo trên entry thật server gửi (có title, annotations, `_meta`, input
 
 ## Kiểm thử
 
-**Kiểm thử nền tảng thật 16/10/2026:** Claude và ChatGPT đọc và tạo/gửi giấy demo được; hai giấy đã qua hai cấp duyệt, `approved`, revision 4. Các bước host, trang xác nhận OTP và SDK được phân biệt ở [mcp-live-20261016.md](mcp-live-20261016.md). ChatGPT chặn replay của giám đốc vì mô tả `decide_request`; `create_task` và quyền đọc người duyệt còn lỗi cần xử lý. Không coi kết quả backend là toàn bộ luồng host đã đạt.
+**Kiểm thử nền tảng thật 16/10/2026:** Claude và ChatGPT đọc và tạo/gửi giấy demo được; hai giấy đã qua hai cấp duyệt, `approved`, revision 4. Các bước host, trang xác nhận OTP và SDK được phân biệt ở [mcp-live-20261016.md](archive/mcp-live-20261016.md). ChatGPT chặn replay của giám đốc vì mô tả `decide_request`; `create_task` và quyền đọc người duyệt còn lỗi cần xử lý. Không coi kết quả backend là toàn bộ luồng host đã đạt.
 
 Cả hai nền tảng gửi yêu cầu DCR dùng `client_secret_post` và yêu cầu OAuth `offline_access`, trong khi cổng DCR hiện chỉ nhận public client. Lượt thử dùng hai confidential client cấu hình sẵn, callback cố định riêng từng nền tảng, PKCE S256, consent và quyền masked cho người dùng demo. `offline_access` chỉ được thêm cho hai client test, thời hạn offline idle/max 900/1800 giây trong realm test; không mở rộng DCR hoặc scope công khai. Đây là đường kiểm thử có cấu hình riêng, chưa phải bằng chứng DCR production tương thích.
 
@@ -129,7 +129,7 @@ Ba view HTML/SVG/JS thuần (không thư viện UI, không tài nguyên ngoài),
 
 - **Một nguồn:** view và tool app-only khai ở `xt.contracts.tools.apps` (`UI_VIEWS`, `APP_TOOLS`); tool của model chỉ khai `ui_resource` trong catalog. Server tự nối: `tools/list` gắn `_meta.ui.resourceUri` khi resource đã đăng ký; tool app-only chỉ được liệt kê khi view của nó đã đăng ký và có tool của model dùng view đó (nên core-10 vẫn gọn). Tool app-only không thuộc 17 tool của model, chỉ đọc, đi qua cùng IAM + làn PII + cursor ký; mọi lời gọi tool app-only đã qua kiểm xác thực/tenant như tool thường. Lưu ý lỗi thứ tự `MCPServer(extensions=[apps])` không áp dụng vì dùng lowlevel `Server`.
 - **Resource:** `resources/list` + `resources/read`, mime `text/html;profile=mcp-app`, `_meta.ui = {prefersBorder, csp:{connectDomains:[<origin xT>], resourceDomains:[], frameDomains:[], baseUriDomains:[]}}`. Origin xT lấy từ `register_apps(xt_origin=...)` (chỉ `https`, `http` cho loopback; không path/query/userinfo); cùng giá trị được nhúng vào thẻ phê duyệt để tự kiểm `confirm_url` (đúng origin, đường dẫn `/desk/confirm/{id}`, không query/hash/credentials) trước khi bật nút; không đạt thì nút bị vô hiệu.
-- **Sandbox:** Desk chạy App trong iframe không `allow-forms`, nên bảng dùng nút + phím Enter, không dùng `<form>` (xem `docs/audit-desk.md`). Desk chỉ cho App gọi tool có `visibility` chứa `"app"` tường minh và đúng `inputSchema`; `ui/open-link` ra ngoài origin xT phải qua hộp thoại xác nhận.
+- **Sandbox:** Desk chạy App trong iframe không `allow-forms`, nên bảng dùng nút + phím Enter, không dùng `<form>` (xem `docs/archive/audit-desk.md`). Desk chỉ cho App gọi tool có `visibility` chứa `"app"` tường minh và đúng `inputSchema`; `ui/open-link` ra ngoài origin xT phải qua hộp thoại xác nhận.
 - **PII:** App chỉ nhận token/gợi ý che; không có đường lấy giá trị thật trong các view này (kênh vé `/pii/reveal` ở `spike-pii-lane.md` vẫn chỉ ở Desk).
 - **Đăng ký (composition root):**
 

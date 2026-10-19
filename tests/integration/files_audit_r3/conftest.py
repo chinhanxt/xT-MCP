@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-"""Audit vòng 3 REST /files/v1 (docs/audit-files.md "Vòng 3"): kiểm chứng sâu các bản sửa vòng 2.
+"""Audit vòng 3 REST /files/v1 (docs/archive/audit-files.md "Vòng 3"): kiểm chứng sâu các bản sửa vòng 2.
 
 MỘT Postgres 17 phiên (`pg`, dùng chung) + MỘT SeaweedFS 4.48 riêng của module (`sw`, cổng loopback
 ngẫu nhiên, tmpfs, `docker rm -f -v`). Hai tầng chạy app:

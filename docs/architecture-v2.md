@@ -34,7 +34,7 @@ B4 đã đóng. G-M1 và G-M2 của B6 đã đóng. Đã sửa đúng các mục
    - Audit lưu **HMAC có khóa** cho field sensitive (khóa ở OpenBao hoặc Compose secret, có quy trình xoay).
 7. **Bẫy psycopg** (SMT §1): `Engine.tx()` từ chối kết nối không ở trạng thái `IDLE`; pool đặt `autocommit=True`. Vì `set_config(…, true)` sống sót qua savepoint lồng trong transaction ngầm, tenant của request trước có thể rò sang request sau.
 
-## v2.1 changelog (15/10/2026, sau `docs/architecture-v2-verdict.md`, phán quyết GO-WITH-CONDITIONS)
+## v2.1 changelog (15/10/2026, sau `docs/archive/architecture-v2-verdict.md`, phán quyết GO-WITH-CONDITIONS)
 
 `docs/tool-contracts-v1.md` (TCV1: 17 tool ở v0.1, 21 tool ở v1.0) là **nguồn có thẩm quyền về bề mặt tool**. Bản v2.1 đã hòa giải 5 điểm lệch thuộc B1. Chi tiết ghi tại `architecture-debate.md` §"Vòng 3".
 
@@ -93,9 +93,9 @@ Thêm §9.1 ánh xạ khoảng trống PACK vào mốc (B6).
 | SFR | `spike-frappe.md` | CR | `connector-requirements.md` |
 | VS | `verification-spikes.md` | SME | `spike-model-engine.md` |
 | SIAM | `spike-iam.md` | SLLM | `spike-local-llm.md` |
-| SDESK | `spike-desk.md` | ST | `docs/demo-storyboard-v0.md` |
-| CRIT | `docs/architecture-v1-critique.md` | TCV1 | `docs/tool-contracts-v1.md` (**có thẩm quyền về bề mặt tool**) |
-| VERD | `docs/architecture-v2-verdict.md` | SMT | `spike-model-tenancy.md` |
+| SDESK | `spike-desk.md` | ST | `docs/archive/demo-storyboard-v0.md` |
+| CRIT | `docs/archive/architecture-v1-critique.md` | TCV1 | `docs/tool-contracts-v1.md` (**có thẩm quyền về bề mặt tool**) |
+| VERD | `docs/archive/architecture-v2-verdict.md` | SMT | `spike-model-tenancy.md` |
 
 ### Ràng buộc từ chủ dự án (chốt 15/10/2026)
 

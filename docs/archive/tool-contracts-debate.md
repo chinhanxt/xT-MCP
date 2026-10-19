@@ -3,7 +3,7 @@
 
 - Ngày: 15/10/2026.
 - Vai AUTHOR: Opus 5.5, thay codex gpt-6.1-sol vì codex hết quota (đã ghi trong `research/incidents.log`).
-- Đầu vào: `research/tool-contracts-draft.md` (bản nháp, 18 tool), `research/tool-contracts-critique.md` (27 phát hiện: 4 blocker, 13 major, 10 minor), `docs/architecture-v1.md`, `docs/demo-storyboard-v0.md`, `research/spike-local-llm.md`, `research/connector-requirements.md`, `research/rea-lessons.md`, `research/spike-mcp-apps.md`.
+- Đầu vào: `research/tool-contracts-draft.md` (bản nháp, 18 tool), `research/tool-contracts-critique.md` (27 phát hiện: 4 blocker, 13 major, 10 minor), `docs/archive/architecture-v1.md`, `docs/archive/demo-storyboard-v0.md`, `research/spike-local-llm.md`, `research/connector-requirements.md`, `research/rea-lessons.md`, `research/spike-mcp-apps.md`.
 - Đầu ra: `docs/tool-contracts-v1.md`. Script kiểm chứng chạy ở `/tmp/xt-contracts-v1/`, bản sao lưu ở `research/tool-contracts-v1-build/` (`contracts.py`, `build.py`, `gen_doc.py`, `llm_probe.py`, kết quả `sizes.json`, `llm_probe.json`).
 
 ## Tổng kết

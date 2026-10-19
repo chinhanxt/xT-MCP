@@ -4,7 +4,7 @@
 
 Ngày chạy: 2026-10-15. Mọi số liệu và output bên dưới là **output thật** của `tests/run_all.sh` chạy từ thư mục này (bản đầy đủ ở `results/*.txt`). Không sửa dòng nào của ba spike (`spike-model-engine`, `spike-spiffworkflow`, `spike-iam`): test chỉ `import` chúng.
 
-> **Ghi chú hợp nhất (docs/consistency-log.md):** (1) id kỹ thuật của model, field, enum, role, process, step, op đã đổi sang tiếng Anh snake_case (nhãn tiếng Việt nằm ở `label`/`name`); (2) Deny `deny-agent-pii` đã bỏ, PII đi theo làn PII của contract (cloud masked, local full); (3) ngưỡng step-up `confirm_step_up` >50 triệu. Các khối output trong báo cáo này giữ nguyên cấu trúc cũ nhưng tên đã đổi theo; số liệu mới nằm ở `results/*.txt` (chạy lại `tests/run_all.sh`, 42/42 ca IAM, process exit 0).
+> **Ghi chú hợp nhất (docs/archive/consistency-log.md):** (1) id kỹ thuật của model, field, enum, role, process, step, op đã đổi sang tiếng Anh snake_case (nhãn tiếng Việt nằm ở `label`/`name`); (2) Deny `deny-agent-pii` đã bỏ, PII đi theo làn PII của contract (cloud masked, local full); (3) ngưỡng step-up `confirm_step_up` >50 triệu. Các khối output trong báo cáo này giữ nguyên cấu trúc cũ nhưng tên đã đổi theo; số liệu mới nằm ở `results/*.txt` (chạy lại `tests/run_all.sh`, 42/42 ca IAM, process exit 0).
 
 Môi trường: Python 3.13, PostgreSQL 17 (`postgres:17-alpine`, docker, cổng 15440, đã xóa container sau khi chạy; image có sẵn trên máy, không pull mới), pydantic 2.14.1, psycopg 3.3.6, SpiffWorkflow 3.2.0. Kiểm `df -h /` trước khi chạy: còn 7,3 GB.
 
