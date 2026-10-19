@@ -60,3 +60,11 @@ e2e/reports/
 # skill không rõ giấy phép, chỉ dùng cục bộ
 .claude/skills/testing-strategy/
 imports/waretrack-3d/docs/ref/
+
+# local caches / generated
+.hypothesis/
+.import_linter_cache/
+desk/dist/
+evals/results/
+docs/review/screens-*/
+.claude/worktrees/
