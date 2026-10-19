@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- SPDX-FileCopyrightText: 2026 xT contributors -->
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>xT — Bản đồ hệ thống và các luồng hoạt động</title>
+<style>
+  :root {
+    --ink:#0f172a; --muted:#475569; --soft:#64748b; --line:#cbd5e1; --bg:#f1f5f9; --card:#ffffff;
+    --ch:#2563eb;  --ch-bg:#eff6ff;   /* Kênh: ChatGPT / Desk */
+    --gw:#7c3aed;  --gw-bg:#f5f3ff;   /* Cổng & bảo mật */
+    --core:#0f766e;--core-bg:#f0fdfa; /* Lõi xT */
+    --wf:#b45309;  --wf-bg:#fffbeb;   /* Quy trình duyệt */
+    --db:#334155;  --db-bg:#f8fafc;   /* Dữ liệu */
+    --hu:#be123c;  --hu-bg:#fff1f2;   /* Con người quyết định */
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--ink); }
+  .page { max-width: 1320px; margin:0 auto; padding:40px 28px 72px; }
+  header { border-bottom:2px solid var(--ink); padding-bottom:16px; margin-bottom:28px; display:flex; justify-content:space-between; align-items:flex-end; gap:24px; flex-wrap:wrap; }
+  .kicker { font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--soft); font-weight:600; }
+  h1 { font-size:30px; font-weight:700; letter-spacing:-.01em; margin-top:6px; }
+  .meta { font-size:13px; color:var(--muted); text-align:right; line-height:1.6; }
+  h2 { font-size:19px; font-weight:700; margin:40px 0 4px; display:flex; align-items:center; gap:12px; }
+  h2 .tag { font-size:12px; font-weight:700; background:var(--ink); color:#fff; border-radius:4px; padding:3px 8px; letter-spacing:.06em; }
+  .desc { color:var(--muted); font-size:14px; margin-bottom:14px; max-width:980px; }
+
+  /* Legend */
+  .legend { display:flex; flex-wrap:wrap; gap:18px; font-size:13px; color:var(--muted); margin-bottom:8px; }
+  .legend span { display:flex; align-items:center; gap:7px; }
+  .sw { width:14px; height:14px; border-radius:3px; border:2px solid; }
+  .ctl-sw { width:14px; height:14px; border-radius:50%; background:var(--hu); }
+
+  /* System map */
+  .map { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px; }
+  .tiers { display:grid; grid-template-columns: 170px 1fr; gap:10px 16px; align-items:stretch; }
+  .tier-label { font-size:12px; font-weight:700; color:var(--soft); text-transform:uppercase; letter-spacing:.08em; display:flex; align-items:center; border-right:2px solid var(--line); padding-right:12px; }
+  .tier { display:flex; gap:10px; flex-wrap:wrap; }
+  .blk { flex:1 1 150px; border:2px solid; border-radius:8px; padding:10px 12px; min-height:64px; }
+  .blk b { display:block; font-size:14px; }
+  .blk small { color:var(--muted); font-size:12px; line-height:1.4; }
+  .down { text-align:center; color:var(--soft); font-size:18px; line-height:1; grid-column:2; }
+  .c-ch{border-color:var(--ch);background:var(--ch-bg)} .c-gw{border-color:var(--gw);background:var(--gw-bg)}
+  .c-core{border-color:var(--core);background:var(--core-bg)} .c-wf{border-color:var(--wf);background:var(--wf-bg)}
+  .c-db{border-color:var(--db);background:var(--db-bg)} .c-hu{border-color:var(--hu);background:var(--hu-bg)}
+
+  /* Flow rows */
+  .flow { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 18px 14px; overflow-x:auto; }
+  .row { display:flex; align-items:stretch; min-width:980px; }
+  .step { flex:1 1 0; min-width:140px; border:2px solid; border-radius:8px; padding:10px 11px 11px; position:relative; background:#fff; }
+  .step .n { font-size:11px; font-weight:700; color:var(--soft); letter-spacing:.06em; }
+  .step .t { font-size:14px; font-weight:700; margin:3px 0 4px; line-height:1.3; }
+  .step .w { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; margin-bottom:5px; }
+  .step .d { font-size:12px; color:var(--muted); line-height:1.45; }
+  .step.ctl::after { content:"KIỂM SOÁT"; position:absolute; top:-10px; right:8px; background:var(--hu); color:#fff; font-size:10px; font-weight:700; letter-spacing:.08em; padding:2px 6px; border-radius:3px; }
+  .arrow { width:28px; display:flex; align-items:center; justify-content:center; color:var(--soft); flex:none; }
+  .arrow::before { content:""; width:18px; height:2px; background:var(--soft); }
+  .arrow::after { content:""; border-left:7px solid var(--soft); border-top:5px solid transparent; border-bottom:5px solid transparent; }
+  .w-ch{color:var(--ch)} .w-gw{color:var(--gw)} .w-core{color:var(--core)} .w-wf{color:var(--wf)} .w-db{color:var(--db)} .w-hu{color:var(--hu)}
+  .outcome { margin-top:12px; font-size:13px; color:var(--ink); border-top:1px dashed var(--line); padding-top:10px; }
+  .outcome b { color:var(--hu); }
+  .branch { margin-top:10px; display:flex; gap:10px; align-items:center; font-size:13px; color:var(--muted); }
+  .branch .x { border:2px solid var(--hu); background:var(--hu-bg); color:var(--hu); border-radius:6px; padding:6px 10px; font-weight:600; }
+  footer { margin-top:40px; font-size:12px; color:var(--soft); border-top:1px solid var(--line); padding-top:12px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <div>
+    <div class="kicker">xT · Nền tảng chuyển đổi số nguồn mở · OLP PMNM 2026</div>
+    <h1>Bản đồ hệ thống và các luồng hoạt động</h1>
+  </div>
+  <div class="meta">Bản chạy thật: xt.freepro.online · MCP: xt-mcp.freepro.online<br>Đã kiểm thử trên ChatGPT thật ngày 18/10/2026</div>
+</header>
+
+<div class="legend">
+  <span><i class="sw c-ch"></i>Kênh truy cập (ChatGPT, web Desk)</span>
+  <span><i class="sw c-gw"></i>Cổng &amp; xác thực (APISIX, Keycloak)</span>
+  <span><i class="sw c-core"></i>Lõi xT (MCP, phân quyền, Model Engine)</span>
+  <span><i class="sw c-wf"></i>Quy trình duyệt (workflow)</span>
+  <span><i class="sw c-db"></i>Dữ liệu (PostgreSQL, audit)</span>
+  <span><i class="sw c-hu"></i>Con người quyết định</span>
+  <span><i class="ctl-sw"></i>Điểm kiểm soát</span>
+</div>
+
+<!-- ============ 0. BẢN ĐỒ HỆ THỐNG ============ -->
+<h2><span class="tag">TỔNG QUAN</span>Hệ thống gồm những gì</h2>
+<p class="desc">Mọi yêu cầu — từ ChatGPT hay từ web — đi qua cùng một cổng, cùng một bộ kiểm tra quyền và cùng một nguồn dữ liệu. Không có đường tắt.</p>
+<div class="map">
+  <div class="tiers">
+    <div class="tier-label">Người dùng</div>
+    <div class="tier">
+      <div class="blk c-hu"><b>Nhân viên</b><small>tạo yêu cầu, tra cứu</small></div>
+      <div class="blk c-hu"><b>Quản lý / người duyệt</b><small>duyệt bằng mật khẩu + OTP</small></div>
+      <div class="blk c-hu"><b>Lãnh đạo</b><small>báo cáo, audit, Studio AI</small></div>
+    </div>
+    <div class="down">▼</div>
+    <div class="tier-label">Kênh truy cập</div>
+    <div class="tier">
+      <div class="blk c-ch"><b>ChatGPT / Claude</b><small>giao tiếp bằng ngôn ngữ tự nhiên qua giao thức MCP</small></div>
+      <div class="blk c-ch"><b>Cổng web xT (Desk)</b><small>H Con người · P Quy trình · D Dữ liệu · I Trí tuệ</small></div>
+      <div class="blk c-ch"><b>Ứng dụng Tầng 3</b><small>Kho + sơ đồ 3D · Chấm công · CRM · Tài sản</small></div>
+      <div class="blk c-ch"><b>Studio AI</b><small>chat, quy trình AI, RAG có kiểm quyền</small></div>
+    </div>
+    <div class="down">▼</div>
+    <div class="tier-label">Tầng 1 · Cổng</div>
+    <div class="tier">
+      <div class="blk c-gw"><b>API Gateway (APISIX)</b><small>một cửa vào duy nhất cho mọi kênh</small></div>
+      <div class="blk c-gw"><b>Đăng nhập SSO (Keycloak)</b><small>OAuth 2.1, OTP, mỗi doanh nghiệp một tổ chức</small></div>
+    </div>
+    <div class="down">▼</div>
+    <div class="tier-label">Tầng 1 · Lõi</div>
+    <div class="tier">
+      <div class="blk c-core"><b>MCP Server</b><small>bộ ~21 công cụ cố định cho AI</small></div>
+      <div class="blk c-core"><b>Phân quyền (IAM)</b><small>vai trò, làm thay đúng người, che dữ liệu cá nhân</small></div>
+      <div class="blk c-core"><b>Model Engine + gói nghiệp vụ</b><small>nghiệp vụ là dữ liệu, cài/gỡ theo ngành</small></div>
+      <div class="blk c-wf"><b>Workflow</b><small>đề xuất → duyệt → SLA, tách người lập và người duyệt</small></div>
+    </div>
+    <div class="down">▼</div>
+    <div class="tier-label">Tầng 1 · Dữ liệu</div>
+    <div class="tier">
+      <div class="blk c-db"><b>PostgreSQL + RLS</b><small>dữ liệu tách riêng từng doanh nghiệp</small></div>
+      <div class="blk c-db"><b>Lưu trữ tệp</b><small>tài liệu, SOP, chứng từ</small></div>
+      <div class="blk c-db"><b>Audit hash-chain</b><small>nhật ký ký số, phát hiện sửa lén</small></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ LUỒNG 1 ============ -->
+<h2><span class="tag">LUỒNG 1</span>Đăng nhập và kết nối ChatGPT</h2>
+<p class="desc">Người dùng chỉ đăng nhập một lần. Từ đó ChatGPT hành động thay người dùng, nhưng không bao giờ vượt quá quyền của chính người đó.</p>
+<div class="flow"><div class="row">
+  <div class="step c-ch"><div class="n">BƯỚC 1</div><div class="w w-ch">ChatGPT</div><div class="t">Thêm connector xT</div><div class="d">Trỏ tới địa chỉ MCP của doanh nghiệp.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-gw"><div class="n">BƯỚC 2</div><div class="w w-gw">Keycloak</div><div class="t">Đăng nhập SSO</div><div class="d">Tài khoản công ty, mật khẩu, OTP nếu bật.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-gw ctl"><div class="n">BƯỚC 3</div><div class="w w-gw">Keycloak</div><div class="t">Cấp token theo tổ chức</div><div class="d">Token gắn đúng doanh nghiệp người dùng thuộc về.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-core ctl"><div class="n">BƯỚC 4</div><div class="w w-core">Lõi xT</div><div class="t">Kiểm token mỗi lần gọi</div><div class="d">Còn hạn, chưa bị thu hồi, đúng doanh nghiệp, đúng ứng dụng.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-ch"><div class="n">BƯỚC 5</div><div class="w w-ch">ChatGPT</div><div class="t">Sẵn sàng làm việc</div><div class="d">Thấy danh sách công cụ và ứng dụng được phép dùng.</div></div>
+</div>
+<div class="outcome">Kết quả: một danh tính dùng chung cho web, ChatGPT và Studio. <b>Thu hồi quyền có hiệu lực ngay ở lần gọi kế tiếp.</b></div>
+</div>
+
+<!-- ============ LUỒNG 2 ============ -->
+<h2><span class="tag">LUỒNG 2</span>Tra cứu dữ liệu</h2>
+<p class="desc">Ví dụ: "Kho Hà Nội còn bao nhiêu giấy A4?"</p>
+<div class="flow"><div class="row">
+  <div class="step c-ch"><div class="n">BƯỚC 1</div><div class="w w-ch">ChatGPT</div><div class="t">Hiểu câu hỏi</div><div class="d">Chọn công cụ phù hợp: tìm bản ghi, tổng hợp số liệu.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-gw"><div class="n">BƯỚC 2</div><div class="w w-gw">APISIX</div><div class="t">Nhận yêu cầu MCP</div><div class="d">Cổng duy nhất, ghi mã truy vết cho mỗi yêu cầu.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-core ctl"><div class="n">BƯỚC 3</div><div class="w w-core">Phân quyền</div><div class="t">Người này được đọc không?</div><div class="d">Theo vai trò thật của người dùng trong doanh nghiệp.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-db ctl"><div class="n">BƯỚC 4</div><div class="w w-db">PostgreSQL</div><div class="t">Lọc theo doanh nghiệp</div><div class="d">RLS chỉ trả dữ liệu của đúng công ty.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-core ctl"><div class="n">BƯỚC 5</div><div class="w w-core">Lõi xT</div><div class="t">Che dữ liệu cá nhân</div><div class="d">Số tài khoản, CCCD, điện thoại thay bằng mã che.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-ch"><div class="n">BƯỚC 6</div><div class="w w-ch">ChatGPT</div><div class="t">Trả lời người dùng</div><div class="d">"Kho KHO-HN còn 8 ram giấy A4."</div></div>
+</div>
+<div class="branch">Nếu hỏi dữ liệu công ty khác hoặc ngoài quyền <span class="arrow"></span><span class="x">Từ chối, không lộ dữ liệu có tồn tại hay không</span></div>
+</div>
+
+<!-- ============ LUỒNG 3 ============ -->
+<h2><span class="tag">LUỒNG 3</span>Tạo phiếu và gửi duyệt</h2>
+<p class="desc">Ví dụ: nhân viên Dũng nhờ ChatGPT "Tạo phiếu xuất 3 ram giấy A4 rồi gửi duyệt".</p>
+<div class="flow"><div class="row">
+  <div class="step c-ch"><div class="n">BƯỚC 1</div><div class="w w-ch">ChatGPT</div><div class="t">Soạn phiếu</div><div class="d">Điền kho, hàng, số lượng theo mẫu của gói Kho.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-core ctl"><div class="n">BƯỚC 2</div><div class="w w-core">Phân quyền</div><div class="t">Làm thay đúng người</div><div class="d">AI chỉ tạo phiếu cho chính Dũng, không tạo thay người khác.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-core ctl"><div class="n">BƯỚC 3</div><div class="w w-core">Model Engine</div><div class="t">Kiểm dữ liệu</div><div class="d">Kho, vị trí, hàng hợp lệ; số lượng dương; chống tạo trùng.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-db"><div class="n">BƯỚC 4</div><div class="w w-db">PostgreSQL</div><div class="t">Lưu phiếu nháp</div><div class="d">Ghi kèm nhật ký audit.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-wf"><div class="n">BƯỚC 5</div><div class="w w-wf">Workflow</div><div class="t">Gửi duyệt</div><div class="d">Tự chọn người có vai trò quản lý kho.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-hu"><div class="n">BƯỚC 6</div><div class="w w-hu">Người duyệt</div><div class="t">Phiếu vào hộp thư</div><div class="d">Quản lý kho Trâm thấy phiếu chờ duyệt.</div></div>
+</div>
+<div class="outcome">Gửi lại cùng yêu cầu nhiều lần vẫn <b>chỉ ra một phiếu</b> (khóa chống trùng).</div>
+</div>
+
+<!-- ============ LUỒNG 4 ============ -->
+<h2><span class="tag">LUỒNG 4</span>Duyệt phiếu và ghi kho</h2>
+<p class="desc">Điểm cốt lõi: AI không được tự quyết. Mọi quyết định duyệt phải do người có quyền xác nhận.</p>
+<div class="flow"><div class="row">
+  <div class="step c-hu"><div class="n">BƯỚC 1</div><div class="w w-hu">Người duyệt</div><div class="t">Bấm Duyệt</div><div class="d">Trên web (Quy trình → Hộp thư) hoặc qua ChatGPT.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-wf ctl"><div class="n">BƯỚC 2</div><div class="w w-wf">Workflow</div><div class="t">Kiểm tách vai trò</div><div class="d">Người lập phiếu không được tự duyệt phiếu của mình.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-core ctl"><div class="n">BƯỚC 3</div><div class="w w-core">Lõi xT</div><div class="t">Yêu cầu xác nhận người</div><div class="d">Tạo trang xác nhận riêng cho đúng người duyệt.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-hu ctl"><div class="n">BƯỚC 4</div><div class="w w-hu">Người duyệt</div><div class="t">Mật khẩu + OTP</div><div class="d">Xác thực hai lớp trên trang Desk.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-db ctl"><div class="n">BƯỚC 5</div><div class="w w-db">PostgreSQL</div><div class="t">Ghi kho trong 1 giao dịch</div><div class="d">Trạng thái phiếu + biến động + tồn kho cùng lúc; không đủ hàng thì hủy toàn bộ.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-db"><div class="n">BƯỚC 6</div><div class="w w-db">Audit</div><div class="t">Ghi nhật ký ký số</div><div class="d">Ai lập, ai duyệt, lúc nào, thay đổi gì.</div></div>
+</div>
+<div class="branch">Nếu nhân viên tự duyệt phiếu của mình <span class="arrow"></span><span class="x">Từ chối: self_approval</span></div>
+<div class="outcome">Bấm duyệt lại hoặc mạng chập chờn: <b>kho chỉ trừ đúng một lần</b>. Hai lệnh xuất cùng lúc không thể làm âm kho.</div>
+</div>
+
+<!-- ============ LUỒNG 5 ============ -->
+<h2><span class="tag">LUỒNG 5</span>Báo cáo và truy nguồn số liệu</h2>
+<p class="desc">Ví dụ: giám đốc hỏi "Nhập xuất kho tháng này?" rồi bấm vào con số để biết từ đâu ra.</p>
+<div class="flow"><div class="row">
+  <div class="step c-ch"><div class="n">BƯỚC 1</div><div class="w w-ch">Web D / ChatGPT</div><div class="t">Yêu cầu báo cáo</div><div class="d">Chọn chỉ số, nhóm theo kho, theo tháng.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-core ctl"><div class="n">BƯỚC 2</div><div class="w w-core">Phân quyền</div><div class="t">Quyền tổng hợp</div><div class="d">Chỉ tổng hợp được dữ liệu mình được đọc.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-db"><div class="n">BƯỚC 3</div><div class="w w-db">PostgreSQL</div><div class="t">Tính tại máy chủ</div><div class="d">AI không tự cộng số, tránh sai và bịa.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-core"><div class="n">BƯỚC 4</div><div class="w w-core">Lõi xT</div><div class="t">Trả số + mã nguồn</div><div class="d">Mỗi số liệu có thời điểm và mã truy nguồn.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-ch"><div class="n">BƯỚC 5</div><div class="w w-ch">Người dùng</div><div class="t">Bấm "Xem nguồn"</div><div class="d">Ra danh sách phiếu gốc, người lập, người duyệt.</div></div>
+</div>
+<div class="outcome">Số liệu trên web, trên ChatGPT và trong kho <b>luôn khớp nhau</b> vì cùng một nguồn.</div>
+</div>
+
+<!-- ============ LUỒNG 6 ============ -->
+<h2><span class="tag">LUỒNG 6</span>Cấp quyền cho nhân sự</h2>
+<p class="desc">Quyền không cấp tay trong cơ sở dữ liệu. Cấp quyền cũng là một quy trình có người đề xuất và người duyệt.</p>
+<div class="flow"><div class="row">
+  <div class="step c-hu"><div class="n">BƯỚC 1</div><div class="w w-hu">HR</div><div class="t">Tạo hồ sơ nhân viên</div><div class="d">Mở quy trình tiếp nhận nhân sự.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-hu"><div class="n">BƯỚC 2</div><div class="w w-hu">IT</div><div class="t">Đề xuất cấp quyền</div><div class="d">Ví dụ vai trò "quản lý kho".</div></div>
+  <div class="arrow"></div>
+  <div class="step c-wf ctl"><div class="n">BƯỚC 3</div><div class="w w-wf">Workflow</div><div class="t">IT khác duyệt</div><div class="d">Người tạo đề xuất không được tự duyệt.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-core ctl"><div class="n">BƯỚC 4</div><div class="w w-core">Phân quyền</div><div class="t">Kiểm danh sách cho phép</div><div class="d">Vai trò ngoài danh sách của doanh nghiệp bị từ chối.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-db"><div class="n">BƯỚC 5</div><div class="w w-db">PostgreSQL</div><div class="t">Quyền có hiệu lực</div><div class="d">Áp ngay ở lần đăng nhập/gọi kế tiếp; thu hồi cũng vậy.</div></div>
+</div></div>
+
+<!-- ============ LUỒNG 7 ============ -->
+<h2><span class="tag">LUỒNG 7</span>Cài và tắt ứng dụng theo ngành (Tầng 3)</h2>
+<p class="desc">Doanh nghiệp cần gì cài nấy, như cài ứng dụng trên điện thoại — không sửa mã nguồn lõi.</p>
+<div class="flow"><div class="row">
+  <div class="step c-hu"><div class="n">BƯỚC 1</div><div class="w w-hu">Quản trị</div><div class="t">Chọn ứng dụng</div><div class="d">Kho, Chấm công, CRM, Tài sản.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-core ctl"><div class="n">BƯỚC 2</div><div class="w w-core">Model Engine</div><div class="t">Lập kế hoạch thay đổi</div><div class="d">Liệt kê an toàn / rủi ro / phá hủy, kèm mã xác nhận.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-hu ctl"><div class="n">BƯỚC 3</div><div class="w w-hu">Người duyệt</div><div class="t">Duyệt kế hoạch</div><div class="d">Người đề xuất và người duyệt phải khác nhau.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-db"><div class="n">BƯỚC 4</div><div class="w w-db">PostgreSQL</div><div class="t">Áp dụng, ghi audit</div><div class="d">Tạo bảng, quyền, quy trình của ứng dụng.</div></div>
+  <div class="arrow"></div>
+  <div class="step c-ch"><div class="n">BƯỚC 5</div><div class="w w-ch">Web / ChatGPT</div><div class="t">Ứng dụng xuất hiện</div><div class="d">Dùng được ngay trên cả web và ChatGPT.</div></div>
+</div>
+<div class="branch">Khi tắt ứng dụng <span class="arrow"></span><span class="x">Ẩn khỏi người dùng, chặn ghi, <u>dữ liệu giữ nguyên</u>; bật lại dùng tiếp</span></div>
+</div>
+
+<footer>xT · Apache-2.0 · Luồng 2–5 và 7 đã chạy thật qua ChatGPT trên xt.freepro.online (docs/mcp-chatgpt-20261018.md); luồng 1, 6 kiểm bằng e2e trên Keycloak thật (E12, E13).</footer>
+</div>
+</body>
+</html>
