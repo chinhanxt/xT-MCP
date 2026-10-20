@@ -1,7 +1,44 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
 export type AppKind = 'chat' | 'workflow' | 'agent';
-export type NodeKind = 'start' | 'llm' | 'retrieval' | 'condition' | 'template' | 'aggregate' | 'http' | 'output';
+export const nodeKinds = [
+  'start',
+  'llm',
+  'retrieval',
+  'condition',
+  'template',
+  'aggregate',
+  'http',
+  'output',
+  'xt_tool',
+  'question_classifier',
+  'parameter_extractor',
+  'list_operator',
+] as const;
+export type NodeKind = (typeof nodeKinds)[number];
+export const xtToolNames: string[] = ['inspect_workspace', 'describe_model', 'describe_process', 'search_records',
+  'get_record', 'aggregate_records', 'get_history', 'get_inbox', 'create_record', 'update_record', 'submit_request'];
+export const compareOperators = ['contains', 'not_contains', 'starts_with', 'ends_with', 'is', 'is_not', 'empty', 'not_empty',
+  'eq', 'ne', 'gt', 'lt', 'ge', 'le'] as const;
+export type CompareOperator = (typeof compareOperators)[number];
+export interface ConditionItem {
+  variable: string;
+  operator: CompareOperator;
+  value?: string;
+}
+export interface ConditionCase {
+  id: string;
+  logical_operator: 'and' | 'or';
+  conditions: ConditionItem[];
+}
+export const parameterTypes = ['string', 'number', 'boolean', 'select', 'array[string]'] as const;
+export interface ExtractorParameter {
+  name: string;
+  type: (typeof parameterTypes)[number];
+  description: string;
+  required: boolean;
+  options?: string[];
+}
 export interface GenerationOptions {
   temperature: number;
   max_tokens: number;
@@ -37,6 +74,17 @@ export interface GraphNode {
     retries?: number;
     error_mode?: 'stop' | 'fallback';
     fallback?: string;
+    tool?: string;
+    args?: string;
+    cases?: ConditionCase[];
+    query?: string;
+    classes?: { id: string; name: string }[];
+    instruction?: string;
+    parameters?: ExtractorParameter[];
+    filter?: { key?: string; operator: CompareOperator; value?: string };
+    order?: { key?: string; dir: 'asc' | 'desc' };
+    limit?: number;
+    extract?: 'first' | 'last' | number;
   };
 }
 export interface GraphEdge {

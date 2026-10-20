@@ -9,6 +9,23 @@ import { sourceCheck } from './xt-source.ts';
 import type { XtTools } from './xt-tools.ts';
 import { httpNodeUrl, runHttpNode } from './http-node.ts';
 import { withNodePolicy } from './node-policy.ts';
+import { defaultGeneration, xtToolNames } from './contracts.ts';
+import {
+  branchHandles,
+  classifierPrompt,
+  extractParameters,
+  extractorPrompt,
+  fieldValue,
+  hasCases,
+  jsonEscape,
+  matchCase,
+  nodeTemplates,
+  operateList,
+  parseArgs,
+  parseClass,
+  refPattern,
+  validateNodeData,
+} from './workflow-nodes.ts';
 export function validateGraph(graph: Graph, inputNames: string[] = []): string[] {
   const ids = new Set(graph.nodes.map((n) => n.id));
   if (ids.size !== graph.nodes.length) throw new HttpError(400, 'Node ID bị trùng.');
@@ -16,14 +33,21 @@ export function validateGraph(graph: Graph, inputNames: string[] = []): string[]
   if (graph.nodes.filter((n) => n.type === 'start').length !== 1 || !graph.nodes.some((n) => n.type === 'output'))
     throw new HttpError(400, 'Workflow cần đúng một đầu vào và ít nhất một kết quả.');
   if (new Set(graph.edges.map((e) => e.id)).size !== graph.edges.length) throw new HttpError(400, 'Edge ID bị trùng.');
+  for (const n of graph.nodes) validateNodeData(n);
   const degree = new Map(graph.nodes.map((n) => [n.id, 0]));
   for (const e of graph.edges) {
     if (!ids.has(e.source) || !ids.has(e.target)) throw new HttpError(400, 'Đường nối tham chiếu node không tồn tại.');
     const source = graph.nodes.find((n) => n.id === e.source)!;
     if (source.type === 'output' || graph.nodes.find((n) => n.id === e.target)!.type === 'start')
       throw new HttpError(400, 'Không nối sau kết quả hoặc trước đầu vào.');
-    if (source.type === 'condition' && !['true', 'false'].includes(e.sourceHandle ?? ''))
-      throw new HttpError(400, 'Điều kiện cần nhánh true hoặc false.');
+    const handles = branchHandles(source);
+    if (handles && !handles.includes(e.sourceHandle ?? ''))
+      throw new HttpError(
+        400,
+        source.type === 'condition' && !hasCases(source)
+          ? 'Điều kiện cần nhánh true hoặc false.'
+          : `Nhánh ${e.sourceHandle ?? ''} không có trong node ${source.data.label}.`,
+      );
     degree.set(e.target, degree.get(e.target)! + 1);
   }
   const queue = graph.nodes.filter((n) => !degree.get(n.id)).map((n) => n.id),
@@ -53,8 +77,13 @@ export function validateGraph(graph: Graph, inputNames: string[] = []): string[]
   for (const n of graph.nodes) {
     const outgoing = graph.edges.filter((e) => e.source === n.id);
     if (n.type !== 'output' && !outgoing.length) throw new HttpError(400, `Node ${n.data.label} chưa có đường ra.`);
-    if (n.type === 'condition' && (!outgoing.some((e) => e.sourceHandle === 'true') || !outgoing.some((e) => e.sourceHandle === 'false')))
-      throw new HttpError(400, 'Điều kiện cần đủ hai nhánh.');
+    const handles = branchHandles(n);
+    for (const handle of handles ?? [])
+      if (!outgoing.some((e) => e.sourceHandle === handle))
+        throw new HttpError(
+          400,
+          n.type === 'condition' && !hasCases(n) ? 'Điều kiện cần đủ hai nhánh.' : `Node ${n.data.label} chưa nối nhánh ${handle}.`,
+        );
     if (n.type === 'http') httpNodeUrl(n.data.url ?? '');
     if (n.type === 'aggregate') {
       const candidates = n.data.candidates ?? [];
@@ -73,11 +102,14 @@ export function validateGraph(graph: Graph, inputNames: string[] = []): string[]
         if (!upstream.has(candidate)) throw new HttpError(400, `Biến gộp ${candidate} phải ở trước node ${n.id}.`);
       }
     }
-    for (const value of [n.data.prompt, n.data.template, n.data.variable, n.data.url, n.data.body, n.data.fallback])
+    for (const value of nodeTemplates(n))
       if (value)
-        for (const m of value.matchAll(/\{\{\s*([\w-]+)\s*\}\}/g)) {
+        for (const m of value.matchAll(refPattern)) {
           if (m[1] === 'input' || inputNames.includes(m[1])) continue;
           if (!ids.has(m[1])) throw new HttpError(400, `Biến ${m[1]} không tồn tại.`);
+          const base = graph.nodes.find((x) => x.id === m[1])!;
+          if (m[2] !== undefined && base.type === 'parameter_extractor' && !base.data.parameters?.some((p) => p.name === m[2]))
+            throw new HttpError(400, `Node ${m[1]} không có trường ${m[2]}.`);
           const ancestors = new Set<string>();
           const walk = (id: string) => {
             for (const e of graph.edges.filter((e) => e.target === id))
@@ -95,11 +127,12 @@ export function validateGraph(graph: Graph, inputNames: string[] = []): string[]
   }
   return ordered;
 }
+function lookup(values: Map<string, string>, key: string, field?: string): string {
+  if (!values.has(key)) throw new HttpError(400, `Biến ${key} chưa có giá trị trên nhánh này.`);
+  return field === undefined ? values.get(key)! : fieldValue(key, values.get(key)!, field);
+}
 function render(template: string, values: Map<string, string>): string {
-  return template.replace(/\{\{\s*([\w-]+)\s*\}\}/g, (_, key: string) => {
-    if (!values.has(key)) throw new HttpError(400, `Biến ${key} chưa có giá trị trên nhánh này.`);
-    return values.get(key)!;
-  });
+  return template.replace(refPattern, (_, key: string, field?: string) => lookup(values, key, field));
 }
 export async function runWorkflow(
   store: Store,
@@ -167,7 +200,11 @@ export async function runWorkflow(
             citations.push(...found);
             output = contextText(found);
           }
-          if (n.type === 'condition') {
+          if (n.type === 'condition' && hasCases(n)) {
+            value = (n.data.cases ?? []).map((c) => c.id).join(', ');
+            output = matchCase(n.data.cases!, (template) => render(template, values));
+            branches.set(id, output);
+          } else if (n.type === 'condition') {
             value = render(n.data.variable || '{{input}}', values);
             const yes = n.data.operator === 'equals' ? value === (n.data.value ?? '') : value.includes(n.data.value ?? '');
             output = String(yes);
@@ -182,6 +219,49 @@ export async function runWorkflow(
           if (n.type === 'http') {
             value = render(n.data.url ?? '', values);
             output = await runHttpNode(n.data.url ?? '', value, n.data.method ?? 'GET', render(n.data.body ?? '', values), signal);
+          }
+          if (n.type === 'xt_tool') {
+            const tool = n.data.tool ?? '';
+            if (!xtToolNames.includes(tool)) throw new HttpError(403, 'Công cụ xT không được cấp.');
+            if (!coreTools) throw new HttpError(400, 'Node Công cụ xT chỉ chạy khi Studio được mở từ xT (chế độ tích hợp).');
+            const args = parseArgs(n.data.args || '{}', (key, field) => jsonEscape(lookup(values, key, field)));
+            value = `${tool} ${JSON.stringify(args)}`;
+            output = JSON.stringify(await coreTools.call(tool, args, signal));
+          }
+          if (n.type === 'question_classifier' || n.type === 'parameter_extractor') {
+            value = render(n.data.query || '{{input}}', values);
+            const classify = n.type === 'question_classifier';
+            const instruction = render(n.data.instruction ?? '', values);
+            const content =
+              (
+                await generate(
+                  store,
+                  workspace,
+                  n.data.model_id || config.model_id,
+                  [
+                    {
+                      role: 'system',
+                      content: classify
+                        ? classifierPrompt(n.data.classes ?? [], instruction)
+                        : extractorPrompt(n.data.parameters ?? [], instruction),
+                    },
+                    { role: 'user', content: value },
+                  ],
+                  [],
+                  signal,
+                  { ...(config.generation ?? defaultGeneration()), json_mode: !classify },
+                )
+              ).content ?? '';
+            if (classify) {
+              const hit = parseClass(content, n.data.classes ?? []);
+              if (!hit) throw new HttpError(502, `Mô hình trả về nhóm không hợp lệ: ${content.slice(0, 200)}`);
+              output = hit.name;
+              branches.set(id, hit.id);
+            } else output = JSON.stringify(extractParameters(content, n.data.parameters ?? []));
+          }
+          if (n.type === 'list_operator') {
+            value = render(n.data.variable ?? '', values);
+            output = JSON.stringify(operateList(value, n.data, (template) => render(template, values)) ?? null);
           }
           if (n.type === 'template' || n.type === 'output') {
             value = n.data.template || '{{input}}';

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
 import type { AppConfig, AppKind, Graph, Model, ToolName } from './contracts.ts';
+import { nodeKinds, xtToolNames } from './contracts.ts';
+import { nodeDataInput } from './workflow-nodes.ts';
 import { fieldDefinitions, generationInput } from './input-fields.ts';
 export class HttpError extends Error {
   status: number;
@@ -51,7 +53,7 @@ export function modelInput(value: unknown): Omit<Model, 'id' | 'has_key'> & { ap
 export function configInput(value: unknown): AppConfig {
   const v = object(value);
   const xt_tools = strings(v.xt_tools ?? [], 'Công cụ xT', 11);
-  if (xt_tools.some((name) => !['inspect_workspace', 'describe_model', 'describe_process', 'search_records', 'get_record', 'aggregate_records', 'get_history', 'get_inbox', 'create_record', 'update_record', 'submit_request'].includes(name)) || new Set(xt_tools).size !== xt_tools.length)
+  if (xt_tools.some((name) => !xtToolNames.includes(name)) || new Set(xt_tools).size !== xt_tools.length)
     throw new HttpError(400, 'Công cụ xT không hợp lệ hoặc bị trùng.');
   const steps = Number(v.max_steps);
   if (!Number.isInteger(steps) || steps < 1 || steps > 8) throw new HttpError(400, 'Agent cần từ 1–8 bước.');
@@ -80,7 +82,7 @@ export function configInput(value: unknown): AppConfig {
         p = object(n.position);
       const node = {
         id: text(n.id, 'Node ID', 64),
-        type: choice(n.type, ['start', 'llm', 'retrieval', 'condition', 'template', 'aggregate', 'http', 'output'] as const, 'Node'),
+        type: choice(n.type, nodeKinds, 'Node'),
         position: { x: Number(p.x), y: Number(p.y) },
         data: { label: text(d.label, 'Nhãn', 100) },
       } as Graph['nodes'][number];
@@ -89,6 +91,7 @@ export function configInput(value: unknown): AppConfig {
       for (const key of ['prompt', 'model_id', 'knowledge_id', 'variable', 'value', 'template', 'url', 'body'] as const)
         if (d[key] !== undefined) node.data[key] = text(d[key], key, 20000, false);
       if (d.operator !== undefined) node.data.operator = choice<'contains' | 'equals'>(d.operator, ['contains', 'equals'], 'Điều kiện');
+      nodeDataInput(d, node.data);
       if (d.candidates !== undefined) node.data.candidates = strings(d.candidates, 'Biến gộp', 20);
       if (d.method !== undefined) node.data.method = choice<'GET' | 'POST'>(d.method, ['GET', 'POST'], 'HTTP method');
       if (d.retries !== undefined) {
