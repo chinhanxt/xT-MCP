@@ -4,21 +4,39 @@ import { useEffect, useState } from 'react';
 import type { RunResult } from '../contracts.ts';
 import { api } from './api.ts';
 import { Modal, ErrorBox, TraceList, Citations } from './ui.tsx';
+const triggerLabel: Record<string, string> = { manual: 'Thủ công', api: 'API', schedule: 'Lịch', share: 'Chia sẻ' };
 export function Runs({ appId }: { appId?: string }) {
   const [runs, setRuns] = useState<any[]>([]),
     [selected, select] = useState<any>(null),
     [error, setError] = useState('');
-  async function load() {
+  const [status, setStatus] = useState(''),
+    [trigger, setTrigger] = useState(''),
+    [cursor, setCursor] = useState<string | null>(null);
+  async function load(more = false) {
     try {
-      setRuns(await api('/runs' + (appId ? `?app_id=${encodeURIComponent(appId)}` : '')));
+      if (!appId) return setRuns(await api('/runs'));
+      const q = new URLSearchParams({ limit: '50' });
+      if (status) q.set('status', status);
+      if (trigger) q.set('trigger', trigger);
+      if (more && cursor) q.set('cursor', cursor);
+      const page = await api(`/apps/${encodeURIComponent(appId)}/runs?${q}`);
+      setRuns(more ? [...runs, ...page.items] : page.items);
+      setCursor(page.next_cursor);
     } catch (e) {
       setError((e as Error).message);
     }
   }
   useEffect(() => {
     load();
-  }, [appId]);
-  const result = selected?.result ? (JSON.parse(selected.result) as RunResult) : null;
+  }, [appId, status, trigger]);
+  async function open(id: string) {
+    try {
+      select(await api('/runs/' + encodeURIComponent(id)));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  const result = selected?.result as RunResult | null;
   return (
     <>
       <div className="page-heading">
@@ -27,16 +45,36 @@ export function Runs({ appId }: { appId?: string }) {
           <h1>Lịch sử chạy</h1>
           <p>Kiểm tra kết quả, lỗi và các bước đã thực thi.</p>
         </div>
-        <button onClick={load}>Làm mới ↻</button>
+        <button onClick={() => load()}>Làm mới ↻</button>
       </div>
+      {appId && (
+        <div className="actions">
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">Mọi trạng thái</option>
+            <option value="success">Thành công</option>
+            <option value="error">Thất bại</option>
+            <option value="running">Đang chạy</option>
+          </select>
+          <select value={trigger} onChange={(e) => setTrigger(e.target.value)}>
+            <option value="">Mọi nguồn</option>
+            {Object.entries(triggerLabel).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <ErrorBox error={error} />
       <div className="panel table-wrap">
         <table>
           <thead>
             <tr>
               <th>Ứng dụng / đầu vào</th>
+              <th>Nguồn</th>
               <th>Phiên bản</th>
               <th>Trạng thái</th>
+              <th>Thời lượng</th>
               <th>Thời gian</th>
             </tr>
           </thead>
@@ -44,17 +82,19 @@ export function Runs({ appId }: { appId?: string }) {
             {runs.map((r) => (
               <tr key={r.id}>
                 <td>
-                  <button className="text-btn run-title" onClick={() => select(r)}>
+                  <button className="text-btn run-title" onClick={() => open(r.id)}>
                     {r.app_name && <strong>{r.app_name} · </strong>}
                     {String(r.input).slice(0, 100)}
                   </button>
                 </td>
+                <td>{triggerLabel[r.trigger] ?? r.trigger}</td>
                 <td>{r.mode === 'draft' ? 'Bản nháp' : 'Đã xuất bản'}</td>
                 <td>
                   <span className={'pill ' + (r.status === 'success' ? 'green' : r.status === 'error' ? 'red' : '')}>
                     {r.status === 'success' ? 'Thành công' : r.status === 'error' ? 'Thất bại' : 'Đang chạy'}
                   </span>
                 </td>
+                <td>{r.duration_ms == null ? '—' : r.duration_ms >= 1000 ? (r.duration_ms / 1000).toFixed(1) + ' s' : r.duration_ms + ' ms'}</td>
                 <td>{new Date(r.created_at).toLocaleString('vi-VN')}</td>
               </tr>
             ))}
@@ -67,6 +107,7 @@ export function Runs({ appId }: { appId?: string }) {
           </div>
         )}
       </div>
+      {appId && cursor && <button onClick={() => load(true)}>Tải thêm</button>}
       {selected && (
         <Modal title="Chi tiết lượt chạy" close={() => select(null)}>
           <label>Đầu vào</label>
@@ -79,7 +120,13 @@ export function Runs({ appId }: { appId?: string }) {
             </>
           )}
           {result?.citations && <Citations items={result.citations} />}
-          {result?.trace && <TraceList items={result.trace} />}
+          {selected.trace?.length > 0 && (
+            <>
+              <label>Các bước ({triggerLabel[selected.trigger] ?? selected.trigger}
+                {selected.duration_ms != null ? ` · ${selected.duration_ms} ms` : ''})</label>
+              <TraceList items={selected.trace} />
+            </>
+          )}
         </Modal>
       )}
     </>

@@ -194,9 +194,10 @@ export async function routeApps(ctx: RouteContext): Promise<boolean> {
       res.once('close', () => {
         if (!res.writableEnded) controller.abort();
       });
-      const runId = store.id();
+      const runId = store.id(),
+        runStarted = Date.now();
       store.db
-        .prepare('INSERT INTO runs(id,app_id,workspace_id,mode,input,status,created_at,config_hash,app_version,person_id) VALUES(?,?,?,?,?,?,?,?,?,?)')
+        .prepare('INSERT INTO runs(id,app_id,workspace_id,mode,input,status,created_at,config_hash,app_version,person_id,"trigger") VALUES(?,?,?,?,?,?,?,?,?,?,?)')
         .run(
           runId,
           id,
@@ -208,6 +209,7 @@ export async function routeApps(ctx: RouteContext): Promise<boolean> {
           hashToken(JSON.stringify(config)),
           mode === 'published' ? app.version : 0,
           ctx.identity?.person ?? '',
+          apiAccess?.share ? 'share' : apiAccess ? 'api' : 'manual',
         );
       const streaming = v.stream === true;
       const event = (value: StreamEvent) => {
@@ -274,7 +276,9 @@ export async function routeApps(ctx: RouteContext): Promise<boolean> {
           result.conversation_id = conversationId;
         }
         result.run_id = runId;
-        store.db.prepare('UPDATE runs SET status=?,result=? WHERE id=?').run('success', JSON.stringify(result), runId);
+        store.db
+          .prepare('UPDATE runs SET status=?,result=?,duration_ms=?,trace=? WHERE id=?')
+          .run('success', JSON.stringify(result), Date.now() - runStarted, JSON.stringify(result.trace ?? []), runId);
         if (apiAccess?.share)
           result = {
             output: result.output,
@@ -289,11 +293,13 @@ export async function routeApps(ctx: RouteContext): Promise<boolean> {
         } else send(result);
       } catch (error) {
         store.db
-          .prepare('UPDATE runs SET status=?,error=?,result=? WHERE id=?')
+          .prepare('UPDATE runs SET status=?,error=?,result=?,duration_ms=?,trace=? WHERE id=?')
           .run(
             'error',
             error instanceof Error ? error.message : 'Lỗi',
             JSON.stringify({ trace: (error as { trace?: unknown }).trace ?? [] }),
+            Date.now() - runStarted,
+            JSON.stringify((error as { trace?: unknown }).trace ?? []),
             runId,
           );
         if (streaming) {

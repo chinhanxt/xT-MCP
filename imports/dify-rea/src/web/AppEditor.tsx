@@ -12,6 +12,7 @@ import { AppVersions } from './AppVersions.tsx';
 import { WorkflowEditor } from './WorkflowEditor.tsx';
 import { AppApi } from './AppApi.tsx';
 import { Runs } from './Runs.tsx';
+import { Triggers } from './Triggers.tsx';
 import { ErrorBox, Citations, TraceList, kindIcon, kindLabel } from './ui.tsx';
 export function AppEditor({
   app,
@@ -208,6 +209,11 @@ export function AppEditor({
             Mô hình & hướng dẫn
           </button>
         )}
+        {app.kind === 'workflow' && (
+          <button className={tab === 'triggers' ? 'active' : ''} onClick={() => setTab('triggers')}>
+            Kích hoạt
+          </button>
+        )}
         <button className={tab === 'logs' ? 'active' : ''} onClick={() => setTab('logs')}>
           Lịch sử chạy
         </button>
@@ -234,6 +240,10 @@ export function AppEditor({
       ) : tab === 'api' ? (
         <div className="page">
           <AppApi app={app} />
+        </div>
+      ) : tab === 'triggers' ? (
+        <div className="page">
+          <Triggers appId={app.id} published={!!app.published} />
         </div>
       ) : tab === 'logs' ? (
         <div className="page">

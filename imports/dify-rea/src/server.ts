@@ -17,6 +17,7 @@ import { publicAppRequest } from './public-app.ts';
 import type { RouteContext } from './http.ts';
 import { assertionVerifier, authorizeStudioRoute, safeRequestId, studioSecret } from './xt-auth.ts';
 import { xtTools } from './xt-tools.ts';
+import { createTriggerRunner, routeTriggers, startScheduler, type TriggerRunner } from './triggers.ts';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const scrypt = promisify(scryptCallback);
 async function passwordHash(value: string, salt = randomBytes(16).toString('hex')) {
@@ -28,8 +29,9 @@ export function listenHost(value: string | undefined): string {
   if (!/^(?:[0-9.]+|[0-9a-f:]+|[A-Za-z0-9.-]+)$/i.test(host)) throw new Error('HOST must be an IP address or hostname');
   return host;
 }
-export function createStudio(store: Store, options: { log?: boolean; integrated?: boolean; secret?: Buffer } = {}) {
+export function createStudio(store: Store, options: { log?: boolean; integrated?: boolean; secret?: Buffer; runner?: TriggerRunner } = {}) {
   const integrated = options.integrated ?? process.env.STUDIO_XT_MODE === '1';
+  const runner = options.runner ?? createTriggerRunner(store, { integrated });
   const secret = integrated ? options.secret ?? studioSecret() : undefined;
   const verify = secret ? assertionVerifier(secret, store) : undefined;
   const busy = new Set<string>();
@@ -202,7 +204,7 @@ export function createStudio(store: Store, options: { log?: boolean; integrated?
       }
       const context = { store, req, res, path, url, method, workspace, send, busy, apiAccess, coreTools,
         identity: identity ? { person: identity.person, role: identity.role } : undefined };
-      if ((await routeMcp(context)) || (await routeResources(context)) || (await routeAppManagement(context)) || (await routeApps(context)))
+      if ((await routeMcp(context)) || (await routeResources(context)) || (await routeAppManagement(context)) || (await routeTriggers(context, runner)) || (await routeApps(context)))
         return;
       throw new HttpError(404, 'Không tìm thấy API.');
     } catch (error) {
@@ -225,18 +227,22 @@ export function createStudio(store: Store, options: { log?: boolean; integrated?
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const store = new Store(process.env.STUDIO_DATA_DIR || join(root, '.data')),
-    server = createStudio(store, { log: process.env.LOG_LEVEL !== 'silent' });
+    runner = createTriggerRunner(store, { integrated: process.env.STUDIO_XT_MODE === '1' }),
+    server = createStudio(store, { log: process.env.LOG_LEVEL !== 'silent', runner });
   store.db.prepare("UPDATE runs SET status='error',error='Server đã khởi động lại khi đang chạy.' WHERE status='running'").run();
   store.db
     .prepare(
       "UPDATE documents SET status=CASE WHEN EXISTS(SELECT 1 FROM chunks WHERE document_id=documents.id) THEN 'ready' ELSE 'error' END,error='Server khởi động lại khi lập chỉ mục; hãy thử lại.' WHERE status='indexing'",
     )
     .run();
+  const scheduler = startScheduler(store, runner);
   const host = listenHost(process.env.HOST);
   server.listen(Number(process.env.PORT || 4317), host, () =>
     console.log(`xT Studio: http://${host}:${process.env.PORT || 4317}`),
   );
   const stop = () => {
+    scheduler.stop();
+    runner.close();
     server.close(() => {
       store.close();
       process.exit(0);
