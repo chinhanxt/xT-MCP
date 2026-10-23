@@ -24,7 +24,7 @@ export function GenericApp({ mcp, tools, app, models }: { mcp: McpConnection | n
   if (!visible.length) return <p role="status">Bạn chưa được cấp quyền xem model nào của ứng dụng này.</p>;
   const canReport = tools.some((tool) => tool.name === 'aggregate_records');
   return <div className="tier3-generic">
-    {canReport && <div className="portal-actions" role="group" aria-label="Mục của ứng dụng">
+    {canReport && <div className="portal-actions tabs" role="group" aria-label="Mục của ứng dụng">
       <button aria-pressed={tab === 'data'} onClick={() => setTab('data')}>Dữ liệu</button>
       <button aria-pressed={tab === 'report'} onClick={() => setTab('report')}>Báo cáo</button>
     </div>}

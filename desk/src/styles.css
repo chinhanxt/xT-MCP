@@ -166,6 +166,8 @@ button > svg.lucide,a > svg.lucide{order:-1}
 .app-frame iframe { width: 100%; height: 100%; border: 0; }
 /* thẻ xác nhận: kiểu hộp thoại xác nhận của mockup; xác nhận thật (mật khẩu + OTP) vẫn ở trang xT */
 .confirm-card{width:100%;max-width:460px;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 8px 24px rgba(24,32,43,.08)}
+.tool + button,.tool ~ button{margin:12px 0 16px}
+.portal .tool{margin:0 0 12px}
 .confirm-card .cf-head{display:flex;align-items:center;gap:12px}
 .confirm-card .cf-head .av{background:var(--ink);color:#fff}
 .confirm-card .cf-head h3{font-size:20px;font-weight:600}
@@ -183,6 +185,7 @@ form.composer{border-top:1px solid var(--line);padding:16px 20px;display:flex;ga
 form.composer input{flex:1;min-height:52px;border-radius:var(--r-2)}
 form.composer button{min-height:52px;width:52px;padding:0;background:var(--ink);border-color:var(--ink);color:#fff}
 .chat-side .list button{display:flex;gap:14px;width:100%;padding:16px 20px;border:0;border-bottom:1px solid var(--line-2);border-radius:0;background:none;text-align:left;align-items:flex-start;font-weight:400;min-height:0;white-space:normal}
+.chat-side .list button{justify-content:flex-start}
 .chat-side .list button:last-child{border-bottom:0}
 .chat-side .list button:hover{background:#FAFBFC}
 .chat-side .list .t{display:flex;flex-direction:column;line-height:1.35}
@@ -264,6 +267,11 @@ form.composer button{min-height:52px;width:52px;padding:0;background:var(--ink);
 .tier3-lifecycle p{margin:8px 0;font-size:15px;color:var(--ink-2)}
 .tier3-app > h3{font-size:24px;font-weight:600;margin:12px 0 16px}
 .tier3 .portal > h2{font-size:20px;margin:0 0 16px}
+.tier3-app > button.ghost{padding-left:6px}
+.tier3-app .portal-actions.tabs + .portal,.tier3-app .portal-actions.tabs + .tier3-generic{margin-top:4px}
+form.panel > h3:first-child{flex-basis:calc(100% + 40px)}
+.tier3-app form.panel{align-items:flex-end}
+.tier3-app form.panel > label{flex-direction:column;align-items:stretch;gap:6px}
 
 /* Studio, WareTrack */
 .portal-waretrack{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-2);padding:20px;margin:20px 0}

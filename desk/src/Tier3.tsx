@@ -7,6 +7,8 @@ import { readToolResult } from './portal-result';
 import { PortalAlert } from './PortalAlert';
 import { classifyError, type ErrorKind } from './portal-state';
 import { GenericApp } from './GenericApp';
+import { Pill } from './ui';
+import { Boxes, Clock, Handshake, LayoutGrid, Warehouse, type LucideIcon } from 'lucide-react';
 import { BUILTIN_WMS, GROUPS, OTHER_GROUP, appViews, isAdmin, lifecycleCommand, modulePath, moduleScope, parseApps, tenantName, visibleApps, type AppView, type TierApp } from './tier3';
 
 type Props = {
@@ -15,6 +17,7 @@ type Props = {
   renderWarehouse: () => ReactNode;
 };
 
+const GROUP_ICON: Record<string, LucideIcon> = { 'hang-hoa': Warehouse, 'thoi-gian-du-an': Clock, 'trai-nghiem-thue-bao': Handshake, 'tai-san-khong-gian': Boxes };
 const obj = (value: unknown): Record<string, unknown> => (value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {});
 
 /** Tầng 3: nền tảng Kinh doanh số, 4 nhóm; danh sách ứng dụng lấy từ inspect_workspace.apps. */
@@ -58,34 +61,37 @@ export function Tier3({ mcp, tools, renderWarehouse }: Props) {
     if (!views.length) return <p role="status">Ứng dụng này không khai báo giao diện.</p>;
     const chosen = views.find((v) => v.id === pick) ?? views[0];
     return <>
-      {views.length > 1 && <div className="portal-actions" role="group" aria-label="Kiểu hiển thị">{views.map((v) =>
+      {views.length > 1 && <div className="portal-actions tabs" role="group" aria-label="Kiểu hiển thị">{views.map((v) =>
         <button key={v.id} aria-pressed={v.id === chosen.id} onClick={() => setPick(v.id)}>{v.label}</button>)}</div>}
       {view(app, chosen)}
     </>;
   }
 
-  return <section className="portal tier3" aria-label="Nền tảng Kinh doanh số"><h2 tabIndex={-1}>Nền tảng Kinh doanh số</h2>
+  return <section className="portal tier3" aria-label="Nền tảng Kinh doanh số"><h2 tabIndex={-1}>Ứng dụng</h2>
     {!mcp && <p role="status">Đang kết nối xT…</p>}
     {mcp && !loaded && !error && <p role="status">Đang tải danh sách ứng dụng…</p>}
     <PortalAlert text={error} kind={kind} />
     {current ? <div className="tier3-app">
-      <button onClick={() => { setOpen(''); setPick(''); }}>← Danh sách ứng dụng</button>
+      <button className="ghost sm" onClick={() => { setOpen(''); setPick(''); }}>← Danh sách ứng dụng</button>
       <h3>{current.title}</h3>
       {body(current)}
     </div> : loaded && <>
-      {listed === null && <p role="note">Máy chủ chưa công bố danh sách ứng dụng cắm-rút; chỉ hiện ứng dụng Kho có sẵn của cổng.</p>}
+      {listed === null && <p role="note" className="lead-sm">Máy chủ chưa công bố danh sách ứng dụng cắm-rút; chỉ hiện ứng dụng Kho có sẵn của cổng.</p>}
       {groups.map((group) => {
         const items = apps.filter((app) => (group.id === OTHER_GROUP.id ? !GROUPS.some((g) => g.id === app.group) : app.group === group.id));
         return <section key={group.id} className="tier3-group" aria-labelledby={`tier3-${group.id}`}>
           <h3 id={`tier3-${group.id}`}>{group.title}</h3>
-          {items.length === 0 ? <p role="status">Chưa có ứng dụng trong nhóm này.</p> : <ul className="portal-doclist">{items.map((app) =>
-            <li key={app.id} className={app.status === 'disabled' ? 'tier3-disabled' : undefined}>
-              <span><strong>{app.title}</strong> · {app.status === 'enabled' ? 'Đã bật' : 'Đã tắt'}</span>
-              {app.status === 'enabled' ? <button onClick={() => { setPick(''); setOpen(app.id); }}>{`Mở ${app.title}`}</button> : <span aria-disabled="true">Không mở được khi đã tắt</span>}
+          {items.length === 0 ? <p role="status">Chưa có ứng dụng trong nhóm này.</p> : <ul className="portal-doclist">{items.map((app) => {
+            const Icon = GROUP_ICON[app.group] ?? LayoutGrid;
+            return <li key={app.id} className={app.status === 'disabled' ? 'tier3-disabled' : undefined}>
+              <div className="app-ic" aria-hidden="true"><Icon /></div>
+              <span><strong>{app.title}</strong> {app.status === 'enabled' ? <Pill tone="ok">Đã bật</Pill> : <Pill tone="neutral">Đã tắt</Pill>}</span>
+              {app.status === 'enabled' ? <button className="sm" onClick={() => { setPick(''); setOpen(app.id); }}>{`Mở ${app.title}`}</button> : <span className="faint small" aria-disabled="true">Không mở được khi đã tắt</span>}
               {admin && !app.builtin && <details className="tier3-lifecycle"><summary>{app.status === 'enabled' ? 'Cách tắt (vận hành)' : 'Cách bật lại (vận hành)'}</summary>
                 <p>Bật/tắt ứng dụng do vận hành viên duyệt và chạy bằng CLI, không có công cụ MCP hay nút trên Desk. Chạy trên máy chủ:</p>
                 <code>{lifecycleCommand(app, tenant)}</code></details>}
-            </li>)}</ul>}
+            </li>;
+          })}</ul>}
         </section>;
       })}
     </>}
