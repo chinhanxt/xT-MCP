@@ -53,19 +53,53 @@ export function approvalNote(title: string, summary: string, hint?: string) {
         .slice(0, 1000);
 }
 
+type DescribedField = { id?: unknown; type?: unknown; max_length?: unknown };
+
+// Fills `title` / `content` from the node's rendered title / summary when the request model has such text fields
+// and the configured values do not set them (explicit request_values always win). Truncated to the field's max.
+export function approvalValues(
+    fields: DescribedField[] | undefined,
+    values: Record<string, unknown>,
+    text: { title: string; content: string },
+): Record<string, unknown> {
+    const out = { ...values };
+    for (const [name, value] of [
+        ['title', text.title],
+        ['content', text.content],
+    ] as const) {
+        const f = (fields ?? []).find((x) => x?.id === name && x?.type === 'text');
+        if (!f || out[name] !== undefined || !value.trim()) continue;
+        const max = typeof f.max_length === 'number' && f.max_length > 0 ? f.max_length : undefined;
+        out[name] = max ? value.trim().slice(0, max) : value.trim();
+    }
+    return out;
+}
+
 // Creates the request draft on a pack-bound request model and submits it; returns the request ref.
 export async function requestApproval(
     tools: XtTools,
-    request: { run_id: string; node_id: string; model: string; values: Record<string, unknown>; note: string },
+    request: {
+        run_id: string;
+        node_id: string;
+        model: string;
+        values: Record<string, unknown>;
+        note: string;
+        title?: string;
+        content?: string;
+    },
     signal?: AbortSignal,
 ): Promise<string> {
     const described = await call(tools, 'describe_model', { model_id: request.model }, signal);
     if (described.model?.primitive !== 'request')
         throw new HttpError(400, `Mô hình ${request.model} không phải loại yêu cầu duyệt của xT.`);
+    const values = approvalValues(described.model?.fields, request.values, {
+        title: request.title ?? '',
+        content: request.content ?? '',
+    });
     const created = await call(
         tools,
         'create_record',
-        { model_id: request.model, values: request.values, idempotency_key: key(request.run_id, request.node_id, 'create') },
+        { model_id: request.model, values, idempotency_key: key(request.run_id, request.node_id, 'create') },
         signal,
     );
     const draft = xtRef(created.record?.ref);

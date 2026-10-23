@@ -212,7 +212,7 @@ export function WorkflowEditor({
               : {}),
             ...(type === 'list_operator' ? { variable: '{{input}}' } : {}),
             ...(type === 'human_approval'
-              ? { title: 'Duyệt kết quả workflow', summary: '{{input}}', request_model: 'advance_request', request_values: '{}' }
+              ? { title: 'Duyệt kết quả workflow', summary: '{{input}}', request_model: 'approval_ticket', request_values: '{}' }
               : {}),
           },
         },
@@ -446,7 +446,15 @@ export function WorkflowEditor({
                 </label>
                 <label>
                   Loại yêu cầu xT
-                  <input value={node.data.request_model ?? ''} onChange={(e) => patch({ request_model: e.target.value })} />
+                  <input
+                    list="xt-request-models"
+                    value={node.data.request_model ?? ''}
+                    onChange={(e) => patch({ request_model: e.target.value })}
+                  />
+                  <datalist id="xt-request-models">
+                    <option value="approval_ticket">Phiếu xin duyệt (tiêu đề + nội dung)</option>
+                    <option value="advance_request">Giấy đề nghị tạm ứng</option>
+                  </datalist>
                 </label>
                 <label>
                   Trường của yêu cầu (JSON)
@@ -458,7 +466,8 @@ export function WorkflowEditor({
                   />
                 </label>
                 <p className="hint">
-                  Tạo và gửi yêu cầu duyệt thật trong xT. Người duyệt quyết định trên Desk; sau đó bấm "Kiểm tra và chạy tiếp" ở Lịch sử chạy.
+                  Tạo và gửi yêu cầu duyệt thật trong xT. Mặc định là Phiếu xin duyệt: tiêu đề và nội dung lấy từ hai ô trên (trường JSON
+                  ghi đè nếu có). Người duyệt quyết định trên Desk; sau đó bấm "Kiểm tra và chạy tiếp" ở Lịch sử chạy.
                   Nhánh approved / rejected.
                 </p>
               </>
