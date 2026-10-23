@@ -10,6 +10,8 @@ import { ReportPanel } from './ReportPanel';
 import type { Area } from './portal-nav';
 import { DepartmentsPanel } from './DepartmentsPanel';
 import { MembersPanel } from './MembersPanel';
+import { AgentHrPanel, JdRiskBlock } from './AgentHrPanel';
+import { AGENT_MODEL } from './agenthr';
 import { parseMilli, readToolResult } from './portal-result';
 import { classifyError, type ErrorKind } from './portal-state';
 import { PortalAlert } from './PortalAlert';
@@ -30,7 +32,7 @@ const writeTools = ['create_record', 'submit_request', 'decide_request'];
 const STATUS_KEYS = new Set(['state', 'status', 'sla_status']);
 const KHO_TABS = [{ id: 'stock', label: 'Tồn kho' }, { id: 'requests', label: 'Phiếu' }, { id: 'catalog', label: 'Danh mục' }, { id: 'map', label: 'Sơ đồ 3D' }] as const;
 type KhoTab = (typeof KHO_TABS)[number]['id'];
-const H_TABS = [{ id: 'people', label: 'Nhân viên' }, { id: 'units', label: 'Phòng ban' }, { id: 'docs', label: 'Tài liệu' }, { id: 'members', label: 'Cấp quyền' }] as const;
+const H_TABS = [{ id: 'people', label: 'Nhân viên' }, { id: 'units', label: 'Phòng ban' }, { id: 'docs', label: 'Tài liệu' }, { id: 'agents', label: 'Nhân sự AI' }, { id: 'members', label: 'Cấp quyền' }] as const;
 type HTab = (typeof H_TABS)[number]['id'];
 function obj(value: unknown): Data { return value && typeof value === 'object' && !Array.isArray(value) ? value as Data : {}; }
 function rows(value: Data | null): Data[] {
@@ -96,10 +98,14 @@ function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNa
   const [kind, setKind] = useState<'receive'|'issue'>('receive'), [note, setNote] = useState('');
   const [picklists, setPicklists] = useState<Record<string, Data[]>>({});
   const [toolEntry, setToolEntry] = useState<ToolEntry | null>(null), [selected, setSelected] = useState<Data | null>(null);
-  const [khoTab, setKhoTab] = useState<KhoTab>('stock');
+  const [khoTab, setKhoTab] = useState<KhoTab>('stock'), [agentsSeen, setAgentsSeen] = useState(false);
   const [tab, setTab] = useState<HTab>('people'), [filter, setFilter] = useState(area==='Kho' ? 'stock_request' : 'approval');
   const seq = useRef(0), idempotency = useRef(new Map<string,string>()), current = useRef({active:true,mcp}); current.current.mcp = mcp;
   const available = new Set(tools.map(tool => tool.name));
+  /** Nhân sự AI chỉ hiện khi gói nhan-su-ai đã cài (catalog thật có ho_so_agent); không có thì ẩn hẳn. */
+  const hasAgentHr = catalog.some(row => row.id === AGENT_MODEL);
+  const hTabs = H_TABS.filter(t => t.id !== 'agents' || hasAgentHr);
+  useEffect(() => { if (!hasAgentHr && tab === 'agents') setTab('people'); }, [hasAgentHr, tab]);
   const fail = (text: string, kind: ErrorKind = 'error') => { setErrorText(text); setErrorKind(text ? kind : 'error'); };
   const fields = (model_id:string) => listFields[model_id];
   async function call(name: string, original: Data, target: 'main' | 'picklist' | 'catalog' = 'main') {
@@ -180,6 +186,7 @@ function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNa
   const confirmCard = errorKind==='confirm' && !!toolEntry && !!confirmInfo(toolEntry.result, config.xtOrigin); // thẻ xác nhận đã nói đủ; không lặp lại ở thông báo
   const output = <>
     {selectedRef && <div className="portal-actions record-actions"><button className="ghost" disabled={loading} onClick={()=>openRecord(selectedRef)}>Làm mới bản ghi<RefreshCw aria-hidden="true"/></button><button className="ghost" disabled={loading} onClick={()=>void call('get_history',{ref:selectedRef})}>Lịch sử<History aria-hidden="true"/></button></div>}
+    {area==='P' && selectedRef.startsWith('jd_agent:') && selected && <JdRiskBlock record={selected} models={catalog}/>}
     {(area==='P'||area==='Kho') && canDecide && <div className="portal-actions decide-actions"><button className="ok" disabled={loading} onClick={()=>void call('decide_request',{ref:selectedRef,decision:'approve',expected_revision:revision})}>Duyệt<Check aria-hidden="true"/></button><button className="danger" disabled={loading} aria-expanded={rejecting} onClick={()=>setRejecting(true)}>Từ chối<X aria-hidden="true"/></button></div>}
     {(area==='P'||area==='Kho') && canDecide && rejecting && <form onSubmit={e=>{e.preventDefault();const text=reason.trim();if(!text){fail('Nhập lý do từ chối');return;}setRejecting(false);setReason('');void call('decide_request',{ref:selectedRef,decision:'reject',reason:text,expected_revision:revision});}}><label htmlFor="reject-reason">Lý do từ chối</label><textarea id="reject-reason" value={reason} onChange={e=>setReason(e.target.value)} maxLength={2000} rows={3} required autoFocus/><button className="danger" disabled={loading}>Gửi từ chối</button><button type="button" onClick={()=>{setRejecting(false);setReason('');}}>Hủy</button></form>}
     {loading && <p role="status">Đang tải…</p>}{!confirmCard && <PortalAlert text={error} kind={errorKind}/>}
@@ -190,8 +197,7 @@ function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNa
   return <section className="portal" aria-label={title[area]}><h2 tabIndex={-1}>{title[area]}</h2>
     {!mcp && <p role="status">Đang kết nối xT…</p>}
     {area==='H' && <>
-      <div className="tabs" role="tablist" aria-label="Mục Con người">{H_TABS.map(t=><button key={t.id} type="button" role="tab" id={`h-tab-${t.id}`} aria-controls={`h-panel-${t.id}`} aria-selected={tab===t.id} tabIndex={tab===t.id ? 0 : -1} onClick={()=>setTab(t.id)}
-        onKeyDown={e=>{if(e.key!=='ArrowRight'&&e.key!=='ArrowLeft')return;const i=H_TABS.findIndex(x=>x.id===tab),next=H_TABS[(i+(e.key==='ArrowRight'?1:H_TABS.length-1))%H_TABS.length].id;setTab(next);document.getElementById(`h-tab-${next}`)?.focus();}}>{t.label}</button>)}</div>
+      <TabList label="Mục Con người" prefix="h" tabs={hTabs} value={tab} onChange={next=>{setTab(next);if(next==='agents')setAgentsSeen(true);}}/>
       <div role="tabpanel" id="h-panel-people" aria-labelledby="h-tab-people" hidden={tab!=='people'}>
         {workspace && <div className="workspace-card"><span className="av" aria-hidden="true"><Building2/></span><span className="t"><strong>{display(obj(workspace.tenant).name || obj(workspace.workspace).name || 'Doanh nghiệp')}</strong><small>{display(obj(workspace.me).name)}</small></span></div>}
         <div className="panel">
@@ -206,6 +212,7 @@ function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNa
     {outputFirst && output}
     {area==='H' && <div role="tabpanel" id="h-panel-docs" aria-labelledby="h-tab-docs" hidden={tab!=='docs'}><DocumentsPanel mcp={mcp} tools={tools} models={workspace ? catalog : null}/></div>}
     {area==='H' && <div role="tabpanel" id="h-panel-units" aria-labelledby="h-tab-units" hidden={tab!=='units'}><DepartmentsPanel mcp={mcp} tools={tools}/></div>}
+    {area==='H' && hasAgentHr && <div role="tabpanel" id="h-panel-agents" aria-labelledby="h-tab-agents" hidden={tab!=='agents'}>{agentsSeen && <AgentHrPanel mcp={mcp} tools={tools} models={catalog} me={workspace ? obj(workspace.me) : null} onMutated={onMutated}/>}</div>}
     {area==='H' && <div role="tabpanel" id="h-panel-members" aria-labelledby="h-tab-members" hidden={tab!=='members'}><MembersPanel mcp={mcp} tools={tools} workspace={workspace} onRefresh={()=>{void call('inspect_workspace',{},'catalog');onMutated?.();}}/></div>}
     {area==='P' && <RequestForm mcp={mcp} tools={tools} models={workspace ? catalog : null} onDone={onMutated}/>}
     {area==='D' && <ReportPanel mcp={mcp} tools={tools} models={workspace ? catalog : null}/>}
