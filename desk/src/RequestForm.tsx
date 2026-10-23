@@ -8,6 +8,7 @@ import { ToolError, readToolResult } from './portal-result';
 import { PortalAlert } from './PortalAlert';
 import { classifyError, type ErrorKind } from './portal-state';
 import { inSentence, recordTitle, refKind, valueLabel } from './portal-labels';
+import { Plus, Send } from 'lucide-react';
 import { buildValues, confirmUrlOf, fieldErrorsOf, isSupported, readFields, validate, type FieldSpec } from './portal-request';
 
 type Data = Record<string, unknown>;
@@ -115,7 +116,7 @@ export function RequestForm({ mcp, tools, models, onDone, primitives = ['request
   const blocked = !!fields?.some((f) => f.required && !supported(f));
   // Form tạo bản ghi: tên theo chính model ("Tạo khách hàng"), không gọi là "yêu cầu".
   const title = generic && requestModels.length ? `Tạo ${inSentence(modelLabel)}` : heading, noun = generic ? 'Loại bản ghi' : 'Loại yêu cầu';
-  return <section className="portal-request" aria-label={title}>
+  return <section className="portal-request panel" aria-label={title}>
     <h3>{title}</h3>
     {models === null ? <p role="status">Đang tải danh mục quy trình…</p> : !requestModels.length ? <p role="status">Doanh nghiệp chưa có loại yêu cầu nào bạn được tạo.</p> : <form noValidate onSubmit={(e) => { e.preventDefault(); void send(); }}>
       {(!generic || requestModels.length > 1) && <div className="req-field"><label htmlFor="req-model">{noun}</label>
@@ -123,7 +124,7 @@ export function RequestForm({ mcp, tools, models, onDone, primitives = ['request
       {fields === null && <p role="status">Đang tải biểu mẫu…</p>}
       {fields?.length === 0 && !message && <p role="status">{noun} này chưa khai báo trường nào.</p>}
       {fields?.map(field)}
-      <button disabled={!mcp || busy || !fields?.length || blocked}>{pending ? 'Gửi lại' : needsSubmit ? 'Tạo và gửi duyệt' : 'Tạo'}</button>
+      <button className="pri" disabled={!mcp || busy || !fields?.length || blocked}>{pending ? 'Gửi lại' : needsSubmit ? 'Tạo và gửi duyệt' : 'Tạo'}{needsSubmit ? <Send aria-hidden="true" /> : <Plus aria-hidden="true" />}</button>
       {pending && <button type="button" disabled={busy} onClick={() => { attempt.current = null; setPending(''); setMessage(''); }}>Làm lại từ đầu</button>}
     </form>}
     {busy && <p role="status">Đang gửi…</p>}

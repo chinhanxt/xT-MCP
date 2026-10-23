@@ -192,7 +192,11 @@ form.composer button{min-height:52px;width:52px;padding:0;background:var(--ink);
 .chat-side .ph svg.lucide{color:var(--ink-2)}
 
 /* ---------- portal (không gian) ---------- */
-.portal{flex:1;min-width:0}
+.portal{flex:1;min-width:0;position:relative}
+.head-act{position:absolute;top:0;right:0;display:flex;gap:10px}
+.lead-sm{color:var(--ink-3);font-size:15px;margin:-8px 0 16px}
+.portal-actions.tabs{gap:4px;margin:0 0 20px;flex-wrap:nowrap}
+.decide-actions,.record-actions{margin:0 0 12px}
 .portal-actions{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 16px}
 .portal form{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:16px}
 .portal form h3,.portal form h4{flex-basis:100%;margin:4px 0}
@@ -284,6 +288,7 @@ header.top{position:static;flex-wrap:wrap;height:auto;min-height:var(--top);padd
 #chat{padding:20px 16px}
 }
 @media (max-width:600px){
+.head-act{position:static;margin:-12px 0 16px}
 .portal-entry dl{grid-template-columns:1fr}
 .portal form label{flex:1 1 100%;flex-direction:column;align-items:stretch;gap:2px}.portal form label select,.portal form label input{width:100%}
 .portal form input,.portal form select,.portal form textarea{flex:1 1 100%;min-width:0}.portal-frame{height:60vh}
