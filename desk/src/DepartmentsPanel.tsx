@@ -63,7 +63,7 @@ export function DepartmentsPanel({ mcp, tools }: Props) {
     const result = await load({ org_unit: unit.key, limit: 100 });
     if (result) { setMembers(result.people); setPartial(result.more); }
   }
-  return <section className="portal-departments" aria-label="Phòng ban">
+  return <section className="portal-departments panel" aria-label="Phòng ban">
     <h3>Phòng ban</h3>
     {units === null && !error && <p role="status">Đang tải danh bạ…</p>}
     {units && !units.length && <p role="status">Danh bạ bạn được xem chưa ghi nhận phòng ban nào.</p>}

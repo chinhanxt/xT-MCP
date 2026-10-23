@@ -130,6 +130,8 @@ button > svg.lucide,a > svg.lucide{order:-1}
 /* ---------- notes / alerts ---------- */
 .note { margin: 8px 0; padding: 12px 16px; border-radius: var(--r-1); border-left: 3px solid var(--held); background: var(--held-bg); color: #5C3B00; }
 .note p{margin:6px 0 0}
+.note[data-state]{position:relative;padding-left:44px}
+.note[data-state] > svg.lucide{position:absolute;left:15px;top:14px;width:18px;height:18px}
 .portal-forbidden{border-left:4px solid #b26a00}.portal-confirm{border-left:4px solid #1971c2;background:#1971c212}.portal-expired,.portal-error{border-left:4px solid #b00020}
 .portal-confirm{background:var(--info-bg);color:var(--ink)}
 .portal-expired,.portal-error{background:var(--block-bg);color:#6B1A15}
@@ -231,6 +233,9 @@ form.composer button{min-height:52px;width:52px;padding:0;background:var(--ink);
 .portal button[aria-pressed=true]{background:var(--info-bg);color:var(--ink);border-color:var(--focus)}
 .portal .seg button[aria-pressed=true],.portal .tabs button[aria-pressed=true]{background:var(--paper);border-color:transparent}
 .portal .tabs button[aria-pressed=true]{background:none;border-bottom-color:var(--ink)}
+.portal-members > p,.portal-members form > p,.portal-departments > p[role=note]{color:var(--ink-2);font-size:15px;margin:10px 0}
+.portal-members > button,.portal-members > label{margin:6px 10px 6px 0}
+.portal-members form{padding:16px 0;border-top:1px solid var(--line-2)}
 .workspace-card{display:flex;align-items:center;gap:12px;margin:0 0 16px}
 .workspace-card .t{display:flex;flex-direction:column;line-height:1.3}
 .workspace-card small{color:var(--ink-3);font-size:15px}

@@ -67,7 +67,7 @@ export function DocumentsPanel({ mcp, tools, models, primitives = ['document'], 
   useEffect(() => { live.current = true; return () => { live.current = false; seq.current++; }; }, []);
 
   const details = detail ? Object.entries({ ...obj(detail.values), ...Object.fromEntries(Object.entries(detail).filter(([key]) => !['values', 'ref', 'id', 'title', 'name'].includes(key))) }).filter(([key]) => !hiddenFields.has(key)) : [];
-  return <section className="portal-docs" aria-label={Noun}>
+  return <section className="portal-docs panel" aria-label={Noun}>
     <h3>{Noun}</h3>
     {models === null ? <p role="status">{`Đang tải danh mục ${noun}…`}</p> : !docModels.length ? <p role="status">{`Doanh nghiệp chưa có loại ${noun} nào mà bạn được xem.`}</p> : <>
       <form onSubmit={(e) => { e.preventDefault(); setCursor(null); void search(null); }}>
@@ -75,7 +75,7 @@ export function DocumentsPanel({ mcp, tools, models, primitives = ['document'], 
           {docModels.map((row) => <option key={String(row.id)} value={String(row.id)}>{String(row.label || row.name || row.id)}</option>)}
         </select></label>
         <input aria-label={`Tìm ${noun}`} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Từ khóa" maxLength={200} />
-        <button disabled={!mcp || loading}>{`Tìm ${noun}`}</button>
+        <button className="pri" disabled={!mcp || loading}>{`Tìm ${noun}`}</button>
       </form>
       {loading && <p role="status">Đang tải…</p>}
       {rows && !rows.length && !loading && !error && <p role="status">{`Không có ${noun} phù hợp.`}</p>}

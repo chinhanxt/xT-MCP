@@ -116,7 +116,7 @@ export function MembersPanel({ mcp, tools, workspace, onRefresh }: Props) {
   const roles = obj(workspace?.me).roles;
   const input = (field: string, label: string, values: Record<string, string>, set: typeof setRaw, type = 'text') => <label key={field}>{label}<input aria-label={label} type={type} value={values[field] || ''} onChange={e => set(previous => ({ ...previous, [field]: e.target.value }))} required/></label>;
   const lifecycleTasks = tasks?.filter(t => String(t.ref).startsWith('lifecycle_task:'));
-  return <section aria-label="Thành viên và quyền">
+  return <section className="panel portal-members" aria-label="Thành viên và quyền">
     <h3>Thành viên và quyền</h3>
     {!expired && (workspace ? <p>Vai trò hiệu lực của tôi: {Array.isArray(roles) ? roles.map(roleLabel).join(', ') || 'Chưa có vai trò' : 'Chưa đọc được vai trò'}</p> : <p role="status">Đang tải vai trò…</p>)}
     <button disabled={busy || expired || !mcp} onClick={onRefresh}>Làm mới vai trò</button>
@@ -126,13 +126,13 @@ export function MembersPanel({ mcp, tools, workspace, onRefresh }: Props) {
       </fieldset><fieldset disabled={busy || expired || !!attempt.current?.caseRef || !mcp}>
         {input('code', 'Mã hồ sơ', raw, setRaw)}{input('effective_on', 'Ngày hiệu lực', raw, setRaw, 'date')}
       </fieldset><p>Mã nhân viên: NV-0001; mã hồ sơ: ON-2026-0001. ID phòng ban và tài khoản là UUID có sẵn, không gồm tiền tố.</p>
-      <button disabled={busy || expired || !mcp || !workspace}>{pending ? 'Thử lại tiếp nhận' : 'Tạo và bắt đầu tiếp nhận'}</button>
+      <button className="pri" disabled={busy || expired || !mcp || !workspace}>{pending ? 'Thử lại tiếp nhận' : 'Tạo và bắt đầu tiếp nhận'}</button>
     </form>
     {pending && <p role="status">{pending} Thử lại sẽ tiếp tục bước chưa xong.</p>}
     <form aria-label="Đề xuất cấp quyền" onSubmit={e => { e.preventDefault(); void run(async () => {
       recordRef(await call('create_record', { model_id: 'access_grant', values: { employee: grant.employee, system: 'keycloak', role: grant.role, issued_on: grant.issued_on } }, true), 'access_grant');
       setDone('Đã ghi đề xuất cấp quyền; quyền chỉ hiệu lực sau bước IT.'); setGrant({});
-    }, 'grant'); }}><h4>IT: Cấp quyền SSO</h4><fieldset disabled={busy || expired || !mcp}>{input('employee', 'ID nhân viên được cấp', grant, setGrant)}{input('role', 'Vai trò được cấp', grant, setGrant)}{input('issued_on', 'Ngày cấp', grant, setGrant, 'date')}</fieldset><button disabled={busy || expired || !mcp}>Ghi đề xuất cấp quyền</button></form>
+    }, 'grant'); }}><h4>IT: Cấp quyền SSO</h4><fieldset disabled={busy || expired || !mcp}>{input('employee', 'ID nhân viên được cấp', grant, setGrant)}{input('role', 'Vai trò được cấp', grant, setGrant)}{input('issued_on', 'Ngày cấp', grant, setGrant, 'date')}</fieldset><button className="pri" disabled={busy || expired || !mcp}>Ghi đề xuất cấp quyền</button></form>
     <p>Chỉ cấp vai trò thuộc danh sách cho phép của doanh nghiệp. Người tạo không được tự duyệt cấp quyền. Bước IT xuất hiện sau bước HR; người được giao phải xác nhận.</p>
     <button disabled={busy || expired || !mcp} onClick={() => void run(() => load('tasks'))}>Tải bước quy trình</button>
     {lifecycleTasks && !lifecycleTasks.length && <p role="status">Chưa có bước nhân sự được giao cho bạn.</p>}
