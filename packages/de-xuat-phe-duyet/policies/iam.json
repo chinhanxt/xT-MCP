@@ -369,6 +369,126 @@
       "actions": ["audit.read"],
       "resources": ["xrn:binhminh:*"],
       "conditions": []
+    },
+    {
+      "id": "apv.ticket-emp-own",
+      "effect": "Allow",
+      "subjects": [
+        "role:employee"
+      ],
+      "actions": [
+        "record.read",
+        "record.create",
+        "record.update"
+      ],
+      "resources": [
+        "xrn:binhminh:approval_ticket:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.owner",
+          "op": "eq",
+          "right": {
+            "ref": "subject.id"
+          }
+        }
+      ]
+    },
+    {
+      "id": "apv.ticket-emp-submit-own",
+      "effect": "Allow",
+      "subjects": [
+        "role:employee"
+      ],
+      "actions": [
+        "request.submit",
+        "record.transition"
+      ],
+      "resources": [
+        "xrn:binhminh:approval_ticket:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.owner",
+          "op": "eq",
+          "right": {
+            "ref": "subject.id"
+          }
+        }
+      ]
+    },
+    {
+      "id": "apv.ticket-dept-head-decide",
+      "effect": "Allow",
+      "subjects": [
+        "role:dept_head"
+      ],
+      "actions": [
+        "record.read",
+        "request.decide",
+        "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:approval_ticket:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.department",
+          "op": "eq",
+          "right": {
+            "ref": "subject.department"
+          }
+        }
+      ]
+    },
+    {
+      "id": "apv.ticket-director-decide",
+      "effect": "Allow",
+      "subjects": [
+        "role:director"
+      ],
+      "actions": [
+        "record.read",
+        "request.decide",
+        "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:approval_ticket:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "apv.ticket-agent-on-behalf",
+      "effect": "Allow",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "record.read",
+        "record.create",
+        "record.update",
+        "request.submit",
+        "record.transition",
+        "request.decide"
+      ],
+      "resources": [
+        "xrn:binhminh:approval_ticket:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "apv.ticket-no-delete",
+      "effect": "Deny",
+      "subjects": [
+        "*"
+      ],
+      "actions": [
+        "record.delete"
+      ],
+      "resources": [
+        "xrn:binhminh:approval_ticket:*"
+      ],
+      "conditions": []
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "format": "xt-pack/1",
   "pack": "de-xuat-phe-duyet",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "title": "Đề xuất và phê duyệt đa cấp (Tạm ứng, Thanh toán, Hoàn ứng)",
   "depends_on": [],
   "models": [
@@ -10,10 +10,12 @@
     "advance_request",
     "payment_request",
     "advance_settlement",
-    "approval_step"
+    "approval_step",
+    "approval_ticket"
   ],
   "processes": [
-    "proposal_approval"
+    "proposal_approval",
+    "approval_ticket_approval"
   ],
   "policies": [
     "iam"
@@ -34,6 +36,22 @@
       "inputs": {
         "kind": {
           "const": "advance_request"
+        },
+        "amount": {
+          "field": "amount"
+        },
+        "note": {
+          "arg": "note"
+        }
+      }
+    },
+    "approval_ticket": {
+      "primitive": "request",
+      "process": "approval_ticket_approval",
+      "state_field": "state",
+      "inputs": {
+        "ticket_id": {
+          "field": "id"
         },
         "amount": {
           "field": "amount"
@@ -83,6 +101,11 @@
         "amount",
         "requester",
         "requester_is_dept_head"
+      ],
+      "approval_ticket_approval": [
+        "ticket_id",
+        "amount",
+        "requester"
       ]
     }
   }
