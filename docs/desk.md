@@ -33,7 +33,7 @@ Desk v2 chỉ đổi lớp trình bày: phông Be Vietnam Pro 17px (`@fontsource
 | Thông tin model · hồ sơ tool · số công cụ | `App.tsx` (`header .meta`) | Thanh trên, chữ nhỏ bên phải |
 | Điều hướng 6 không gian, Quay lại/Tiến của trình duyệt | `portal-nav.ts` | Thanh bên trái: Trợ lý, Con người, Quy trình, Dữ liệu, Trí tuệ, Ứng dụng |
 | Ô tìm người | mới, dùng lại `find_people {query, limit:50}` của Con người | Thanh trên: Enter mở Con người và tìm đúng như ô tìm nhân sự |
-| Chuông | mới, chỉ điều hướng | Thanh trên: mở Quy trình (hộp duyệt); không có chấm đếm vì không gọi thêm tool |
+| Chuông + số đếm Quy trình | `App.tsx`, `src/inbox-count.ts` (đợt 2) | Thanh trên: chuông mở Quy trình, chấm đỏ khi `get_inbox` còn mục mở; thanh bên: huy hiệu Quy trình = `counts.approval` (dự phòng: đếm mục `kind=approval`). Đúng một lời gọi `get_inbox({})` khi kết nối MCP và sau mỗi thao tác ghi thành công (cổng, Tạo yêu cầu, Cấp quyền, Nhân sự AI); chỉ gọi khi máy chủ có tool `get_inbox`, lời trả muộn sau đăng xuất/đổi tenant bị bỏ, lỗi thì không hiện số. Huy hiệu/chấm `aria-hidden`, mô tả qua `aria-describedby` nằm ngoài nút nên tên truy cập `P`/`Hộp duyệt` không đổi |
 | Trợ lý Desk dùng LLM local: chat, stream, gọi tool, max-steps, ghi chú lỗi | `App.tsx`, `agent.ts`, `llm.ts`, `items.ts`, `markdown.ts` | Trợ lý: khung hội thoại (bong bóng người dùng/trợ lý, icon bot), ô soạn + nút gửi |
 | Gợi ý câu hỏi | mới, chỉ điền sẵn câu hỏi | Trợ lý: hàng gợi ý dưới hội thoại |
 | Chip tool-call + xem tham số/kết quả JSON | `ToolItem.tsx` | Trợ lý (và kết quả ghi ở Kho): chip có icon theo trạng thái |
@@ -45,7 +45,8 @@ Desk v2 chỉ đổi lớp trình bày: phông Be Vietnam Pro 17px (`@fontsource
 | Con người: tìm nhân sự, Quản lý của tôi, Nhóm của tôi, Việc của tôi, thẻ doanh nghiệp/người dùng | `Portal.tsx` (H) | Con người · tab Nhân viên |
 | Phòng ban (từ `find_people`, phân trang 5×100, ghi chú danh bạ lớn) | `DepartmentsPanel.tsx` | Con người · tab Phòng ban |
 | Tài liệu theo quyền (loại, tìm, tải thêm, chi tiết) | `DocumentsPanel.tsx` | Con người · tab Tài liệu |
-| Thành viên và quyền: vai trò của tôi, tiếp nhận nhân viên (HR), đề xuất cấp quyền SSO (IT), bước quy trình, thu hồi quyền, tải thêm | `MembersPanel.tsx` | Con người · tab Cấp quyền |
+| Thành viên và quyền: vai trò của tôi, tiếp nhận nhân viên (HR), đề xuất cấp quyền SSO (IT), bước quy trình, thu hồi quyền, tải thêm | `MembersPanel.tsx` | Con người · tab Cấp quyền, chia 4 tab con (đợt 2): Vai trò của tôi / Tiếp nhận nhân viên / Cấp quyền SSO (đề xuất + bước quy trình) / Thu hồi; thông báo lỗi và liên kết xác nhận chung ở cuối khung |
+| Nhân sự AI (gói `nhan-su-ai`): danh sách agent, hồ sơ, tuyển, đình chỉ/cho nghỉ/mở lại | `AgentHrPanel.tsx`, `agenthr.ts` (đợt 2) | Con người · tab Nhân sự AI, xem mục "Nhân sự AI" bên dưới |
 | Quy trình: Chờ tôi duyệt, Toàn bộ inbox, lọc theo loại yêu cầu, danh sách quy trình | `Portal.tsx` (P) | Quy trình: các nút lọc dạng tab, danh sách kết quả |
 | Mở bản ghi, Làm mới bản ghi, Lịch sử, Duyệt, Từ chối + lý do, Thử lại sau khi xác nhận | `Portal.tsx` | Quy trình / Kho: Duyệt (nút xanh), Từ chối (nút đỏ viền), Lịch sử (nút phụ) |
 | Tạo yêu cầu theo `describe_model` (create_record → submit_request, khóa an toàn, Gửi lại, Làm lại từ đầu, lỗi theo trường) | `RequestForm.tsx` | Quy trình · panel Tạo yêu cầu |
@@ -55,16 +56,27 @@ Desk v2 chỉ đổi lớp trình bày: phông Be Vietnam Pro 17px (`@fontsource
 | Tầng 3: 4 nhóm ứng dụng, Đã bật/Đã tắt, quản trị thấy ứng dụng tắt + lệnh CLI bật/tắt | `Tier3.tsx`, `tier3.ts` | Ứng dụng: lưới ứng dụng theo nhóm, chip trạng thái; lệnh CLI giữ trong mục mở rộng (không có công tắc giả vì bật/tắt chỉ chạy bằng CLI) |
 | Kiểu hiển thị ứng dụng (Sơ đồ 3D / Danh sách), module `/apps/<id>/` | `Tier3.tsx` | Ứng dụng · trang ứng dụng: tab kiểu hiển thị |
 | Ứng dụng chung: Dữ liệu/Báo cáo, danh sách, tạo bản ghi | `GenericApp.tsx` | Ứng dụng · trang ứng dụng · Danh sách |
-| Kho: danh sách theo loại (Kho, Vị trí, Hàng hóa, Phiếu, Tồn, Biến động), Thêm danh mục, Phiếu nhập/xuất, Gửi phiếu đi duyệt | `Portal.tsx` (Kho) | Ứng dụng · Kho hàng (WMS) · Sơ đồ 3D: panel Phiếu, panel Thêm danh mục, panel Phiếu nhập/xuất |
-| WareTrack 3D (iframe, cầu nối chỉ đọc) + link mở tab mới | `Portal.tsx` (Kho), `portal.ts` | Ứng dụng · Kho hàng (WMS) · tab Sơ đồ 3D: panel Sơ đồ kho 3D |
+| Kho: danh sách theo loại (Kho, Vị trí, Hàng hóa, Phiếu, Tồn, Biến động), Thêm danh mục, Phiếu nhập/xuất, Gửi phiếu đi duyệt | `Portal.tsx` (Kho) | Ứng dụng · Kho hàng (WMS) · Sơ đồ 3D, tab con (đợt 2, `role=tab`): **Tồn kho** (bảng `stock_balance` theo vị trí, tên/mức đặt lại tra từ danh mục, chip "Sắp hết"), **Phiếu** (Phiếu nhập/xuất, Gửi phiếu đi duyệt, nhóm "Dữ liệu kho" + kết quả), **Danh mục** (Thêm danh mục + cùng nhóm "Dữ liệu kho"); nút "Tạo phiếu" mở tab Phiếu |
+| WareTrack 3D (iframe, cầu nối chỉ đọc) + link mở tab mới | `Portal.tsx` (Kho), `portal.ts` | Ứng dụng · Kho hàng (WMS) · tab con **Sơ đồ 3D** (tab `role=tab`, không trùng nút kiểu hiển thị "Sơ đồ 3D" của Tầng 3) |
 
 ### Ảnh chụp
 
-`docs/review/desk-v2-shots/`: `login.png` là bản build thật chưa đăng nhập; các tệp `fixture-*.png` chụp bản build thật với OIDC/MCP giả lập theo cách của `e2e/unified-fixtures.ts` (tên "Fixture Co", "Người A" là dữ liệu fixture của test, không phải dữ liệu sản phẩm), chỉ để duyệt bố cục.
+`docs/review/desk-wave2-shots/` (đợt 2: tab con Kho, Cấp quyền, số đếm + chuông, Nhân sự AI, hồ sơ, đình chỉ, tuyển, duyệt JD) chụp cùng cách với dữ liệu fixture. `docs/review/desk-v2-shots/`: `login.png` là bản build thật chưa đăng nhập; các tệp `fixture-*.png` chụp bản build thật với OIDC/MCP giả lập theo cách của `e2e/unified-fixtures.ts` (tên "Fixture Co", "Người A" là dữ liệu fixture của test, không phải dữ liệu sản phẩm), chỉ để duyệt bố cục.
 
-### Để đợt 2 (mockup có nhưng chưa có backend thật, nên không hiển thị)
+### Nhân sự AI (đợt 2, gói `nhan-su-ai`)
 
-Theo quy tắc không dùng dữ liệu giả: Nhân sự AI (danh sách agent, Tuyển agent, Hồ sơ agent, Sự cố, hạn mức), Duyệt JD agent, dải số liệu thống kê, huy hiệu "Chuỗi nhật ký toàn vẹn", tab Nhật ký toàn tenant (chưa có tool đọc nhật ký chung; lịch sử từng bản ghi vẫn có), "Tôi đã gửi", số đếm trên menu và chấm đỏ trên chuông (cần gọi thêm `get_inbox` ngay khi mở Desk; fixture e2e hiện không xử lý lời gọi này), công tắc bật/tắt ứng dụng (vòng đời chỉ qua CLI có người duyệt), tab Thêm ứng dụng, Studio dạng gốc (Ứng dụng AI, Tri thức, Công cụ, Nhật ký chạy vẫn nằm trong iframe Studio), hộp thoại mật khẩu + OTP ngay trên Desk (xác nhận phải ở origin xT).
+Theo hợp đồng dữ liệu AgentHR (model/trường cố định: `ho_so_agent`, `vai_tro_agent`, `jd_agent`, `giay_phep_hanh_dong`, `su_co_agent`), chỉ dùng bộ tool sẵn có, không có dữ liệu mẫu:
+- Tab chỉ hiện khi catalog `inspect_workspace` có `ho_so_agent` (gói đã cài); không có thì ẩn hẳn. Dữ liệu chỉ tải khi mở tab.
+- Danh sách: `search_records` hồ sơ, vai trò, JD, sự cố mở (`where: {trang_thai: "mo"}`) và `find_people` (tên người phụ trách). Cột Hôm nay = `so_viec_hom_nay` / `han_muc_viec_ngay` của JD đang hiệu lực (yêu cầu đã duyệt mới nhất); không có JD thì không có thanh. Dải số liệu: agent đang làm, việc hôm nay, đang tạm dừng, sự cố mở, tính từ bản ghi đã tải (không có "Lần bị chặn" vì chưa có nguồn đọc).
+- Hồ sơ (`get_record` + `search_records where ho_so`): Được làm (bảng từ `nang_luc` của JD; cột Gửi duyệt hiện "Giữ lại" khi chưa có giấy phép `request.submit:<model>`), Hạn mức, Giấy phép hành động, Sự cố, Nhật ký (`get_history`).
+- Đình chỉ: hộp thoại xác nhận (Lý do gửi vào tham số `reason` của `update_record`) -> `update_record {trang_thai: tam_dung, ly_do_tam_dung: thu_cong}` với `expected_revision` đã đọc. Cho nghỉ: `update_record {trang_thai: da_nghi}`. Mở lại / Đổi mô tả: `create_record jd_agent` (sao chép năng lực JD hiệu lực, hạn mức sửa được) + `submit_request` (IT duyệt OTP trên trang xT); không bao giờ tự `update_record dang_lam`.
+- Tuyển agent: thẻ vai trò từ `vai_tro_agent` -> `create_record ho_so_agent` (`trang_thai: cho_duyet`) -> `create_record jd_agent` -> `submit_request`; thử lại giữ ref đã tạo và cùng khóa an toàn (không tạo trùng hồ sơ). Sau khi gửi, đọc lại JD và hiện cờ `canh_bao` do lõi tính.
+- Quy trình: khi mở một yêu cầu `jd_agent`, khối "Cảnh báo quyền" (cờ `canh_bao` + bảng năng lực) hiện phía trên Duyệt / Từ chối.
+- Test: `test/agenthr.test.ts` (MCP giả lập theo hợp đồng).
+
+### Để sau (mockup có nhưng chưa có backend thật, nên không hiển thị)
+
+Theo quy tắc không dùng dữ liệu giả: huy hiệu "Chuỗi nhật ký toàn vẹn", tab Nhật ký toàn tenant (chưa có tool đọc nhật ký chung; lịch sử từng bản ghi vẫn có), "Tôi đã gửi", sơ đồ tổ chức người + agent, "Lần bị chặn" trên dải số liệu Nhân sự AI, công tắc bật/tắt ứng dụng (vòng đời chỉ qua CLI có người duyệt), tab Thêm ứng dụng, Studio dạng gốc (Ứng dụng AI, Tri thức, Công cụ, Nhật ký chạy vẫn nằm trong iframe Studio), hộp thoại mật khẩu + OTP ngay trên Desk (xác nhận phải ở origin xT).
 
 ## Cấu hình
 

@@ -386,3 +386,6 @@ header.top{position:static;flex-wrap:wrap;height:auto;min-height:var(--top);padd
 .dialog-act button:first-child{flex:1}
 :where(.portal) button.danger.fill{background:var(--block);border-color:var(--block);color:#fff}
 @media (max-width:1100px){.agent-grid,.hire-split{grid-template-columns:minmax(0,1fr)}.stats{grid-template-columns:repeat(2,1fr)}}
+.agenthr .portal-doclist li > span:not(.pill){display:flex;flex-direction:column;gap:2px;min-width:0}
+.agenthr .portal-doclist small{color:var(--ink-3);font-size:14px}
+.roles .role,:where(.portal) .roles button.role{justify-content:flex-start}
