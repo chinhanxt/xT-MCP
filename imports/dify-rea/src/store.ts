@@ -46,6 +46,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS app_keys(id TEXT PRIMARY KEY,app_id TEXT NOT NULL REFERENCES apps(id) ON DELETE CASCADE,workspace_id TEXT NOT NULL,token_hash TEXT UNIQUE NOT NULL,created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS app_versions(app_id TEXT NOT NULL REFERENCES apps(id) ON DELETE CASCADE,version INTEGER NOT NULL,config TEXT NOT NULL,name TEXT NOT NULL,description TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(app_id,version));
       CREATE TABLE IF NOT EXISTS share_links(id TEXT PRIMARY KEY,app_id TEXT UNIQUE NOT NULL REFERENCES apps(id) ON DELETE CASCADE,workspace_id TEXT NOT NULL,created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS app_triggers(id TEXT PRIMARY KEY,app_id TEXT NOT NULL REFERENCES apps(id) ON DELETE CASCADE,workspace_id TEXT NOT NULL,kind TEXT NOT NULL,config TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,created_by TEXT NOT NULL DEFAULT '',last_fired_at INTEGER,created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS public_sessions(id TEXT PRIMARY KEY,token_hash TEXT UNIQUE NOT NULL,share_id TEXT NOT NULL REFERENCES share_links(id) ON DELETE CASCADE,expires INTEGER NOT NULL);
     `);
     this.transaction(() => {
@@ -54,6 +55,11 @@ export class Store {
         this.db.exec("ALTER TABLE conversations ADD COLUMN audience TEXT NOT NULL DEFAULT 'studio'");
       if (!this.db.prepare('PRAGMA table_info(runs)').all().some((c) => c.name === 'person_id'))
         this.db.exec("ALTER TABLE runs ADD COLUMN person_id TEXT NOT NULL DEFAULT ''");
+      const runColumns = this.db.prepare('PRAGMA table_info(runs)').all();
+      if (!runColumns.some((c) => c.name === 'trigger'))
+        this.db.exec(`ALTER TABLE runs ADD COLUMN "trigger" TEXT NOT NULL DEFAULT 'manual'`);
+      if (!runColumns.some((c) => c.name === 'duration_ms')) this.db.exec('ALTER TABLE runs ADD COLUMN duration_ms INTEGER');
+      if (!runColumns.some((c) => c.name === 'trace')) this.db.exec('ALTER TABLE runs ADD COLUMN trace TEXT');
       if (!this.db.prepare('PRAGMA table_info(documents)').all().some((c) => c.name === 'xt_ref'))
         this.db.exec('ALTER TABLE documents ADD COLUMN xt_ref TEXT; ALTER TABLE documents ADD COLUMN xt_revision INTEGER;');
       this.db.exec(
