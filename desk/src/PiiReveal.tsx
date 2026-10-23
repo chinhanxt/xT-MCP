@@ -5,6 +5,7 @@ import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { config } from "./config";
 import { createRevealStore, REVEAL_TOOLTIP, REVEAL_TTL_MS, revealTokens, type RevealDeps, type RevealOutcome } from "./pii";
 import type { ToolResult } from "./types";
+import { Eye, EyeOff, Info } from "lucide-react";
 
 /** Nút "Hiện" cho token PII trong kết quả tool. Giá trị thật chỉ ở state của component này (không vào history LLM/log). */
 export function PiiReveal({ tokens, client, dpop }: { tokens: string[]; client: Client; dpop?: () => RevealDeps["dpop"] }) {
@@ -64,14 +65,14 @@ export function PiiReveal({ tokens, client, dpop }: { tokens: string[]; client: 
               </li>
             ))}
           </ul>
-          <button onClick={() => store.clear()}>Ẩn</button>
+          <button onClick={() => store.clear()}>Ẩn<EyeOff aria-hidden="true" /></button>
         </>
       ) : (
         <button disabled={busy} onClick={() => void reveal()} title={REVEAL_TOOLTIP} aria-label={`Hiện giá trị thật. ${REVEAL_TOOLTIP}`}>
-          Hiện
+          Hiện<Eye aria-hidden="true" />
         </button>
       )}
-      <span className="hint" title={REVEAL_TOOLTIP}> ⓘ Chỉ hiển thị cho bạn, không gửi cho AI</span>
+      <span className="hint pii-hint" title={REVEAL_TOOLTIP}><Info aria-hidden="true" /> Chỉ hiển thị cho bạn, không gửi cho AI</span>
       {err && <span className="note" role="alert"> Không xem được ({err}).</span>}
     </div>
   );

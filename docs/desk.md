@@ -19,6 +19,53 @@ Route `/desk/confirm/{id}` do backend render. Desk đăng nhập Keycloak thật
 | `public/sandbox.html` | Sandbox proxy của MCP Apps (xem "Sandbox") |
 | `vite.config.ts` | Đọc cấu hình từ env, báo lỗi rõ nếu thiếu, proxy `/mcp` và `/llm` (không gắn bearer) |
 
+## Giao diện v2 (theo mockup đã duyệt `docs/mockups/desk/`)
+
+Desk v2 chỉ đổi lớp trình bày: phông Be Vietnam Pro 17px (`@fontsource/be-vietnam-pro`, OFL-1.1), icon Lucide (`lucide-react`, ISC), token màu và thành phần (panel, tab, chip trạng thái ok/held/block/neutral, thẻ xác nhận) chép từ `docs/mockups/desk/src/desk.html` vào `src/styles.css`. Logic `mcp.ts`, `auth.ts`, `oidc.ts`, `dpop.ts`, `bridge.ts`, `confirm.ts`, `pii.ts`, `portal-*.ts`, `agent.ts`, `llm.ts`, `config.ts` không đổi. Hash route giữ nguyên: Trợ lý = Desk (không hash), Con người = `#/H`, Quy trình = `#/P`, Dữ liệu = `#/D`, Trí tuệ = `#/I`, Ứng dụng = `#/T3` (`#/Kho` cũ vẫn về `#/T3`). Nút điều hướng giữ tên truy cập `H/P/D/I/T3/Desk` (nhãn tiếng Việt và icon là phần hiển thị).
+
+### Kiểm kê: mọi năng lực cũ và chỗ của nó trong v2 (không bỏ năng lực nào)
+
+| Năng lực | Mã nguồn | Vị trí v2 |
+|---|---|---|
+| Đăng nhập Keycloak (PKCE + DPoP), trạng thái đang đăng nhập, lỗi đăng nhập | `App.tsx`, `auth.ts`, `oidc.ts`, `dpop.ts` | Màn đăng nhập riêng (thẻ giữa trang, logo xT) |
+| Chọn doanh nghiệp (đổi tenant, đăng nhập lại theo tổ chức) | `App.tsx` (`leaveSession`) | Thanh trên, ô "Doanh nghiệp" có icon tòa nhà; một tổ chức thì hiện tên tổ chức |
+| Đăng xuất (xóa phiên, khung nhúng, cầu nối) | `App.tsx` | Chân thanh bên trái |
+| Thông tin model · hồ sơ tool · số công cụ | `App.tsx` (`header .meta`) | Thanh trên, chữ nhỏ bên phải |
+| Điều hướng 6 không gian, Quay lại/Tiến của trình duyệt | `portal-nav.ts` | Thanh bên trái: Trợ lý, Con người, Quy trình, Dữ liệu, Trí tuệ, Ứng dụng |
+| Ô tìm người | mới, dùng lại `find_people {query, limit:50}` của Con người | Thanh trên: Enter mở Con người và tìm đúng như ô tìm nhân sự |
+| Chuông | mới, chỉ điều hướng | Thanh trên: mở Quy trình (hộp duyệt); không có chấm đếm vì không gọi thêm tool |
+| Trợ lý Desk dùng LLM local: chat, stream, gọi tool, max-steps, ghi chú lỗi | `App.tsx`, `agent.ts`, `llm.ts`, `items.ts`, `markdown.ts` | Trợ lý: khung hội thoại (bong bóng người dùng/trợ lý, icon bot), ô soạn + nút gửi |
+| Gợi ý câu hỏi | mới, chỉ điền sẵn câu hỏi | Trợ lý: hàng gợi ý dưới hội thoại |
+| Chip tool-call + xem tham số/kết quả JSON | `ToolItem.tsx` | Trợ lý (và kết quả ghi ở Kho): chip có icon theo trạng thái |
+| MCP Apps (`AppRenderer`, sandbox, CSP, rate limit, open-link có xác nhận) | `ToolItem.tsx`, `bridge.ts`, `App.tsx` (`openLink`) | Trợ lý, khung ứng dụng viền panel |
+| Thẻ xác nhận (`confirmation_required`, `confirm_url` đúng origin xT, mật khẩu + TOTP trên trang xT) | `ToolItem.tsx`, `confirm.ts` | Thẻ kiểu hộp thoại xác nhận của mockup (icon vân tay, khối tóm tắt, nút "Mở trang xác nhận"); vẫn mở trang xT, Desk không nhận mật khẩu/OTP |
+| PII "Hiện" (DPoP), tự ẩn, "Ẩn" | `PiiReveal.tsx`, `pii.ts` | Dưới chip tool, nút có icon mắt |
+| Ghi chú thiếu tool của hồ sơ, sai cấu hình sandbox, lỗi kết nối MCP | `App.tsx` | Trợ lý (ghi chú) và màn chờ của từng không gian |
+| Lỗi theo loại (thiếu quyền / hết phiên / cần xác nhận / lỗi), cô lập lỗi từng không gian + Thử lại, màn đang kết nối | `PortalAlert.tsx`, `PortalBoundary.tsx`, `portal-state.ts` | Mọi không gian, khối thông báo có viền màu theo loại |
+| Con người: tìm nhân sự, Quản lý của tôi, Nhóm của tôi, Việc của tôi, thẻ doanh nghiệp/người dùng | `Portal.tsx` (H) | Con người · tab Nhân viên |
+| Phòng ban (từ `find_people`, phân trang 5×100, ghi chú danh bạ lớn) | `DepartmentsPanel.tsx` | Con người · tab Phòng ban |
+| Tài liệu theo quyền (loại, tìm, tải thêm, chi tiết) | `DocumentsPanel.tsx` | Con người · tab Tài liệu |
+| Thành viên và quyền: vai trò của tôi, tiếp nhận nhân viên (HR), đề xuất cấp quyền SSO (IT), bước quy trình, thu hồi quyền, tải thêm | `MembersPanel.tsx` | Con người · tab Cấp quyền |
+| Quy trình: Chờ tôi duyệt, Toàn bộ inbox, lọc theo loại yêu cầu, danh sách quy trình | `Portal.tsx` (P) | Quy trình: các nút lọc dạng tab, danh sách kết quả |
+| Mở bản ghi, Làm mới bản ghi, Lịch sử, Duyệt, Từ chối + lý do, Thử lại sau khi xác nhận | `Portal.tsx` | Quy trình / Kho: Duyệt (nút xanh), Từ chối (nút đỏ viền), Lịch sử (nút phụ) |
+| Tạo yêu cầu theo `describe_model` (create_record → submit_request, khóa an toàn, Gửi lại, Làm lại từ đầu, lỗi theo trường) | `RequestForm.tsx` | Quy trình · panel Tạo yêu cầu |
+| Dữ liệu: loại dữ liệu, tìm bản ghi, danh mục dữ liệu, làm mới danh mục | `Portal.tsx` (D) | Dữ liệu · panel Bản ghi |
+| Báo cáo `aggregate_records` (gợi ý, chỉ số, nhóm, kỳ, nguồn số liệu, bản ghi nguồn, lịch sử bản ghi) | `ReportPanel.tsx`, `report-presets.ts` | Dữ liệu · panel Báo cáo |
+| Studio (iframe `/studio/?integrated=1`, cầu nối `request` riêng) + nút mở trợ lý Desk | `Portal.tsx` (I), `portal.ts` | Trí tuệ: khung Studio trong panel |
+| Tầng 3: 4 nhóm ứng dụng, Đã bật/Đã tắt, quản trị thấy ứng dụng tắt + lệnh CLI bật/tắt | `Tier3.tsx`, `tier3.ts` | Ứng dụng: lưới ứng dụng theo nhóm, chip trạng thái; lệnh CLI giữ trong mục mở rộng (không có công tắc giả vì bật/tắt chỉ chạy bằng CLI) |
+| Kiểu hiển thị ứng dụng (Sơ đồ 3D / Danh sách), module `/apps/<id>/` | `Tier3.tsx` | Ứng dụng · trang ứng dụng: tab kiểu hiển thị |
+| Ứng dụng chung: Dữ liệu/Báo cáo, danh sách, tạo bản ghi | `GenericApp.tsx` | Ứng dụng · trang ứng dụng · Danh sách |
+| Kho: danh sách theo loại (Kho, Vị trí, Hàng hóa, Phiếu, Tồn, Biến động), Thêm danh mục, Phiếu nhập/xuất, Gửi phiếu đi duyệt | `Portal.tsx` (Kho) | Ứng dụng · Kho hàng (WMS) · Sơ đồ 3D: panel Phiếu, panel Thêm danh mục, panel Phiếu nhập/xuất |
+| WareTrack 3D (iframe, cầu nối chỉ đọc) + link mở tab mới | `Portal.tsx` (Kho), `portal.ts` | Ứng dụng · Kho hàng (WMS) · tab Sơ đồ 3D: panel Sơ đồ kho 3D |
+
+### Ảnh chụp
+
+`docs/review/desk-v2-shots/`: `login.png` là bản build thật chưa đăng nhập; các tệp `fixture-*.png` chụp bản build thật với OIDC/MCP giả lập theo cách của `e2e/unified-fixtures.ts` (tên "Fixture Co", "Người A" là dữ liệu fixture của test, không phải dữ liệu sản phẩm), chỉ để duyệt bố cục.
+
+### Để đợt 2 (mockup có nhưng chưa có backend thật, nên không hiển thị)
+
+Theo quy tắc không dùng dữ liệu giả: Nhân sự AI (danh sách agent, Tuyển agent, Hồ sơ agent, Sự cố, hạn mức), Duyệt JD agent, dải số liệu thống kê, huy hiệu "Chuỗi nhật ký toàn vẹn", tab Nhật ký toàn tenant (chưa có tool đọc nhật ký chung; lịch sử từng bản ghi vẫn có), "Tôi đã gửi", số đếm trên menu và chấm đỏ trên chuông (cần gọi thêm `get_inbox` ngay khi mở Desk; fixture e2e hiện không xử lý lời gọi này), công tắc bật/tắt ứng dụng (vòng đời chỉ qua CLI có người duyệt), tab Thêm ứng dụng, Studio dạng gốc (Ứng dụng AI, Tri thức, Công cụ, Nhật ký chạy vẫn nằm trong iframe Studio), hộp thoại mật khẩu + OTP ngay trên Desk (xác nhận phải ở origin xT).
+
 ## Cấu hình
 
 Sao chép `desk/.env.example` thành `desk/.env`. Biến bắt buộc thiếu thì `vite dev/build/preview` dừng với lỗi nêu tên biến (đã kiểm: `make desk-build` không có `.env` báo `thiếu biến cấu hình bắt buộc: DESK_MCP_URL, DESK_LLM_URL, ...`). Không có URL/model nào được ghi cứng trong mã nguồn.

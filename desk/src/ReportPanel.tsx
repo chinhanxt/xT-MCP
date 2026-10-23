@@ -8,6 +8,7 @@ import { PortalAlert } from './PortalAlert';
 import { classifyError, type ErrorKind } from './portal-state';
 import { actionLabel, fieldLabel, groupDigits, recordTitle } from './portal-labels';
 import { modelOf, useEnumLabels } from './enum-labels';
+import { ChartColumn } from 'lucide-react';
 import { BUCKETS, COUNT, reportOptions, type Bucket, type ReportOptions, type ReportPreset } from './report-presets';
 
 type Data = Record<string, unknown>;
@@ -114,16 +115,16 @@ export function ReportPanel({ mcp, tools, models }: Props) {
   const modelName = (ref: string) => { const id = ref.split(':')[0], row = list.find((m) => String(m.id) === id); return String(row?.label || row?.name || 'Bản ghi'); };
   const refTitle = (ref: string, index: number) => titles[ref] ?? `${modelName(ref)} ${index + 1}`;
   const keyCell = (c: string, v: unknown) => typeof v === 'string' && v ? enumLabel(chosen, c, v) : cell(v);
-  return <section className="portal-report" aria-label="Báo cáo">
+  return <section className="portal-report panel" aria-label="Báo cáo">
     <h3>Báo cáo</h3>
-    {opts.presets.length > 0 && models !== null && list.length > 0 && <div className="portal-actions" role="group" aria-label="Gợi ý báo cáo">{opts.presets.map((p) => <button key={p.id} type="button" disabled={!mcp || loading} onClick={() => preset(p)}>{p.label}</button>)}</div>}
+    {opts.presets.length > 0 && models !== null && list.length > 0 && <div className="portal-actions seg" role="group" aria-label="Gợi ý báo cáo">{opts.presets.map((p) => <button key={p.id} type="button" disabled={!mcp || loading} onClick={() => preset(p)}>{p.label}</button>)}</div>}
     {models === null ? <p role="status">Đang tải danh mục…</p> : !list.length ? <p role="status">Chưa có dữ liệu để lập báo cáo.</p> : <form onSubmit={(e) => { e.preventDefault(); void show(); }}>
       <label>Báo cáo cho <select aria-label="Đối tượng báo cáo" value={chosen} onChange={(e) => setModelId(e.target.value)}>{list.map((row) => <option key={String(row.id)} value={String(row.id)}>{String(row.label || row.name || row.id)}</option>)}</select></label>
       <label>Chỉ số <select aria-label="Chỉ số" value={metric} onChange={(e) => setMetric(e.target.value)}>{opts.metrics.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
       {opts.groups.length > 0 && <label>Nhóm theo <select aria-label="Nhóm theo" value={group} onChange={(e) => setGroup(e.target.value)}><option value="">Không nhóm</option>{opts.groups.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}</select></label>}
       <label>Theo thời gian <select aria-label="Theo thời gian" value={bucket} onChange={(e) => setBucket(e.target.value as '' | Bucket)}><option value="">Không chia kỳ</option>{BUCKETS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
       {bucket && <label>Trường ngày <select aria-label="Trường ngày" value={dateField} onChange={(e) => setDateField(e.target.value)}><option value="">Ngày tạo</option>{opts.dates.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}</select></label>}
-      <button disabled={!mcp || loading}>Xem báo cáo</button>
+      <button className="pri" disabled={!mcp || loading}>Xem báo cáo<ChartColumn aria-hidden="true" /></button>
     </form>}
     {loading && <p role="status">Đang tải…</p>}
     <PortalAlert text={error} kind={kind}/>

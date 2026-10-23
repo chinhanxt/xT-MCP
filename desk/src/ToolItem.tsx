@@ -10,6 +10,7 @@ import { PiiReveal } from "./PiiReveal";
 import { toolLabel } from "./portal-labels";
 import { extractTokens, type RevealDeps } from "./pii";
 import type { McpTool, ToolResult } from "./types";
+import { CircleCheck, CircleX, ExternalLink, Fingerprint, Loader } from "lucide-react";
 
 export interface ToolEntry {
   id: string;
@@ -36,6 +37,7 @@ const HOST_CAPS = { serverTools: {}, serverResources: {}, openLinks: {} };
 const globalLimiter = createGlobalToolLimiter({ ratePerSec: config.appGlobalCallsPerSec, burst: config.appGlobalBurst });
 
 const STATUS_VI = { running: "đang chạy", ok: "xong", error: "lỗi", confirm: "chờ xác nhận" } as const;
+const STATUS_ICON = { running: Loader, ok: CircleCheck, error: CircleX, confirm: Fingerprint } as const;
 
 interface UiResource {
   html: string;
@@ -111,11 +113,13 @@ export function ToolItem(props: Props) {
   // Chờ xác nhận không phải lỗi: chip trung tính thay vì chip đỏ "lỗi".
   const status = confirm && entry.status === "error" ? "confirm" : entry.status;
   const piiTokens = entry.status === "ok" ? extractTokens(entry.result) : [];
+  const StatusIcon = STATUS_ICON[status];
   return (
     <div className="tool" data-testid="tool-item">
       <button className={`chip ${status}`} title={entry.name} onClick={() => setOpen(!open)} aria-expanded={open}>
         <span className="chip-name">{toolLabel(entry.name)}</span>
         <span className="chip-status">{STATUS_VI[status]}</span>
+        <StatusIcon aria-hidden="true" className={status === "running" ? "spin" : undefined} />
       </button>
       {open && (
         <pre className="tool-detail">
@@ -125,9 +129,15 @@ export function ToolItem(props: Props) {
       {piiTokens.length > 0 && <PiiReveal tokens={piiTokens} client={props.client} dpop={props.dpop} />}
       {confirm && (
         <div className="confirm-card" data-testid="confirm-card" role="status">
-          <div>Cần xác nhận{confirm.summary ? `: ${confirm.summary}` : " trước khi thực hiện"}.</div>
+          <div className="cf-head">
+            <span className="av" aria-hidden="true"><Fingerprint /></span>
+            <div className="summary">
+              <strong>Cần xác nhận{confirm.summary ? `: ${confirm.summary}` : " trước khi thực hiện"}.</strong>
+              <div className="muted small">Mật khẩu và mã OTP nhập trên trang xT, không nhập ở đây.</div>
+            </div>
+          </div>
           <a href={confirm.url} target="_blank" rel="noopener noreferrer">
-            Mở trang xác nhận
+            Mở trang xác nhận<ExternalLink aria-hidden="true" />
           </a>
         </div>
       )}
