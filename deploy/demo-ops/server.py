@@ -33,6 +33,7 @@ import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from email.message import Message
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -308,7 +309,7 @@ class App:
         return ok
 
     @staticmethod
-    def same_origin(headers: Mapping[str, str]) -> bool:
+    def same_origin(headers: Mapping[str, str] | Message[str, str]) -> bool:
         """POST phải có Origin (hoặc Referer) cùng host với Host / X-Forwarded-Host."""
         src = headers.get("Origin") or headers.get("Referer")
         if not src or src == "null":

@@ -27,7 +27,14 @@ khoản demo nên đặt mật khẩu Basic dài, ngẫu nhiên.
 
 ## Bật
 
-Chạy trong thư mục deploy của máy (`/home/chinhan/.cache/xt-deploy/deploy`, project `xt-e2e-20261016`).
+Chạy trong thư mục deploy của máy (`/home/chinhan/.cache/xt-deploy/deploy`, project `xt-e2e-20261016`,
+`-f compose.yaml --env-file .env`).
+
+0. **Đưa mã của PR vào thư mục deploy trước** (xt-api build từ `context: ..` của thư mục này; bản cũ lặng lẽ bỏ qua
+   `XT_CONFIRM_MODE_FILE`, và `render_apisix.py` cũ từ chối route `/demo` trên host Desk). Thư mục
+   `/home/chinhan/.cache/xt-deploy` là checkout detached: sau khi PR vào `staging`, `git fetch && git checkout
+   <commit staging>` ở đó. Chưa làm bước này thì KHÔNG làm các bước sau (công tắc sẽ bật OTP ở Keycloak trong khi
+   xt-api vẫn đòi `pwd` từ env, mọi confirm hỏng với `acr_insufficient`).
 
 1. Bí mật (thư mục cha `~/.config/xt` đã 0700; tệp lá 0644 để uid 10001 trong container đọc được, giống `app/`):
 
