@@ -116,7 +116,7 @@ Mọi dịch vụ chạy lâu (`postgres`, `keycloak`, `apisix`, `postgrest`, `s
 Một dịch vụ khác dùng chung APISIX/tunnel được khai trong `deploy/apisix/extra-routes.json`. Tệp này không commit (đã có trong `deploy/.gitignore`); mẫu ở `extra-routes.example.json`, có thể đổi đường dẫn bằng `XT_APISIX_EXTRA_ROUTES`. `make render` (`scripts/render_apisix.py`) chèn các route này trước `#END` và từ chối render khi:
 
 - route không khai `hosts` tường minh, hoặc dùng `host`;
-- route dùng hostname trùng một trong các `XT_DOMAIN_*`, nên không thể chiếm `xt-mcp` hay host Desk;
+- route dùng hostname trùng một trong các `XT_DOMAIN_*`, nên không thể chiếm `xt-mcp` hay host Desk (ngoại lệ duy nhất: `/demo`, `/demo/*` trên host Desk cho demo-ops, xem `docs/deploy-demo-ops.md`);
 - `id` trùng với route có sẵn.
 
 ### Smoke qua gateway

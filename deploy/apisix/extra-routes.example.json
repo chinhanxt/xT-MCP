@@ -7,6 +7,19 @@
       "priority": 200,
       "plugins": {"proxy-buffering": {"disable_proxy_buffering": true}, "client-control": {"max_body_size": 104857600}},
       "upstream": {"type": "roundrobin", "nodes": {"172.17.0.1:8000": 1}, "timeout": {"connect": 5, "send": 3600, "read": 3600}}
+    },
+    {
+      "id": "demo-ops",
+      "desc": "CHỈ DEMO (docs/deploy-demo-ops.md): đổi host thành XT_DOMAIN_DESK của máy; xóa route này ở môi trường thật",
+      "hosts": ["xt.freepro.online"],
+      "uris": ["/demo", "/demo/*"],
+      "priority": 20,
+      "plugins": {
+        "real-ip": {"source": "http_cf_connecting_ip", "trusted_addresses": ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]},
+        "client-control": {"max_body_size": 4096},
+        "limit-req": {"rate": 5, "burst": 10, "key_type": "var", "key": "remote_addr", "rejected_code": 429}
+      },
+      "upstream": {"type": "roundrobin", "nodes": {"demo-ops:8090": 1}}
     }
   ]
 }

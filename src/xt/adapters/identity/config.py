@@ -19,6 +19,8 @@ from urllib.parse import urlsplit
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
+from xt.adapters.identity.confirm_mode import mode_acr_amr, read_confirm_otp
+
 SUPPORTED_ALGORITHMS = frozenset({"RS256", "ES256"})
 FORBIDDEN_ADVERTISED_SCOPES = frozenset({"offline_access"})
 MAX_LEEWAY_S = 120
@@ -176,6 +178,21 @@ class StepUpSettings:
     acr: str
     max_auth_age_s: int
     required_amr: frozenset[str]
+    # Chỉ DEMO: có tệp chế độ thì acr/amr theo tệp (mỗi request); `acr`/`required_amr` là dự phòng.
+    mode_file: Path | None = None
+
+    def effective_acr(self) -> str:
+        return self.effective()[0]
+
+    def effective_required_amr(self) -> frozenset[str]:
+        return self.effective()[1]
+
+    def effective(self) -> tuple[str, frozenset[str]]:
+        if self.mode_file is not None:
+            otp = read_confirm_otp(self.mode_file)
+            if otp is not None:
+                return mode_acr_amr(otp)
+        return self.acr, self.required_amr
 
 
 @dataclass(frozen=True, slots=True)
@@ -286,9 +303,15 @@ def load_step_up_settings(env: Mapping[str, str] | None = None) -> StepUpSetting
     acr = e.required("XT_CONFIRM_ACR")
     max_age = e.integer("XT_CONFIRM_MAX_AUTH_AGE_SECONDS", 300, 1, 3_600)
     amr = frozenset(e.words("XT_CONFIRM_REQUIRED_AMR", required=False))
+    mode_file = e.optional("XT_CONFIRM_MODE_FILE")  # chỉ DEMO (deploy/demo-ops); không đặt = như cũ
     return e.done(
         lambda: StepUpSettings(
-            idp=idp, client_id=client_id, acr=acr, max_auth_age_s=max_age, required_amr=amr
+            idp=idp,
+            client_id=client_id,
+            acr=acr,
+            max_auth_age_s=max_age,
+            required_amr=amr,
+            mode_file=Path(mode_file) if mode_file else None,
         )
     )
 
