@@ -6,11 +6,12 @@ import { validateAppReferences } from './apps.ts';
 import { randomBytes } from 'node:crypto';
 import { connector } from './mcp.ts';
 import type { AppConfig } from './contracts.ts';
+import { allNodes } from './contracts.ts';
 function resourceIds(config: AppConfig) {
   return {
-    models: [...new Set([config.model_id, ...config.graph.nodes.map((n) => n.data.model_id)].filter(Boolean))] as string[],
+    models: [...new Set([config.model_id, ...allNodes(config.graph).map((n) => n.data.model_id)].filter(Boolean))] as string[],
     connectors: [...new Set((config.mcp_tools ?? []).map((t) => t.connector_id))],
-    knowledge: [...new Set([...config.knowledge_ids, ...config.graph.nodes.map((n) => n.data.knowledge_id)].filter(Boolean))] as string[],
+    knowledge: [...new Set([...config.knowledge_ids, ...allNodes(config.graph).map((n) => n.data.knowledge_id)].filter(Boolean))] as string[],
   };
 }
 export async function routeAppManagement(ctx: RouteContext): Promise<boolean> {
@@ -30,7 +31,7 @@ export async function routeAppManagement(ctx: RouteContext): Promise<boolean> {
     config.mcp_tools = (config.mcp_tools ?? []).map((t) => ({ ...t, connector_id: map(t.connector_id, connectors) }));
     config.model_id = config.model_id ? map(config.model_id, models) : '';
     config.knowledge_ids = config.knowledge_ids.map((id) => map(id, knowledge));
-    for (const node of config.graph.nodes) {
+    for (const node of allNodes(config.graph)) {
       if (node.data.model_id) node.data.model_id = map(node.data.model_id, models);
       if (node.data.knowledge_id) node.data.knowledge_id = map(node.data.knowledge_id, knowledge);
     }

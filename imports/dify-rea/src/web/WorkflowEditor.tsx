@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { Modal } from './ui.tsx';
 import { ReactFlow, Background, Controls, Handle, Position, addEdge, applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
 import type { Connection, NodeChange, EdgeChange, NodeProps, Node } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { CompareOperator, ConditionCase, ExtractorParameter, Graph, GraphNode, Knowledge, Model, NodeKind } from '../contracts.ts';
-import { compareOperators, parameterTypes, xtToolNames } from '../contracts.ts';
+import { compareOperators, iterationLimits, parameterTypes, xtToolNames } from '../contracts.ts';
 const names: Record<NodeKind, string> = {
   aggregate: 'Gộp biến',
   http: 'HTTP Request',
@@ -20,6 +22,8 @@ const names: Record<NodeKind, string> = {
   parameter_extractor: 'Trích tham số',
   list_operator: 'Xử lý danh sách',
   human_approval: 'Người duyệt',
+  iteration: 'Lặp',
+  loop: 'Vòng lặp',
 };
 const operatorNames: Record<CompareOperator, string> = {
   contains: 'Có chứa',
@@ -41,7 +45,19 @@ function branchHandles(type: string | undefined, data: Record<string, unknown>):
   if (type === 'condition') return Array.isArray(data.cases) ? [...(data.cases as ConditionCase[]).map((c) => c.id), 'else'] : undefined;
   if (type === 'question_classifier') return ((data.classes as { id: string }[] | undefined) ?? []).map((c) => c.id);
   if (type === 'human_approval') return ['approved', 'rejected'];
+  if (type === 'loop') return ['done', 'exhausted'];
   return undefined;
+}
+// Default sub-graph of a new iteration / loop: its own start and output, with IDs unique across the whole workflow.
+function innerGraph(template: string): Graph {
+  const suffix = crypto.randomUUID().slice(0, 8);
+  return {
+    nodes: [
+      { id: `start_${suffix}`, type: 'start', position: { x: 50, y: 160 }, data: { label: 'Đầu vào' } },
+      { id: `output_${suffix}`, type: 'output', position: { x: 360, y: 160 }, data: { label: 'Kết quả', template } },
+    ],
+    edges: [{ id: `e_${suffix}`, source: `start_${suffix}`, target: `output_${suffix}`, sourceHandle: null }],
+  };
 }
 function OperatorSelect({ value, onChange }: { value: CompareOperator; onChange: (v: CompareOperator) => void }) {
   return (
@@ -75,6 +91,8 @@ function GraphCard({ data, type, selected }: NodeProps<Node<Record<string, unkno
               parameter_extractor: '{}',
               list_operator: '≡',
               human_approval: '✋',
+              iteration: '∀',
+              loop: '↻',
             } as Record<
               string,
               string
@@ -109,19 +127,31 @@ function GraphCard({ data, type, selected }: NodeProps<Node<Record<string, unkno
     </div>
   );
 }
+// Mounts children one frame after the dialog opens, so the nested canvas measures a visible container for fitView.
+function AfterOpen({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setOpen(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return open ? children : null;
+}
 const nodeTypes = Object.fromEntries(Object.keys(names).map((k) => [k, GraphCard]));
 export function WorkflowEditor({
   graph,
   onChange,
   models,
   knowledge,
+  depth = 0,
 }: {
   graph: Graph;
   onChange: (g: Graph) => void;
   models: Model[];
   knowledge: Knowledge[];
+  depth?: number;
 }) {
   const [selected, select] = useState<string>('');
+  const [editingInner, setEditingInner] = useState(false);
   const node = graph.nodes.find((n) => n.id === selected);
   const nodes = useMemo(() => graph.nodes.map((n) => ({ ...n, selected: n.id === selected })), [graph.nodes, selected]);
   const changeNodes = useCallback(
@@ -214,6 +244,17 @@ export function WorkflowEditor({
             ...(type === 'human_approval'
               ? { title: 'Duyệt kết quả workflow', summary: '{{input}}', request_model: 'approval_ticket', request_values: '{}' }
               : {}),
+            ...(type === 'iteration'
+              ? { variable: '{{input}}', max_items: iterationLimits.defaultItems, error_mode: 'stop' as const, graph: innerGraph('{{item}}') }
+              : {}),
+            ...(type === 'loop'
+              ? {
+                  max_rounds: iterationLimits.defaultRounds,
+                  loop_vars: [],
+                  until: { id: 'stop', logical_operator: 'and' as const, conditions: [{ variable: '{{round}}', operator: 'ge' as const, value: '1' }] },
+                  graph: innerGraph('{{input}}'),
+                }
+              : {}),
           },
         },
       ],
@@ -237,9 +278,14 @@ export function WorkflowEditor({
             'http',
             'xt_tool',
             'human_approval',
+            'iteration',
+            'loop',
             'output',
           ] as NodeKind[]
-        ).map((type) => (
+        )
+          // Sub-graphs never pause for a human and nest at most iterationLimits.maxDepth levels.
+          .filter((type) => !(depth > 0 && type === 'human_approval') && !(depth >= iterationLimits.maxDepth && (type === 'iteration' || type === 'loop')))
+          .map((type) => (
           <button key={type} onClick={() => add(type)}>
             + {names[type]}
           </button>
@@ -255,11 +301,18 @@ export function WorkflowEditor({
             onEdgesChange={changeEdges}
             onConnect={connect}
             onEdgeDoubleClick={(_, edge) => onChange({ ...graph, edges: graph.edges.filter((e) => e.id !== edge.id) })}
-            onNodeClick={(_, n) => select(n.id)}
-            onPaneClick={() => select('')}
+            onNodeClick={(_, n) => {
+              select(n.id);
+              setEditingInner(false);
+            }}
+            onPaneClick={() => {
+              select('');
+              setEditingInner(false);
+            }}
             fitView
+            fitViewOptions={depth > 0 ? { maxZoom: 1 } : undefined}
             minZoom={0.2}
-            deleteKeyCode={['Backspace', 'Delete']}
+            deleteKeyCode={editingInner ? null : ['Backspace', 'Delete']}
           >
             <Background gap={22} size={1} />
             <Controls />
@@ -269,7 +322,14 @@ export function WorkflowEditor({
           <aside className="node-inspector">
             <div className="row spread">
               <strong>Cấu hình bước</strong>
-              <button className="icon-btn" onClick={() => select('')} aria-label="Đóng cấu hình">
+              <button
+              className="icon-btn"
+              onClick={() => {
+                select('');
+                setEditingInner(false);
+              }}
+              aria-label="Đóng cấu hình"
+            >
                 ×
               </button>
             </div>
@@ -734,6 +794,140 @@ export function WorkflowEditor({
                     Giá trị thay thế
                     <textarea rows={3} value={node.data.fallback ?? ''} onChange={(e) => patch({ fallback: e.target.value })} />
                   </label>
+                )}
+              </>
+            )}
+            {node.type === 'iteration' && (
+              <>
+                <label>
+                  Biến danh sách (mảng JSON)
+                  <input value={node.data.variable ?? ''} placeholder="{{node_id}}" onChange={(e) => patch({ variable: e.target.value })} />
+                </label>
+                <label>
+                  Tối đa mục
+                  <input
+                    type="number"
+                    min={1}
+                    max={iterationLimits.maxItems}
+                    value={node.data.max_items ?? iterationLimits.defaultItems}
+                    onChange={(e) => patch({ max_items: Number(e.target.value) })}
+                  />
+                </label>
+                <label>
+                  Khi lỗi
+                  <select value={node.data.error_mode ?? 'stop'} onChange={(e) => patch({ error_mode: e.target.value as 'stop' | 'skip' })}>
+                    <option value="stop">Dừng quy trình</option>
+                    <option value="skip">Bỏ qua mục lỗi, ghi lại lỗi</option>
+                  </select>
+                </label>
+                <p className="hint">
+                  Chạy các bước bên trong lần lượt cho từng mục; bên trong dùng {'{{item}}'} (mục hiện tại, {'{{item.truong}}'} nếu là object) và{' '}
+                  {'{{index}}'} (từ 0). Kết quả là mảng JSON kết quả của từng mục. Danh sách dài hơn "Tối đa mục" sẽ báo lỗi.
+                </p>
+              </>
+            )}
+            {node.type === 'loop' && node.data.until && (
+              <>
+                <fieldset>
+                  <legend>Điều kiện dừng</legend>
+                  <label>
+                    Kết hợp
+                    <select
+                      value={node.data.until.logical_operator}
+                      onChange={(e) => patch({ until: { ...node.data.until!, logical_operator: e.target.value as 'and' | 'or' } })}
+                    >
+                      <option value="and">Tất cả (và)</option>
+                      <option value="or">Một trong (hoặc)</option>
+                    </select>
+                  </label>
+                  {node.data.until.conditions.map((x, j) => {
+                    const until = node.data.until!;
+                    const setItem = (value: Partial<typeof x>) =>
+                      patch({ until: { ...until, conditions: until.conditions.map((y, k) => (k === j ? { ...y, ...value } : y)) } });
+                    return (
+                      <div key={j} className="condition-row">
+                        <input value={x.variable} placeholder="{{node_id}}" onChange={(e) => setItem({ variable: e.target.value })} />
+                        <OperatorSelect value={x.operator} onChange={(operator) => setItem({ operator })} />
+                        {!['empty', 'not_empty'].includes(x.operator) && (
+                          <input value={x.value ?? ''} placeholder="Giá trị" onChange={(e) => setItem({ value: e.target.value })} />
+                        )}
+                        <button onClick={() => patch({ until: { ...until, conditions: until.conditions.filter((_, k) => k !== j) } })}>Bỏ</button>
+                      </div>
+                    );
+                  })}
+                  <button
+                    onClick={() =>
+                      patch({
+                        until: {
+                          ...node.data.until!,
+                          conditions: [...node.data.until!.conditions, { variable: '{{round}}', operator: 'contains', value: '' }],
+                        },
+                      })
+                    }
+                  >
+                    + Điều kiện
+                  </button>
+                </fieldset>
+                <label>
+                  Tối đa vòng
+                  <input
+                    type="number"
+                    min={1}
+                    max={iterationLimits.maxRounds}
+                    value={node.data.max_rounds ?? iterationLimits.defaultRounds}
+                    onChange={(e) => patch({ max_rounds: Number(e.target.value) })}
+                  />
+                </label>
+                {(node.data.loop_vars ?? []).map((v, index) => {
+                  const vars = node.data.loop_vars ?? [];
+                  const setVar = (value: Partial<typeof v>) => patch({ loop_vars: vars.map((x, i) => (i === index ? { ...x, ...value } : x)) });
+                  return (
+                    <fieldset key={index}>
+                      <legend>Biến vòng lặp {index + 1}</legend>
+                      <input value={v.name} placeholder="Tên" onChange={(e) => setVar({ name: e.target.value })} />
+                      <input value={v.init} placeholder="Giá trị đầu, ví dụ {{input}}" onChange={(e) => setVar({ init: e.target.value })} />
+                      <input
+                        value={v.update ?? ''}
+                        placeholder="Giá trị sau mỗi vòng, ví dụ {{node_id}}"
+                        onChange={(e) => setVar({ update: e.target.value || undefined })}
+                      />
+                      <button onClick={() => patch({ loop_vars: vars.filter((_, i) => i !== index) })}>Bỏ</button>
+                    </fieldset>
+                  );
+                })}
+                <button
+                  onClick={() =>
+                    patch({ loop_vars: [...(node.data.loop_vars ?? []), { name: `bien${(node.data.loop_vars ?? []).length + 1}`, init: '' }] })
+                  }
+                >
+                  + Biến vòng lặp
+                </button>
+                <p className="hint">
+                  Chạy các bước bên trong, kiểm điều kiện dừng sau mỗi vòng (được đọc kết quả các bước bên trong). Bên trong dùng {'{{round}}'}{' '}
+                  (từ 1), {'{{last}}'} (kết quả vòng trước) và biến vòng lặp. Đạt điều kiện đi nhánh done; hết số vòng đi nhánh exhausted. Kết quả:{' '}
+                  {'{{node_id.output}}'}, {'{{node_id.rounds}}'}.
+                </p>
+              </>
+            )}
+            {(node.type === 'iteration' || node.type === 'loop') && node.data.graph && (
+              <>
+                <button onClick={() => setEditingInner(true)}>
+                  Sửa các bước bên trong ({node.data.graph.nodes.length})
+                </button>
+                {editingInner && (
+                  <Modal title={`Các bước bên trong: ${node.data.label}`} close={() => setEditingInner(false)}>
+                    <AfterOpen>
+                      <div className="subgraph-modal">
+                        <WorkflowEditor
+                          graph={node.data.graph}
+                          onChange={(inner) => patch({ graph: inner })}
+                          models={models}
+                          knowledge={knowledge}
+                          depth={depth + 1}
+                        />
+                      </div>
+                    </AfterOpen>
+                  </Modal>
                 )}
               </>
             )}

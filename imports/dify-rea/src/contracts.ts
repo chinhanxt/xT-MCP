@@ -15,6 +15,8 @@ export const nodeKinds = [
   'parameter_extractor',
   'list_operator',
   'human_approval',
+  'iteration',
+  'loop',
 ] as const;
 export type NodeKind = (typeof nodeKinds)[number];
 export const xtToolNames: string[] = ['inspect_workspace', 'describe_model', 'describe_process', 'search_records',
@@ -73,7 +75,7 @@ export interface GraphNode {
     method?: 'GET' | 'POST';
     body?: string;
     retries?: number;
-    error_mode?: 'stop' | 'fallback';
+    error_mode?: 'stop' | 'fallback' | 'skip';
     fallback?: string;
     tool?: string;
     args?: string;
@@ -92,8 +94,23 @@ export interface GraphNode {
     timeout_hours?: number;
     request_model?: string;
     request_values?: string;
+    // iteration / loop: nested sub-graph with its own start and output nodes.
+    graph?: Graph;
+    max_items?: number;
+    max_rounds?: number;
+    until?: ConditionCase;
+    loop_vars?: LoopVariable[];
   };
 }
+export interface LoopVariable {
+  name: string;
+  init: string;
+  update?: string;
+}
+export const iterationLimits = { maxItems: 200, defaultItems: 50, maxRounds: 10, defaultRounds: 3, maxDepth: 2, stepBudget: 500 };
+// Every node of a graph including those nested in iteration / loop sub-graphs.
+export const allNodes = (graph: Graph): GraphNode[] =>
+  graph.nodes.flatMap((n) => [n, ...(n.data.graph ? allNodes(n.data.graph) : [])]);
 export interface GraphEdge {
   id: string;
   source: string;
@@ -172,6 +189,10 @@ export interface Citation {
   xt_revision?: number;
 }
 export interface Trace {
+  parent_id?: string;
+  item_index?: number;
+  round?: number;
+  errors?: { index: number; error: string }[];
   attempts?: number;
   used_fallback?: boolean;
   node_id: string;

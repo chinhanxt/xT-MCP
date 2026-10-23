@@ -3,6 +3,7 @@
 import type { AppConfig, AppKind, Graph, Model, ToolName } from './contracts.ts';
 import { nodeKinds, xtToolNames } from './contracts.ts';
 import { nodeDataInput } from './workflow-nodes.ts';
+import { iterationLimits } from './contracts.ts';
 import { fieldDefinitions, generationInput } from './input-fields.ts';
 export class HttpError extends Error {
   status: number;
@@ -72,10 +73,29 @@ export function configInput(value: unknown): AppConfig {
   });
   if (new Set(mcp_tools.map((t) => JSON.stringify([t.connector_id, t.tool_name]))).size !== mcp_tools.length)
     throw new HttpError(400, 'Tool MCP bị trùng.');
-  const g = object(v.graph);
+  const graph = graphInput(v.graph);
+  return {
+    xt_tools,
+    mcp_tools,
+    generation: generationInput(v.generation),
+    inputs: fieldDefinitions(v.inputs),
+    model_id: text(v.model_id, 'Model', 128, false),
+    system_prompt: text(v.system_prompt, 'System prompt', 20000, false),
+    knowledge_ids: strings(v.knowledge_ids, 'Kho kiến thức'),
+    tools,
+    max_steps: steps,
+    graph,
+  };
+}
+
+// Parses a graph and, recursively, the sub-graphs of iteration / loop nodes (depth and total size capped).
+export function graphInput(value: unknown, depth = 0, count = { nodes: 0 }): Graph {
+  const g = object(value);
   if (!Array.isArray(g.nodes) || !Array.isArray(g.edges) || g.nodes.length > 50 || g.edges.length > 100)
     throw new HttpError(400, 'Workflow quá lớn hoặc không hợp lệ.');
-  const graph: Graph = {
+  count.nodes += g.nodes.length;
+  if (count.nodes > 200) throw new HttpError(400, 'Workflow quá lớn (tối đa 200 node kể cả bên trong Lặp/Vòng lặp).');
+  return {
     nodes: g.nodes.map((raw) => {
       const n = object(raw),
         d = object(n.data),
@@ -99,10 +119,17 @@ export function configInput(value: unknown): AppConfig {
           throw new HttpError(400, 'Retry cần từ 0–3 lần.');
         node.data.retries = d.retries;
       }
-      if (d.error_mode !== undefined) node.data.error_mode = choice<'stop' | 'fallback'>(d.error_mode, ['stop', 'fallback'], 'Xử lý lỗi');
+      if (d.error_mode !== undefined)
+        node.data.error_mode = choice<'stop' | 'fallback' | 'skip'>(d.error_mode, ['stop', 'fallback', 'skip'], 'Xử lý lỗi');
       if (d.fallback !== undefined) node.data.fallback = text(d.fallback, 'Giá trị thay thế', 20000, false);
       if ((node.data.retries || node.data.error_mode === 'fallback') && !['llm', 'retrieval', 'http'].includes(node.type))
         throw new HttpError(400, 'Retry/fallback chỉ áp dụng cho AI, truy xuất và HTTP.');
+      if (node.data.error_mode === 'skip' && node.type !== 'iteration') throw new HttpError(400, 'Bỏ qua mục lỗi chỉ áp dụng cho node Lặp.');
+      if (node.type === 'iteration' || node.type === 'loop') {
+        if (depth + 1 > iterationLimits.maxDepth) throw new HttpError(400, `Lặp/Vòng lặp lồng nhau tối đa ${iterationLimits.maxDepth} cấp.`);
+        if (d.graph === undefined) throw new HttpError(400, `Node ${node.data.label} cần các bước bên trong.`);
+        node.data.graph = graphInput(d.graph, depth + 1, count);
+      }
       return node;
     }),
     edges: g.edges.map((raw) => {
@@ -114,17 +141,5 @@ export function configInput(value: unknown): AppConfig {
         sourceHandle: e.sourceHandle == null ? null : text(e.sourceHandle, 'Nhánh', 20),
       };
     }),
-  };
-  return {
-    xt_tools,
-    mcp_tools,
-    generation: generationInput(v.generation),
-    inputs: fieldDefinitions(v.inputs),
-    model_id: text(v.model_id, 'Model', 128, false),
-    system_prompt: text(v.system_prompt, 'System prompt', 20000, false),
-    knowledge_ids: strings(v.knowledge_ids, 'Kho kiến thức'),
-    tools,
-    max_steps: steps,
-    graph,
   };
 }

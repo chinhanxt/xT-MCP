@@ -52,9 +52,11 @@ export function TraceList({ items }: { items: Trace[] }) {
   return (
     <div className="trace-list">
       {items.map((t, i) => (
-        <details key={t.node_id + i} className={'trace ' + t.status}>
+        <details key={t.node_id + i} className={'trace ' + t.status + (t.parent_id ? ' nested' : '')}>
           <summary>
             <span>{t.status === 'success' ? '✓' : t.status === 'error' ? '×' : t.status === 'waiting' ? '…' : '–'}</span> {t.label}
+            {t.item_index !== undefined && ` · mục ${t.item_index}`}
+            {t.round !== undefined && ` · vòng ${t.round}`}
             <small>
               {t.status === 'skipped'
                 ? 'Bỏ qua nhánh'
@@ -67,6 +69,12 @@ export function TraceList({ items }: { items: Trace[] }) {
           <pre>{t.input || '—'}</pre>
           <strong>Kết quả</strong>
           <pre>{t.output || '—'}</pre>
+          {t.errors?.length ? (
+            <>
+              <strong>Mục bị bỏ qua do lỗi</strong>
+              <pre>{t.errors.map((e) => `#${e.index}: ${e.error}`).join('\n')}</pre>
+            </>
+          ) : null}
         </details>
       ))}
     </div>
