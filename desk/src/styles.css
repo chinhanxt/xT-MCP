@@ -171,6 +171,7 @@ button > svg.lucide,a > svg.lucide{order:-1}
 .confirm-card a{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:0 16px;border-radius:var(--r-1);background:var(--ok);color:#fff;font-weight:600;text-decoration:none}
 .confirm-card a svg.lucide{width:17px;height:17px}
 .pii-reveal{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:15px}
+.pii-hint{display:inline-flex;align-items:center;gap:6px;font-size:14px}.pii-hint svg.lucide{width:16px;height:16px}
 .pii-reveal ul{list-style:none;padding:0;display:grid;gap:4px}
 .pii-reveal button{min-height:36px;padding:0 12px;font-size:15px}
 .sugg{display:flex;gap:8px;flex-wrap:wrap;padding:0 20px 16px}
