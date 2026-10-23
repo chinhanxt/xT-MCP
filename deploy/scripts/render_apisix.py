@@ -6,7 +6,8 @@
 Route riêng của máy chủ (hostname KHÔNG thuộc xT, vd một dịch vụ khác dùng chung APISIX/tunnel) đặt trong
 tệp không commit `deploy/apisix/extra-routes.json` (hoặc đường dẫn `XT_APISIX_EXTRA_ROUTES`), dạng
 `{"routes": [{"id", "hosts": [...], ...}]}` (JSON, chèn vào YAML dạng flow). Mỗi route phải có `hosts` tường minh và không được trùng hostname
-XT_DOMAIN_* nào, nên không thể chiếm route của xT.
+XT_DOMAIN_* nào, nên không thể chiếm route của xT. Ngoại lệ duy nhất: route trên host Desk với `uris` chỉ gồm
+`/demo` và `/demo/*` (dịch vụ demo-ops, chỉ môi trường demo).
 """
 from __future__ import annotations
 
@@ -23,6 +24,8 @@ from envfile import load_env  # noqa: E402
 
 
 XT_HOST_KEYS = ("XT_DOMAIN_DESK", "XT_DOMAIN_MCP", "XT_DOMAIN_API", "XT_DOMAIN_AUTH")
+# Ngoại lệ duy nhất cho hostname xT: route demo-ops (docs/deploy-demo-ops.md) trên host Desk, chỉ đúng hai uri này.
+DEMO_OPS_URIS = frozenset({"/demo", "/demo/*"})
 
 
 def extra_routes(env: dict[str, str]) -> list[dict[str, Any]]:
@@ -46,7 +49,13 @@ def extra_routes(env: dict[str, str]) -> list[dict[str, Any]]:
         hosts = route.get("hosts")
         if "host" in route or not isinstance(hosts, list) or not hosts or not all(isinstance(h, str) and h.strip() for h in hosts):
             sys.exit(f"{path}: route {route['id']} phải khai `hosts` (danh sách) tường minh")
-        clash = sorted(h for h in hosts if h.strip().lower() in xt_hosts)
+        desk = env.get("XT_DOMAIN_DESK", "").strip().lower()
+        uris = route.get("uris")
+        demo_ops = (
+            bool(desk) and [h.strip().lower() for h in hosts] == [desk]
+            and isinstance(uris, list) and bool(uris) and set(uris) <= DEMO_OPS_URIS
+        )
+        clash = [] if demo_ops else sorted(h for h in hosts if h.strip().lower() in xt_hosts)
         if clash:
             sys.exit(f"{path}: route {route['id']} không được dùng hostname của xT: {clash}")
     return routes

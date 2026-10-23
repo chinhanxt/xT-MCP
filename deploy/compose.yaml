@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 xT contributors
-# Ảnh pin theo digest (tag giữ để đọc). Profile: minimal (mặc định, gồm seaweedfs) | full (= minimal + ollama, nats, clamav, openbao) | public (+ cloudflared).
+# Ảnh pin theo digest (tag giữ để đọc). Profile: minimal (mặc định, gồm seaweedfs) | full (= minimal + ollama, nats, clamav, openbao) | public (+ cloudflared) | demo (chỉ demo: demo-ops, docs/deploy-demo-ops.md).
 #   docker compose --env-file .env --profile minimal up -d
 #   docker compose --env-file .env --profile minimal --profile full --profile public up -d
 # `xt serve` chưa có: dùng service `xt-api-placeholder` (profile placeholder) thay `xt-api`; Makefile tự chọn.
@@ -212,6 +212,7 @@ services:
       XT_CONFIRM_CLIENT_ID: ${XT_CONFIRM_CLIENT_ID:-xt-desk-confirm}
       XT_CONFIRM_ACR: ${XT_CONFIRM_ACR:-urn:xt:acr:otp}
       XT_CONFIRM_REQUIRED_AMR: ${XT_CONFIRM_REQUIRED_AMR:-otp}
+      XT_CONFIRM_MODE_FILE: ${XT_CONFIRM_MODE_FILE:-}   # chỉ DEMO (docs/deploy-demo-ops.md); rỗng = acr/amr theo env như cũ
       XT_CONFIRM_AUTHORIZATION_URL: https://${XT_DOMAIN_AUTH}/realms/${XT_REALM:-xt}/protocol/openid-connect/auth
       XT_CONFIRM_TOKEN_URL: http://keycloak:8080/realms/${XT_REALM:-xt}/protocol/openid-connect/token
       XT_RECEIPT_ISSUER: https://${XT_DOMAIN_MCP}
@@ -244,6 +245,7 @@ services:
         target: /run/secrets/xt
         read_only: true
         bind: {create_host_path: false}
+      - demo-ops-state:/run/demo-ops:ro   # tệp chế độ OTP do demo-ops ghi; xt-api chỉ đọc khi XT_CONFIRM_MODE_FILE đặt
     mem_limit: 512m
     depends_on:
       postgres: {condition: service_healthy}
@@ -433,6 +435,47 @@ services:
       retries: 10
       start_period: 5s
 
+  # Chỉ DEMO (profile `demo`, không thuộc minimal/full/public): bật/tắt OTP + xem mật khẩu/mã TOTP tài khoản demo.
+  # Không publish cổng; APISIX route /demo/* tới đây qua deploy/apisix/extra-routes.json (docs/deploy-demo-ops.md).
+  demo-ops:
+    <<: [*restart, *hardened]
+    read_only: true
+    tmpfs: [/tmp]
+    cpus: 0.25
+    image: xt/demo-ops:dev
+    build:
+      context: ./demo-ops
+      dockerfile: ../docker/demo-ops.Dockerfile
+    profiles: [demo]
+    environment:
+      DEMO_OPS_PASSWORD_FILE: /run/secrets/demo-ops/password
+      KC_ADMIN_USER_FILE: /run/secrets/demo-ops/kc-admin-user
+      KC_ADMIN_PASSWORD_FILE: /run/secrets/demo-ops/kc-admin-password
+      DEMO_SEED_FILE: /run/demo-seed.json
+      DEMO_OPS_MODE_FILE: /state/mode.json
+      KC_URL: http://keycloak:8080
+      KC_REALM: ${XT_REALM:-xt}
+      DEMO_OPS_CONFIRM_CLIENT: ${XT_CONFIRM_CLIENT_ID:-xt-desk-confirm}
+    volumes:
+      - demo-ops-state:/state
+      - type: bind
+        source: ${DEMO_OPS_SECRETS_DIR:-${HOME}/.config/xt/demo-ops}
+        target: /run/secrets/demo-ops
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${DEMO_SEED_FILE:-${DEMO_OPS_SECRETS_DIR:-${HOME}/.config/xt/demo-ops}/demo-seed.json}   # host; phải đọc được bởi uid 10001 (0644)
+        target: /run/demo-seed.json
+        read_only: true
+        bind: {create_host_path: false}
+    mem_limit: 64m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8090), 3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   # ---------------- profile full (ảnh OSI, pin phiên bản) ----------------
   ollama:
     <<: [*restart, *nopriv]
@@ -525,6 +568,7 @@ services:
 
 volumes:
   pgdata:
+  demo-ops-state:
   studio:
   ollama:
   nats:

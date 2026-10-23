@@ -55,6 +55,7 @@ Không có host, realm hay secret mặc định. Thiếu hoặc sai thì hàm `l
 | `XT_CONFIRM_CLIENT_ID` | có (step-up) | | Client Keycloak của trang confirm (TCV1 C7: `xt-desk`; spike-hitl dùng client riêng `xt-confirm`) |
 | `XT_CONFIRM_ACR` | có (step-up) | | Mức `acr` OTP, ví dụ `urn:xt:acr:otp` |
 | `XT_CONFIRM_MAX_AUTH_AGE_SECONDS` | không | `300` | Cửa sổ tươi của `auth_time` (arch v2.1 mục 5) |
+| `XT_CONFIRM_MODE_FILE` | không | rỗng | CHỈ DEMO: tệp `{"otp": true\|false}` (do `deploy/demo-ops` ghi) quyết định `acr`/`amr` step-up mỗi request (`true` -> `urn:xt:acr:otp`/`otp`, `false` -> `urn:xt:acr:pwd`/`pwd`); thiếu/hỏng -> dùng hai biến trên. Xem `docs/deploy-demo-ops.md` |
 | `XT_CONFIRM_REQUIRED_AMR` | không | rỗng | Giá trị phải có trong `amr`, ví dụ `otp`. Chỉ là kiểm bổ sung, không thay `acr` |
 | `XT_RECEIPT_ISSUER` | có (biên nhận) | | `iss` của biên nhận |
 | `XT_RECEIPT_SIGNING_KEY_FILE` | có (biên nhận) | | Khóa riêng Ed25519 PKCS#8 PEM. Tạo: `openssl genpkey -algorithm ed25519 -out receipt.pem` |

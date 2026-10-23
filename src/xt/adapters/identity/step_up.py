@@ -87,7 +87,7 @@ def confirm_authorization_url(
         "code_challenge_method": "S256",
         "prompt": "login",
         "max_age": "0",
-        "acr_values": settings.acr,
+        "acr_values": settings.effective_acr(),
     }
     return f"{authorization_endpoint}?{urlencode(q)}"
 
@@ -118,6 +118,7 @@ class StepUpVerifier:
     def _verify(self, id_token: str, ctx: ConfirmationContext) -> StepUpEvidence:
         s = self._s
         now = self._clock()
+        want_acr, want_amr = s.effective()  # một lần/request: acr và amr cùng một chế độ
         _, claims = verify_signed_jwt(id_token, self._jwks, s.idp.algorithms, s.idp.max_token_bytes)
         _, exp = check_standard_claims(
             claims,
@@ -142,7 +143,7 @@ class StepUpVerifier:
             raise StepUpRejectedError("wrong_client", repr(azp))
         if not hmac.compare_digest(nonce.encode(), ctx.nonce.encode()):
             raise StepUpRejectedError("nonce_mismatch")
-        if acr != s.acr:
+        if acr != want_acr:
             raise StepUpRejectedError("acr_insufficient", repr(acr))
         if auth_time + s.idp.leeway_s < ctx.created_at:
             raise StepUpRejectedError("auth_before_confirmation")
@@ -151,8 +152,8 @@ class StepUpVerifier:
             raise StepUpRejectedError("auth_stale", f"{age}s > {s.max_auth_age_s}s")
         if auth_time > now + s.idp.leeway_s:
             raise StepUpRejectedError("auth_time_in_future")
-        if not s.required_amr <= set(amr):
-            raise StepUpRejectedError("amr_missing", f"{sorted(s.required_amr - set(amr))}")
+        if not want_amr <= set(amr):
+            raise StepUpRejectedError("amr_missing", f"{sorted(want_amr - set(amr))}")
         if ctx.confirmer_subject is not None and sub != ctx.confirmer_subject:
             raise StepUpRejectedError("wrong_approver")
         if sub == ctx.requester_subject:
@@ -165,7 +166,7 @@ class StepUpVerifier:
             username=username,
             client_id=s.client_id,
             auth_time=auth_time,
-            acr=s.acr,
+            acr=want_acr,
             amr=amr,
             session_id=sid,
             token_id=jti,

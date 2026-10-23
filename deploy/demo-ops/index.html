@@ -1,0 +1,233 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- SPDX-FileCopyrightText: 2026 xT contributors -->
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>xT Demo</title>
+<style nonce="__NONCE__">
+:root{
+  --canvas:#F4F5F7; --paper:#FFFFFF; --ink:#18202B; --ink-2:#4B5565; --ink-3:#7A8494;
+  --line:#E2E5EA; --line-2:#EEF0F3; --hover:#F0F2F5; --focus:#2D54D6;
+  --ok:#1E7A4C; --ok-bg:#E7F4EC; --block:#C2362F; --block-bg:#FBECEA; --held:#9A6200; --held-bg:#FBF1DE;
+  --r-1:6px; --r-2:10px;
+  font-family:"Be Vietnam Pro",system-ui,sans-serif; font-size:16px; line-height:1.5; color:var(--ink);
+  font-feature-settings:"tnum" 1; color-scheme:light;
+}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--canvas)}
+h1,h2,p{margin:0}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+[hidden]{display:none!important}
+.top{height:64px;background:var(--paper);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:0 24px}
+.mark{width:30px;height:30px;border-radius:8px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:700;font-size:15px}
+.top h1{font-size:18px;font-weight:600}
+.top .env{margin-left:auto;font-size:13px;color:var(--ink-3)}
+main{max-width:980px;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:20px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-2)}
+.card>header{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line-2)}
+.card>header h2{font-size:17px;font-weight:600}
+.card>header .grow{flex:1}
+.card .body{padding:16px 20px}
+.otp{display:flex;align-items:center;gap:16px}
+.otp .txt{flex:1}
+.otp .txt b{display:block;font-weight:600}
+.muted{color:var(--ink-2)}.faint{color:var(--ink-3)}.small{font-size:14px}
+.switch{position:relative;width:52px;height:30px;border-radius:15px;border:0;background:#C5CAD3;cursor:pointer;flex:none;transition:background .15s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .15s}
+.switch[aria-checked=true]{background:var(--ok)}
+.switch[aria-checked=true]::after{transform:translateX(22px)}
+.switch:disabled{opacity:.55;cursor:progress}
+.badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:13px;font-weight:600}
+.badge.on{background:var(--ok-bg);color:var(--ok)}
+.badge.off{background:var(--hover);color:var(--ink-2)}
+.warn{margin-top:14px;padding:10px 14px;border-radius:var(--r-1);background:var(--held-bg);color:var(--held);font-size:14px}
+.warn.err{background:var(--block-bg);color:var(--block)}
+.warn ul{margin:4px 0 0;padding-left:20px}
+table{width:100%;border-collapse:collapse}
+th{font-size:13px;font-weight:600;color:var(--ink-3);text-align:left;padding:10px 20px;border-bottom:1px solid var(--line-2)}
+td{padding:12px 20px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td .u{font-weight:600}
+td .n{font-size:14px;color:var(--ink-2)}
+.cell{display:flex;align-items:center;gap:8px}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:16px;letter-spacing:.04em}
+code.code{font-size:20px;font-weight:600;letter-spacing:.12em}
+.btn{border:1px solid var(--line);background:var(--paper);border-radius:var(--r-1);padding:4px 10px;font-size:14px;font-weight:500;color:var(--ink-2);cursor:pointer}
+.btn:hover{background:var(--hover);color:var(--ink)}
+.btn.done{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-bg)}
+.left{font-size:13px;color:var(--ink-3);min-width:34px}
+.left.low{color:var(--block);font-weight:600}
+.bar{height:3px;background:var(--line-2)}
+.bar>i{display:block;height:100%;background:var(--ink);transition:width 1s linear}
+.tools{display:flex;align-items:center;gap:8px}
+@media (max-width:720px){th:nth-child(2),td:nth-child(2){display:none}td,th{padding:10px 12px}main{padding:12px}}
+</style>
+</head>
+<body>
+<div class="top"><div class="mark">xT</div><h1>Demo</h1><span class="env">Chỉ dùng cho môi trường demo</span></div>
+<main>
+  <section class="card" aria-labelledby="otp-h">
+    <header><h2 id="otp-h">Xác thực OTP</h2><span class="grow"></span><span id="otp-badge" class="badge off" hidden></span></header>
+    <div class="body">
+      <div class="otp">
+        <div class="txt"><b id="otp-title">Đang tải…</b><span class="muted small" id="otp-sub">Đăng nhập duyệt (step-up) và đăng nhập Keycloak.</span></div>
+        <button id="otp-switch" class="switch" role="switch" aria-checked="false" aria-labelledby="otp-title" disabled></button>
+      </div>
+      <div id="warn" class="warn" hidden></div>
+    </div>
+  </section>
+  <section class="card" aria-labelledby="acc-h">
+    <header><h2 id="acc-h">Tài khoản demo</h2><span class="grow"></span>
+      <div class="tools"><button id="show-pw" class="btn" type="button">Hiện mật khẩu</button></div></header>
+    <div class="bar"><i id="bar"></i></div>
+    <table>
+      <thead><tr><th>Tài khoản</th><th>Vai trò</th><th>Mật khẩu</th><th>Mã OTP</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="4" class="faint">Đang tải…</td></tr></tbody>
+    </table>
+  </section>
+</main>
+<script nonce="__NONCE__">
+"use strict";
+const $ = (id) => document.getElementById(id);
+const PERIOD = 30;
+let showPw = false, accounts = [], offset = 0, counter = -1, busy = false;
+
+async function api(path, opts) {
+  const r = await fetch(path, { cache: "no-store", credentials: "same-origin", ...opts });
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || ("HTTP " + r.status));
+  return body;
+}
+
+async function copy(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const t = document.createElement("textarea");
+    t.value = text; t.style.position = "fixed"; t.style.opacity = "0";
+    document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove();
+  }
+  const old = btn.textContent;
+  btn.textContent = "Đã chép"; btn.classList.add("done");
+  setTimeout(() => { btn.textContent = old; btn.classList.remove("done"); }, 1200);
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+
+function copyBtn(getText) {
+  const b = el("button", "btn", "Chép");
+  b.type = "button";
+  b.addEventListener("click", () => copy(getText(), b));
+  return b;
+}
+
+function renderState(s) {
+  const sw = $("otp-switch"), badge = $("otp-badge"), warn = $("warn");
+  badge.hidden = s.otp === null;
+  badge.className = "badge " + (s.otp ? "on" : "off");
+  badge.textContent = s.otp ? "Đang bật" : "Đang tắt";
+  $("otp-title").textContent = s.otp === null ? "Trạng thái OTP chưa rõ" : s.otp ? "OTP đang bật" : "OTP đang tắt";
+  sw.setAttribute("aria-checked", String(s.otp === true));
+  sw.disabled = busy;
+  warn.hidden = s.mismatch.length === 0;
+  warn.className = "warn" + (s.otp === null ? " err" : "");
+  warn.textContent = "";
+  if (s.mismatch.length) {
+    warn.append(el("b", null, "Không khớp:"));
+    const ul = el("ul");
+    s.mismatch.forEach((m) => ul.append(el("li", null, m)));
+    warn.append(ul);
+    if (s.otp !== null) warn.append(el("div", "small", "Bấm công tắc hai lần để đồng bộ lại."));
+  }
+}
+
+async function loadState() {
+  try { renderState(await api("/demo/api/state")); }
+  catch (e) { renderState({ otp: null, mismatch: [String(e.message)] }); }
+}
+
+$("otp-switch").addEventListener("click", async () => {
+  const want = $("otp-switch").getAttribute("aria-checked") !== "true";
+  busy = true; $("otp-switch").disabled = true;
+  try {
+    const s = await api("/demo/api/otp", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on: want }),
+    });
+    busy = false; renderState(s);
+  } catch (e) {
+    busy = false; await loadState();
+    const w = $("warn"); w.hidden = false; w.className = "warn err"; w.textContent = "Lỗi: " + e.message;
+  }
+});
+
+function renderRows() {
+  const rows = $("rows");
+  rows.textContent = "";
+  accounts.forEach((a) => {
+    const tr = el("tr");
+    const c1 = el("td"); c1.append(el("div", "u", a.username));
+    if (a.name) c1.append(el("div", "n", a.name));
+    const c2 = el("td", "muted small", a.role || "");
+    const c3 = el("td"), pw = el("div", "cell");
+    const pwCode = el("code", null, showPw ? a.password : "••••••••");
+    pwCode.dataset.pw = "1";
+    pw.append(pwCode, copyBtn(() => a.password));
+    c3.append(pw);
+    const c4 = el("td");
+    if (a.code) {
+      const cell = el("div", "cell");
+      const code = el("code", "code", a.code); code.dataset.code = "1";
+      const left = el("span", "left"); left.dataset.left = "1";
+      cell.append(code, copyBtn(() => a.code), left);
+      c4.append(cell);
+    } else c4.append(el("span", "faint small", "Không cần OTP"));
+    tr.append(c1, c2, c3, c4);
+    rows.append(tr);
+  });
+  tick();
+}
+
+async function loadAccounts() {
+  try {
+    const r = await api("/demo/api/accounts");
+    offset = r.server_time - Date.now() / 1000;
+    counter = Math.floor(r.server_time / PERIOD);
+    accounts = r.accounts;
+    renderRows();
+  } catch (e) {
+    $("rows").textContent = "";
+    const tr = el("tr"), td = el("td", "faint", "Không tải được tài khoản: " + e.message);
+    td.colSpan = 4; tr.append(td); $("rows").append(tr);
+  }
+}
+
+function tick() {
+  const now = Date.now() / 1000 + offset;
+  const left = PERIOD - Math.floor(now) % PERIOD;
+  $("bar").style.width = (left / PERIOD * 100) + "%";
+  document.querySelectorAll("[data-left]").forEach((n) => {
+    n.textContent = left + "s"; n.classList.toggle("low", left <= 5);
+  });
+  if (Math.floor(now / PERIOD) !== counter && counter !== -1) { counter = -1; loadAccounts(); }
+}
+
+$("show-pw").addEventListener("click", () => {
+  showPw = !showPw;
+  $("show-pw").textContent = showPw ? "Ẩn mật khẩu" : "Hiện mật khẩu";
+  document.querySelectorAll("[data-pw]").forEach((n, i) => { n.textContent = showPw ? accounts[i].password : "••••••••"; });
+});
+
+loadState(); loadAccounts();
+setInterval(tick, 1000);
+setInterval(() => { if (!busy) loadState(); }, 15000);
+</script>
+</body>
+</html>

@@ -70,6 +70,22 @@ class ExtraRoutes(unittest.TestCase):
             with self.subTest(host=host), self.assertRaises(SystemExit):
                 self.routes_from({"routes": [{**OTHER, "hosts": ["other.example.test", host.upper()]}]})
 
+    def test_demo_ops_route_on_desk_host_is_the_only_xt_host_exception(self) -> None:
+        demo = {**OTHER, "id": "demo-ops", "hosts": ["XT.example.test"], "uris": ["/demo", "/demo/*"]}
+        self.assertEqual(len(self.routes_from({"routes": [demo]})), 1)
+        for bad in (
+            {**demo, "uris": ["/demo/*", "/desk/*"]},
+            {**demo, "uris": ["/*"]},
+            {**demo, "uris": ["/demo/*", "/demo/x"]},
+            {**demo, "uris": []},
+            {**demo, "hosts": ["xt.example.test", "other.example.test"]},
+            {**demo, "hosts": ["xt-mcp.example.test"]},
+            {**demo, "hosts": ["xt-api.example.test"]},
+            {**demo, "hosts": ["xt-auth.example.test"]},
+        ):
+            with self.subTest(route=bad), self.assertRaises(SystemExit):
+                self.routes_from({"routes": [bad]})
+
     def test_route_without_explicit_hosts_is_refused(self) -> None:
         for bad in ({k: v for k, v in OTHER.items() if k != "hosts"}, {**OTHER, "hosts": []},
                     {**OTHER, "host": "other.example.test"}):
@@ -112,7 +128,7 @@ class ExtraRoutes(unittest.TestCase):
 
     def test_example_file_is_valid(self) -> None:
         example = json.loads((DEPLOY / "apisix" / "extra-routes.example.json").read_text())
-        self.assertEqual(len(self.routes_from(example)), 1)
+        self.assertEqual([r["id"] for r in self.routes_from(example)], ["example-other-service", "demo-ops"])
 
 
 if __name__ == "__main__":
