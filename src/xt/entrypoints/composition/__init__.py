@@ -58,6 +58,7 @@ from xt.application.tools import (
 )
 from xt.application.tools.handlers import HANDLERS
 from xt.contracts.tools.apps import PII_REVEAL_TICKET
+from xt.entrypoints.composition.agenthr import AgentHr
 from xt.entrypoints.composition.confirm_web import ConfirmPages, ConfirmSettings
 from xt.entrypoints.composition.model_changes import ModelChangeDecisions
 from xt.entrypoints.composition.notify import NotificationToolAdapter
@@ -238,8 +239,14 @@ class Composition:
         rt, key = self.runtime, self.config.cursor_key
         guard = ToolAccessGuard(rt)
         model_changes = ModelChangeDecisions(rt, guard)
+        agenthr = AgentHr(rt)
         process = ProcessToolAdapter(
-            rt, cursor_key=key, engine=self.engine, model_changes=model_changes, access=guard
+            rt,
+            cursor_key=key,
+            engine=self.engine,
+            model_changes=model_changes,
+            access=guard,
+            agenthr=agenthr,
         )
         records = RecordServiceAdapter(
             rt,
@@ -249,6 +256,7 @@ class Composition:
             model_changes=model_changes,
             step_transitions=process.available_transitions,
             max_aggregate_groups=settings.max_aggregate_groups,
+            agenthr=agenthr,
         )
         process.record_view = records
         return ToolServices(
@@ -267,6 +275,7 @@ class Composition:
             transactions=rt.uow,
             ids=_Ids(),
             notifications=NotificationToolAdapter(rt),
+            agenthr=agenthr,
         )
 
     def dispatcher(self, settings: ToolSettings) -> ToolDispatcher:

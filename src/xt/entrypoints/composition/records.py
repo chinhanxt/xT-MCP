@@ -28,6 +28,7 @@ from xt.contracts.tools import ErrorCode
 from xt.domain.autonomy import RiskLevel
 from xt.domain.model.context import ModelActor
 from xt.domain.model.spec import ModelSpec
+from xt.entrypoints.composition.agenthr import AgentHr
 from xt.entrypoints.composition.model_changes import MODEL_PROPOSAL, ModelChangeDecisions
 from xt.entrypoints.composition.runtime import Caller, Runtime
 from xt.entrypoints.composition.util import (
@@ -139,6 +140,7 @@ class RecordServiceAdapter:
         step_transitions: Callable[[CallContext, Caller, str, UUID, Mapping[str, Any]], list[Data]]
         | None = None,
         max_aggregate_groups: int | None = None,
+        agenthr: AgentHr | None = None,
     ) -> None:
         if len(cursor_key) < 32:
             raise ValueError("cursor signing key must contain at least 32 bytes")
@@ -150,6 +152,7 @@ class RecordServiceAdapter:
         self.model_changes = model_changes
         self.step_transitions = step_transitions
         self.max_aggregate_groups = max_aggregate_groups
+        self.agenthr = agenthr
 
     # ---- tiện ích ----------------------------------------------------------------------------
     def _model(self, actor: ModelActor, name: str) -> tuple[int, ModelSpec]:
@@ -387,6 +390,9 @@ class RecordServiceAdapter:
             raw_values = dict(args["set"])
         ver, model = self._model(caller.actor, name)
         values = self.values_in(caller, ctx, model, raw_values)
+        hr = self.agenthr
+        if hr is not None:  # bất biến hồ sơ/JD của gói nhan-su-ai (D-AGENTHR-1)
+            values = engine_call(lambda: hr.before_write(caller, name, rid, values))
         try:
             if rid is None:
                 engine_call(lambda: self.planner.create(caller.actor, name, values))
@@ -531,7 +537,11 @@ class RecordServiceAdapter:
                 RoleGrantService(self.rt.store).revoke(
                     caller.actor, f"{payload.model}:{rid}", by=caller.person.id
                 )
-        rec = self.record_out(caller, model, out["record"], ver)
+        raw = out["record"]
+        hr = self.agenthr
+        if hr is not None:  # JD -> canh_bao; hồ sơ da_nghi -> xóa agent_grant (D-AGENTHR-1)
+            raw = engine_call(lambda: hr.after_write(caller, payload.model, out["record"]))
+        rec = self.record_out(caller, model, raw, ver)
         op_ref = f"operation:{uuid4().hex}"
         if payload.task:
             return CommitResult({"task": self._task_out(caller, plan, rec), "notified": []}, op_ref)

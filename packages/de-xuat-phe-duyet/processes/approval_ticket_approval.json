@@ -1,0 +1,50 @@
+{
+  "id": "approval_ticket_approval",
+  "name": "Duyệt phiếu xin duyệt (một bước)",
+  "version": 1,
+  "roles": [
+    "dept_head",
+    "director"
+  ],
+  "inputs": {
+    "ticket_id": {
+      "type": "str"
+    },
+    "amount": {
+      "type": "int",
+      "required": false,
+      "editable_on_revision": true,
+      "description": "Số tiền (VND), nếu phiếu có"
+    },
+    "note": {
+      "type": "str",
+      "required": false,
+      "editable_on_revision": true
+    }
+  },
+  "fallback_assignee": "role(director)",
+  "steps": [
+    {
+      "id": "approver",
+      "type": "approve",
+      "name": "Trưởng bộ phận duyệt phiếu",
+      "assignee": {
+        "kind": "department_head",
+        "department_of": "requester",
+        "fallback": [
+          "requester.manager"
+        ]
+      },
+      "outcomes": [
+        "approve",
+        "reject",
+        "return_for_revision"
+      ],
+      "sla": {
+        "after": "PT24H",
+        "escalate_to": "requester.manager"
+      }
+    }
+  ],
+  "description": "Phiếu xin duyệt chung: một bước, trưởng bộ phận của người lập (hoặc quản lý trực tiếp, cuối cùng là giám đốc). Người lập không tự duyệt (SoD)."
+}

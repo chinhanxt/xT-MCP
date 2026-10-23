@@ -49,7 +49,7 @@ def base() -> Catalog:
 
 def test_new_catalog_all_safe() -> None:
     plan = build_plan(None, catalog(*pack_models(*PACKS)))
-    assert plan.summary() == {"SAFE": 19, "RISKY": 0, "DESTRUCTIVE": 0, "BLOCKED": 0}
+    assert plan.summary() == {"SAFE": 20, "RISKY": 0, "DESTRUCTIVE": 0, "BLOCKED": 0}
 
 
 def test_add_nullable_field_safe(base: Catalog) -> None:

@@ -39,6 +39,7 @@ from xt.adapters.db.notification_sources import NotificationSources
 from xt.adapters.db.notify import PgNotificationRepository
 from xt.adapters.db.workflow_bridge import PgTimerScheduler, PgWorkflowStore
 from xt.adapters.workflow.bpmn.spiff import SpiffProcessEngine
+from xt.application.agenthr.gate import JD as AGENT_JD
 from xt.application.model_engine.service import jsonable
 from xt.application.notify.service import NotificationService
 from xt.application.notify_events import NotifyEvent, notification_event
@@ -70,6 +71,7 @@ from xt.domain.process.assignment import OrgUser
 from xt.domain.process.errors import EngineError
 from xt.domain.process.expr import evaluate
 from xt.domain.process.spec import ApproveStep, CompleteVia, ProcessSpec, TaskStep
+from xt.entrypoints.composition.agenthr import AGENTHR_OPS, AgentHr
 from xt.entrypoints.composition.model_changes import (
     MODEL_PROPOSAL,
     ModelChangeDecisions,
@@ -187,6 +189,7 @@ OPS: Mapping[str, tuple[tuple[str, ...], OpFactory]] = {
     "notify": (("msg",), _notify),
     **PACK_OPS,
     **WAREHOUSE_OPS,
+    **AGENTHR_OPS,
 }
 
 
@@ -565,12 +568,14 @@ class ProcessToolAdapter:
         engine: SpiffProcessEngine,
         model_changes: ModelChangeDecisions | None = None,
         access: DelegatePolicy | None = None,
+        agenthr: AgentHr | None = None,
     ) -> None:
         self.rt = rt
         self.cursor_key = cursor_key
         self.engine = engine
         self.model_changes = model_changes
         self.access = access
+        self.agenthr = agenthr
         # `RecordServiceAdapter` (values_in/record_out) do composition nối sau khi tạo.
         self.record_view: Any = None
 
@@ -602,12 +607,18 @@ class ProcessToolAdapter:
         return current
 
     def _write_state(
-        self, caller: Caller, model: str, rid: UUID, revision: int, state: str, field: str
+        self,
+        caller: Caller,
+        model: str,
+        rid: UUID,
+        revision: int,
+        state: str,
+        field: str,
+        extra: Mapping[str, Any] | None = None,
     ) -> Data:
+        patch = {**(extra or {}), field: state}
         out = engine_call(
-            lambda: self.rt.records.workflow_write(
-                caller.workflow(), model, rid, revision, {field: state}
-            )
+            lambda: self.rt.records.workflow_write(caller.workflow(), model, rid, revision, patch)
         )
         return dict(out["record"])
 
@@ -851,7 +862,9 @@ class ProcessToolAdapter:
             store.link(p.ref, iid)
         tasks = list(summary["tasks"])
         state = self._state_of(summary, tasks)
-        rec = self._write_state(caller, p.model, p.record_id, p.revision, state, state_field)
+        # AgentHR A5: cảnh báo nâng quyền của JD tính lại lúc nộp (cùng lần ghi trạng thái).
+        extra = self.agenthr.risk_patch(caller, row) if self.agenthr and p.model == AGENT_JD else {}
+        rec = self._write_state(caller, p.model, p.record_id, p.revision, state, state_field, extra)
         rt, data = self._instance_data(pc, iid)
         route = self._route(caller, rt.compiled.spec, data, tasks)
         return CommitResult(

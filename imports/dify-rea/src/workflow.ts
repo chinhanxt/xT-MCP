@@ -283,7 +283,9 @@ export async function runWorkflow(
               branches.set(id, resume.decision);
             } else {
               if (!coreTools) throw new HttpError(400, humanApprovalNeedsXt);
-              const note = approvalNote(render(n.data.title ?? '', values), render(n.data.summary ?? '', values), n.data.approver_hint);
+              const title = render(n.data.title ?? '', values),
+                content = render(n.data.summary ?? '', values);
+              const note = approvalNote(title, content, n.data.approver_hint);
               value = note;
               waitingRef = await requestApproval(
                 coreTools,
@@ -293,6 +295,8 @@ export async function runWorkflow(
                   model: n.data.request_model ?? '',
                   values: parseArgs(n.data.request_values || '{}', (key, field) => jsonEscape(lookup(values, key, field))),
                   note,
+                  title,
+                  content,
                 },
                 signal,
               );

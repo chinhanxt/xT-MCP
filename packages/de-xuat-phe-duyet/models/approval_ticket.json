@@ -1,0 +1,112 @@
+{
+  "id": "apv_ticket",
+  "name": "approval_ticket",
+  "label": "Phiếu xin duyệt",
+  "description": "Yêu cầu duyệt chung (vd node Người duyệt của Studio): tiêu đề, nội dung, số tiền tùy chọn. Trưởng bộ phận của người lập duyệt.",
+  "title_field": "title",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "title",
+      "type": "text",
+      "label": "Tiêu đề",
+      "required": true,
+      "pii": "none",
+      "min": 1,
+      "max": 200
+    },
+    {
+      "id": "f2",
+      "name": "content",
+      "type": "text",
+      "label": "Nội dung cần duyệt",
+      "required": true,
+      "pii": "none",
+      "min": 1,
+      "max": 4000
+    },
+    {
+      "id": "f3",
+      "name": "amount",
+      "type": "money",
+      "label": "Số tiền (VND, nếu có)",
+      "pii": "none",
+      "min": 0
+    },
+    {
+      "id": "f4",
+      "name": "state",
+      "type": "enum",
+      "label": "Trạng thái",
+      "required": true,
+      "default": "draft",
+      "managed_by": "workflow",
+      "pii": "none",
+      "options": [
+        {
+          "value": "draft",
+          "label": "Nháp"
+        },
+        {
+          "value": "in_review",
+          "label": "Đang duyệt"
+        },
+        {
+          "value": "returned",
+          "label": "Trả lại bổ sung"
+        },
+        {
+          "value": "approved",
+          "label": "Đã duyệt"
+        },
+        {
+          "value": "rejected",
+          "label": "Từ chối"
+        },
+        {
+          "value": "withdrawn",
+          "label": "Đã rút"
+        }
+      ]
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "state"
+      ]
+    }
+  ],
+  "rules": [],
+  "permissions": {
+    "employee": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "own"
+    },
+    "dept_head": {
+      "actions": [
+        "read"
+      ],
+      "scope": "department"
+    },
+    "director": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

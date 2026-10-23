@@ -1,0 +1,167 @@
+{
+  "id": "ai_jd",
+  "name": "jd_agent",
+  "label": "Mô tả công việc (JD) của agent",
+  "description": "JD = năng lực (model + thao tác), mức tự chủ, hạn mức, ca làm. Có hiệu lực khi IT duyệt (OTP); lõi tính cảnh báo nâng quyền vào canh_bao.",
+  "title_field": "ho_so",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "ho_so",
+      "type": "ref",
+      "ref": "ho_so_agent",
+      "label": "Hồ sơ agent",
+      "required": true,
+      "pii": "none"
+    },
+    {
+      "id": "f2",
+      "name": "nang_luc",
+      "type": "json",
+      "label": "Năng lực [{model, read, create, update, submit}] (bỏ trống: sao từ vai trò của hồ sơ)",
+      "pii": "none"
+    },
+    {
+      "id": "f3",
+      "name": "muc_tu_chu",
+      "type": "number",
+      "label": "Mức tự chủ (0..3 = L0..L3)",
+      "pii": "none",
+      "min": 0,
+      "max": 3,
+      "required": true,
+      "default": 1
+    },
+    {
+      "id": "f4",
+      "name": "han_muc_viec_ngay",
+      "type": "number",
+      "label": "Hạn mức số việc ghi mỗi ngày (0 = không giới hạn)",
+      "pii": "none",
+      "min": 0,
+      "max": 100000,
+      "default": 0
+    },
+    {
+      "id": "f5",
+      "name": "han_muc_gia_tri",
+      "type": "money",
+      "label": "Hạn mức giá trị mỗi phiếu (VND, 0 = không giới hạn)",
+      "pii": "none",
+      "min": 0,
+      "default": 0
+    },
+    {
+      "id": "f6",
+      "name": "khung_gio",
+      "type": "text",
+      "label": "Khung giờ làm việc (HH:MM-HH:MM, giờ tenant)",
+      "pii": "none",
+      "max": 11,
+      "regex": "^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$"
+    },
+    {
+      "id": "f7",
+      "name": "ngay_lam",
+      "type": "text",
+      "label": "Ngày làm việc (vd mon-fri, mon,wed,fri, all)",
+      "pii": "none",
+      "max": 60,
+      "regex": "^[a-z,-]{3,60}$"
+    },
+    {
+      "id": "f8",
+      "name": "canh_bao",
+      "type": "json",
+      "label": "Cảnh báo nâng quyền (lõi tính)",
+      "pii": "none",
+      "managed_by": "workflow"
+    },
+    {
+      "id": "f9",
+      "name": "state",
+      "type": "enum",
+      "label": "Trạng thái",
+      "required": true,
+      "default": "draft",
+      "managed_by": "workflow",
+      "pii": "none",
+      "options": [
+        {
+          "value": "draft",
+          "label": "Nháp"
+        },
+        {
+          "value": "in_review",
+          "label": "Đang duyệt"
+        },
+        {
+          "value": "returned",
+          "label": "Trả lại bổ sung"
+        },
+        {
+          "value": "approved",
+          "label": "Đã duyệt"
+        },
+        {
+          "value": "rejected",
+          "label": "Từ chối"
+        },
+        {
+          "value": "withdrawn",
+          "label": "Đã rút"
+        }
+      ]
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "ho_so",
+        "state"
+      ]
+    }
+  ],
+  "rules": [],
+  "permissions": {
+    "it_admin": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "director": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "dept_head": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "department"
+    },
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

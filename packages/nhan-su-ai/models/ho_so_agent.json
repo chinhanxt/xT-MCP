@@ -1,0 +1,202 @@
+{
+  "id": "ai_profile",
+  "name": "ho_so_agent",
+  "label": "Hồ sơ nhân viên AI",
+  "description": "Một agent (client OAuth) làm thay một người phụ trách. Trạng thái do người (IT/quản lý) và lõi xT quản lý; lõi chặn mọi lượt khi không ở 'Đang làm'.",
+  "title_field": "ten",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "ten",
+      "type": "text",
+      "label": "Tên agent",
+      "required": true,
+      "pii": "none",
+      "min": 1,
+      "max": 120
+    },
+    {
+      "id": "f2",
+      "name": "client_id",
+      "type": "text",
+      "label": "Client OAuth (azp, vd chatgpt, claude)",
+      "required": true,
+      "pii": "none",
+      "max": 200,
+      "regex": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$"
+    },
+    {
+      "id": "f3",
+      "name": "nguoi_phu_trach",
+      "type": "user",
+      "label": "Người phụ trách (agent làm thay người này)",
+      "required": true,
+      "pii": "none"
+    },
+    {
+      "id": "f4",
+      "name": "bao_cao_cho",
+      "type": "user",
+      "label": "Báo cáo cho",
+      "pii": "none"
+    },
+    {
+      "id": "f5",
+      "name": "vai_tro",
+      "type": "ref",
+      "ref": "vai_tro_agent",
+      "label": "Vai trò",
+      "pii": "none"
+    },
+    {
+      "id": "f6",
+      "name": "trang_thai",
+      "type": "enum",
+      "label": "Trạng thái",
+      "required": true,
+      "default": "cho_duyet",
+      "pii": "none",
+      "options": [
+        {
+          "value": "cho_duyet",
+          "label": "Chờ duyệt"
+        },
+        {
+          "value": "dang_lam",
+          "label": "Đang làm"
+        },
+        {
+          "value": "tam_dung",
+          "label": "Tạm dừng"
+        },
+        {
+          "value": "da_nghi",
+          "label": "Đã nghỉ"
+        }
+      ]
+    },
+    {
+      "id": "f7",
+      "name": "ly_do_tam_dung",
+      "type": "enum",
+      "label": "Lý do tạm dừng",
+      "pii": "none",
+      "options": [
+        {
+          "value": "thu_cong",
+          "label": "Thủ công"
+        },
+        {
+          "value": "han_muc",
+          "label": "Chạm hạn mức"
+        },
+        {
+          "value": "su_co",
+          "label": "Sự cố"
+        }
+      ]
+    },
+    {
+      "id": "f8",
+      "name": "hieu_luc_den",
+      "type": "date",
+      "label": "Hiệu lực đến",
+      "pii": "none"
+    },
+    {
+      "id": "f9",
+      "name": "so_viec_hom_nay",
+      "type": "number",
+      "label": "Số việc hôm nay (lõi cập nhật)",
+      "pii": "none",
+      "min": 0,
+      "default": 0,
+      "managed_by": "workflow"
+    },
+    {
+      "id": "f10",
+      "name": "ngay_dem",
+      "type": "date",
+      "label": "Ngày của số việc (giờ tenant)",
+      "pii": "none",
+      "managed_by": "workflow"
+    },
+    {
+      "id": "f11",
+      "name": "jd_hieu_luc",
+      "type": "text",
+      "label": "JD đang hiệu lực (id jd_agent, lõi ghi khi IT duyệt)",
+      "pii": "none",
+      "max": 36,
+      "managed_by": "workflow"
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "client_id",
+        "nguoi_phu_trach"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Tạm dừng thì phải có lý do tạm dừng",
+      "check": {
+        "or": [
+          {
+            "field": "trang_thai",
+            "op": "!=",
+            "value": "tam_dung"
+          },
+          {
+            "field": "ly_do_tam_dung",
+            "op": "not_null"
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "it_admin": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "director": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "dept_head": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "department"
+    },
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

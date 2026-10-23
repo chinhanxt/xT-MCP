@@ -1,0 +1,330 @@
+{
+  "model": "vai_tro_agent",
+  "records": [
+    {
+      "_key": "tro_ly_kho",
+      "ma": "tro_ly_kho",
+      "ten": "Trợ lý kho",
+      "mo_ta": "Tra tồn kho, soạn phiếu nhập/xuất kho thay người phụ trách; quản lý kho duyệt phiếu.",
+      "nang_luc": [
+        {
+          "model": "warehouse",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "warehouse_location",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "stock_item",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "stock_balance",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "stock_level",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "stock_movement",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "stock_request",
+          "read": true,
+          "create": true,
+          "update": true,
+          "submit": true,
+          "ghi_chu": "Nộp duyệt cần giấy phép request.submit:stock_request"
+        }
+      ],
+      "han_muc_viec_ngay": 40,
+      "han_muc_gia_tri": 0,
+      "khung_gio": "08:00-18:00",
+      "ngay_lam": "mon-sat",
+      "muc_tu_chu": 1
+    },
+    {
+      "_key": "tro_ly_kinh_doanh",
+      "ma": "tro_ly_kinh_doanh",
+      "ten": "Trợ lý kinh doanh",
+      "mo_ta": "Cập nhật khách hàng, cơ hội, lịch chăm sóc; soạn đề nghị giảm giá để trưởng kinh doanh duyệt.",
+      "nang_luc": [
+        {
+          "model": "khach_hang",
+          "read": true,
+          "create": true,
+          "update": true,
+          "submit": false
+        },
+        {
+          "model": "co_hoi",
+          "read": true,
+          "create": true,
+          "update": true,
+          "submit": false
+        },
+        {
+          "model": "cham_soc",
+          "read": true,
+          "create": true,
+          "update": true,
+          "submit": false
+        },
+        {
+          "model": "de_nghi_giam_gia",
+          "read": true,
+          "create": true,
+          "update": true,
+          "submit": true
+        }
+      ],
+      "han_muc_viec_ngay": 60,
+      "han_muc_gia_tri": 0,
+      "khung_gio": "08:00-18:00",
+      "ngay_lam": "mon-fri",
+      "muc_tu_chu": 1
+    },
+    {
+      "_key": "cham_soc_khach_hang",
+      "ma": "cham_soc_khach_hang",
+      "ten": "Chăm sóc khách hàng",
+      "mo_ta": "Ghi nhận lượt chăm sóc, tra thông tin khách hàng và cơ hội (không sửa khách hàng).",
+      "nang_luc": [
+        {
+          "model": "khach_hang",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "co_hoi",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "cham_soc",
+          "read": true,
+          "create": true,
+          "update": true,
+          "submit": false
+        }
+      ],
+      "han_muc_viec_ngay": 80,
+      "han_muc_gia_tri": 0,
+      "khung_gio": "08:00-21:00",
+      "ngay_lam": "mon-sat",
+      "muc_tu_chu": 1
+    },
+    {
+      "_key": "de_xuat_mua",
+      "ma": "de_xuat_mua",
+      "ten": "Đề xuất mua",
+      "mo_ta": "Soạn đề xuất, giấy đề nghị thanh toán/tạm ứng; mỗi phiếu không quá hạn mức giá trị; nộp duyệt cần giấy phép.",
+      "nang_luc": [
+        {
+          "model": "proposal_type",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "proposal",
+          "read": true,
+          "create": true,
+          "update": true,
+          "submit": false
+        },
+        {
+          "model": "payment_request",
+          "read": true,
+          "create": true,
+          "update": true,
+          "submit": true
+        },
+        {
+          "model": "advance_request",
+          "read": true,
+          "create": true,
+          "update": true,
+          "submit": true
+        },
+        {
+          "model": "approval_ticket",
+          "read": true,
+          "create": true,
+          "update": true,
+          "submit": true
+        }
+      ],
+      "han_muc_viec_ngay": 20,
+      "han_muc_gia_tri": 5000000,
+      "khung_gio": "08:00-17:30",
+      "ngay_lam": "mon-fri",
+      "muc_tu_chu": 1
+    },
+    {
+      "_key": "thu_ky_chi_doc",
+      "ma": "thu_ky_chi_doc",
+      "ten": "Thư ký (chỉ đọc)",
+      "mo_ta": "Tổng hợp, tra cứu và tóm tắt cho giám đốc; không ghi gì.",
+      "nang_luc": [
+        {
+          "model": "task",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "weekly_digest",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "proposal",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "advance_request",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "payment_request",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "approval_ticket",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "khach_hang",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "co_hoi",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "du_an",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "stock_balance",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        }
+      ],
+      "han_muc_viec_ngay": 0,
+      "han_muc_gia_tri": 0,
+      "khung_gio": "07:00-20:00",
+      "ngay_lam": "all",
+      "muc_tu_chu": 0
+    },
+    {
+      "_key": "tro_ly_nhan_su",
+      "ma": "tro_ly_nhan_su",
+      "ten": "Trợ lý nhân sự (PII che)",
+      "mo_ta": "Tra hồ sơ nhân sự, soạn hồ sơ tiếp nhận/nghỉ việc; dữ liệu cá nhân qua làn PII (che với client cloud).",
+      "nang_luc": [
+        {
+          "model": "department",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "employee",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "employee_pii",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false,
+          "ghi_chu": "Client cloud nhận bản che"
+        },
+        {
+          "model": "lifecycle_case",
+          "read": true,
+          "create": true,
+          "update": true,
+          "submit": false
+        },
+        {
+          "model": "lifecycle_task",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        },
+        {
+          "model": "asset_issue",
+          "read": true,
+          "create": false,
+          "update": false,
+          "submit": false
+        }
+      ],
+      "han_muc_viec_ngay": 30,
+      "han_muc_gia_tri": 0,
+      "khung_gio": "08:00-17:30",
+      "ngay_lam": "mon-fri",
+      "muc_tu_chu": 1
+    }
+  ]
+}

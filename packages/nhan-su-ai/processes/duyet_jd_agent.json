@@ -1,0 +1,42 @@
+{
+  "id": "duyet_jd_agent",
+  "name": "IT duyệt JD của agent (tuyển, đổi JD, mở lại)",
+  "version": 1,
+  "roles": [
+    "it_admin",
+    "director"
+  ],
+  "inputs": {
+    "jd_id": {
+      "type": "str"
+    }
+  },
+  "fallback_assignee": "role(director)",
+  "steps": [
+    {
+      "id": "it",
+      "type": "approve",
+      "name": "IT duyệt JD (xem cảnh báo nâng quyền)",
+      "assignee": "role(it_admin)",
+      "outcomes": [
+        "approve",
+        "reject",
+        "return_for_revision"
+      ],
+      "sla": {
+        "after": "PT24H",
+        "escalate_to": "role(director)"
+      }
+    },
+    {
+      "id": "apply",
+      "type": "service",
+      "name": "Áp JD: hồ sơ Đang làm + trần tự chủ agent_grant",
+      "op": "apply_agent_jd",
+      "params": {
+        "jd_id": "jd_id"
+      }
+    }
+  ],
+  "description": "Người duyệt khác người lập JD và khác người phụ trách agent. Duyệt xong: ho_so_agent = dang_lam, JD hiệu lực, xt_meta.agent_grant (người phụ trách, client_id) = muc_tu_chu."
+}

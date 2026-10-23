@@ -61,10 +61,23 @@ function fakeXt() {
             if (call.name === 'describe_model')
                 return {
                     ok: true,
-                    data: { model: { id: a.model_id, primitive: a.model_id === 'advance_request' ? 'request' : 'record' } },
+                    data: {
+                        model: {
+                            id: a.model_id,
+                            primitive: ['advance_request', 'approval_ticket'].includes(String(a.model_id)) ? 'request' : 'record',
+                            fields:
+                                a.model_id === 'approval_ticket'
+                                    ? [
+                                          { id: 'title', type: 'text', max_length: 20 },
+                                          { id: 'content', type: 'text', max_length: 4000 },
+                                          { id: 'amount', type: 'money' },
+                                      ]
+                                    : [{ id: 'amount', type: 'money' }],
+                        },
+                    },
                 };
             if (call.name === 'create_record') {
-                const ref = `advance_request:r${++count}`;
+                const ref = `${String(a.model_id)}:r${++count}`;
                 states.set(ref, 'draft');
                 return { ok: true, data: { record: { ref, state: 'draft', revision: 1 } } };
             }
@@ -208,6 +221,56 @@ test('pause creates and submits a real request, then resume continues from the s
         );
         assert.ok(!calls.some((c) => c.name === 'decide_request'));
     }));
+
+test('default approval_ticket: title and content come from the node, explicit values win', () =>
+    withStore(async (store) => {
+        const calls: CoreCall[] = [];
+        const graph = approvalGraph({ request_model: 'approval_ticket', request_values: '{"amount":"{{input}}"}' });
+        const paused = await runWorkflow(store, 'w', config(graph), '5000000', undefined, {}, toolsOf(fakeXt(), calls), true, {
+            id: 'run-t',
+        });
+        assert.equal(paused.status, 'waiting');
+        assert.equal(paused.request_ref, 'approval_ticket:r1');
+        // title truncated to the model's max_length (20) after rendering
+        assert.deepEqual(calls[1].arguments, {
+            model_id: 'approval_ticket',
+            values: { amount: '5000000', title: 'Duyệt chi 5000000', content: 'Nội dung: 5000000' },
+            idempotency_key: calls[1].arguments.idempotency_key,
+        });
+        const explicit: CoreCall[] = [];
+        await runWorkflow(
+            store,
+            'w',
+            config(approvalGraph({ request_model: 'approval_ticket', request_values: '{"title":"Riêng","content":"Tự ghi"}' })),
+            'x',
+            undefined,
+            {},
+            toolsOf(fakeXt(), explicit),
+            true,
+            { id: 'run-e' },
+        );
+        assert.deepEqual(explicit[1].arguments.values, { title: 'Riêng', content: 'Tự ghi' });
+        const long: CoreCall[] = [];
+        await runWorkflow(
+            store,
+            'w',
+            config(approvalGraph({ request_model: 'approval_ticket', title: 'Tiêu đề rất dài vượt quá hai mươi ký tự {{input}}' })),
+            'x',
+            undefined,
+            {},
+            toolsOf(fakeXt(), long),
+            true,
+            { id: 'run-l' },
+        );
+        assert.equal((long[1].arguments.values as Record<string, unknown>).title, 'Tiêu đề rất dài vượt');
+    }));
+
+test('editor default for a new Người duyệt node is approval_ticket', async () => {
+    const { readFileSync } = await import('node:fs');
+    const editor = readFileSync(new URL('../src/web/WorkflowEditor.tsx', import.meta.url), 'utf8');
+    assert.match(editor, /request_model: 'approval_ticket', request_values: '\{\}'/);
+    assert.match(editor, /<option value="advance_request">/);
+});
 
 test('non-request model is refused before anything is created', () =>
     withStore(async (store) => {

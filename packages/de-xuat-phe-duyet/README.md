@@ -19,8 +19,11 @@ Giải PP1 (phê duyệt tắc nghẽn), PP6 (tạm ứng/hoàn ứng rối), PP
 | `xt_workflow` | Danh tính dịch vụ, **duy nhất** được ghi vào các bảng đề xuất |
 | `agent` | Danh tính agent, chỉ L0-L1, không bao giờ duyệt |
 
-## Model (6)
-`proposal_type` (mẫu), `proposal` (phiếu chung), `advance_request` (03-TT), `payment_request` (05-TT), `advance_settlement` (04-TT), `approval_step` (nhật ký từng bước duyệt).
+## Model (7)
+`proposal_type` (mẫu), `proposal` (phiếu chung), `advance_request` (03-TT), `payment_request` (05-TT), `advance_settlement` (04-TT), `approval_step` (nhật ký từng bước duyệt), `approval_ticket` (Phiếu xin duyệt chung, 0.3.0).
+
+## Phiếu xin duyệt `approval_ticket` (0.3.0)
+Request chung cho node "Người duyệt" của Studio và mọi việc cần một người ký: `title`, `content`, `amount` (tùy chọn, VND). Tạo bằng `create_record`, gửi bằng `submit_request`, quyết định bằng `decide_request` (`human_only`: người được giao xác nhận trên Desk bằng mật khẩu + OTP; người lập không tự duyệt). Quy trình `approval_ticket_approval` một bước: trưởng bộ phận của người lập, không có thì quản lý trực tiếp, cuối cùng là giám đốc (`fallback_assignee`). IAM: `apv.ticket-*` (người lập chỉ phiếu của mình; trưởng bộ phận cùng phòng và giám đốc quyết định; agent làm thay đúng người, không xóa).
 
 ## Quy trình `proposal_approval`
 Đầu vào: `kind` (`advance_request`|`payment_request`|`advance_settlement`), `amount`, `requester`, `requester_is_dept_head`.
