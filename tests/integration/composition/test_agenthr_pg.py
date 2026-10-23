@@ -632,3 +632,36 @@ def test_legacy_duplicate_profiles_fail_closed_and_keep_the_grant(hr: tuple[Hr, 
     _ok(h.call(owner, "search_records", {"model_id": "advance_request"}, client))
     terminate(working)  # hồ sơ cuối nghỉ: grant bị thu hồi
     assert h.sql(*grant) == []
+
+
+def test_it_submits_jd_director_approves(hr: tuple[Hr, Hr]) -> None:
+    """D-DEMO-LEVELS-1 (duyet_jd_agent v2): công ty chỉ có MỘT IT. IT tự lập và gửi JD -> IT bị SoD
+    loại (người đề nghị); giám đốc là người duyệt thay thế, duyệt được và JD được áp."""
+    h, _ = hr
+    owner, client = "NV-0006", "claude-jd-director"
+    ho = _ok(h.desk("NV-0003", "create_record", {
+        "model_id": "ho_so_agent",
+        "values": {"ten": "Claude của Hà", "client_id": client,
+                   "nguoi_phu_trach": f"person:{h.pid(owner)}"},
+        "idempotency_key": _key()}))["record"]  # fmt: skip
+    jd = _ok(h.desk("NV-0003", "create_record", {
+        "model_id": "jd_agent", "values": {"ho_so": ho["ref"], **JD_ADVANCE},
+        "idempotency_key": _key()}))["record"]  # fmt: skip
+    _ok(
+        h.desk(
+            "NV-0003",
+            "submit_request",
+            {"ref": jd["ref"], "expected_revision": jd["revision"], "idempotency_key": _key()},
+        )
+    )
+    row = h.record(jd["ref"])
+    own = h.desk("NV-0003", "decide_request", {"ref": jd["ref"], "decision": "approve",
+                 "expected_revision": row["revision"], "idempotency_key": _key()})  # fmt: skip
+    assert own.get("ok") is False and own["error"]["code"] in ("access_denied", "forbidden"), own
+    pending = h.desk("NV-0001", "decide_request", {"ref": jd["ref"], "decision": "approve",
+                     "expected_revision": row["revision"], "idempotency_key": _key()})  # fmt: skip
+    done = h.confirm(pending, "NV-0001")
+    assert done.status.value == "confirmed", done
+    assert h.record(ho["ref"])["trang_thai"] == "dang_lam"
+    assert h.sql("SELECT autonomy FROM xt_meta.agent_grant WHERE person = %s AND client_id = %s",
+                 uuid.UUID(h.pid(owner)), client) == [{"autonomy": 1}]  # fmt: skip

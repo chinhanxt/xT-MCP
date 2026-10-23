@@ -71,9 +71,23 @@ def _drop_unset_complete_via(steps: list[Any]) -> None:
             _drop_unset_complete_via(br)
 
 
+def _drop_empty_alternates(node: Any) -> None:
+    """`Assignee.alternates` (thêm sau, D-DEMO-LEVELS-1) rỗng không đổi sha của định nghĩa đã
+    duyệt trước đó (assignee chuỗi cũng được dump thành object Assignee đầy đủ)."""
+    if isinstance(node, dict):
+        if "kind" in node and node.get("alternates") == []:
+            del node["alternates"]
+        for v in node.values():
+            _drop_empty_alternates(v)
+    elif isinstance(node, list):
+        for v in node:
+            _drop_empty_alternates(v)
+
+
 def spec_sha256(spec: ProcessSpec) -> str:
     dumped = spec.model_dump(mode="json")
     _drop_unset_complete_via(dumped["steps"])
+    _drop_empty_alternates(dumped)
     raw = json.dumps(dumped, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(raw.encode()).hexdigest()
 

@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from xt import __version__
 from xt.adapters.cli.main import main as legacy_main
 
-ADMIN_GROUPS = frozenset({"db", "tenant", "org", "pack"})
+ADMIN_GROUPS = frozenset({"db", "tenant", "org", "pack", "person"})
 
 
 def _help_parser() -> argparse.ArgumentParser:
@@ -27,6 +27,9 @@ def _help_parser() -> argparse.ArgumentParser:
     subcommands.add_parser("org", help="nạp sơ đồ tổ chức (xt org import)")
     subcommands.add_parser(
         "pack", help="cài/tắt/bật gói nghiệp vụ có xác nhận (xt pack install|disable|enable)"
+    )
+    subcommands.add_parser(
+        "person", help="đổi vai trò gốc / cờ active của một người có xác nhận (xt person set)"
     )
     return parser
 

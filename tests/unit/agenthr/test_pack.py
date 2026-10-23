@@ -62,7 +62,7 @@ def _models() -> dict[str, dict[str, Any]]:
 def test_manifest_and_static_install() -> None:
     loaded = load_pack(PACK)
     m = loaded.manifest
-    assert (m.pack, m.version) == ("nhan-su-ai", "0.1.0")
+    assert (m.pack, m.version) == ("nhan-su-ai", "0.1.1")
     assert m.depends_on == ["de-xuat-phe-duyet", "nhan-su-vong-doi"]
     assert set(m.models) == PACK_MODELS
     b = m.bindings["jd_agent"]

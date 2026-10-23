@@ -14,7 +14,7 @@ import pytest
 from lxml import etree
 
 from tests.unit.process.support import FIX, OPS, PACK_NAMES, load_pack
-from xt.adapters.workflow.bpmn.compiler import compile_process
+from xt.adapters.workflow.bpmn.compiler import _drop_empty_alternates, compile_process
 from xt.adapters.workflow.bpmn.hardening import harden_bpmn
 from xt.adapters.workflow.bpmn.spiff import load_specs
 from xt.domain.process.errors import SpecError, UnsafeExpression
@@ -327,6 +327,7 @@ def test_sha_unchanged_for_specs_without_complete_via() -> None:
     legacy = parsed.model_dump(mode="json")
     for st in legacy["steps"]:
         st.pop("complete_via", None)
+    _drop_empty_alternates(legacy)  # trường thêm sau (D-DEMO-LEVELS-1), bản cũ không có
     want = hashlib.sha256(
         json.dumps(legacy, sort_keys=True, ensure_ascii=False).encode()
     ).hexdigest()

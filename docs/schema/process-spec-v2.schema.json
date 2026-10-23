@@ -228,6 +228,23 @@
           "maxItems": 5,
           "title": "Fallback",
           "type": "array"
+        },
+        "alternates": {
+          "description": "Người duyệt thay thế LUÔN được cộng vào ứng viên (không phải fallback), chỉ vai trò tĩnh role(x) có trong roles; vẫn lọc nghỉ việc và SoD như ứng viên chính. Dùng khi SoD nằm ngoài engine (vd người tạo bản ghi cấp quyền) mà tổ chức chỉ có một người giữ vai trò chính (D-DEMO-LEVELS-1)",
+          "items": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Assignee"
+              }
+            ]
+          },
+          "maxItems": 3,
+          "title": "Alternates",
+          "type": "array"
         }
       },
       "required": [

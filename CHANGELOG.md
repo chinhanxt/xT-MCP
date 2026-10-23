@@ -11,6 +11,7 @@ Cập nhật hợp nhất sau bản ghi ngày 17/10/2026 (`1882811`), đến `c4
 
 ### Tầng 1 lõi
 
+- Công ty demo một tài khoản mỗi cấp (D-DEMO-LEVELS-1): `Assignee.alternates` (người duyệt thay thế, chỉ vai trò tĩnh, không đổi sha định nghĩa cũ); `nhan-su-vong-doi` 0.4.3 (tiếp nhận v8) và `nhan-su-ai` 0.1.1 (JD v2) cho giám đốc duyệt bước IT; lệnh `xt person set` đổi vai trò gốc/active của một người có kế hoạch + mã xác nhận, audit `xt_meta.person_change` (migration 0023). Runbook: `docs/demo-accounts.md`.
 - Vai trò hiệu lực lấy thêm từ `access_grant` đã duyệt; quy trình nhân sự áp quyền Keycloak sau bước IT và thu hồi theo `revoked_on`. `inspect_workspace` trả vai trò hiệu lực của chính người gọi trong `me.roles` (#45, #46, #66).
 - PostgREST `/data` áp dụng vai trò được cấp và ẩn model của ứng dụng đã tắt; giữ FORCE RLS và quyền view khi nâng cấp. Sửa đường migration qua hàm `pgrst_gate` được bảo vệ từ 0019 đến 0021 (#69, #79).
 - Model engine tương thích DB chưa có bảng `pack_install`; bổ sung `aggregate_explain` vào danh sách metadata miễn audit và đồng bộ kiểm thử r3 (#77, #81).

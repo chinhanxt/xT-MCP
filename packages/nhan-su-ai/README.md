@@ -16,7 +16,7 @@ Tuyển, giao việc, giám sát và cho nghỉ nhân viên AI (ChatGPT, Claude�
 
 ## Vòng đời
 1. Tuyển: `create_record ho_so_agent` (luôn `cho_duyet`) + `create_record jd_agent` + `submit_request jd_agent`.
-2. IT duyệt (`decide_request`, OTP). Quy trình `duyet_jd_agent`: bước `it` (role `it_admin`, fallback giám đốc) rồi op `apply_agent_jd`: hồ sơ `dang_lam`, `jd_hieu_luc` = JD này, `xt_meta.agent_grant` (người phụ trách, client) = `muc_tu_chu`, vai trò `["agent"]`. Người duyệt phải khác người lập JD và người phụ trách.
+2. IT duyệt (`decide_request`, OTP). Quy trình `duyet_jd_agent` (v2, gói 0.1.1): bước `it` (role `it_admin`, giám đốc là người duyệt thay thế `alternates`, fallback giám đốc; IT tự lập JD thì giám đốc duyệt, D-DEMO-LEVELS-1) rồi op `apply_agent_jd`: hồ sơ `dang_lam`, `jd_hieu_luc` = JD này, `xt_meta.agent_grant` (người phụ trách, client) = `muc_tu_chu`, vai trò `["agent"]`. Người duyệt phải khác người lập JD và người phụ trách.
 3. Đình chỉ: `update_record ho_so_agent {trang_thai: tam_dung, ly_do_tam_dung: thu_cong}` — lượt kế tiếp của agent bị chặn ngay.
 4. Mở lại: chỉ qua JD mới được duyệt (sửa thẳng sang `dang_lam` bị từ chối `reopen_requires_jd_approval`).
 5. Cho nghỉ: `update_record ho_so_agent {trang_thai: da_nghi}` — lõi xóa `agent_grant` của cặp (người phụ trách, client); hồ sơ đã nghỉ không mở lại được. Thu hồi consent/token Keycloak: việc tiếp theo (A3).

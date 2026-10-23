@@ -147,6 +147,36 @@ class AssigneeResolver:
         exclude: Mapping[str, str],
         process_fallback: Assignee | None,
     ) -> Assignment:
+        a = self._resolve_chain(primary, data, exclude, process_fallback)
+        return self._with_alternates(a, primary, data, exclude)
+
+    def _with_alternates(
+        self, a: Assignment, primary: Assignee, data: Mapping[str, Any], exclude: Mapping[str, str]
+    ) -> Assignment:
+        """D-DEMO-LEVELS-1: cộng người duyệt thay thế (`alternates`, vai trò tĩnh) vào ứng viên;
+        cùng bộ lọc nghỉ việc + SoD. Không đổi `via` khi đã có ứng viên chính."""
+        extra: list[str] = []
+        for alt in primary.alternate_targets():
+            users, why = self._role(alt, data)
+            ok, dropped = self._filter(users, exclude)
+            extra += [u for u in ok if u not in a.candidates and u not in extra]
+            a.trail.append(
+                f"thay thế {alt.describe()}: {why}"
+                + (f" [{'; '.join(dropped)}]" if dropped else "")
+            )
+        if not extra:
+            return a
+        if not a.candidates:
+            return Assignment(extra, "người duyệt thay thế (alternates)", "fallback", a.trail)
+        return Assignment([*a.candidates, *extra], a.reason, a.via, a.trail)
+
+    def _resolve_chain(
+        self,
+        primary: Assignee,
+        data: Mapping[str, Any],
+        exclude: Mapping[str, str],
+        process_fallback: Assignee | None,
+    ) -> Assignment:
         trail: list[str] = []
         chain: list[tuple[Via, Assignee]] = [("primary", primary)]
         chain += [("fallback", x) for x in list(primary.chain())[1:]]

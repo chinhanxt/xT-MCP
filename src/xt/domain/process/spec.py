@@ -187,11 +187,30 @@ class Assignee(Strict):
         max_length=5,
         description="Chuỗi thay thế khi không giải được (leo thang, không bao giờ bỏ qua bước)",
     )
+    alternates: list[Annotated[str, Field(max_length=120)] | Assignee] = Field(
+        default_factory=list,
+        max_length=3,
+        description=(
+            "Người duyệt thay thế LUÔN được cộng vào ứng viên (không phải fallback), chỉ vai trò "
+            "tĩnh role(x) có trong roles; vẫn lọc nghỉ việc và SoD như ứng viên chính. Dùng khi "
+            "SoD nằm ngoài engine (vd người tạo bản ghi cấp quyền) mà tổ chức chỉ có một người "
+            "giữ vai trò chính (D-DEMO-LEVELS-1)"
+        ),
+    )
 
     @field_validator("fallback", mode="after")
     @classmethod
     def _fallback(cls, v: list[str | Assignee]) -> list[str | Assignee]:
         return [to_assignee(x) for x in v]
+
+    @field_validator("alternates", mode="after")
+    @classmethod
+    def _alternates(cls, v: list[str | Assignee]) -> list[str | Assignee]:
+        out = [to_assignee(x) for x in v]
+        for a in out:
+            if not a.is_static() or a.fallback or a.alternates:
+                raise ValueError("alternates chỉ nhận vai trò tĩnh role(x), không fallback lồng")
+        return list(out)
 
     @model_validator(mode="after")
     def _shape(self) -> Assignee:
@@ -240,22 +259,29 @@ class Assignee(Strict):
                 where = f" thuộc phòng trong biến {self.department_var}"
             else:
                 where = ""
-            return f"Vai trò {self.role}{where}"
+            return f"Vai trò {self.role}{where}" + self._alt_desc()
         if self.kind == "manager":
             lvl = "trực tiếp" if self.levels == 1 else f"cấp {self.levels}"
-            return f"Quản lý {lvl} của {self.user_var}"
+            return f"Quản lý {lvl} của {self.user_var}" + self._alt_desc()
         if self.kind == "department_head":
             if self.department:
-                return f"Trưởng phòng {self.department}"
+                return f"Trưởng phòng {self.department}" + self._alt_desc()
             if self.department_of:
-                return f"Trưởng phòng của {self.department_of}"
-            return f"Trưởng phòng trong biến {self.department_var}"
-        return f"Người trong biến {self.user_var}"
+                return f"Trưởng phòng của {self.department_of}" + self._alt_desc()
+            return f"Trưởng phòng trong biến {self.department_var}" + self._alt_desc()
+        return f"Người trong biến {self.user_var}" + self._alt_desc()
+
+    def alternate_targets(self) -> list[Assignee]:
+        return [to_assignee(x) for x in self.alternates]
+
+    def _alt_desc(self) -> str:
+        alts = self.alternate_targets()
+        return f" (hoặc {', '.join(a.describe() for a in alts)})" if alts else ""
 
     def key(self) -> str:
         return "|".join(
             f"{k}={v}"
-            for k, v in self.model_dump(exclude={"fallback"}).items()
+            for k, v in self.model_dump(exclude={"fallback", "alternates"}).items()
             if v not in (None, 1) or k == "kind"
         )
 
@@ -817,6 +843,12 @@ class _CrossCheck:
         return self.errs
 
     def _assignee(self, a: Assignee, where: str) -> None:
+        for alt_a in a.alternate_targets():
+            if alt_a.role not in self.s.roles:
+                self.errs.append(
+                    f"{where}.alternates: vai trò {alt_a.role!r} không có trong roles"
+                    f" {self.s.roles}"
+                )
         for x in a.chain():
             if not x.is_static():
                 self.dynamic = True

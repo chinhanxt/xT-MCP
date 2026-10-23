@@ -1030,6 +1030,51 @@ def set_pack_status(
         raise AdminError(f"gói {pack!r} chưa cài ở tenant này")
 
 
+def person_admin_row(
+    migrator: psycopg.Connection[Any], tenant: TenantRef, key: str, *, lock: bool = False
+) -> dict[str, Any] | None:
+    """Một người theo `key` (lệnh `xt person set`): vai trò gốc, cờ active, vai trò cấp qua
+    access_grant còn hiệu lực (chỉ để hiển thị) và có liên kết đăng nhập hay không."""
+    with migrator.cursor(row_factory=dict_row) as cur:
+        row = cur.execute(
+            "SELECT p.id, p.key, p.name, p.roles, p.active, p.subject IS NOT NULL AS has_login,"
+            " ARRAY(SELECT g.role FROM xt_meta.person_role_grant g WHERE g.tenant_id = p.tenant_id"
+            " AND g.person = p.id AND g.revoked_at IS NULL ORDER BY g.role) AS granted"
+            " FROM xt_meta.person p WHERE p.tenant_id = %s AND p.key = %s"
+            + (" FOR UPDATE OF p" if lock else ""),
+            (tenant.id, key),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def apply_person_change(
+    migrator: psycopg.Connection[Any],
+    tenant: TenantRef,
+    *,
+    person: UUID,
+    key: str,
+    before: Mapping[str, Any],
+    after: Mapping[str, Any],
+    digest: str,
+    proposed_by: str,
+    approved_by: str,
+) -> None:
+    """UPDATE vai trò gốc/active + một dòng `xt_meta.person_change` (hash-chain audit, migration
+    0023) trong transaction của người gọi. Không xóa người, không chạm access_grant."""
+    cur = migrator.execute(
+        "UPDATE xt_meta.person SET roles = %s, active = %s WHERE tenant_id = %s AND id = %s",
+        (list(after["roles"]), bool(after["active"]), tenant.id, person),
+    )
+    if cur.rowcount != 1:
+        raise AdminError(f"không có người {key!r} ở tenant này")
+    migrator.execute(
+        "INSERT INTO xt_meta.person_change (tenant_id, person, key, op, before, after, digest,"
+        " proposed_by, approved_by) VALUES (%s, %s, %s, 'person.set', %s, %s, %s, %s, %s)",
+        (tenant.id, person, key, Jsonb(dict(before)), Jsonb(dict(after)), digest, proposed_by,
+         approved_by),
+    )  # fmt: skip
+
+
 def current_policy(
     migrator: psycopg.Connection[Any], tenant: TenantRef
 ) -> tuple[int, dict[str, Any]] | None:
