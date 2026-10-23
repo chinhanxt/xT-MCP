@@ -3,14 +3,14 @@
 import { createHmac } from 'node:crypto';
 import { HttpError } from './validation.ts';
 import { readLines } from './streams.ts';
+import { xtToolNames } from './contracts.ts';
 
 export interface XtTool { name: string; description: string; input_schema: Record<string, unknown> }
 export interface XtTools {
   list(signal?: AbortSignal): Promise<XtTool[]>;
   call(name: string, args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown>;
 }
-export const xtToolNames = ['inspect_workspace', 'describe_model', 'describe_process', 'search_records',
-  'get_record', 'aggregate_records', 'get_history', 'get_inbox', 'create_record', 'update_record', 'submit_request'];
+export { xtToolNames };
 
 export function xtTools(origin: string, secret: Buffer, capability: string): XtTools {
   const base = new URL(origin);

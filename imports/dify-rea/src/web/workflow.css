@@ -162,3 +162,21 @@
 .workflow .preview-header {
   padding: 13px 15px;
 }
+.node-inspector fieldset {
+  border: 1px solid #e3e9f4;
+  border-radius: 8px;
+  padding: 6px 8px;
+  display: grid;
+  gap: 6px;
+}
+.condition-row {
+  display: flex;
+  gap: 4px;
+}
+.condition-row > * {
+  min-width: 0;
+  flex: 1;
+}
+.condition-row > button {
+  flex: 0 0 auto;
+}
