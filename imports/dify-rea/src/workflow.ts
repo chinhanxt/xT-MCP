@@ -43,7 +43,6 @@ interface OuterScope {
   nodes: Map<string, GraphNode>;
   label: string;
 }
-const reservedNames = ['item', 'index', 'round', 'last'];
 // Kahn topological order; throws on cycles.
 function topoOrder(graph: Graph): string[] {
   const degree = new Map(graph.nodes.map((n) => [n.id, 0]));
@@ -61,8 +60,8 @@ function topoOrder(graph: Graph): string[] {
   if (ordered.length !== graph.nodes.length) throw new HttpError(400, 'Workflow có vòng lặp.');
   return ordered;
 }
-// Kinds whose output is never a JSON array, so they cannot feed an iteration.
-const scalarKinds = ['start', 'condition', 'question_classifier', 'human_approval', 'loop', 'output'];
+// Kinds whose output is never a JSON array, so they cannot feed an iteration (a loop only via {{loop.output}}).
+const scalarKinds = ['condition', 'question_classifier', 'human_approval'];
 export function validateGraph(graph: Graph, inputNames: string[] = [], outer?: OuterScope): string[] {
   const ids = new Set(graph.nodes.map((n) => n.id));
   if (ids.size !== graph.nodes.length) throw new HttpError(400, 'Node ID bị trùng.');
@@ -175,6 +174,7 @@ export function validateGraph(graph: Graph, inputNames: string[] = [], outer?: O
       if (
         base &&
         (scalarKinds.includes(base.type) ||
+          (base.type === 'loop' && field !== 'output') ||
           (field !== undefined && base.type === 'parameter_extractor' && base.data.parameters?.find((p) => p.name === field)?.type !== 'array[string]'))
       )
         throw new HttpError(400, `Biến danh sách của ${n.data.label} phải là mảng JSON; ${field ? `${key}.${field}` : key} không phải danh sách.`);
@@ -184,8 +184,9 @@ export function validateGraph(graph: Graph, inputNames: string[] = [], outer?: O
       const visible = new Map(outer?.nodes ?? []);
       for (const id of guaranteed.get(n.id) ?? []) visible.set(id, graph.nodes.find((x) => x.id === id)!);
       const extra = n.type === 'iteration' ? ['item', 'index'] : ['round', 'last', ...(n.data.loop_vars ?? []).map((v) => v.name)];
-      // Nested iteration / loop shadow the outer item, index, round and last.
-      const kept = inputNames.filter((name) => !reservedNames.includes(name));
+      // A nested node shadows only the names it redefines; e.g. a loop inside an iteration still reads {{item}}.
+      const shadowed = n.type === 'iteration' ? ['item', 'index'] : ['round', 'last'];
+      const kept = inputNames.filter((name) => !shadowed.includes(name));
       for (const name of extra)
         if (visible.has(name) || ids.has(name) || kept.includes(name))
           throw new HttpError(400, `Tên ${name} của ${n.data.label} trùng với một bước hoặc đầu vào khác.`);

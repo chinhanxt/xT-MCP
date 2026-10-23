@@ -148,6 +148,34 @@ test('nested iteration runs at depth 2 and a third level is rejected', async () 
   assert.throws(() => configInput({ ...emptyConfig(), graph: tooDeep }), /lồng nhau tối đa 2 cấp/);
 });
 
+test('a loop nested in an iteration reads the outer {{item}} and its own {{round}}', async () => {
+  const loop: Graph = {
+    nodes: [
+      node('ns', 'start'),
+      node('nl', 'loop', {
+        graph: inner('m', '{{item}}-{{round}}'),
+        max_rounds: 3,
+        until: { id: 'c', logical_operator: 'and', conditions: [{ variable: '{{round}}', operator: 'ge', value: '2' }] },
+      }),
+      node('nd', 'output', { template: '{{nl.output}}' }),
+      node('nx', 'output', { template: 'het vong' }),
+    ],
+    edges: [edge('ns', 'nl'), edge('nl', 'nd', 'done'), edge('nl', 'nx', 'exhausted')],
+  };
+  const graph = iterGraph({}, loop);
+  assert.deepEqual(validateGraph(graph), ['s', 'iter', 'o']);
+  const result = await runWorkflow(store, 'w', config(graph), '["a","b"]');
+  assert.deepEqual(JSON.parse(result.output), ['a-2', 'b-2']);
+  assert.ok(result.trace.some((t) => t.node_id === 'mt' && t.parent_id === 'nl' && t.round === 2));
+  // An iteration may consume a loop's output field, not its {output, rounds} object.
+  const fromLoop = loopGraph({});
+  fromLoop.nodes.push(node('it2', 'iteration', { variable: '{{lp}}', graph: inner('z', '{{item}}') }));
+  fromLoop.edges = [...fromLoop.edges.filter((e) => e.target !== 'ok'), edge('lp', 'it2', 'done'), edge('it2', 'ok')];
+  assert.throws(() => validateGraph(fromLoop), /lp không phải danh sách/);
+  fromLoop.nodes.at(-1)!.data.variable = '{{lp.output}}';
+  assert.deepEqual(validateGraph(fromLoop), ['s', 'lp', 'bad', 'it2', 'ok']);
+});
+
 test('loop stops when the condition holds, carrying loop variables between rounds', async () => {
   const result = await runWorkflow(store, 'w', config(loopGraph({ max_rounds: 5 })), '');
   assert.equal(result.output, 'done xxx after 3');
