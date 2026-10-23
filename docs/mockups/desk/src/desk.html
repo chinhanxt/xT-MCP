@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- SPDX-FileCopyrightText: 2026 xT contributors -->
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>xT Desk — mockup</title>
+<style>
+@font-face{font-family:"Be Vietnam Pro";font-weight:400;font-display:swap;src:url(fonts/be-vietnam-pro-vietnamese-400-normal.woff2) format("woff2");unicode-range:U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB}
+@font-face{font-family:"Be Vietnam Pro";font-weight:500;font-display:swap;src:url(fonts/be-vietnam-pro-vietnamese-500-normal.woff2) format("woff2");unicode-range:U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB}
+@font-face{font-family:"Be Vietnam Pro";font-weight:600;font-display:swap;src:url(fonts/be-vietnam-pro-vietnamese-600-normal.woff2) format("woff2");unicode-range:U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB}
+@font-face{font-family:"Be Vietnam Pro";font-weight:700;font-display:swap;src:url(fonts/be-vietnam-pro-vietnamese-700-normal.woff2) format("woff2");unicode-range:U+0102-0103,U+0110-0111,U+0128-0129,U+0168-0169,U+01A0-01A1,U+01AF-01B0,U+0300-0301,U+0303-0304,U+0308-0309,U+0323,U+0329,U+1EA0-1EF9,U+20AB}
+@font-face{font-family:"Be Vietnam Pro";font-weight:400;font-display:swap;src:url(fonts/be-vietnam-pro-latin-400-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Be Vietnam Pro";font-weight:500;font-display:swap;src:url(fonts/be-vietnam-pro-latin-500-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Be Vietnam Pro";font-weight:600;font-display:swap;src:url(fonts/be-vietnam-pro-latin-600-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Be Vietnam Pro";font-weight:700;font-display:swap;src:url(fonts/be-vietnam-pro-latin-700-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Be Vietnam Pro";font-weight:400;font-display:swap;src:url(fonts/be-vietnam-pro-latin-ext-400-normal.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Be Vietnam Pro";font-weight:600;font-display:swap;src:url(fonts/be-vietnam-pro-latin-ext-600-normal.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+
+/* ---------- tokens ---------- */
+:root{
+  --canvas:#F4F5F7; --paper:#FFFFFF; --ink:#18202B; --ink-2:#4B5565; --ink-3:#7A8494;
+  --line:#E2E5EA; --line-2:#EEF0F3; --hover:#F0F2F5;
+  --focus:#2D54D6; --link:#2D54D6;
+  --ok:#1E7A4C; --ok-bg:#E7F4EC; --block:#C2362F; --block-bg:#FBECEA; --held:#9A6200; --held-bg:#FBF1DE; --info-bg:#E9EEFC;
+  --r-1:6px; --r-2:10px;
+  --side:244px; --top:64px;
+  font-family:"Be Vietnam Pro",system-ui,sans-serif; font-size:17px; line-height:1.5; color:var(--ink);
+  font-feature-settings:"tnum" 1;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--canvas)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+svg.i{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+svg.i.s{width:17px;height:17px}
+svg.i.l{width:24px;height:24px}
+
+/* ---------- shell ---------- */
+.shell{display:grid;grid-template-columns:var(--side) 1fr;min-height:100vh}
+.side{background:var(--paper);border-right:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.brand{height:var(--top);display:flex;align-items:center;gap:10px;padding:0 20px;border-bottom:1px solid var(--line-2)}
+.mark{width:30px;height:30px;border-radius:8px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:700;font-size:15px;letter-spacing:-.02em}
+.brand b{font-size:18px;font-weight:600}
+.nav{padding:12px 10px;display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--r-1);color:var(--ink-2);text-decoration:none;font-weight:500}
+.nav a:hover{background:var(--hover);color:var(--ink)}
+.nav a[aria-current="page"]{background:var(--ink);color:#fff}
+.nav a .n{margin-left:auto;font-size:14px;font-weight:600;background:var(--block);color:#fff;border-radius:999px;padding:0 8px;line-height:22px}
+.nav a[aria-current="page"] .n{background:#fff;color:var(--ink)}
+.side .foot{margin-top:auto;padding:14px 16px;border-top:1px solid var(--line-2);display:flex;align-items:center;gap:10px}
+.top{height:var(--top);background:var(--paper);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 28px;position:sticky;top:0;z-index:5}
+.tenant{display:flex;align-items:center;gap:8px;font-weight:600;padding:8px 10px;border-radius:var(--r-1)}
+.tenant:hover{background:var(--hover)}
+.search{flex:1;max-width:520px;display:flex;align-items:center;gap:10px;background:var(--canvas);border:1px solid var(--line);border-radius:var(--r-1);padding:9px 14px;color:var(--ink-3)}
+.search span{flex:1}
+kbd{font:inherit;font-size:14px;border:1px solid var(--line);border-radius:5px;padding:0 6px;background:var(--paper);color:var(--ink-3)}
+.top .gap{flex:1}
+.iconbtn{width:40px;height:40px;border-radius:var(--r-1);display:grid;place-items:center;color:var(--ink-2);position:relative}
+.iconbtn:hover{background:var(--hover);color:var(--ink)}
+.iconbtn .dot{position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:var(--block);border:2px solid var(--paper)}
+.av{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:600;font-size:14px;background:#DDE3EC;color:var(--ink);flex:none}
+.av.sm{width:30px;height:30px;font-size:13px}
+.av.agent{background:var(--ink);color:#fff;border-radius:9px}
+.main{min-width:0}
+.page{max-width:1280px;padding:32px 36px 64px}
+.screen{display:none}.screen.on{display:block}
+
+/* ---------- type ---------- */
+h1{font-size:30px;font-weight:600;letter-spacing:-.015em;line-height:1.2}
+h2{font-size:20px;font-weight:600;letter-spacing:-.01em}
+h3{font-size:17px;font-weight:600}
+.muted{color:var(--ink-2)}
+.faint{color:var(--ink-3)}
+.small{font-size:15px}
+.head{display:flex;align-items:flex-end;gap:16px;margin-bottom:24px}
+.head .sub{color:var(--ink-2);margin-top:6px}
+.head .act{margin-left:auto;display:flex;gap:10px}
+
+/* ---------- controls ---------- */
+.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 16px;border-radius:var(--r-1);font-weight:600;border:1px solid var(--line);background:var(--paper);white-space:nowrap}
+.btn:hover{border-color:#C9CED6}
+.btn.pri{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn.ghost{color:var(--ink-2)}
+.btn.pri:hover{background:#2A3442}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn.danger{color:var(--block);border-color:#EBC3BF}
+.btn.danger.fill{background:var(--block);color:#fff;border-color:var(--block)}
+.btn.ghost{border-color:transparent;background:none;color:var(--ink-2)}
+.btn.ghost:hover{background:var(--hover);color:var(--ink)}
+.btn.sm{height:36px;padding:0 12px;font-size:15px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:24px}
+.tabs a{padding:10px 14px;color:var(--ink-2);text-decoration:none;font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs a:hover{color:var(--ink)}
+.tabs a[aria-current="page"]{color:var(--ink);border-color:var(--ink)}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-weight:500;font-size:15px;color:var(--ink-2)}
+.input{height:46px;border:1px solid var(--line);border-radius:var(--r-1);padding:0 14px;background:var(--paper);width:100%}
+textarea.input{height:auto;padding:12px 14px;resize:vertical}
+.input:focus{outline:2px solid var(--focus);outline-offset:-1px;border-color:transparent}
+.seg{display:inline-flex;background:var(--canvas);border:1px solid var(--line);border-radius:var(--r-1);padding:3px}
+.seg button{padding:6px 14px;border-radius:4px;color:var(--ink-2);font-weight:500;font-size:15px}
+.seg button[aria-pressed="true"]{background:var(--paper);color:var(--ink);box-shadow:0 0 0 1px var(--line)}
+.toggle{width:44px;height:26px;border-radius:999px;background:#CBD1DA;position:relative;flex:none}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s}
+.toggle[aria-checked="true"]{background:var(--ok)}
+.toggle[aria-checked="true"]::after{left:21px}
+
+/* ---------- surfaces ---------- */
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-2)}
+.panel>.ph{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line-2)}
+.panel>.ph .act{margin-left:auto;display:flex;gap:8px}
+.pb{padding:20px}
+.grid{display:grid;gap:20px}
+.g-2{grid-template-columns:1fr 1fr}.g-3{grid-template-columns:repeat(3,1fr)}
+.split{display:grid;grid-template-columns:minmax(360px,440px) 1fr;gap:20px;align-items:start}
+
+/* table */
+table{width:100%;border-collapse:collapse}
+th{font-size:15px;font-weight:500;color:var(--ink-3);text-align:left;padding:12px 20px;border-bottom:1px solid var(--line)}
+td{padding:14px 20px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:#FAFBFC}
+td.num,th.num{text-align:right}
+table.nowrap td{white-space:nowrap}
+.who{display:flex;align-items:center;gap:12px}
+.who .t{display:flex;flex-direction:column;line-height:1.3}
+.who .t small{color:var(--ink-3);font-size:15px}
+
+/* status chips — the one bold element: one verdict language everywhere */
+.chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:999px;font-size:15px;font-weight:600;white-space:nowrap}
+.chip svg.i{width:16px;height:16px;stroke-width:2.2}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+.chip.block{background:var(--block-bg);color:var(--block)}
+.chip.held{background:var(--held-bg);color:var(--held)}
+.chip.neutral{background:var(--line-2);color:var(--ink-2)}
+.chip.info{background:var(--info-bg);color:var(--focus)}
+
+/* list rows (inbox etc.) */
+.list a{display:flex;gap:14px;padding:16px 20px;border-bottom:1px solid var(--line-2);text-decoration:none;color:inherit;align-items:flex-start}
+.list a:last-child{border-bottom:0}
+.list a:hover{background:#FAFBFC}
+.list a[aria-current="true"]{background:#F2F5FD;box-shadow:inset 3px 0 0 var(--focus)}
+.list .grow{flex:1;min-width:0}
+.list .meta{color:var(--ink-3);font-size:15px;margin-top:2px}
+.list .right{text-align:right;font-size:15px;color:var(--ink-3);white-space:nowrap}
+
+/* key-value */
+.kv{display:grid;grid-template-columns:170px 1fr;gap:14px 20px}
+.kv dt{color:var(--ink-3)}
+.kv dd{font-weight:500}
+
+/* meter */
+.meter{display:flex;align-items:center;gap:12px}
+.bar{flex:1;height:8px;border-radius:999px;background:var(--line-2);overflow:hidden;min-width:90px}
+.bar i{display:block;height:100%;background:var(--ink)}
+.bar.warn i{background:var(--held)}
+.bar.full i{background:var(--block)}
+
+/* timeline / audit */
+.tl{position:relative}
+.tl li{list-style:none;display:grid;grid-template-columns:92px 32px 1fr auto;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line-2);align-items:start}
+.tl li:last-child{border-bottom:0}
+.tl time{color:var(--ink-3);font-size:15px;padding-top:4px}
+.tl .ic{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--line-2);color:var(--ink-2)}
+.tl .ic.ok{background:var(--ok-bg);color:var(--ok)}
+.tl .ic.block{background:var(--block-bg);color:var(--block)}
+.tl .ic.held{background:var(--held-bg);color:var(--held)}
+.hash{font-size:14px;color:var(--ink-3);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+
+/* chat */
+.chat{display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start}
+.thread{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-2);display:flex;flex-direction:column;height:calc(100vh - var(--top) - 96px)}
+.msgs{flex:1;overflow:auto;padding:28px 32px;display:flex;flex-direction:column;gap:22px}
+.m{display:flex;gap:14px;max-width:760px}
+.m.me{align-self:flex-end;flex-direction:row-reverse}
+.m.me .body{background:var(--ink);color:#fff;border-radius:14px 14px 4px 14px;padding:12px 16px}
+.m .body{min-width:0}
+.m.ai .body p+p{margin-top:8px}
+.tool{margin-top:12px;border:1px solid var(--line);border-radius:var(--r-2);overflow:hidden}
+.tool .th{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#FAFBFC;border-bottom:1px solid var(--line-2);font-size:15px;color:var(--ink-2)}
+.tool .th .chip{margin-left:auto}
+.tool table td,.tool table th{padding:10px 14px}
+.tool .tb{padding:14px}
+.composer{border-top:1px solid var(--line);padding:16px 20px;display:flex;gap:12px;align-items:flex-end}
+.composer .input{height:52px;border-radius:var(--r-2)}
+.sugg{display:flex;gap:8px;flex-wrap:wrap;padding:0 20px 16px}
+.sugg button{border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:15px;color:var(--ink-2);background:var(--paper)}
+.sugg button:hover{border-color:#C9CED6;color:var(--ink)}
+
+/* role picker */
+.roles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.role{border:1px solid var(--line);border-radius:var(--r-2);padding:18px;background:var(--paper);text-align:left;display:flex;flex-direction:column;gap:10px}
+.role:hover{border-color:#C9CED6}
+.role[aria-pressed="true"]{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.role .ri{width:40px;height:40px;border-radius:9px;background:var(--line-2);display:grid;place-items:center}
+.role[aria-pressed="true"] .ri{background:var(--ink);color:#fff}
+.role p{color:var(--ink-2);font-size:15px}
+.caps{display:flex;flex-wrap:wrap;gap:6px}
+.cap{font-size:14px;border:1px solid var(--line);border-radius:5px;padding:1px 8px;color:var(--ink-2)}
+.cap.w{border-color:#C9CED6;color:var(--ink);font-weight:500}
+
+/* risk flags */
+.flag{display:flex;gap:12px;padding:14px 16px;border-radius:var(--r-1);background:var(--held-bg);color:#5C3B00}
+.flag+.flag{margin-top:8px}
+.flag svg{color:var(--held);margin-top:2px}
+.flag b{display:block;color:var(--ink)}
+
+/* org chart */
+.org{display:flex;flex-direction:column;align-items:center;gap:0;padding:32px 20px}
+.node{display:flex;align-items:center;gap:10px;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-2);padding:10px 14px;min-width:220px}
+.node .t{display:flex;flex-direction:column;line-height:1.3}
+.node .t small{color:var(--ink-3);font-size:14px}
+.node.agent{border-style:dashed}
+.vline{width:1px;height:28px;background:#C9CED6}
+.row{display:flex;gap:28px;position:relative;padding-top:28px}
+.row::before{content:"";position:absolute;top:0;left:calc(var(--l,0px));right:calc(var(--r,0px));border-top:1px solid #C9CED6}
+.col{display:flex;flex-direction:column;align-items:center;position:relative}
+.col::before{content:"";position:absolute;top:-28px;height:28px;width:1px;background:#C9CED6}
+.col .kids{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+
+/* apps */
+.apps{display:grid;grid-template-columns:repeat(2,1fr);gap:0}
+.app{display:flex;gap:16px;padding:20px;border-bottom:1px solid var(--line-2);align-items:flex-start}
+.app:nth-child(odd){border-right:1px solid var(--line-2)}
+.app .ai{width:48px;height:48px;border-radius:11px;background:var(--line-2);display:grid;place-items:center;flex:none}
+.app .grow{flex:1}
+.app p{color:var(--ink-2);font-size:15px;margin-top:2px}
+
+/* chart */
+.chart{display:flex;align-items:flex-end;gap:18px;height:220px;padding:10px 4px 0;border-bottom:1px solid var(--line)}
+.chart .c{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end}
+.chart .bars{display:flex;gap:4px;align-items:flex-end;height:100%;width:100%;justify-content:center}
+.chart .bars i{width:18px;border-radius:4px 4px 0 0;background:var(--ink)}
+.chart .bars i.b{background:#AEB6C2}
+.chart .c span{font-size:14px;color:var(--ink-3)}
+.legend{display:flex;gap:18px;font-size:15px;color:var(--ink-2)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--ink);margin-right:6px;vertical-align:-1px}
+.legend i.b{background:#AEB6C2}
+
+/* stat strip — plain, not hero numbers */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);background:var(--paper);border:1px solid var(--line);border-radius:var(--r-2);margin-bottom:20px}
+.stat{padding:18px 20px;border-right:1px solid var(--line-2)}
+.stat:last-child{border-right:0}
+.stat .v{font-size:26px;font-weight:600;letter-spacing:-.01em}
+.stat .l{color:var(--ink-2);font-size:15px}
+
+/* modal */
+.scrim{position:fixed;inset:0;background:rgba(24,32,43,.45);display:none;align-items:center;justify-content:center;z-index:20}
+.scrim.on{display:flex}
+.modal{background:var(--paper);border-radius:14px;width:460px;padding:28px;display:flex;flex-direction:column;gap:18px}
+.otp{display:flex;gap:10px}
+.otp span{width:52px;height:60px;border:1px solid var(--line);border-radius:var(--r-1);display:grid;place-items:center;font-size:26px;font-weight:600}
+.otp span.f{border-color:var(--ink)}
+.summary{background:var(--canvas);border-radius:var(--r-1);padding:14px 16px}
+
+/* toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;border-radius:var(--r-2);padding:12px 18px;display:none;align-items:center;gap:10px;z-index:30}
+.toast.on{display:flex}
+
+/* empty state */
+.empty{padding:48px 20px;text-align:center;color:var(--ink-2);display:flex;flex-direction:column;align-items:center;gap:10px}
+.empty .ei{width:52px;height:52px;border-radius:50%;background:var(--line-2);display:grid;place-items:center;color:var(--ink-3)}
+
+
+.ri-sm{width:36px;height:36px;border-radius:9px;background:var(--line-2);display:grid;place-items:center;flex:none}
+.editor{display:grid;grid-template-columns:1fr 360px;gap:0;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-2);overflow:hidden;min-height:660px}
+.canvas{position:relative;background-color:#FAFBFC;background-image:radial-gradient(#D5DAE1 1px,transparent 1px);background-size:20px 20px;min-height:660px}
+.canvas .edges{position:absolute;left:0;top:0;width:640px;height:660px;overflow:visible}
+.canvas .edges path{fill:none;stroke:#9AA3B0;stroke-width:1.6}
+.elabel{position:absolute;font-size:14px;color:var(--ink-2);background:#FAFBFC;padding:0 4px}
+.fn{position:absolute;width:240px;height:64px;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-2);display:flex;align-items:center;gap:12px;padding:0 14px}
+.fn .t{display:flex;flex-direction:column;line-height:1.3;min-width:0}
+.fn .t small{color:var(--ink-3);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fn.sel{border-color:var(--focus);box-shadow:0 0 0 3px #D7E0FA}
+.ni{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;flex:none;background:var(--line-2);color:var(--ink)}
+.ni.xt{background:var(--ink);color:#fff}.ni.ai{background:var(--info-bg);color:var(--focus)}.ni.trig{background:var(--held-bg);color:var(--held)}.ni.human{background:var(--ok-bg);color:var(--ok)}
+.cbar{position:absolute;left:16px;bottom:16px;display:flex;align-items:center;gap:4px;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-1);padding:2px 10px 2px 2px}
+.cfg{border-left:1px solid var(--line)}
+.hit{display:flex;gap:12px;padding:12px;border:1px solid var(--line-2);border-radius:var(--r-1)}
+.hit p{color:var(--ink-2);font-size:15px;margin-top:2px}
+.hs{font-weight:600;font-size:15px;color:var(--ok);min-width:40px}
+
+/* mockup-only: screen index */
+.mock-index{position:fixed;right:16px;bottom:16px;background:var(--paper);border:1px solid var(--line);border-radius:var(--r-2);padding:10px;font-size:14px;z-index:40;max-width:240px}
+.mock-index summary{cursor:pointer;font-weight:600;color:var(--ink-2)}
+.mock-index ol{margin:8px 0 0 18px;line-height:1.9}
+.mock-index a{color:var(--link);text-decoration:none}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<!--ICONS-->
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><div class="mark">xT</div><b>Desk</b></div>
+    <nav class="nav" aria-label="Điều hướng chính">
+      <a href="#tro-ly" data-area="tro-ly"><svg class="i"><use href="#i-message-square"/></svg>Trợ lý</a>
+      <a href="#nguoi" data-area="nguoi"><svg class="i"><use href="#i-users"/></svg>Con người</a>
+      <a href="#duyet" data-area="duyet"><svg class="i"><use href="#i-workflow"/></svg>Quy trình<span class="n">3</span></a>
+      <a href="#bao-cao" data-area="du-lieu"><svg class="i"><use href="#i-chart-column"/></svg>Dữ liệu</a>
+      <a href="#tri-tue" data-area="tri-tue"><svg class="i"><use href="#i-brain-circuit"/></svg>Trí tuệ</a>
+      <a href="#ung-dung" data-area="ung-dung"><svg class="i"><use href="#i-layout-grid"/></svg>Ứng dụng</a>
+    </nav>
+    <div class="foot">
+      <div class="av sm">TT</div>
+      <div style="line-height:1.25;flex:1"><div style="font-weight:600;font-size:15px">Lê Ngọc Trâm</div><div class="faint" style="font-size:14px">Quản lý kho</div></div>
+      <button class="iconbtn" aria-label="Đăng xuất"><svg class="i s"><use href="#i-log-out"/></svg></button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <button class="tenant"><svg class="i"><use href="#i-building-2"/></svg>Minh An Logistics<svg class="i s"><use href="#i-chevron-down"/></svg></button>
+      <div class="search" role="search"><svg class="i s"><use href="#i-search"/></svg><span>Tìm người, phiếu, dữ liệu</span><kbd>Ctrl K</kbd></div>
+      <div class="gap"></div>
+      <button class="iconbtn" aria-label="Thông báo"><svg class="i"><use href="#i-bell"/></svg><span class="dot"></span></button>
+    </header>
+
+    <main class="page">
+
+<!-- ============ 1. TRỢ LÝ ============ -->
+<section class="screen" id="tro-ly" data-area="tro-ly">
+  <div class="chat">
+    <div class="thread">
+      <div class="msgs">
+        <div class="m me"><div class="body">Kho Hà Nội còn bao nhiêu giấy A4?</div></div>
+        <div class="m ai"><div class="av sm agent"><svg class="i s"><use href="#i-bot"/></svg></div><div class="body">
+          <p>Kho Hà Nội còn <b>8 ram</b> giấy A4, dưới mức đặt lại 10 ram.</p>
+          <div class="tool"><div class="th"><svg class="i s"><use href="#i-package"/></svg>Tồn kho · KHO-HN<span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Dữ liệu thật</span></div>
+            <table><thead><tr><th>Mặt hàng</th><th>Vị trí</th><th class="num">Tồn</th></tr></thead>
+            <tbody><tr><td>Giấy A4 Double A</td><td>Kệ A-02</td><td class="num">8 ram</td></tr><tr><td>Bút bi Thiên Long</td><td>Kệ B-01</td><td class="num">120 cây</td></tr></tbody></table></div>
+        </div></div>
+        <div class="m me"><div class="body">Tạo phiếu xuất 3 ram cho phòng kinh doanh rồi gửi duyệt.</div></div>
+        <div class="m ai"><div class="av sm agent"><svg class="i s"><use href="#i-bot"/></svg></div><div class="body">
+          <p>Đã tạo phiếu và gửi duyệt. Người duyệt là bạn, vì bạn quản lý kho này.</p>
+          <div class="tool"><div class="th"><svg class="i s"><use href="#i-receipt"/></svg>PX-0142 · Xuất kho<span class="chip held"><svg class="i"><use href="#i-hourglass"/></svg>Chờ duyệt</span></div>
+            <div class="tb"><dl class="kv"><dt>Mặt hàng</dt><dd>Giấy A4 Double A · 3 ram</dd><dt>Người lập</dt><dd>Trần Văn Dũng (qua ChatGPT)</dd></dl>
+            <div style="margin-top:14px;display:flex;gap:10px"><a class="btn pri sm" href="#duyet">Mở để duyệt</a></div></div></div>
+        </div></div>
+        <div class="m me"><div class="body">Duyệt luôn giúp tôi.</div></div>
+        <div class="m ai"><div class="av sm agent"><svg class="i s"><use href="#i-bot"/></svg></div><div class="body">
+          <div class="tool" style="margin-top:0"><div class="th"><svg class="i s"><use href="#i-shield-alert"/></svg>Không thực hiện<span class="chip block"><svg class="i"><use href="#i-ban"/></svg>Bị chặn</span></div>
+            <div class="tb">Trợ lý không được duyệt thay. Bạn duyệt trên Desk, nhập mật khẩu và mã OTP.</div></div>
+        </div></div>
+      </div>
+      <div class="sugg"><button>Phiếu chờ tôi duyệt</button><button>Tồn kho dưới mức đặt lại</button><button>Báo cáo xuất kho tháng này</button></div>
+      <div class="composer"><input class="input" placeholder="Hỏi hoặc giao việc cho trợ lý"><button class="btn pri" style="height:52px;width:52px;padding:0;justify-content:center" aria-label="Gửi"><svg class="i"><use href="#i-arrow-up"/></svg></button></div>
+    </div>
+    <div class="grid">
+      <div class="panel"><div class="ph"><h3>Việc của tôi</h3></div>
+        <div class="list">
+          <a href="#duyet"><svg class="i" style="color:var(--held)"><use href="#i-hourglass"/></svg><div class="grow">Duyệt PX-0142<div class="meta">Dũng · 3 ram giấy A4</div></div></a>
+          <a href="#duyet"><svg class="i" style="color:var(--held)"><use href="#i-hourglass"/></svg><div class="grow">Duyệt JD Trợ lý kho<div class="meta">Có 2 cảnh báo quyền</div></div></a>
+          <a href="#su-co"><svg class="i" style="color:var(--block)"><use href="#i-circle-alert"/></svg><div class="grow">Sự cố agent<div class="meta">Vượt hạn mức giá trị</div></div></a>
+        </div></div>
+      <div class="panel pb"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><svg class="i"><use href="#i-shield-check"/></svg><h3>Trợ lý đang dùng quyền của bạn</h3></div>
+        <p class="muted small">Đọc và tạo phiếu được. Duyệt, xóa và chi tiền luôn cần bạn xác nhận.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2. CON NGƯỜI · NHÂN VIÊN ============ -->
+<section class="screen" id="nguoi" data-area="nguoi">
+  <div class="head"><div><h1>Con người</h1></div><div class="act"><button class="btn"><svg class="i s"><use href="#i-upload"/></svg>Nhập danh sách</button><button class="btn pri"><svg class="i s"><use href="#i-user-plus"/></svg>Thêm nhân viên</button></div></div>
+  <nav class="tabs"><a href="#nguoi" aria-current="page">Nhân viên</a><a href="#to-chuc">Sơ đồ tổ chức</a><a href="#agent">Nhân sự AI</a><a href="#quyen">Cấp quyền</a></nav>
+  <div class="panel">
+    <div class="ph"><div class="search" style="max-width:360px;background:var(--paper)"><svg class="i s"><use href="#i-search"/></svg><span>Tìm theo tên, email</span></div>
+      <div class="seg" style="margin-left:12px"><button aria-pressed="true">Tất cả</button><button aria-pressed="false">Kho</button><button aria-pressed="false">Kinh doanh</button><button aria-pressed="false">IT</button></div></div>
+    <table>
+      <thead><tr><th>Nhân viên</th><th>Phòng ban</th><th>Vai trò</th><th>Agent</th><th>Trạng thái</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><div class="who"><div class="av">NT</div><div class="t">Nguyễn Hữu Trí<small>tri.nguyenhuu@minhan.vn</small></div></div></td><td>Ban giám đốc</td><td>Giám đốc</td><td class="faint">—</td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Đang làm</span></td><td><button class="iconbtn" aria-label="Thêm"><svg class="i"><use href="#i-ellipsis"/></svg></button></td></tr>
+        <tr><td><div class="who"><div class="av">TT</div><div class="t">Lê Ngọc Trâm<small>tram.lengoc@minhan.vn</small></div></div></td><td>Kho</td><td>Quản lý kho</td><td>Claude</td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Đang làm</span></td><td><button class="iconbtn" aria-label="Thêm"><svg class="i"><use href="#i-ellipsis"/></svg></button></td></tr>
+        <tr><td><div class="who"><div class="av">TD</div><div class="t">Trần Văn Dũng<small>dung.tranvan@minhan.vn</small></div></div></td><td>Kinh doanh</td><td>Nhân viên kinh doanh</td><td>ChatGPT</td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Đang làm</span></td><td><button class="iconbtn" aria-label="Thêm"><svg class="i"><use href="#i-ellipsis"/></svg></button></td></tr>
+        <tr><td><div class="who"><div class="av">HB</div><div class="t">Hoàng Quốc Bảo<small>bao.hoangquoc@minhan.vn</small></div></div></td><td>IT</td><td>Quản trị hệ thống</td><td class="faint">—</td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Đang làm</span></td><td><button class="iconbtn" aria-label="Thêm"><svg class="i"><use href="#i-ellipsis"/></svg></button></td></tr>
+        <tr><td><div class="who"><div class="av">PL</div><div class="t">Phạm Thùy Linh<small>linh.phamthuy@minhan.vn</small></div></div></td><td>Kinh doanh</td><td>Nhân viên kinh doanh</td><td class="faint">—</td><td><span class="chip held"><svg class="i"><use href="#i-hourglass"/></svg>Đang tiếp nhận</span></td><td><button class="iconbtn" aria-label="Thêm"><svg class="i"><use href="#i-ellipsis"/></svg></button></td></tr>
+        <tr><td><div class="who"><div class="av">VK</div><div class="t">Võ Minh Khoa<small>khoa.vominh@minhan.vn</small></div></div></td><td>Kho</td><td>Thủ kho</td><td class="faint">—</td><td><span class="chip neutral"><svg class="i"><use href="#i-user-x"/></svg>Đã nghỉ</span></td><td><button class="iconbtn" aria-label="Thêm"><svg class="i"><use href="#i-ellipsis"/></svg></button></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 3. SƠ ĐỒ TỔ CHỨC ============ -->
+<section class="screen" id="to-chuc" data-area="nguoi">
+  <div class="head"><div><h1>Con người</h1></div><div class="act"><div class="seg"><button aria-pressed="true">Người và agent</button><button aria-pressed="false">Chỉ người</button></div></div></div>
+  <nav class="tabs"><a href="#nguoi">Nhân viên</a><a href="#to-chuc" aria-current="page">Sơ đồ tổ chức</a><a href="#agent">Nhân sự AI</a><a href="#quyen">Cấp quyền</a></nav>
+  <div class="panel">
+    <div class="org">
+      <div class="node"><div class="av sm">NT</div><div class="t"><b>Nguyễn Hữu Trí</b><small>Giám đốc</small></div></div>
+      <div class="vline"></div>
+      <div class="row" style="--l:110px;--r:110px">
+        <div class="col"><div class="node"><div class="av sm">TT</div><div class="t"><b>Lê Ngọc Trâm</b><small>Quản lý kho</small></div></div>
+          <div class="kids"><div class="node agent"><div class="av sm agent"><svg class="i s"><use href="#i-bot"/></svg></div><div class="t"><b>Thư ký kho</b><small>Claude · chỉ đọc</small></div></div></div></div>
+        <div class="col"><div class="node"><div class="av sm">TD</div><div class="t"><b>Trần Văn Dũng</b><small>Kinh doanh</small></div></div>
+          <div class="kids"><div class="node agent"><div class="av sm agent"><svg class="i s"><use href="#i-bot"/></svg></div><div class="t"><b>Trợ lý kho</b><small>ChatGPT · đang làm</small></div></div>
+          <div class="node"><div class="av sm">PL</div><div class="t"><b>Phạm Thùy Linh</b><small>Kinh doanh</small></div></div></div></div>
+        <div class="col"><div class="node"><div class="av sm">HB</div><div class="t"><b>Hoàng Quốc Bảo</b><small>IT</small></div></div>
+          <div class="kids"><div class="node agent" style="opacity:.6"><div class="av sm agent"><svg class="i s"><use href="#i-bot"/></svg></div><div class="t"><b>Trợ lý CSKH</b><small>ChatGPT · tạm dừng</small></div></div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4. NHÂN SỰ AI · DANH SÁCH ============ -->
+<section class="screen" id="agent" data-area="nguoi">
+  <div class="head"><div><h1>Con người</h1></div><div class="act"><a class="btn pri" href="#tuyen"><svg class="i s"><use href="#i-plus"/></svg>Tuyển agent</a></div></div>
+  <nav class="tabs"><a href="#nguoi">Nhân viên</a><a href="#to-chuc">Sơ đồ tổ chức</a><a href="#agent" aria-current="page">Nhân sự AI</a><a href="#quyen">Cấp quyền</a></nav>
+  <div class="stats">
+    <div class="stat"><div class="v">3</div><div class="l">Agent đang làm</div></div>
+    <div class="stat"><div class="v">47</div><div class="l">Việc hôm nay</div></div>
+    <div class="stat"><div class="v">5</div><div class="l">Lần bị chặn</div></div>
+    <div class="stat"><div class="v">1</div><div class="l">Sự cố mở</div></div>
+  </div>
+  <div class="panel">
+    <table>
+      <thead><tr><th>Agent</th><th>Vai trò</th><th>Phụ trách</th><th>Hôm nay</th><th>Trạng thái</th><th></th></tr></thead>
+      <tbody>
+        <tr onclick="location.hash='ho-so'" style="cursor:pointer"><td><div class="who"><div class="av agent"><svg class="i s"><use href="#i-bot"/></svg></div><div class="t">Trợ lý kho<small>ChatGPT</small></div></div></td><td>Trợ lý kho</td><td>Trần Văn Dũng</td><td><div class="meter"><div class="bar warn"><i style="width:84%"></i></div><span class="small">42/50</span></div></td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Đang làm</span></td><td><svg class="i faint"><use href="#i-chevron-right"/></svg></td></tr>
+        <tr><td><div class="who"><div class="av agent"><svg class="i s"><use href="#i-bot"/></svg></div><div class="t">Thư ký kho<small>Claude</small></div></div></td><td>Thư ký (chỉ đọc)</td><td>Lê Ngọc Trâm</td><td><div class="meter"><div class="bar"><i style="width:10%"></i></div><span class="small">5/50</span></div></td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Đang làm</span></td><td><svg class="i faint"><use href="#i-chevron-right"/></svg></td></tr>
+        <tr><td><div class="who"><div class="av agent"><svg class="i s"><use href="#i-bot"/></svg></div><div class="t">Trợ lý CSKH<small>ChatGPT</small></div></div></td><td>Chăm sóc khách hàng</td><td>Hoàng Quốc Bảo</td><td><div class="meter"><div class="bar full"><i style="width:100%"></i></div><span class="small">30/30</span></div></td><td><span class="chip block"><svg class="i"><use href="#i-circle-pause"/></svg>Tạm dừng · hạn mức</span></td><td><svg class="i faint"><use href="#i-chevron-right"/></svg></td></tr>
+        <tr><td><div class="who"><div class="av agent"><svg class="i s"><use href="#i-bot"/></svg></div><div class="t">Trợ lý mua hàng<small>Claude</small></div></div></td><td>Đề xuất mua</td><td>Nguyễn Hữu Trí</td><td class="faint">—</td><td><span class="chip held"><svg class="i"><use href="#i-hourglass"/></svg>Chờ IT duyệt</span></td><td><svg class="i faint"><use href="#i-chevron-right"/></svg></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 5. HỒ SƠ AGENT ============ -->
+<section class="screen" id="ho-so" data-area="nguoi">
+  <a href="#agent" class="btn ghost sm" style="margin-bottom:14px;padding-left:6px"><svg class="i s"><use href="#i-arrow-left"/></svg>Nhân sự AI</a>
+  <div class="head">
+    <div class="who"><div class="av agent" style="width:56px;height:56px;border-radius:13px"><svg class="i l"><use href="#i-bot"/></svg></div>
+      <div><h1>Trợ lý kho</h1><div class="sub" style="display:flex;gap:10px;align-items:center"><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Đang làm</span><span class="muted">ChatGPT, làm thay Trần Văn Dũng</span></div></div></div>
+    <div class="act"><button class="btn danger" onclick="openSuspend()"><svg class="i s"><use href="#i-pause"/></svg>Đình chỉ</button><button class="btn ghost"><svg class="i s"><use href="#i-user-x"/></svg>Cho nghỉ</button></div>
+  </div>
+  <nav class="tabs"><a href="#ho-so" aria-current="page">Tổng quan</a><a href="#ho-so">Mô tả công việc</a><a href="#su-co">Sự cố</a><a href="#nhat-ky">Nhật ký</a></nav>
+  <div class="grid g-2">
+    <div class="panel"><div class="ph"><h2>Được làm</h2><div class="act"><button class="btn sm">Đổi mô tả</button></div></div>
+      <table><thead><tr><th>Dữ liệu</th><th>Đọc</th><th>Tạo</th><th>Sửa</th><th>Gửi duyệt</th></tr></thead><tbody>
+        <tr><td>Phiếu nhập/xuất</td><td><svg class="i" style="color:var(--ok)"><use href="#i-check"/></svg></td><td><svg class="i" style="color:var(--ok)"><use href="#i-check"/></svg></td><td><svg class="i" style="color:var(--ok)"><use href="#i-check"/></svg></td><td><span class="chip held"><svg class="i"><use href="#i-lock"/></svg>Giữ lại</span></td></tr>
+        <tr><td>Tồn kho</td><td><svg class="i" style="color:var(--ok)"><use href="#i-check"/></svg></td><td><svg class="i faint"><use href="#i-x"/></svg></td><td><svg class="i faint"><use href="#i-x"/></svg></td><td class="faint">—</td></tr>
+        <tr><td>Hàng hóa</td><td><svg class="i" style="color:var(--ok)"><use href="#i-check"/></svg></td><td><svg class="i faint"><use href="#i-x"/></svg></td><td><svg class="i faint"><use href="#i-x"/></svg></td><td class="faint">—</td></tr>
+      </tbody></table>
+      <div class="pb" style="border-top:1px solid var(--line-2)"><p class="muted small">Duyệt, xóa và chi tiền luôn cần người xác nhận.</p></div>
+    </div>
+    <div class="grid">
+      <div class="panel"><div class="ph"><h2>Hạn mức</h2><div class="act"><button class="btn sm">Sửa</button></div></div>
+        <div class="pb grid" style="gap:18px">
+          <div><div style="display:flex;justify-content:space-between"><span>Việc mỗi ngày</span><b>42 / 50</b></div><div class="bar warn" style="margin-top:8px"><i style="width:84%"></i></div></div>
+          <div style="display:flex;justify-content:space-between"><span>Giá trị mỗi phiếu</span><b>5.000.000 ₫</b></div>
+          <div style="display:flex;justify-content:space-between"><span>Giờ làm</span><b>08:00 – 18:00, T2–T6</b></div>
+        </div></div>
+      <div class="panel"><div class="ph"><h2>Giấy phép hành động</h2><div class="act"><button class="btn sm"><svg class="i s"><use href="#i-plus"/></svg>Mở</button></div></div>
+        <div class="empty" style="padding:28px 20px"><div class="ei"><svg class="i"><use href="#i-lock"/></svg></div><div>Chưa mở hành động nào. Agent chỉ soạn nháp.</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6. TUYỂN AGENT ============ -->
+<section class="screen" id="tuyen" data-area="nguoi">
+  <a href="#agent" class="btn ghost sm" style="margin-bottom:14px;padding-left:6px"><svg class="i s"><use href="#i-arrow-left"/></svg>Nhân sự AI</a>
+  <div class="head"><div><h1>Tuyển agent</h1><div class="sub">Chọn vai trò. Quyền được gợi ý sẵn, IT duyệt trước khi agent bắt đầu.</div></div></div>
+  <div class="split" style="grid-template-columns:1fr 400px">
+    <div class="roles">
+      <button class="role" aria-pressed="true"><div class="ri"><svg class="i"><use href="#i-warehouse"/></svg></div><h3>Trợ lý kho</h3><p>Tra tồn, soạn phiếu nhập xuất.</p><div class="caps"><span class="cap">Đọc tồn kho</span><span class="cap w">Tạo phiếu</span></div></button>
+      <button class="role" aria-pressed="false"><div class="ri"><svg class="i"><use href="#i-handshake"/></svg></div><h3>Trợ lý kinh doanh</h3><p>Ghi khách hàng, cơ hội, lịch chăm sóc.</p><div class="caps"><span class="cap">Đọc CRM</span><span class="cap w">Tạo khách hàng</span></div></button>
+      <button class="role" aria-pressed="false"><div class="ri"><svg class="i"><use href="#i-message-square"/></svg></div><h3>Chăm sóc khách hàng</h3><p>Ghi yêu cầu hỗ trợ, nhắc hạn xử lý.</p><div class="caps"><span class="cap">Đọc CRM</span><span class="cap w">Ghi chăm sóc</span></div></button>
+      <button class="role" aria-pressed="false"><div class="ri"><svg class="i"><use href="#i-receipt"/></svg></div><h3>Đề xuất mua</h3><p>Soạn đề xuất mua theo hạn mức.</p><div class="caps"><span class="cap w">Tạo đề xuất</span><span class="cap w">Đụng tiền</span></div></button>
+      <button class="role" aria-pressed="false"><div class="ri"><svg class="i"><use href="#i-calendar-clock"/></svg></div><h3>Thư ký</h3><p>Tóm tắt việc, báo cáo. Chỉ đọc.</p><div class="caps"><span class="cap">Chỉ đọc</span></div></button>
+      <button class="role" aria-pressed="false"><div class="ri"><svg class="i"><use href="#i-users"/></svg></div><h3>Trợ lý nhân sự</h3><p>Tra cứu nhân sự, dữ liệu cá nhân được che.</p><div class="caps"><span class="cap">Đọc nhân sự</span><span class="cap w">PII che</span></div></button>
+    </div>
+    <div class="panel"><div class="ph"><h2>Hồ sơ</h2></div>
+      <div class="pb grid" style="gap:16px">
+        <div class="field"><label>Tên</label><input class="input" value="Trợ lý kho"></div>
+        <div class="field"><label>Agent</label><select class="input"><option>ChatGPT</option><option>Claude</option></select></div>
+        <div class="field"><label>Làm thay</label><select class="input"><option>Trần Văn Dũng</option></select></div>
+        <div class="field"><label>Việc mỗi ngày</label><input class="input" value="50"></div>
+        <div class="field"><label>Giá trị mỗi phiếu</label><input class="input" value="5.000.000 ₫"></div>
+        <button class="btn pri" style="justify-content:center" onclick="toast('Đã gửi IT duyệt')">Gửi IT duyệt</button>
+      </div></div>
+  </div>
+</section>
+
+<!-- ============ 7. CẤP QUYỀN ============ -->
+<section class="screen" id="quyen" data-area="nguoi">
+  <div class="head"><div><h1>Con người</h1></div><div class="act"><button class="btn pri"><svg class="i s"><use href="#i-key-round"/></svg>Đề xuất cấp quyền</button></div></div>
+  <nav class="tabs"><a href="#nguoi">Nhân viên</a><a href="#to-chuc">Sơ đồ tổ chức</a><a href="#agent">Nhân sự AI</a><a href="#quyen" aria-current="page">Cấp quyền</a></nav>
+  <div class="panel"><table>
+    <thead><tr><th>Người</th><th>Quyền</th><th>Từ</th><th>Đến</th><th>Trạng thái</th></tr></thead>
+    <tbody>
+      <tr><td><div class="who"><div class="av sm">PL</div>Phạm Thùy Linh</div></td><td>Nhân viên kinh doanh</td><td>21/10</td><td class="faint">Không hạn</td><td><span class="chip held"><svg class="i"><use href="#i-hourglass"/></svg>Chờ IT</span></td></tr>
+      <tr><td><div class="who"><div class="av sm">TD</div>Trần Văn Dũng</div></td><td>Lập phiếu kho</td><td>02/10</td><td>31/12</td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Hiệu lực</span></td></tr>
+      <tr><td><div class="who"><div class="av sm">VK</div>Võ Minh Khoa</div></td><td>Thủ kho</td><td>01/03</td><td>15/10</td><td><span class="chip neutral"><svg class="i"><use href="#i-x"/></svg>Đã thu hồi</span></td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- ============ 8. QUY TRÌNH · CHỜ DUYỆT ============ -->
+<section class="screen" id="duyet" data-area="duyet">
+  <div class="head"><div><h1>Quy trình</h1></div><div class="act"><a class="btn pri" href="#de-xuat"><svg class="i s"><use href="#i-plus"/></svg>Tạo đề xuất</a></div></div>
+  <nav class="tabs"><a href="#duyet" aria-current="page">Chờ tôi duyệt</a><a href="#duyet">Tôi đã gửi</a><a href="#duyet">Tất cả</a></nav>
+  <div class="split">
+    <div class="panel list">
+      <a href="#duyet" aria-current="true"><svg class="i" style="color:var(--held)"><use href="#i-receipt"/></svg><div class="grow"><b>PX-0142 · Xuất kho</b><div class="meta">Dũng qua ChatGPT · 3 ram giấy A4</div></div><div class="right">10:24</div></a>
+      <a href="#duyet-jd"><svg class="i" style="color:var(--held)"><use href="#i-bot"/></svg><div class="grow"><b>Tuyển agent · Trợ lý mua hàng</b><div class="meta">Trí · 2 cảnh báo quyền</div></div><div class="right">09:51</div></a>
+      <a href="#duyet"><svg class="i" style="color:var(--held)"><use href="#i-file-text"/></svg><div class="grow"><b>Đề xuất mua máy in</b><div class="meta">Linh · 6.800.000 ₫</div></div><div class="right">Hôm qua</div></a>
+    </div>
+    <div class="panel">
+      <div class="ph"><div><h2>PX-0142 · Xuất kho</h2><div class="faint small">Gửi lúc 10:24, 21/10</div></div><div class="act"><span class="chip held"><svg class="i"><use href="#i-hourglass"/></svg>Chờ bạn duyệt</span></div></div>
+      <div class="pb">
+        <dl class="kv"><dt>Người lập</dt><dd>Trần Văn Dũng</dd><dt>Thực hiện bởi</dt><dd>Trợ lý kho (ChatGPT)</dd><dt>Kho</dt><dd>KHO-HN · Kệ A-02</dd><dt>Ghi chú</dt><dd>Cho phòng kinh doanh</dd></dl>
+      </div>
+      <table style="border-top:1px solid var(--line-2)"><thead><tr><th>Mặt hàng</th><th class="num">Số lượng</th><th class="num">Tồn sau xuất</th></tr></thead><tbody><tr><td>Giấy A4 Double A</td><td class="num">3 ram</td><td class="num">5 ram</td></tr></tbody></table>
+      <div class="pb" style="display:flex;gap:10px;border-top:1px solid var(--line-2)"><button class="btn ok" onclick="openConfirm('Duyệt PX-0142','Xuất 3 ram giấy A4 từ KHO-HN')"><svg class="i s"><use href="#i-check"/></svg>Duyệt</button><button class="btn danger"><svg class="i s"><use href="#i-x"/></svg>Từ chối</button><button class="btn ghost" style="margin-left:auto"><svg class="i s"><use href="#i-history"/></svg>Lịch sử</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 9. DUYỆT JD (cảnh báo nâng quyền) ============ -->
+<section class="screen" id="duyet-jd" data-area="duyet">
+  <div class="head"><div><h1>Quy trình</h1></div></div>
+  <nav class="tabs"><a href="#duyet" aria-current="page">Chờ tôi duyệt</a><a href="#duyet">Tôi đã gửi</a><a href="#duyet">Tất cả</a></nav>
+  <div class="split">
+    <div class="panel list">
+      <a href="#duyet"><svg class="i" style="color:var(--held)"><use href="#i-receipt"/></svg><div class="grow"><b>PX-0142 · Xuất kho</b><div class="meta">Dũng qua ChatGPT · 3 ram giấy A4</div></div><div class="right">10:24</div></a>
+      <a href="#duyet-jd" aria-current="true"><svg class="i" style="color:var(--held)"><use href="#i-bot"/></svg><div class="grow"><b>Tuyển agent · Trợ lý mua hàng</b><div class="meta">Trí · 2 cảnh báo quyền</div></div><div class="right">09:51</div></a>
+      <a href="#duyet"><svg class="i" style="color:var(--held)"><use href="#i-file-text"/></svg><div class="grow"><b>Đề xuất mua máy in</b><div class="meta">Linh · 6.800.000 ₫</div></div><div class="right">Hôm qua</div></a>
+    </div>
+    <div class="panel">
+      <div class="ph"><div><h2>Tuyển agent · Trợ lý mua hàng</h2><div class="faint small">Claude, làm thay Nguyễn Hữu Trí</div></div><div class="act"><span class="chip held"><svg class="i"><use href="#i-hourglass"/></svg>Chờ IT duyệt</span></div></div>
+      <div class="pb">
+        <div class="flag"><svg class="i"><use href="#i-shield-alert"/></svg><div><b>Đụng tiền</b>Được tạo đề xuất mua, tối đa 10.000.000 ₫ mỗi đề xuất.</div></div>
+        <div class="flag"><svg class="i"><use href="#i-shield-alert"/></svg><div><b>Gửi đi duyệt</b>Được tự gửi đề xuất, không cần người bấm gửi.</div></div>
+      </div>
+      <table style="border-top:1px solid var(--line-2)"><thead><tr><th>Dữ liệu</th><th>Đọc</th><th>Tạo</th><th>Gửi duyệt</th></tr></thead><tbody>
+        <tr><td>Đề xuất mua</td><td><svg class="i" style="color:var(--ok)"><use href="#i-check"/></svg></td><td><svg class="i" style="color:var(--ok)"><use href="#i-check"/></svg></td><td><svg class="i" style="color:var(--held)"><use href="#i-check"/></svg></td></tr>
+        <tr><td>Nhà cung cấp</td><td><svg class="i" style="color:var(--ok)"><use href="#i-check"/></svg></td><td><svg class="i faint"><use href="#i-x"/></svg></td><td class="faint">—</td></tr>
+      </tbody></table>
+      <div class="pb" style="display:flex;gap:10px;border-top:1px solid var(--line-2)"><button class="btn ok" onclick="openConfirm('Duyệt tuyển Trợ lý mua hàng','2 cảnh báo quyền: đụng tiền, gửi đi duyệt')"><svg class="i s"><use href="#i-check"/></svg>Duyệt</button><button class="btn danger"><svg class="i s"><use href="#i-x"/></svg>Từ chối kèm lý do</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 10. TẠO ĐỀ XUẤT ============ -->
+<section class="screen" id="de-xuat" data-area="duyet">
+  <a href="#duyet" class="btn ghost sm" style="margin-bottom:14px;padding-left:6px"><svg class="i s"><use href="#i-arrow-left"/></svg>Quy trình</a>
+  <div class="head"><div><h1>Tạo đề xuất</h1></div></div>
+  <div class="split" style="grid-template-columns:1fr 360px">
+    <div class="panel pb grid" style="gap:18px">
+      <div class="field"><label>Loại</label><div class="seg"><button aria-pressed="true">Mua sắm</button><button aria-pressed="false">Thanh toán</button><button aria-pressed="false">Nghỉ phép</button></div></div>
+      <div class="field"><label>Tiêu đề</label><input class="input" value="Mua máy in cho phòng kinh doanh"></div>
+      <div class="grid g-2"><div class="field"><label>Số tiền</label><input class="input" value="6.800.000 ₫"></div><div class="field"><label>Cần trước</label><input class="input" value="30/10/2026"></div></div>
+      <div class="field"><label>Lý do</label><textarea class="input" rows="4">Máy in cũ hỏng, báo giá đính kèm.</textarea></div>
+      <div style="display:flex;align-items:center;gap:10px;border:1px dashed var(--line);border-radius:var(--r-1);padding:14px 16px;color:var(--ink-2)"><svg class="i"><use href="#i-paperclip"/></svg>bao-gia-may-in.pdf<span class="faint small" style="margin-left:auto">240 KB</span></div>
+      <div style="display:flex;gap:10px"><button class="btn pri" onclick="toast('Đã gửi đề xuất')"><svg class="i s"><use href="#i-send"/></svg>Gửi đề xuất</button><button class="btn ghost">Lưu nháp</button></div>
+    </div>
+    <div class="panel"><div class="ph"><h3>Người duyệt</h3></div>
+      <div class="list">
+        <a><div class="av sm">TD</div><div class="grow">Trưởng phòng kinh doanh<div class="meta">Bước 1</div></div></a>
+        <a><div class="av sm">NT</div><div class="grow">Nguyễn Hữu Trí<div class="meta">Bước 2 · trên 5.000.000 ₫</div></div></a>
+      </div></div>
+  </div>
+</section>
+
+<!-- ============ 11. DỮ LIỆU · BÁO CÁO ============ -->
+<section class="screen" id="bao-cao" data-area="du-lieu">
+  <div class="head"><div><h1>Dữ liệu</h1></div><div class="act"><div class="seg"><button aria-pressed="false">Tuần</button><button aria-pressed="true">Tháng</button><button aria-pressed="false">Quý</button></div><button class="btn"><svg class="i s"><use href="#i-download"/></svg>Xuất</button></div></div>
+  <nav class="tabs"><a href="#bao-cao" aria-current="page">Báo cáo</a><a href="#ban-ghi">Bản ghi</a><a href="#nhat-ky">Nhật ký</a></nav>
+  <div class="grid" style="grid-template-columns:1fr 380px">
+    <div class="panel"><div class="ph"><h2>Nhập xuất kho · tháng 10</h2><div class="act legend"><span><i></i>Nhập</span><span><i class="b"></i>Xuất</span></div></div>
+      <div class="pb">
+        <div class="chart">
+          <div class="c"><div class="bars"><i style="height:62%"></i><i class="b" style="height:40%"></i></div><span>Tuần 1</span></div>
+          <div class="c"><div class="bars"><i style="height:45%"></i><i class="b" style="height:58%"></i></div><span>Tuần 2</span></div>
+          <div class="c"><div class="bars"><i style="height:80%"></i><i class="b" style="height:52%"></i></div><span>Tuần 3</span></div>
+          <div class="c"><div class="bars"><i style="height:30%"></i><i class="b" style="height:22%"></i></div><span>Tuần 4</span></div>
+        </div>
+      </div></div>
+    <div class="panel"><div class="ph"><h3>Giấy A4 · tháng 10</h3></div>
+      <div class="pb grid" style="gap:14px">
+        <div style="display:flex;justify-content:space-between"><span class="muted">Nhập</span><b>40 ram</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="muted">Xuất</span><b>35 ram</b></div>
+        <div style="display:flex;justify-content:space-between"><span class="muted">Tồn cuối</span><b>5 ram</b></div>
+        <button class="btn" style="justify-content:center"><svg class="i s"><use href="#i-list-checks"/></svg>Xem 6 phiếu gốc</button>
+      </div></div>
+  </div>
+</section>
+
+<!-- ============ 12. DỮ LIỆU · BẢN GHI ============ -->
+<section class="screen" id="ban-ghi" data-area="du-lieu">
+  <div class="head"><div><h1>Dữ liệu</h1></div></div>
+  <nav class="tabs"><a href="#bao-cao">Báo cáo</a><a href="#ban-ghi" aria-current="page">Bản ghi</a><a href="#nhat-ky">Nhật ký</a></nav>
+  <div class="panel">
+    <div class="ph"><select class="input" style="width:240px;height:40px"><option>Phiếu nhập/xuất</option></select><div class="search" style="max-width:320px;background:var(--paper)"><svg class="i s"><use href="#i-search"/></svg><span>Tìm mã phiếu</span></div><div class="act"><button class="btn sm"><svg class="i s"><use href="#i-filter"/></svg>Lọc</button></div></div>
+    <table><thead><tr><th>Mã</th><th>Loại</th><th>Người lập</th><th>Ngày</th><th class="num">Số lượng</th><th>Trạng thái</th></tr></thead><tbody>
+      <tr><td><b>PX-0142</b></td><td>Xuất</td><td>Dũng · ChatGPT</td><td>21/10</td><td class="num">3 ram</td><td><span class="chip held"><svg class="i"><use href="#i-hourglass"/></svg>Chờ duyệt</span></td></tr>
+      <tr><td><b>PN-0098</b></td><td>Nhập</td><td>Trâm</td><td>18/10</td><td class="num">20 ram</td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Đã duyệt</span></td></tr>
+      <tr><td><b>PX-0139</b></td><td>Xuất</td><td>Linh</td><td>16/10</td><td class="num">5 ram</td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Đã duyệt</span></td></tr>
+      <tr><td><b>PX-0137</b></td><td>Xuất</td><td>Dũng · ChatGPT</td><td>15/10</td><td class="num">60 ram</td><td><span class="chip block"><svg class="i"><use href="#i-circle-x"/></svg>Từ chối</span></td></tr>
+    </tbody></table>
+  </div>
+</section>
+
+<!-- ============ 13. NHẬT KÝ (audit) ============ -->
+<section class="screen" id="nhat-ky" data-area="du-lieu">
+  <div class="head"><div><h1>Dữ liệu</h1></div><div class="act"><span class="chip ok" style="height:42px;padding:0 16px"><svg class="i"><use href="#i-badge-check"/></svg>Chuỗi nhật ký toàn vẹn</span></div></div>
+  <nav class="tabs"><a href="#bao-cao">Báo cáo</a><a href="#ban-ghi">Bản ghi</a><a href="#nhat-ky" aria-current="page">Nhật ký</a></nav>
+  <div class="panel">
+    <div class="ph"><div class="seg"><button aria-pressed="true">Tất cả</button><button aria-pressed="false">Agent</button><button aria-pressed="false">Bị chặn</button></div></div>
+    <ol class="tl">
+      <li><time>10:31</time><div class="ic block"><svg class="i s"><use href="#i-ban"/></svg></div><div><b>Trợ lý kho thử duyệt PX-0142</b><div class="muted small">Bị chặn: agent không được duyệt</div></div><span class="hash">#4f1a…c2</span></li>
+      <li><time>10:24</time><div class="ic held"><svg class="i s"><use href="#i-send"/></svg></div><div><b>PX-0142 gửi duyệt</b><div class="muted small">Trợ lý kho, làm thay Dũng</div></div><span class="hash">#91be…07</span></li>
+      <li><time>10:23</time><div class="ic ok"><svg class="i s"><use href="#i-plus"/></svg></div><div><b>Tạo phiếu PX-0142</b><div class="muted small">Trợ lý kho, làm thay Dũng</div></div><span class="hash">#0c3d…ae</span></li>
+      <li><time>09:12</time><div class="ic block"><svg class="i s"><use href="#i-ban"/></svg></div><div><b>Trợ lý kho tạo phiếu 50.000.000 ₫</b><div class="muted small">Bị chặn: vượt hạn mức 5.000.000 ₫</div></div><span class="hash">#7e20…5b</span></li>
+      <li><time>08:02</time><div class="ic"><svg class="i s"><use href="#i-key-round"/></svg></div><div><b>Bảo duyệt quyền cho Linh</b><div class="muted small">Xác nhận bằng mật khẩu và OTP</div></div><span class="hash">#b8a4…11</span></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ 14. SỰ CỐ AGENT ============ -->
+<section class="screen" id="su-co" data-area="nguoi">
+  <a href="#ho-so" class="btn ghost sm" style="margin-bottom:14px;padding-left:6px"><svg class="i s"><use href="#i-arrow-left"/></svg>Trợ lý kho</a>
+  <div class="head"><div><h1>Sự cố</h1></div></div>
+  <div class="panel list">
+    <a aria-current="true"><svg class="i" style="color:var(--block)"><use href="#i-circle-alert"/></svg><div class="grow"><b>Vượt hạn mức giá trị</b><div class="meta">Phiếu 50.000.000 ₫, hạn mức 5.000.000 ₫ · 09:12 hôm nay</div>
+      <div style="display:flex;gap:8px;margin-top:12px"><button class="btn sm">Bỏ qua</button><button class="btn sm">Nâng hạn mức</button><button class="btn sm danger">Đình chỉ agent</button></div></div><span class="chip block">Mở</span></a>
+    <a><svg class="i faint"><use href="#i-clock"/></svg><div class="grow"><b>Ngoài giờ làm</b><div class="meta">Yêu cầu lúc 21:40, 19/10</div></div><span class="chip neutral">Đã xử lý</span></a>
+  </div>
+</section>
+
+<!-- ============ 15. TRÍ TUỆ · ỨNG DỤNG AI ============ -->
+<section class="screen" id="tri-tue" data-area="tri-tue">
+  <div class="head"><div><h1>Trí tuệ</h1></div><div class="act"><button class="btn"><svg class="i s"><use href="#i-download"/></svg>Nhập DSL</button><button class="btn pri"><svg class="i s"><use href="#i-plus"/></svg>Tạo ứng dụng</button></div></div>
+  <nav class="tabs"><a href="#tri-tue" aria-current="page">Ứng dụng AI</a><a href="#tri-thuc">Tri thức</a><a href="#cong-cu">Công cụ</a><a href="#lan-chay">Nhật ký chạy</a></nav>
+  <div class="panel"><table>
+    <thead><tr><th>Ứng dụng</th><th>Loại</th><th>Kích hoạt</th><th class="num">Lượt chạy 7 ngày</th><th>Trạng thái</th><th></th></tr></thead>
+    <tbody>
+      <tr onclick="location.hash='luong'" style="cursor:pointer"><td><div class="who"><div class="ri-sm"><svg class="i s"><use href="#i-workflow"/></svg></div><div class="t">Đặt hàng bổ sung mỗi sáng<small>Sửa 2 giờ trước</small></div></div></td><td>Workflow</td><td>Lịch 07:30</td><td class="num">5</td><td><span class="chip held"><svg class="i"><use href="#i-hourglass"/></svg>Chờ duyệt xuất bản</span></td><td><svg class="i faint"><use href="#i-chevron-right"/></svg></td></tr>
+      <tr><td><div class="who"><div class="ri-sm"><svg class="i s"><use href="#i-message-square"/></svg></div><div class="t">Hỏi đáp quy trình kho<small>Tri thức: Quy trình kho</small></div></div></td><td>Chat</td><td>Desk, ChatGPT</td><td class="num">214</td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Đã xuất bản</span></td><td><svg class="i faint"><use href="#i-chevron-right"/></svg></td></tr>
+      <tr><td><div class="who"><div class="ri-sm"><svg class="i s"><use href="#i-bot"/></svg></div><div class="t">Tóm tắt đề xuất mua<small>Gắn với Trợ lý mua hàng</small></div></div></td><td>Agent</td><td>Khi có đề xuất mới</td><td class="num">31</td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Đã xuất bản</span></td><td><svg class="i faint"><use href="#i-chevron-right"/></svg></td></tr>
+      <tr><td><div class="who"><div class="ri-sm"><svg class="i s"><use href="#i-workflow"/></svg></div><div class="t">Nhắc hạn chăm sóc khách hàng<small>Sửa hôm qua</small></div></div></td><td>Workflow</td><td>Webhook CRM</td><td class="num">—</td><td><span class="chip neutral"><svg class="i"><use href="#i-pencil"/></svg>Nháp</span></td><td><svg class="i faint"><use href="#i-chevron-right"/></svg></td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- ============ 15b. TRÌNH SỬA WORKFLOW ============ -->
+<section class="screen" id="luong" data-area="tri-tue">
+  <a href="#tri-tue" class="btn ghost sm" style="margin-bottom:14px;padding-left:6px"><svg class="i s"><use href="#i-arrow-left"/></svg>Ứng dụng AI</a>
+  <div class="head"><div><h1>Đặt hàng bổ sung mỗi sáng</h1><div class="sub" style="display:flex;gap:10px;align-items:center"><span class="chip neutral"><svg class="i"><use href="#i-git-commit-horizontal"/></svg>Bản nháp v4</span><span class="muted">Lưu tự động lúc 09:12</span></div></div>
+    <div class="act"><button class="btn ghost"><svg class="i s"><use href="#i-history"/></svg>Phiên bản</button><button class="btn"><svg class="i s"><use href="#i-play"/></svg>Chạy thử</button><button class="btn pri" onclick="toast('Đã gửi duyệt xuất bản')"><svg class="i s"><use href="#i-rocket"/></svg>Gửi duyệt xuất bản</button></div></div>
+  <div class="editor">
+    <div class="canvas">
+      <svg class="edges" viewBox="0 0 640 660" preserveAspectRatio="none">
+        <path d="M320 88 V124"/><path d="M320 188 V224"/><path d="M320 288 V324"/>
+        <path d="M320 388 C320 416, 170 416, 170 444"/><path d="M320 388 C320 416, 470 416, 470 444"/><path d="M170 508 V564"/>
+      </svg>
+      <span class="elabel" style="left:186px;top:404px">Có</span><span class="elabel" style="left:420px;top:404px">Không</span>
+      <div class="fn" style="left:200px;top:24px"><div class="ni trig"><svg class="i s"><use href="#i-calendar-clock"/></svg></div><div class="t"><b>Lịch hằng ngày</b><small>07:30, T2–T6</small></div></div>
+      <div class="fn" style="left:200px;top:124px"><div class="ni xt"><svg class="i s"><use href="#i-wrench"/></svg></div><div class="t"><b>Công cụ xT</b><small>Tồn dưới mức đặt lại</small></div></div>
+      <div class="fn" style="left:200px;top:224px"><div class="ni ai"><svg class="i s"><use href="#i-brain"/></svg></div><div class="t"><b>Model AI</b><small>Soạn đề xuất mua</small></div></div>
+      <div class="fn" style="left:200px;top:324px"><div class="ni logic"><svg class="i s"><use href="#i-split"/></svg></div><div class="t"><b>Điều kiện</b><small>Tổng <small>Tổng tiền &gt; 5.000.000 ₫</small>gt; 5 triệu</small></div></div>
+      <div class="fn sel" style="left:50px;top:444px"><div class="ni human"><svg class="i s"><use href="#i-user-check"/></svg></div><div class="t"><b>Người duyệt</b><small>Nguyễn Hữu Trí · OTP</small></div></div>
+      <div class="fn" style="left:350px;top:444px"><div class="ni xt"><svg class="i s"><use href="#i-wrench"/></svg></div><div class="t"><b>Công cụ xT</b><small>Tạo đề xuất nháp</small></div></div>
+      <div class="fn" style="left:50px;top:564px"><div class="ni xt"><svg class="i s"><use href="#i-wrench"/></svg></div><div class="t"><b>Công cụ xT</b><small>Gửi đề xuất đi duyệt</small></div></div>
+      <div class="cbar"><button class="iconbtn" aria-label="Thêm khối"><svg class="i"><use href="#i-plus"/></svg></button><button class="iconbtn" aria-label="Thu nhỏ"><svg class="i"><use href="#i-search"/></svg></button><span class="faint small">100%</span></div>
+    </div>
+    <aside class="cfg">
+      <div class="ph" style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--line-2)"><div class="ni human"><svg class="i s"><use href="#i-user-check"/></svg></div><h2>Người duyệt</h2><button class="iconbtn" style="margin-left:auto" aria-label="Đóng"><svg class="i"><use href="#i-x"/></svg></button></div>
+      <div class="pb grid" style="gap:16px">
+        <div class="field"><label>Người duyệt</label><select class="input"><option>Nguyễn Hữu Trí</option></select></div>
+        <div class="field"><label>Xác nhận</label><div class="seg"><button aria-pressed="true">Mật khẩu + OTP</button><button aria-pressed="false">Chỉ bấm duyệt</button></div></div>
+        <div class="field"><label>Hết hạn sau</label><input class="input" value="24 giờ"></div>
+        <div class="field"><label>Khi hết hạn</label><select class="input"><option>Dừng, báo người tạo</option></select></div>
+        <div class="flag" style="background:var(--info-bg);color:var(--ink-2)"><svg class="i"><use href="#i-shield-check"/></svg><div>AI chỉ soạn. Bước này luôn do người quyết.</div></div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ============ 15c. TRI THỨC ============ -->
+<section class="screen" id="tri-thuc" data-area="tri-tue">
+  <div class="head"><div><h1>Trí tuệ</h1></div><div class="act"><button class="btn pri"><svg class="i s"><use href="#i-upload"/></svg>Thêm tài liệu</button></div></div>
+  <nav class="tabs"><a href="#tri-tue">Ứng dụng AI</a><a href="#tri-thuc" aria-current="page">Tri thức</a><a href="#cong-cu">Công cụ</a><a href="#lan-chay">Nhật ký chạy</a></nav>
+  <div class="grid" style="grid-template-columns:1fr 400px">
+    <div class="panel"><div class="ph"><select class="input" style="width:260px;height:40px"><option>Quy trình kho · 4 tài liệu</option></select><div class="act"><span class="faint small">Dùng bởi 2 ứng dụng</span></div></div>
+      <table><thead><tr><th>Tài liệu</th><th class="num">Đoạn</th><th>Cập nhật</th><th>Trạng thái</th></tr></thead><tbody>
+        <tr><td><div class="who"><svg class="i faint"><use href="#i-file-text"/></svg>Quy trình xuất kho.pdf</div></td><td class="num">42</td><td>18/10</td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Sẵn sàng</span></td></tr>
+        <tr><td><div class="who"><svg class="i faint"><use href="#i-file-text"/></svg>Hạn mức duyệt chi.docx</div></td><td class="num">17</td><td>15/10</td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Sẵn sàng</span></td></tr>
+        <tr><td><div class="who"><svg class="i faint"><use href="#i-file-text"/></svg>Danh mục nhà cung cấp.csv</div></td><td class="num">96</td><td>12/10</td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Sẵn sàng</span></td></tr>
+        <tr><td><div class="who"><svg class="i faint"><use href="#i-file-text"/></svg>Kiểm kê quý 3.pdf</div></td><td class="num">—</td><td>Vừa tải</td><td><span class="chip held"><svg class="i"><use href="#i-hourglass"/></svg>Đang xử lý</span></td></tr>
+      </tbody></table></div>
+    <div class="panel"><div class="ph"><h3>Thử truy xuất</h3></div>
+      <div class="pb grid" style="gap:14px">
+        <div style="display:flex;gap:8px"><input class="input" value="Phiếu xuất trên 5 triệu ai duyệt?"><button class="btn pri" aria-label="Thử" style="width:46px;height:46px;padding:0;justify-content:center"><svg class="i s"><use href="#i-file-search"/></svg></button></div>
+        <div class="hit"><div class="hs">0,91</div><div><b>Hạn mức duyệt chi.docx</b><p>Phiếu xuất có giá trị trên 5.000.000 ₫ do giám đốc duyệt…</p></div></div>
+        <div class="hit"><div class="hs">0,74</div><div><b>Quy trình xuất kho.pdf</b><p>Quản lý kho duyệt phiếu xuất trong hạn mức…</p></div></div>
+      </div></div>
+  </div>
+</section>
+
+<!-- ============ 15d. CÔNG CỤ ============ -->
+<section class="screen" id="cong-cu" data-area="tri-tue">
+  <div class="head"><div><h1>Trí tuệ</h1></div><div class="act"><button class="btn"><svg class="i s"><use href="#i-plug"/></svg>Kết nối MCP</button></div></div>
+  <nav class="tabs"><a href="#tri-tue">Ứng dụng AI</a><a href="#tri-thuc">Tri thức</a><a href="#cong-cu" aria-current="page">Công cụ</a><a href="#lan-chay">Nhật ký chạy</a></nav>
+  <div class="panel apps" style="margin-bottom:20px">
+    <div class="app"><div class="ai" style="background:var(--ink);color:#fff"><svg class="i l"><use href="#i-wrench"/></svg></div><div class="grow"><h3>Công cụ xT</h3><p>21 công cụ. Chạy đúng quyền người dùng và mô tả công việc của agent.</p></div><span class="chip ok"><svg class="i"><use href="#i-lock"/></svg>Có sẵn</span></div>
+    <div class="app"><div class="ai"><svg class="i l"><use href="#i-server"/></svg></div><div class="grow"><h3>Gọi HTTP</h3><p>API ngoài theo danh sách địa chỉ được phép.</p></div><button class="toggle" role="switch" aria-checked="true" aria-label="HTTP"></button></div>
+    <div class="app"><div class="ai"><svg class="i l"><use href="#i-plug"/></svg></div><div class="grow"><h3>MCP ngoài</h3><p>Chưa kết nối máy chủ nào.</p></div><button class="toggle" role="switch" aria-checked="false" aria-label="MCP ngoài"></button></div>
+    <div class="app"><div class="ai"><svg class="i l"><use href="#i-workflow"/></svg></div><div class="grow"><h3>Workflow thành công cụ</h3><p>Ứng dụng đã xuất bản dùng được như một công cụ.</p></div><button class="toggle" role="switch" aria-checked="true" aria-label="Workflow"></button></div>
+  </div>
+  <div class="panel"><div class="ph"><h3>Trợ lý đã kết nối</h3><div class="act"><button class="btn sm"><svg class="i s"><use href="#i-link-2"/></svg>Kết nối trợ lý</button></div></div>
+    <div class="list">
+      <a><div class="av sm agent"><svg class="i s"><use href="#i-bot"/></svg></div><div class="grow">ChatGPT<div class="meta">Kết nối 02/10 · mức tự chủ L1</div></div><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Bật</span></a>
+      <a><div class="av sm agent"><svg class="i s"><use href="#i-bot"/></svg></div><div class="grow">Claude<div class="meta">Kết nối 10/10 · chỉ đọc</div></div><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Bật</span></a>
+    </div></div>
+</section>
+
+<!-- ============ 15e. NHẬT KÝ CHẠY ============ -->
+<section class="screen" id="lan-chay" data-area="tri-tue">
+  <div class="head"><div><h1>Trí tuệ</h1></div><div class="act"><div class="seg"><button aria-pressed="true">Tất cả</button><button aria-pressed="false">Chờ duyệt</button><button aria-pressed="false">Lỗi</button></div></div></div>
+  <nav class="tabs"><a href="#tri-tue">Ứng dụng AI</a><a href="#tri-thuc">Tri thức</a><a href="#cong-cu">Công cụ</a><a href="#lan-chay" aria-current="page">Nhật ký chạy</a></nav>
+  <div class="split" style="grid-template-columns:1fr 380px">
+    <div class="panel"><table class="nowrap"><thead><tr><th>Lúc</th><th>Ứng dụng</th><th>Bởi</th><th class="num">Thời gian</th><th>Kết quả</th></tr></thead><tbody>
+      <tr style="background:#F2F5FD"><td>07:30</td><td>Đặt hàng bổ sung mỗi sáng</td><td>Lịch</td><td class="num">8,4 s</td><td><span class="chip held"><svg class="i"><use href="#i-hourglass"/></svg>Chờ duyệt</span></td></tr>
+      <tr><td>10:02</td><td>Hỏi đáp quy trình kho</td><td>Dũng · ChatGPT</td><td class="num">2,1 s</td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Xong</span></td></tr>
+      <tr><td>09:47</td><td>Tóm tắt đề xuất mua</td><td>Trợ lý mua hàng</td><td class="num">3,6 s</td><td><span class="chip block"><svg class="i"><use href="#i-ban"/></svg>Bị chặn</span></td></tr>
+      <tr><td>Hôm qua</td><td>Đặt hàng bổ sung mỗi sáng</td><td>Lịch</td><td class="num">7,9 s</td><td><span class="chip ok"><svg class="i"><use href="#i-circle-check"/></svg>Xong</span></td></tr>
+    </tbody></table></div>
+    <div class="panel"><div class="ph"><div><h3>07:30 · Đặt hàng bổ sung</h3><div class="faint small">Trace 4f1a…c2</div></div></div>
+      <ol class="tl">
+        <li style="grid-template-columns:32px 1fr auto"><div class="ic ok"><svg class="i s"><use href="#i-check"/></svg></div><div><b>Lịch hằng ngày</b></div><span class="faint small">0 s</span></li>
+        <li style="grid-template-columns:32px 1fr auto"><div class="ic ok"><svg class="i s"><use href="#i-check"/></svg></div><div><b>Công cụ xT</b><div class="muted small">3 mặt hàng dưới mức</div></div><span class="faint small">0,6 s</span></li>
+        <li style="grid-template-columns:32px 1fr auto"><div class="ic ok"><svg class="i s"><use href="#i-check"/></svg></div><div><b>Model AI</b><div class="muted small">Đề xuất 7.200.000 ₫</div></div><span class="faint small">6,9 s</span></li>
+        <li style="grid-template-columns:32px 1fr auto"><div class="ic ok"><svg class="i s"><use href="#i-check"/></svg></div><div><b>Điều kiện</b><div class="muted small">Có</div></div><span class="faint small">0 s</span></li>
+        <li style="grid-template-columns:32px 1fr auto"><div class="ic held"><svg class="i s"><use href="#i-hourglass"/></svg></div><div><b>Người duyệt</b><div class="muted small">Chờ Nguyễn Hữu Trí</div></div><a class="btn sm" href="#duyet">Mở</a></li>
+      </ol></div>
+  </div>
+</section>
+
+<!-- ============ 16. ỨNG DỤNG ============ -->
+<section class="screen" id="ung-dung" data-area="ung-dung">
+  <div class="head"><div><h1>Ứng dụng</h1><div class="sub">Bật để dùng. Tắt không mất dữ liệu.</div></div></div>
+  <nav class="tabs"><a href="#ung-dung" aria-current="page">Đã cài</a><a href="#ung-dung">Thêm ứng dụng</a></nav>
+  <div class="panel apps">
+    <div class="app"><div class="ai"><svg class="i l"><use href="#i-warehouse"/></svg></div><div class="grow"><h3>Kho hàng</h3><p>Phiếu nhập xuất, tồn kho, sơ đồ 3D.</p><a href="#kho" class="btn sm" style="margin-top:12px">Mở</a></div><button class="toggle" role="switch" aria-checked="true" aria-label="Kho hàng"></button></div>
+    <div class="app"><div class="ai"><svg class="i l"><use href="#i-handshake"/></svg></div><div class="grow"><h3>Khách hàng</h3><p>Khách hàng, cơ hội, chăm sóc.</p><button class="btn sm" style="margin-top:12px">Mở</button></div><button class="toggle" role="switch" aria-checked="true" aria-label="Khách hàng"></button></div>
+    <div class="app"><div class="ai"><svg class="i l"><use href="#i-bot"/></svg></div><div class="grow"><h3>Nhân sự AI</h3><p>Tuyển, giao việc, giám sát agent.</p><a href="#agent" class="btn sm" style="margin-top:12px">Mở</a></div><button class="toggle" role="switch" aria-checked="true" aria-label="Nhân sự AI"></button></div>
+    <div class="app"><div class="ai"><svg class="i l"><use href="#i-clock"/></svg></div><div class="grow"><h3>Chấm công</h3><p>Dự án, giờ công.</p></div><button class="toggle" role="switch" aria-checked="false" aria-label="Chấm công"></button></div>
+    <div class="app"><div class="ai"><svg class="i l"><use href="#i-boxes"/></svg></div><div class="grow"><h3>Tài sản</h3><p>Cấp phát, thu hồi, cảm biến.</p></div><button class="toggle" role="switch" aria-checked="false" aria-label="Tài sản"></button></div>
+    <div class="app"><div class="ai"><svg class="i l"><use href="#i-file-text"/></svg></div><div class="grow"><h3>Đề xuất và phê duyệt</h3><p>Mua sắm, thanh toán, nghỉ phép.</p></div><button class="toggle" role="switch" aria-checked="true" aria-label="Đề xuất"></button></div>
+  </div>
+</section>
+
+<!-- ============ 17. KHO ============ -->
+<section class="screen" id="kho" data-area="ung-dung">
+  <a href="#ung-dung" class="btn ghost sm" style="margin-bottom:14px;padding-left:6px"><svg class="i s"><use href="#i-arrow-left"/></svg>Ứng dụng</a>
+  <div class="head"><div><h1>Kho hàng</h1></div><div class="act"><select class="input" style="width:200px;height:42px"><option>KHO-HN · Hà Nội</option></select><button class="btn pri"><svg class="i s"><use href="#i-plus"/></svg>Tạo phiếu</button></div></div>
+  <nav class="tabs"><a href="#kho" aria-current="page">Tồn kho</a><a href="#ban-ghi">Phiếu</a><a href="#kho">Sơ đồ 3D</a></nav>
+  <div class="panel"><table>
+    <thead><tr><th>Mặt hàng</th><th>Mã</th><th>Vị trí</th><th class="num">Tồn</th><th class="num">Mức đặt lại</th><th></th></tr></thead>
+    <tbody>
+      <tr><td><b>Giấy A4 Double A</b></td><td class="faint">SKU-A4</td><td>Kệ A-02</td><td class="num">8 ram</td><td class="num">10 ram</td><td><span class="chip held"><svg class="i"><use href="#i-circle-alert"/></svg>Sắp hết</span></td></tr>
+      <tr><td><b>Bút bi Thiên Long</b></td><td class="faint">SKU-BB</td><td>Kệ B-01</td><td class="num">120 cây</td><td class="num">50 cây</td><td></td></tr>
+      <tr><td><b>Mực in HP 107A</b></td><td class="faint">SKU-HP107</td><td>Kệ C-04</td><td class="num">2 hộp</td><td class="num">2 hộp</td><td><span class="chip held"><svg class="i"><use href="#i-circle-alert"/></svg>Sắp hết</span></td></tr>
+      <tr><td><b>Băng keo trong</b></td><td class="faint">SKU-BK</td><td>Kệ B-03</td><td class="num">36 cuộn</td><td class="num">10 cuộn</td><td></td></tr>
+    </tbody></table></div>
+</section>
+
+    </main>
+  </div>
+</div>
+
+<!-- xác nhận mật khẩu + OTP -->
+<div class="scrim" id="confirm" role="dialog" aria-modal="true" aria-labelledby="cf-t">
+  <div class="modal">
+    <div style="display:flex;align-items:center;gap:12px"><div class="av" style="background:var(--ink);color:#fff"><svg class="i"><use href="#i-fingerprint"/></svg></div><h2 id="cf-t">Xác nhận</h2><button class="iconbtn" style="margin-left:auto" aria-label="Đóng" onclick="closeAll()"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div class="summary"><b id="cf-a">Duyệt PX-0142</b><div class="muted small" id="cf-b">Xuất 3 ram giấy A4 từ KHO-HN</div></div>
+    <div class="field"><label>Mật khẩu</label><input class="input" type="password" value="••••••••••"></div>
+    <div class="field"><label>Mã OTP</label><div class="otp"><span class="f">4</span><span class="f">8</span><span class="f">2</span><span>1</span><span></span><span></span></div></div>
+    <div style="display:flex;gap:10px"><button class="btn ok" style="flex:1;justify-content:center" onclick="closeAll();toast('Đã duyệt')"><svg class="i s"><use href="#i-check"/></svg>Xác nhận duyệt</button><button class="btn" onclick="closeAll()">Hủy</button></div>
+  </div>
+</div>
+
+<!-- đình chỉ -->
+<div class="scrim" id="suspend" role="dialog" aria-modal="true" aria-labelledby="sp-t">
+  <div class="modal">
+    <div style="display:flex;align-items:center;gap:12px"><div class="av" style="background:var(--block);color:#fff"><svg class="i"><use href="#i-pause"/></svg></div><h2 id="sp-t">Đình chỉ Trợ lý kho?</h2></div>
+    <p class="muted">Agent dừng ngay ở lượt kế tiếp. Dữ liệu và nhật ký được giữ. Mở lại cần xác nhận OTP.</p>
+    <div class="field"><label>Lý do</label><input class="input" placeholder="Ví dụ: vượt hạn mức nhiều lần"></div>
+    <div style="display:flex;gap:10px"><button class="btn danger fill" style="flex:1;justify-content:center" onclick="closeAll();toast('Đã đình chỉ Trợ lý kho')"><svg class="i s"><use href="#i-pause"/></svg>Đình chỉ</button><button class="btn" onclick="closeAll()">Hủy</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"><svg class="i s"><use href="#i-circle-check"/></svg><span id="toast-t"></span></div>
+
+<details class="mock-index"><summary>Màn hình mockup (21)</summary><ol>
+<li><a href="#tro-ly">Trợ lý</a></li><li><a href="#nguoi">Nhân viên</a></li><li><a href="#to-chuc">Sơ đồ tổ chức</a></li><li><a href="#agent">Nhân sự AI</a></li><li><a href="#ho-so">Hồ sơ agent</a></li><li><a href="#tuyen">Tuyển agent</a></li><li><a href="#quyen">Cấp quyền</a></li><li><a href="#duyet">Chờ duyệt</a></li><li><a href="#duyet-jd">Duyệt tuyển agent</a></li><li><a href="#de-xuat">Tạo đề xuất</a></li><li><a href="#bao-cao">Báo cáo</a></li><li><a href="#ban-ghi">Bản ghi</a></li><li><a href="#nhat-ky">Nhật ký</a></li><li><a href="#su-co">Sự cố agent</a></li><li><a href="#tri-tue">Ứng dụng AI</a></li><li><a href="#luong">Trình sửa workflow</a></li><li><a href="#tri-thuc">Tri thức</a></li><li><a href="#cong-cu">Công cụ</a></li><li><a href="#lan-chay">Nhật ký chạy</a></li><li><a href="#ung-dung">Ứng dụng</a></li><li><a href="#kho">Kho hàng</a></li>
+</ol></details>
+
+<script>
+const screens=[...document.querySelectorAll('.screen')];
+function show(){
+  const id=(location.hash||'#tro-ly').slice(1);
+  const s=screens.find(x=>x.id===id)||screens[0];
+  screens.forEach(x=>x.classList.toggle('on',x===s));
+  document.querySelectorAll('.nav a').forEach(a=>a.toggleAttribute('aria-current',a.dataset.area===s.dataset.area)||a.setAttribute('aria-current','page'));
+  document.querySelectorAll('.nav a').forEach(a=>{if(a.dataset.area===s.dataset.area)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
+  window.scrollTo(0,0);
+  const m=s.querySelector('.msgs'); if(m) m.scrollTop=m.scrollHeight;
+}
+addEventListener('hashchange',show);show();
+function openConfirm(a,b){document.getElementById('cf-a').textContent=a;document.getElementById('cf-b').textContent=b;document.getElementById('confirm').classList.add('on')}
+function openSuspend(){document.getElementById('suspend').classList.add('on')}
+function closeAll(){document.querySelectorAll('.scrim').forEach(s=>s.classList.remove('on'))}
+function toast(t){const e=document.getElementById('toast');document.getElementById('toast-t').textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),2200)}
+document.querySelectorAll('.seg').forEach(g=>g.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;g.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b))}));
+document.querySelectorAll('.toggle').forEach(t=>t.addEventListener('click',()=>t.setAttribute('aria-checked',t.getAttribute('aria-checked')!=='true')));
+document.querySelectorAll('.role').forEach(r=>r.addEventListener('click',()=>document.querySelectorAll('.role').forEach(x=>x.setAttribute('aria-pressed',x===r))));
+addEventListener('keydown',e=>{if(e.key==='Escape')closeAll()});
+if(new URLSearchParams(location.search).has('confirm'))openConfirm('Duyệt PX-0142','Xuất 3 ram giấy A4 từ KHO-HN');
+if(new URLSearchParams(location.search).has('suspend'))openSuspend();
+</script>
+</body>
+</html>

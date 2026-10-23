@@ -96,3 +96,10 @@ Chỉ được gọi là hoàn tất phạm vi Dify đã chọn khi các yêu c�
 4. **Workspace doanh nghiệp**: mời thành viên/vai trò, quản lý quyền app/tool/knowledge; test hai workspace và từng vai trò trước khi nối nghiệp vụ xT thực tế.
 
 Đây là backlog còn lại của yêu cầu toàn bộ Dify, không phải các hạng mục đã hoàn tất. Các check hiện tại được ghi bằng snapshot nguồn tại `evidence/summary.json`.
+
+## Kích hoạt theo lịch và nhật ký chạy
+
+- Bảng `app_triggers` (additive). Chỉ loại `schedule` (hourly/daily/weekly/monthly, múi giờ IANA, mặc định Asia/Ho_Chi_Minh); webhook không nằm trong phạm vi.
+- Bộ lập lịch chạy trong tiến trình (`startScheduler`, tick 15 s), chỉ chạy bản đã publish, một lượt tại một thời điểm cho mỗi kích hoạt. `last_fired_at` được lưu bằng compare-and-set nên restart không chạy lặp. Không backfill: slot trễ hơn 5 phút (server tắt, kích hoạt bị tắt) bị bỏ qua; bật lại kích hoạt đặt lại đồng hồ.
+- Nhật ký `runs` có thêm `trigger` (manual|api|schedule|share), `duration_ms`, `trace`; API `GET /api/apps/:id/runs` (status, trigger, limit, cursor) và `GET /api/runs/:id`.
+- xT: lượt chạy theo lịch lưu `person_id` của người tạo nhưng không có capability công cụ xT; nếu workflow cần công cụ xT thì ghi lỗi "Kích hoạt tự động chưa được cấp quyền công cụ xT.". Việc follow-up: cấp capability có thời hạn, giới hạn phạm vi cho kích hoạt.
