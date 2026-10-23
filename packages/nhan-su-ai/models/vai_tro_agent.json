@@ -1,0 +1,133 @@
+{
+  "id": "ai_role",
+  "name": "vai_tro_agent",
+  "label": "Vai trò agent (mẫu JD)",
+  "description": "Danh mục vai trò cho nhân viên AI: năng lực (model + thao tác), hạn mức và ca làm mặc định để sinh JD.",
+  "title_field": "ten",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "ma",
+      "type": "text",
+      "label": "Mã vai trò",
+      "required": true,
+      "unique": true,
+      "pii": "none",
+      "max": 40,
+      "regex": "^[a-z][a-z0-9_]{0,39}$"
+    },
+    {
+      "id": "f2",
+      "name": "ten",
+      "type": "text",
+      "label": "Tên vai trò",
+      "required": true,
+      "pii": "none",
+      "min": 1,
+      "max": 120
+    },
+    {
+      "id": "f3",
+      "name": "mo_ta",
+      "type": "text",
+      "label": "Mô tả công việc",
+      "pii": "none",
+      "max": 2000
+    },
+    {
+      "id": "f4",
+      "name": "nang_luc",
+      "type": "json",
+      "label": "Năng lực [{model, read, create, update, submit (true/false), ghi_chu}]",
+      "required": true,
+      "pii": "none"
+    },
+    {
+      "id": "f5",
+      "name": "han_muc_viec_ngay",
+      "type": "number",
+      "label": "Hạn mức số việc ghi mỗi ngày (0 = không giới hạn)",
+      "pii": "none",
+      "min": 0,
+      "max": 100000,
+      "default": 0
+    },
+    {
+      "id": "f6",
+      "name": "han_muc_gia_tri",
+      "type": "money",
+      "label": "Hạn mức giá trị mỗi phiếu (VND, 0 = không giới hạn)",
+      "pii": "none",
+      "min": 0,
+      "default": 0
+    },
+    {
+      "id": "f7",
+      "name": "khung_gio",
+      "type": "text",
+      "label": "Khung giờ làm việc (HH:MM-HH:MM, giờ tenant)",
+      "pii": "none",
+      "max": 11,
+      "regex": "^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$"
+    },
+    {
+      "id": "f8",
+      "name": "ngay_lam",
+      "type": "text",
+      "label": "Ngày làm việc (vd mon-fri, mon,wed,fri, all)",
+      "pii": "none",
+      "max": 60,
+      "regex": "^[a-z,-]{3,60}$"
+    },
+    {
+      "id": "f9",
+      "name": "muc_tu_chu",
+      "type": "number",
+      "label": "Mức tự chủ (0..3 = L0..L3)",
+      "pii": "none",
+      "min": 0,
+      "max": 3,
+      "default": 1
+    }
+  ],
+  "indexes": [],
+  "rules": [],
+  "permissions": {
+    "it_admin": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "director": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "dept_head": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "all"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

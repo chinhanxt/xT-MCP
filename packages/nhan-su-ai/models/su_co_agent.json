@@ -1,0 +1,169 @@
+{
+  "id": "ai_incident",
+  "name": "su_co_agent",
+  "label": "Sự cố của agent",
+  "description": "Lõi tạo khi agent vượt hạn mức, vượt giá trị, bị giữ nháp...; người phụ trách/IT xử lý.",
+  "title_field": "loai",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "ho_so",
+      "type": "ref",
+      "ref": "ho_so_agent",
+      "label": "Hồ sơ agent",
+      "required": true,
+      "pii": "none"
+    },
+    {
+      "id": "f2",
+      "name": "loai",
+      "type": "enum",
+      "label": "Loại",
+      "required": true,
+      "pii": "none",
+      "options": [
+        {
+          "value": "vuot_han_muc",
+          "label": "Vượt hạn mức số việc"
+        },
+        {
+          "value": "vuot_gia_tri",
+          "label": "Vượt hạn mức giá trị"
+        },
+        {
+          "value": "ngoai_gio",
+          "label": "Ngoài giờ"
+        },
+        {
+          "value": "ngoai_jd",
+          "label": "Ngoài JD"
+        },
+        {
+          "value": "giu_nhap",
+          "label": "Giữ nháp chờ giấy phép"
+        },
+        {
+          "value": "tam_dung",
+          "label": "Tạm dừng"
+        }
+      ]
+    },
+    {
+      "id": "f3",
+      "name": "chi_tiet",
+      "type": "text",
+      "label": "Chi tiết",
+      "pii": "none",
+      "max": 2000
+    },
+    {
+      "id": "f4",
+      "name": "trang_thai",
+      "type": "enum",
+      "label": "Trạng thái",
+      "required": true,
+      "default": "mo",
+      "pii": "none",
+      "options": [
+        {
+          "value": "mo",
+          "label": "Mở"
+        },
+        {
+          "value": "da_xu_ly",
+          "label": "Đã xử lý"
+        }
+      ]
+    },
+    {
+      "id": "f5",
+      "name": "xu_ly",
+      "type": "enum",
+      "label": "Cách xử lý",
+      "pii": "none",
+      "options": [
+        {
+          "value": "bo_qua",
+          "label": "Bỏ qua"
+        },
+        {
+          "value": "nang_han_muc",
+          "label": "Nâng hạn mức"
+        },
+        {
+          "value": "giu_tam_dung",
+          "label": "Giữ tạm dừng"
+        }
+      ]
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "ho_so",
+        "loai",
+        "trang_thai"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "Đã xử lý thì phải chọn cách xử lý",
+      "check": {
+        "or": [
+          {
+            "field": "trang_thai",
+            "op": "!=",
+            "value": "da_xu_ly"
+          },
+          {
+            "field": "xu_ly",
+            "op": "not_null"
+          }
+        ]
+      }
+    }
+  ],
+  "permissions": {
+    "it_admin": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "director": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "dept_head": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "department"
+    },
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}

@@ -1,0 +1,267 @@
+{
+  "version": "1",
+  "tenant": "binhminh",
+  "statements": [
+    {
+      "id": "ai.manager-read",
+      "effect": "Allow",
+      "subjects": [
+        "role:it_admin",
+        "role:director",
+        "role:dept_head"
+      ],
+      "actions": [
+        "record.read",
+        "record.search",
+        "record.aggregate"
+      ],
+      "resources": [
+        "xrn:binhminh:vai_tro_agent:*",
+        "xrn:binhminh:ho_so_agent:*",
+        "xrn:binhminh:jd_agent:*",
+        "xrn:binhminh:giay_phep_hanh_dong:*",
+        "xrn:binhminh:su_co_agent:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "ai.employee-read-roles",
+      "effect": "Allow",
+      "subjects": [
+        "role:employee"
+      ],
+      "actions": [
+        "record.read",
+        "record.search",
+        "record.aggregate"
+      ],
+      "resources": [
+        "xrn:binhminh:vai_tro_agent:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "ai.it-write",
+      "effect": "Allow",
+      "subjects": [
+        "role:it_admin",
+        "role:director"
+      ],
+      "actions": [
+        "record.create",
+        "record.update"
+      ],
+      "resources": [
+        "xrn:binhminh:vai_tro_agent:*",
+        "xrn:binhminh:ho_so_agent:*",
+        "xrn:binhminh:jd_agent:*",
+        "xrn:binhminh:giay_phep_hanh_dong:*",
+        "xrn:binhminh:su_co_agent:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "ai.dept-head-write",
+      "effect": "Allow",
+      "subjects": [
+        "role:dept_head"
+      ],
+      "actions": [
+        "record.create",
+        "record.update"
+      ],
+      "resources": [
+        "xrn:binhminh:ho_so_agent:*",
+        "xrn:binhminh:jd_agent:*",
+        "xrn:binhminh:giay_phep_hanh_dong:*",
+        "xrn:binhminh:su_co_agent:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.department",
+          "op": "eq",
+          "right": {
+            "ref": "subject.department"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ai.submit-own-jd",
+      "effect": "Allow",
+      "subjects": [
+        "role:it_admin",
+        "role:director",
+        "role:dept_head"
+      ],
+      "actions": [
+        "request.submit",
+        "record.transition"
+      ],
+      "resources": [
+        "xrn:binhminh:jd_agent:*"
+      ],
+      "conditions": [
+        {
+          "left": "resource.owner",
+          "op": "eq",
+          "right": {
+            "ref": "subject.id"
+          }
+        }
+      ]
+    },
+    {
+      "id": "ai.it-decide-jd",
+      "effect": "Allow",
+      "subjects": [
+        "role:it_admin",
+        "role:director"
+      ],
+      "actions": [
+        "request.decide",
+        "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:jd_agent:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "ai.tools",
+      "effect": "Allow",
+      "subjects": [
+        "role:it_admin",
+        "role:director",
+        "role:dept_head"
+      ],
+      "actions": [
+        "workspace.read",
+        "model.read",
+        "process.read",
+        "person.read",
+        "inbox.read",
+        "history.read"
+      ],
+      "resources": [
+        "xrn:binhminh:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "ai.agent-read",
+      "effect": "Allow",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "record.read",
+        "record.search",
+        "record.aggregate"
+      ],
+      "resources": [
+        "xrn:binhminh:vai_tro_agent:*",
+        "xrn:binhminh:ho_so_agent:*",
+        "xrn:binhminh:jd_agent:*",
+        "xrn:binhminh:giay_phep_hanh_dong:*",
+        "xrn:binhminh:su_co_agent:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "ai.desk-client-write",
+      "effect": "Allow",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "record.create",
+        "record.update",
+        "request.submit",
+        "record.transition",
+        "request.decide"
+      ],
+      "resources": [
+        "xrn:binhminh:vai_tro_agent:*",
+        "xrn:binhminh:ho_so_agent:*",
+        "xrn:binhminh:jd_agent:*",
+        "xrn:binhminh:giay_phep_hanh_dong:*",
+        "xrn:binhminh:su_co_agent:*"
+      ],
+      "conditions": [
+        {
+          "left": "subject.id",
+          "op": "eq",
+          "right": "agent:xt-desk-agent"
+        }
+      ]
+    },
+    {
+      "id": "ai.deny-agent-write",
+      "effect": "Deny",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "record.create",
+        "record.update",
+        "record.delete",
+        "request.submit",
+        "record.transition",
+        "request.decide",
+        "record.approve"
+      ],
+      "resources": [
+        "xrn:binhminh:vai_tro_agent:*",
+        "xrn:binhminh:ho_so_agent:*",
+        "xrn:binhminh:jd_agent:*",
+        "xrn:binhminh:giay_phep_hanh_dong:*",
+        "xrn:binhminh:su_co_agent:*"
+      ],
+      "conditions": [
+        {
+          "left": "subject.id",
+          "op": "ne",
+          "right": "agent:xt-desk-agent"
+        }
+      ]
+    },
+    {
+      "id": "ai.deny-agent-approve",
+      "effect": "Deny",
+      "subjects": [
+        "role:agent"
+      ],
+      "actions": [
+        "record.approve",
+        "record.delete"
+      ],
+      "resources": [
+        "xrn:binhminh:vai_tro_agent:*",
+        "xrn:binhminh:ho_so_agent:*",
+        "xrn:binhminh:jd_agent:*",
+        "xrn:binhminh:giay_phep_hanh_dong:*",
+        "xrn:binhminh:su_co_agent:*"
+      ],
+      "conditions": []
+    },
+    {
+      "id": "ai.deny-delete",
+      "effect": "Deny",
+      "subjects": [
+        "*"
+      ],
+      "actions": [
+        "record.delete"
+      ],
+      "resources": [
+        "xrn:binhminh:vai_tro_agent:*",
+        "xrn:binhminh:ho_so_agent:*",
+        "xrn:binhminh:jd_agent:*",
+        "xrn:binhminh:giay_phep_hanh_dong:*",
+        "xrn:binhminh:su_co_agent:*"
+      ],
+      "conditions": []
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "format": "xt-pack/1",
+  "pack": "nhan-su-ai",
+  "version": "0.1.0",
+  "title": "Nhân sự AI: tuyển, giao việc, giám sát và cho nghỉ agent",
+  "depends_on": [
+    "de-xuat-phe-duyet",
+    "nhan-su-vong-doi"
+  ],
+  "models": [
+    "vai_tro_agent",
+    "ho_so_agent",
+    "jd_agent",
+    "giay_phep_hanh_dong",
+    "su_co_agent"
+  ],
+  "processes": [
+    "duyet_jd_agent"
+  ],
+  "policies": [
+    "iam"
+  ],
+  "allowed_ops": {
+    "apply_agent_jd": [
+      "jd_id"
+    ],
+    "notify": [
+      "msg"
+    ]
+  },
+  "bindings": {
+    "jd_agent": {
+      "primitive": "request",
+      "process": "duyet_jd_agent",
+      "state_field": "state",
+      "inputs": {
+        "jd_id": {
+          "field": "id"
+        }
+      }
+    }
+  },
+  "notes": {
+    "tenant_demo": "binhminh",
+    "roles": {
+      "it_admin": "Duyệt JD (OTP), ghi mọi model của gói",
+      "director": "Như IT; nhận leo thang",
+      "dept_head": "Tuyển agent cho phòng mình: hồ sơ, JD, giấy phép, xử lý sự cố (cùng phòng)",
+      "employee": "Xem danh mục vai trò",
+      "xt_workflow": "Lõi: áp JD đã duyệt, đếm việc, tạo sự cố, tạm dừng khi chạm hạn mức",
+      "agent": "Chỉ đọc gói này; bị Deny mọi thao tác ghi (trừ client của Desk xt-desk-agent, giao với quyền người dùng)"
+    },
+    "step_actions": {
+      "*": "record.approve"
+    },
+    "process_inputs": {
+      "duyet_jd_agent": [
+        "jd_id"
+      ]
+    },
+    "autonomy": {
+      "L0": [
+        "đọc JD, giấy phép, sự cố của chính mình"
+      ],
+      "L1": [],
+      "L2": [],
+      "L3": []
+    }
+  }
+}

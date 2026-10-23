@@ -1,0 +1,109 @@
+{
+  "id": "ai_release",
+  "name": "giay_phep_hanh_dong",
+  "label": "Giấy phép hành động của agent",
+  "description": "Mặc định agent chỉ soạn nháp; nộp duyệt cần một dòng giấy phép khớp (vd request.submit:advance_request) do người mở.",
+  "title_field": "hanh_dong",
+  "fields": [
+    {
+      "id": "f1",
+      "name": "ho_so",
+      "type": "ref",
+      "ref": "ho_so_agent",
+      "label": "Hồ sơ agent",
+      "required": true,
+      "pii": "none"
+    },
+    {
+      "id": "f2",
+      "name": "hanh_dong",
+      "type": "text",
+      "label": "Hành động (vd request.submit:advance_request)",
+      "required": true,
+      "pii": "none",
+      "max": 120,
+      "regex": "^request\\.submit:([a-z][a-z0-9_]{0,62}|\\*)$"
+    },
+    {
+      "id": "f3",
+      "name": "dieu_kien",
+      "type": "text",
+      "label": "Điều kiện (ghi chú cho người duyệt)",
+      "pii": "none",
+      "max": 1000
+    },
+    {
+      "id": "f4",
+      "name": "tu_ngay",
+      "type": "date",
+      "label": "Từ ngày",
+      "pii": "none"
+    },
+    {
+      "id": "f5",
+      "name": "den_ngay",
+      "type": "date",
+      "label": "Đến ngày",
+      "pii": "none"
+    }
+  ],
+  "indexes": [
+    {
+      "id": "i1",
+      "fields": [
+        "ho_so"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "r1",
+      "message": "'Đến ngày' phải sau hoặc bằng 'Từ ngày'",
+      "check": {
+        "field": "den_ngay",
+        "op": ">=",
+        "other_field": "tu_ngay"
+      }
+    }
+  ],
+  "permissions": {
+    "it_admin": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "director": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    },
+    "dept_head": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "department"
+    },
+    "employee": {
+      "actions": [
+        "read"
+      ],
+      "scope": "own"
+    },
+    "xt_workflow": {
+      "actions": [
+        "create",
+        "read",
+        "update"
+      ],
+      "scope": "all"
+    }
+  }
+}
