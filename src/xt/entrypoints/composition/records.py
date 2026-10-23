@@ -540,7 +540,11 @@ class RecordServiceAdapter:
         raw = out["record"]
         hr = self.agenthr
         if hr is not None:  # JD -> canh_bao; hồ sơ da_nghi -> xóa agent_grant (D-AGENTHR-1)
-            raw = engine_call(lambda: hr.after_write(caller, payload.model, out["record"]))
+            raw = engine_call(
+                lambda: hr.after_write(
+                    caller, payload.model, out["record"], created=payload.record_id is None
+                )
+            )
         rec = self.record_out(caller, model, raw, ver)
         op_ref = f"operation:{uuid4().hex}"
         if payload.task:

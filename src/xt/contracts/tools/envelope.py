@@ -139,6 +139,7 @@ REASONS: frozenset[str] = frozenset(
         "daily_limit_reached",
         "over_value_limit",
         "held_for_release",
+        "duplicate_agent_profile",
     }
 )
 
