@@ -7,6 +7,8 @@ IAM/tự chủ hiện có. Agent không có hồ sơ (tenant chưa cài gói `nh
 tuyển) giữ nguyên hành vi cũ: adapter trả `None` và cổng không chạy.
 
 Thứ tự (rẻ trước):
+0. nhiều hồ sơ chưa nghỉ cho cùng (client_id, người phụ trách) — dữ liệu cũ — chặn kín
+   (`duplicate_agent_profile`), không chọn bừa một hồ sơ;
 1. trạng thái hồ sơ (`agent_suspended` / `agent_terminated`) — mọi tool, kể cả đọc;
 2. ca làm (`outside_working_hours`) — mọi tool, giờ theo múi giờ tenant;
 3. tool ghi: (model, thao tác) phải có trong JD hiệu lực (`outside_job_description`);
@@ -44,8 +46,9 @@ OUTSIDE_HOURS = "outside_working_hours"
 DAILY_LIMIT = "daily_limit_reached"
 OVER_VALUE = "over_value_limit"
 HELD = "held_for_release"
+DUPLICATE_PROFILE = "duplicate_agent_profile"
 REASONS = frozenset({AGENT_SUSPENDED, AGENT_TERMINATED, OUTSIDE_JD, OUTSIDE_HOURS, DAILY_LIMIT,
-                     OVER_VALUE, HELD})  # fmt: skip
+                     OVER_VALUE, HELD, DUPLICATE_PROFILE})  # fmt: skip
 
 _DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 _WINDOW = re.compile(r"^([01][0-9]|2[0-3]):([0-5][0-9])-([01][0-9]|2[0-3]):([0-5][0-9])$")
@@ -270,6 +273,22 @@ def intent_model(tool: str, args: Mapping[str, Any]) -> tuple[str, Op] | None:
 # ---------------------------------------------------------------- quyết định ----
 def _remedy(text: str) -> str:
     return text + " Do not retry it another way; explain the reason to the user."
+
+
+def duplicate_block(live: Sequence[Profile]) -> Block | None:
+    """Hơn một hồ sơ chưa `da_nghi` cho cùng (client_id, người phụ trách): không biết hồ sơ nào là
+    "thật" nên chặn kín (một hồ sơ tạm dừng không được bị hồ sơ khác che)."""
+    if len(live) < 2:
+        return None
+    return Block(
+        DUPLICATE_PROFILE,
+        "This AI agent has more than one active profile in xT (Nhân sự AI), so it cannot act.",
+        _remedy(
+            "Tell the user to ask IT to terminate (da_nghi) the extra profiles of this agent in"
+            " xT Desk, keeping exactly one."
+        ),
+        details={"profiles": ",".join(p.id for p in live), "count": len(live)},
+    )
 
 
 def status_block(p: Profile, today: date) -> Block | None:

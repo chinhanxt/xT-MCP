@@ -28,6 +28,7 @@ from zoneinfo import ZoneInfo
 from xt.application.agenthr.gate import (
     DA_NGHI,
     DANG_LAM,
+    DUPLICATE_PROFILE,
     GIAY_PHEP,
     HO_SO,
     JD,
@@ -41,6 +42,7 @@ from xt.application.agenthr.gate import (
     Profile,
     ScheduleError,
     check_write,
+    duplicate_block,
     hours_block,
     intent_model,
     limit_block,
@@ -144,22 +146,28 @@ class AgentHr:
                 return None
             raise
 
-    def profile(self, caller: Caller) -> tuple[Profile, dict[str, Any]] | None:
-        """Hồ sơ của (client agent, người được đại diện): ưu tiên `dang_lam`, không thì mới nhất."""
+    def _pair_rows(self, caller: Caller, client: str, person: str) -> list[dict[str, Any]]:
+        return self._rows(
+            caller,
+            HO_SO,
+            {"and": [_eq("client_id", client), _eq("nguoi_phu_trach", person)]},
+        )
+
+    def profile(self, caller: Caller) -> tuple[Profile, dict[str, Any], Block | None] | None:
+        """Hồ sơ của (client agent, người được đại diện): hồ sơ duy nhất chưa `da_nghi`, không thì
+        hồ sơ mới nhất (đã nghỉ). Hơn một hồ sơ chưa nghỉ (dữ liệu cũ, trước khi có ràng buộc
+        duy nhất) -> không chọn bừa: trả kèm khối chặn `duplicate_agent_profile` (fail closed)."""
         if not caller.is_agent or caller.client_id in PORTAL_CLIENTS:
             return None  # cổng Desk của người dùng: không phải nhân viên AI, không đếm/giới hạn
         if self._catalog(caller) is None:
             return None
-        rows = self._rows(
-            caller,
-            HO_SO,
-            {"and": [_eq("client_id", caller.client_id),
-                     _eq("nguoi_phu_trach", str(caller.person.id))]},
-        )  # fmt: skip
+        rows = self._pair_rows(caller, caller.client_id, str(caller.person.id))
         if not rows:
             return None
-        row = next((r for r in rows if r.get("trang_thai") == DANG_LAM), rows[0])
-        return profile_of(row), row
+        live = [r for r in rows if r.get("trang_thai") != DA_NGHI]
+        row = (live or rows)[0]
+        dup = duplicate_block([profile_of(r) for r in live])
+        return profile_of(row), row, dup
 
     def job(self, caller: Caller, p: Profile) -> JobDescription | None:
         """JD hiệu lực = JD do op `apply_agent_jd` ghi vào hồ sơ, còn ở trạng thái approved."""
@@ -190,9 +198,9 @@ class AgentHr:
         found = self.profile(caller)
         if found is None:
             return
-        p, _ = found
+        p, _, blocked = found
         now = self._now(caller, ctx)
-        blocked = status_block(p, now.date())
+        blocked = blocked or status_block(p, now.date())
         if blocked is None:
             blocked = hours_block(self.job(caller, p), now)
         if blocked is not None:
@@ -203,7 +211,9 @@ class AgentHr:
         found = self.profile(caller)
         if found is None:
             return
-        p, row = found
+        p, row, dup = found
+        if dup is not None:  # check_call đã chặn lượt này; giữ chặn kín nếu gọi riêng
+            self._block(caller, ctx, tool, p, dup)
         target = intent_model(tool, args)
         if target is None:
             return
@@ -389,6 +399,7 @@ class AgentHr:
                     "hire_requires_jd_approval",
                     remediation="Create the profile, then create + submit a jd_agent request.",
                 )
+            self._check_unique(caller, values)
             return
         cur = self._get(caller, HO_SO, rid)
         if cur is None:
@@ -412,6 +423,29 @@ class AgentHr:
                 remediation="Create a jd_agent for this profile and submit_request it.",
             )
 
+    def _check_unique(
+        self, caller: Caller, values: Mapping[str, Any], *, exclude: object = None
+    ) -> None:
+        """Mỗi (client_id, người phụ trách) chỉ có một hồ sơ chưa `da_nghi` (mỗi cặp có một
+        `agent_grant`, cổng chọn hồ sơ theo cặp): tạo mới khi còn hồ sơ khác -> từ chối."""
+        person, client = _uuid(values.get("nguoi_phu_trach")), str(values.get("client_id") or "")
+        if person is None or not client:
+            return  # thiếu trường bắt buộc: validation của model báo lỗi
+        live = [
+            r for r in self._pair_rows(caller, client, str(person))
+            if r.get("trang_thai") != DA_NGHI and str(r["id"]) != str(exclude)
+        ]  # fmt: skip
+        if live:
+            raise invalid_request(
+                "Đã có hồ sơ agent đang hoạt động (chưa nghỉ) cho cùng client và người phụ trách.",
+                DUPLICATE_PROFILE,
+                remediation=(
+                    "Dùng hồ sơ có sẵn (tạo JD mới cho hồ sơ đó), hoặc cho hồ sơ cũ nghỉ việc"
+                    " (trang_thai=da_nghi) rồi mới tuyển hồ sơ mới."
+                ),
+                existing=[f"{HO_SO}:{r['id']}" for r in live],
+            )
+
     @staticmethod
     def _check_jd_values(values: Mapping[str, Any]) -> None:
         try:
@@ -422,9 +456,12 @@ class AgentHr:
         except (ValueError, ScheduleError) as e:
             raise invalid_request(f"JD không hợp lệ: {e}", "validation") from None
 
-    def after_write(self, caller: Caller, model: str, rec: Mapping[str, Any]) -> dict[str, Any]:
-        """Sau khi create/update đã ghi: JD -> canh_bao; hồ sơ `da_nghi` -> xóa agent_grant.
-        Trả bản ghi mới nhất (revision đúng cho lời gọi kế tiếp)."""
+    def after_write(
+        self, caller: Caller, model: str, rec: Mapping[str, Any], *, created: bool = False
+    ) -> dict[str, Any]:
+        """Sau khi create/update đã ghi: JD -> canh_bao; hồ sơ mới -> kiểm lại không trùng cặp
+        (dưới khóa cặp, bắt tạo song song; lỗi thì cả lời ghi rollback); hồ sơ `da_nghi` -> xóa
+        agent_grant. Trả bản ghi mới nhất (revision đúng cho lời gọi kế tiếp)."""
         if model == JD:
             patch = self.risk_patch(caller, rec)
             if patch:
@@ -432,6 +469,11 @@ class AgentHr:
                     caller.workflow(), JD, UUID(str(rec["id"])), int(rec["revision"]), patch
                 )
                 return dict(out["record"])
+        elif model == HO_SO and created and rec.get("trang_thai") != DA_NGHI:
+            person, client = _uuid(rec.get("nguoi_phu_trach")), str(rec.get("client_id") or "")
+            if person is not None and client:
+                self.rt.store.lock_agent_pair(caller.workflow(), client, person)
+                self._check_unique(caller, rec, exclude=rec["id"])
         elif model == HO_SO and rec.get("trang_thai") == DA_NGHI:
             self.release_grant(caller, rec)
         return dict(rec)
@@ -456,18 +498,13 @@ class AgentHr:
         return {} if rec.get("canh_bao") == flags else {"canh_bao": flags}
 
     def release_grant(self, caller: Caller, rec: Mapping[str, Any]) -> bool:
-        """Hồ sơ đã nghỉ: xóa trần tự chủ của (người phụ trách, client) nếu không còn hồ sơ khác
-        đang làm cho cùng cặp đó."""
+        """Hồ sơ đã nghỉ: xóa trần tự chủ của (người phụ trách, client) chỉ khi không còn hồ sơ
+        nào khác của cùng cặp chưa nghỉ (dữ liệu cũ có thể có nhiều hồ sơ trùng cặp)."""
         person, client = _uuid(rec.get("nguoi_phu_trach")), str(rec.get("client_id") or "")
         if person is None or not client:
             return False
-        others = self._rows(
-            caller,
-            HO_SO,
-            {"and": [_eq("client_id", client), _eq("nguoi_phu_trach", str(person)),
-                     _eq("trang_thai", DANG_LAM)]},
-        )  # fmt: skip
-        if any(str(o["id"]) != str(rec["id"]) for o in others):
+        others = self._pair_rows(caller, client, str(person))
+        if any(o.get("trang_thai") != DA_NGHI and str(o["id"]) != str(rec["id"]) for o in others):
             return False
         return self.rt.store.delete_agent_grant(caller.workflow(), person, client)
 

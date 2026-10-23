@@ -284,6 +284,15 @@ class PgIntegrationStore:
             ).fetchone()
         return row is not None
 
+    def lock_agent_pair(self, actor: ModelActor, client_id: str, person: UUID) -> None:
+        """Khóa advisory (đến hết transaction) cho cặp (client_id, người phụ trách): tạo hồ sơ
+        agent song song cho cùng cặp phải tuần tự để kiểm trùng thấy nhau."""
+        with self.uow.tenant_tx(actor) as cur:
+            cur.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                (f"xt:agenthr:{actor.tenant.id}:{client_id}:{person}",),
+            )
+
     def agent_usage(self, actor: ModelActor, client_id: str, person: UUID, day: Any) -> int:
         with self.uow.tenant_tx(actor) as cur:
             row = cur.execute(

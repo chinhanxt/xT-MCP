@@ -19,6 +19,7 @@ import json
 import re
 import uuid
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -104,6 +105,37 @@ class Hr:
             return [dict(r) for r in out["items"]]
 
         return list(self.rt.run_as(caller, self.actor("NV-0001", DESK), search))
+
+    def legacy_profile(self, owner: str, client: str, state: str) -> str:
+        """Hồ sơ ghi thẳng bằng ngữ cảnh workflow (như dữ liệu cũ, trước ràng buộc duy nhất)."""
+        caller = self.rt.resolve(self.actor("NV-0001", DESK), "hr-legacy")
+
+        def create() -> str:
+            out = self.rt.records.create(
+                caller.workflow(),
+                "ho_so_agent",
+                {"ten": f"legacy {state}", "client_id": client, "trang_thai": state,
+                 "nguoi_phu_trach": self.pid(owner),
+                 **({"ly_do_tam_dung": "thu_cong"} if state == "tam_dung" else {})},
+            )  # fmt: skip
+            return f"ho_so_agent:{out['record']['id']}"
+
+        return str(
+            self.rt.run_as(caller, self.actor("NV-0001", DESK), lambda: self.rt.uow.run(create))
+        )
+
+    def grant(self, owner: str, client: str) -> None:
+        caller = self.rt.resolve(self.actor("NV-0001", DESK), "hr-grant")
+        person = uuid.UUID(self.pid(owner))
+        self.rt.run_as(
+            caller,
+            self.actor("NV-0001", DESK),
+            lambda: self.rt.uow.run(
+                lambda: self.rt.store.upsert_agent_grant(
+                    caller.workflow(), person, client, 1, ("agent",)
+                )
+            ),
+        )
 
     def record(self, ref: str) -> dict[str, Any]:
         model, rid = ref.split(":", 1)
@@ -526,3 +558,77 @@ def test_jd_copies_capabilities_from_role_and_portal_client_is_not_an_agent(
         "idempotency_key": _key()}), "portal_client")  # fmt: skip
     assert h.sql("SELECT count(*) AS n FROM xt_meta.agent_usage WHERE client_id = %s",
                  DESK) == [{"n": 0}]  # fmt: skip
+
+
+def _profile_values(h: Hr, owner: str, client: str) -> dict[str, Any]:
+    return {"model_id": "ho_so_agent", "idempotency_key": _key(),
+            "values": {"ten": f"{client} của {owner}", "client_id": client,
+                       "nguoi_phu_trach": f"person:{h.pid(owner)}"}}  # fmt: skip
+
+
+def test_one_live_profile_per_client_and_owner(hr: tuple[Hr, Hr]) -> None:
+    h, _ = hr
+    first = _ok(h.desk("NV-0002", "create_record", _profile_values(h, "NV-0004", "uniq-gpt")))
+    err = _denied(h.desk("NV-0002", "create_record", _profile_values(h, "NV-0004", "uniq-gpt")),
+                  "duplicate_agent_profile")  # fmt: skip
+    assert err["code"] == "invalid_request" and err["remediation"]
+    assert err["details"]["existing"] == [first["record"]["ref"]]
+    # cặp khác (client khác, hoặc người khác) vẫn tuyển bình thường
+    _ok(h.desk("NV-0002", "create_record", _profile_values(h, "NV-0004", "uniq-claude")))
+    _ok(h.desk("NV-0002", "create_record", _profile_values(h, "NV-0005", "uniq-gpt")))
+    # cho nghỉ hồ sơ cũ thì tuyển lại được; hồ sơ đã nghỉ không mở lại được
+    ref = first["record"]["ref"]
+    gone = _ok(h.desk("NV-0002", "update_record", {
+        "ref": ref, "set": {"trang_thai": "da_nghi"},
+        "expected_revision": first["record"]["revision"], "idempotency_key": _key()}))  # fmt: skip
+    _ok(h.desk("NV-0002", "create_record", _profile_values(h, "NV-0004", "uniq-gpt")))
+    _denied(h.desk("NV-0002", "update_record", {
+        "ref": ref, "set": {"trang_thai": "cho_duyet"},
+        "expected_revision": gone["record"]["revision"], "idempotency_key": _key()}),
+        "agent_terminated")  # fmt: skip
+
+
+def test_concurrent_creates_for_the_same_pair_leave_one_profile(hr: tuple[Hr, Hr]) -> None:
+    h, _ = hr
+    with ThreadPoolExecutor(2) as pool:
+        outs = list(pool.map(
+            lambda _: h.desk("NV-0002", "create_record", _profile_values(h, "NV-0006", "race-gpt")),
+            range(2)))  # fmt: skip
+    assert sorted(bool(o.get("ok")) for o in outs) == [False, True], outs
+    bad = next(o for o in outs if not o.get("ok"))
+    assert bad["error"]["details"]["reason"] == "duplicate_agent_profile", bad
+    mine = [
+        r for r in h.rows("ho_so_agent", {"field": "client_id", "op": "=", "value": "race-gpt"})
+    ]
+    assert len(mine) == 1
+
+
+def test_legacy_duplicate_profiles_fail_closed_and_keep_the_grant(hr: tuple[Hr, Hr]) -> None:
+    h, _ = hr
+    client, owner = "legacy-gpt", "NV-0005"
+    h.grant(owner, client)
+    working = h.legacy_profile(owner, client, "dang_lam")
+    paused = h.legacy_profile(owner, client, "tam_dung")
+    # dang_lam không bị tam_dung che / ngược lại: cả hai lời gọi (đọc lẫn ghi) bị chặn kín
+    for tool, args in (("search_records", {"model_id": "advance_request"}), ("get_inbox", {})):
+        e = _denied(h.call(owner, tool, args, client), "duplicate_agent_profile")
+        assert e["details"]["count"] == 2
+        assert set(e["details"]["profiles"].split(",")) == {working.split(":")[1],
+                                                           paused.split(":")[1]}  # fmt: skip
+    events = h.sql("SELECT reason FROM xt_meta.agenthr_event WHERE client_id = %s", client)
+    assert [x["reason"] for x in events] == ["duplicate_agent_profile"] * 2
+    grant = ("SELECT 1 FROM xt_meta.agent_grant WHERE person = %s AND client_id = %s",
+             uuid.UUID(h.pid(owner)), client)  # fmt: skip
+    assert h.sql(*grant) != []
+
+    def terminate(ref: str) -> None:
+        _ok(h.desk("NV-0003", "update_record", {
+            "ref": ref, "set": {"trang_thai": "da_nghi"},
+            "expected_revision": h.record(ref)["revision"],
+            "idempotency_key": _key()}))  # fmt: skip
+
+    terminate(paused)  # còn hồ sơ dang_lam: grant giữ nguyên, hết trùng nên cổng thông
+    assert h.sql(*grant) != []
+    _ok(h.call(owner, "search_records", {"model_id": "advance_request"}, client))
+    terminate(working)  # hồ sơ cuối nghỉ: grant bị thu hồi
+    assert h.sql(*grant) == []
