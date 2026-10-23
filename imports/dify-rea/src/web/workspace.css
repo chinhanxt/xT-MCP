@@ -337,6 +337,11 @@ nav button:hover {
   color: #4a9d78;
   border-color: #d8efe3;
 }
+.pill.amber {
+  background: #fff7e8;
+  color: #a8741a;
+  border-color: #f2e2c0;
+}
 .pill.red {
   background: #fff0ef;
   color: #c26259;

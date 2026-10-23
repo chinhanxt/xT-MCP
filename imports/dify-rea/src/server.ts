@@ -18,6 +18,7 @@ import type { RouteContext } from './http.ts';
 import { assertionVerifier, authorizeStudioRoute, safeRequestId, studioSecret } from './xt-auth.ts';
 import { xtTools } from './xt-tools.ts';
 import { createTriggerRunner, routeTriggers, startScheduler, type TriggerRunner } from './triggers.ts';
+import { routeRunResume } from './human-approval.ts';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const scrypt = promisify(scryptCallback);
 async function passwordHash(value: string, salt = randomBytes(16).toString('hex')) {
@@ -204,7 +205,7 @@ export function createStudio(store: Store, options: { log?: boolean; integrated?
       }
       const context = { store, req, res, path, url, method, workspace, send, busy, apiAccess, coreTools,
         identity: identity ? { person: identity.person, role: identity.role } : undefined };
-      if ((await routeMcp(context)) || (await routeResources(context)) || (await routeAppManagement(context)) || (await routeTriggers(context, runner)) || (await routeApps(context)))
+      if ((await routeMcp(context)) || (await routeResources(context)) || (await routeAppManagement(context)) || (await routeTriggers(context, runner)) || (await routeRunResume(context)) || (await routeApps(context)))
         return;
       throw new HttpError(404, 'Không tìm thấy API.');
     } catch (error) {

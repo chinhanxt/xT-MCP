@@ -14,6 +14,7 @@ export const nodeKinds = [
   'question_classifier',
   'parameter_extractor',
   'list_operator',
+  'human_approval',
 ] as const;
 export type NodeKind = (typeof nodeKinds)[number];
 export const xtToolNames: string[] = ['inspect_workspace', 'describe_model', 'describe_process', 'search_records',
@@ -85,6 +86,12 @@ export interface GraphNode {
     order?: { key?: string; dir: 'asc' | 'desc' };
     limit?: number;
     extract?: 'first' | 'last' | number;
+    title?: string;
+    summary?: string;
+    approver_hint?: string;
+    timeout_hours?: number;
+    request_model?: string;
+    request_values?: string;
   };
 }
 export interface GraphEdge {
@@ -170,7 +177,7 @@ export interface Trace {
   node_id: string;
   label: string;
   type: string;
-  status: 'success' | 'error' | 'skipped';
+  status: 'success' | 'error' | 'skipped' | 'waiting';
   input: string;
   output: string;
   duration_ms: number;
@@ -181,6 +188,8 @@ export interface RunResult {
   citations: Citation[];
   trace: Trace[];
   conversation_id?: string;
+  status?: 'waiting';
+  request_ref?: string;
 }
 export type StreamEvent =
   { type: 'delta'; text: string } | { type: 'result'; result: RunResult } | { type: 'error'; error: string; trace?: Trace[] };

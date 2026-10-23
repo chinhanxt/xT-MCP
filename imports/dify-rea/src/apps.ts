@@ -12,6 +12,8 @@ import { runInputs } from './input-fields.ts';
 import { defaultGeneration } from './contracts.ts';
 import type { StreamEvent } from './contracts.ts';
 import { runWorkflow, validateGraph } from './workflow.ts';
+import { holdForApproval } from './human-approval.ts';
+import type { WorkflowOutcome } from './human-approval-node.ts';
 import { runAgent } from './agent.ts';
 import { selectedTool } from './mcp.ts';
 import { sourceCheck } from './xt-source.ts';
@@ -231,7 +233,7 @@ export async function routeApps(ctx: RouteContext): Promise<boolean> {
       }
       try {
         let result: RunResult;
-        if (app.kind === 'workflow') result = await runWorkflow(store, workspace, config, input, signal, inputs, ctx.coreTools, !!ctx.identity);
+        if (app.kind === 'workflow') result = await runWorkflow(store, workspace, config, input, signal, inputs, ctx.coreTools, !!ctx.identity, { id: runId });
         else {
           const citations = app.kind === 'chat' ? await retrieve(store, workspace, config.knowledge_ids, input, 5, signal, sourceCheck(ctx.coreTools, !!ctx.identity)) : [];
           const system =
@@ -276,9 +278,12 @@ export async function routeApps(ctx: RouteContext): Promise<boolean> {
           result.conversation_id = conversationId;
         }
         result.run_id = runId;
-        store.db
-          .prepare('UPDATE runs SET status=?,result=?,duration_ms=?,trace=? WHERE id=?')
-          .run('success', JSON.stringify(result), Date.now() - runStarted, JSON.stringify(result.trace ?? []), runId);
+        if ((result as WorkflowOutcome).waiting)
+          result = holdForApproval(store, runId, workspace, config, result as WorkflowOutcome, Date.now() - runStarted);
+        else
+          store.db
+            .prepare('UPDATE runs SET status=?,result=?,duration_ms=?,trace=? WHERE id=?')
+            .run('success', JSON.stringify(result), Date.now() - runStarted, JSON.stringify(result.trace ?? []), runId);
         if (apiAccess?.share)
           result = {
             output: result.output,
