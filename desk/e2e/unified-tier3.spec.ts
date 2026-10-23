@@ -147,13 +147,20 @@ test('WareTrack module: scoped read-only bridge, business-mode read via connect(
   const view3d=page.getByRole('button',{name:'Sơ đồ 3D',exact:true});
   await view3d.click();
   await expect(view3d).toHaveAttribute('aria-pressed','true');
+  // Kho có tab con; tab "Sơ đồ 3D" (role=tab) khác nút kiểu hiển thị "Sơ đồ 3D" (role=button) ở trên
+  const mapTab=page.getByRole('tab',{name:'Sơ đồ 3D',exact:true});
+  await mapTab.click();
+  await expect(mapTab).toHaveAttribute('aria-selected','true');
+  await expect(page.getByRole('button',{name:'Sơ đồ 3D',exact:true})).toHaveCount(1);
   const iframe=page.locator('iframe[title="xT WareTrack"]');
+  await expect(iframe).toBeVisible();
   await expect(iframe).toHaveAttribute('data-xt-scope','waretrack');
   await expect(iframe).toHaveAttribute('src','/waretrack/?integrated=1');
   const wt=page.frameLocator('iframe[title="xT WareTrack"]');
   // business mode reads through connect(window).callTool('search_records', ...) and renders the read-only list
   await expect(wt.getByRole('button',{name:'Mô phỏng',exact:true})).toHaveAttribute('aria-pressed','true',{timeout:30_000}); // bundle 3D ~880 KB: lần tải đầu chậm khi máy bận
   await iframe.scrollIntoViewIfNeeded();
+  const beforeBusiness=fixture.calls.length; // portal Kho tự đọc cùng danh mục/tồn kho: chỉ tính lời gọi phát sinh sau khi bật chế độ nghiệp vụ
   await wt.getByRole('button',{name:'Dữ liệu nghiệp vụ',exact:true}).click();
   await expect(wt.getByRole('heading',{name:'Dữ liệu nghiệp vụ (chỉ đọc)'})).toBeVisible();
   const table=(title:string)=>wt.locator(`.bz-table:has(h3:text-is("${title}"))`);
@@ -161,9 +168,10 @@ test('WareTrack module: scoped read-only bridge, business-mode read via connect(
   await expect(table('Tồn kho (1)')).toContainText('2,5');
   await expect(table('Phiếu nhập/xuất (1)')).toContainText('PN-9');
   const read=(model_id:string,fields:string[])=>({name:'search_records',arguments:{model_id,limit:100,fields}});
-  expect(fixture.calls).toContainEqual(read('warehouse',['code','name']));
-  expect(fixture.calls).toContainEqual(read('stock_balance',['item','location','quantity_milli']));
-  expect(fixture.calls).toContainEqual(read('stock_request',['code','kind','warehouse','lines','note']));
+  const businessCalls=fixture.calls.slice(beforeBusiness);
+  expect(businessCalls).toContainEqual(read('warehouse',['code','name']));
+  expect(businessCalls).toContainEqual(read('stock_balance',['item','location','quantity_milli']));
+  expect(businessCalls).toContainEqual(read('stock_request',['code','kind','warehouse','lines','note']));
   // the frame's own bridge: scoped, frozen, no Studio proxy, writes rejected
   const frame=page.frame({url:/\/waretrack\/\?integrated=1/})!;
   const probe=await frame.evaluate(async()=>{

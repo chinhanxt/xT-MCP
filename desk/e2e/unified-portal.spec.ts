@@ -93,6 +93,9 @@ test('unified built portal: H/P/D/Kho, actual Studio iframe and Response bridge,
   await expect(page.getByTestId('confirm-card').getByRole('link')).toHaveAttribute('href','https://xt.freepro.online/desk/confirm/browser-fixture');
   await nav.getByRole('button',{name:'T3',exact:true}).click();
   await page.getByRole('button',{name:'Mở Kho hàng (WMS)',exact:true}).click();
+  await expect(page.getByRole('tab',{name:'Tồn kho',exact:true})).toHaveAttribute('aria-selected','true');
+  await page.getByRole('tab',{name:'Phiếu',exact:true}).click();
+  await expect(page.getByRole('tab',{name:'Phiếu',exact:true})).toHaveAttribute('aria-selected','true');
   await page.getByLabel('Mã phiếu',{exact:true}).fill('PN-1');
   await page.getByLabel('Kho',{exact:true}).selectOption(warehouse);
   await page.getByLabel('Hàng hóa',{exact:true}).selectOption(item);

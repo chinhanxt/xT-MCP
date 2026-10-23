@@ -304,3 +304,10 @@ header.top{position:static;flex-wrap:wrap;height:auto;min-height:var(--top);padd
 .meta{display:none}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* Desk đợt 2: tab con Kho, bảng tồn kho */
+.portal th.num,.portal td.num{text-align:right;font-variant-numeric:tabular-nums}
+.stock-table{padding:0}
+.stock-table > .ph{margin:0}
+.stock-table > p{padding:16px 20px;margin:0;color:var(--ink-2)}
+.tier3-app .portal .tabs{margin-top:4px}
