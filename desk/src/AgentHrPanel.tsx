@@ -11,7 +11,7 @@ import { confirmUrlOf } from './portal-request';
 import { PortalAlert } from './PortalAlert';
 import { classifyError, type ErrorKind } from './portal-state';
 import { Pill } from './ui';
-import { AGENT_MODEL, INCIDENT_FIX, INCIDENT_KIND, OPS, agentStatus, capChips, capabilities, fieldsOf, jdFor, lastId, money, num, obj, refId, refName, riskFlags, workHours, workload, type Data } from './agenthr';
+import { AGENT_MODEL, activeJd, dateVi, INCIDENT_FIX, INCIDENT_KIND, OPS, agentErrorText, agentStatus, capChips, capabilities, errorReason, fieldsOf, flatCapabilities, jdFor, lastId, money, num, obj, permitCovers, permitLabel, refId, refName, riskFlags, wholeNumber, workHours, workload, type Data } from './agenthr';
 import { ArrowLeft, Bot, Check, ChevronRight, History, Lock, Pause, Plus, RefreshCw, RotateCcw, Send, ShieldAlert, ShieldCheck, UserX, X } from 'lucide-react';
 
 type View = { kind: 'list' } | { kind: 'detail'; ref: string } | { kind: 'hire' };
@@ -26,7 +26,6 @@ function recordOf(value: Data, model: string): Data {
   if (typeof record.ref !== 'string' || !record.ref.startsWith(`${model}:`) || !lastId(record.ref)) throw new Error('Máy chủ không trả về mã bản ghi hợp lệ.');
   return record;
 }
-const intOr = (text: string) => { const n = Number(text); return text.trim() !== '' && Number.isInteger(n) && n >= 0 ? n : null; };
 const jdFromSource = (f: Data): JdValues => ({
   han_muc_viec_ngay: num(f.han_muc_viec_ngay) === null ? '' : String(num(f.han_muc_viec_ngay)), han_muc_gia_tri: num(f.han_muc_gia_tri) === null ? '' : String(num(f.han_muc_gia_tri)),
   khung_gio: String(f.khung_gio || ''), ngay_lam: String(f.ngay_lam || ''), muc_tu_chu: num(f.muc_tu_chu) === null ? '' : String(num(f.muc_tu_chu)),
@@ -45,8 +44,8 @@ export function JdRiskBlock({ record, models }: { record: Data; models: Data[] }
 
 function modelName(models: Data[], id: string) { const m = models.find(row => row.id === id); return String(m?.label || m?.name || id); }
 function CapTable({ caps, models, permits }: { caps: ReturnType<typeof capabilities>; models: Data[]; permits?: Data[] }) {
-  const released = (model: string) => (permits || []).some(p => String(fieldsOf(p).hanh_dong || '').endsWith(`:${model}`) && String(fieldsOf(p).hanh_dong || '').startsWith('request.submit'));
-  return <table><thead><tr><th>Dữ liệu</th>{OPS.map(op => <th key={op.id}>{op.label}</th>)}</tr></thead><tbody>{caps.map(cap => <tr key={cap.model}><td>{modelName(models, cap.model)}</td>{OPS.map(op => <td key={op.id}>{
+  const released = (model: string) => (permits || []).some(p => permitCovers(fieldsOf(p), model));
+  return <table><thead><tr><th>Dữ liệu</th>{OPS.map(op => <th key={op.id}>{op.label}</th>)}</tr></thead><tbody>{caps.map(cap => <tr key={cap.model}><td>{modelName(models, cap.model)}{cap.note ? <small className="muted"> {cap.note}</small> : null}</td>{OPS.map(op => <td key={op.id}>{
     !cap.ops.includes(op.id) ? <span className="faint" aria-label="Không"><X aria-hidden="true"/></span>
       : op.id === 'submit' && permits && !released(cap.model) ? <Pill tone="held" icon={Lock}>Giữ lại</Pill>
         : <span className="ok-ic" aria-label="Có"><Check aria-hidden="true"/></span>}</td>)}</tr>)}</tbody></table>;
@@ -60,6 +59,7 @@ export function AgentHrPanel({ mcp, tools, models, me, onMutated }: Props) {
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [kind, setKind] = useState<ErrorKind>('error'), [done, setDone] = useState(''), [confirmUrl, setConfirmUrl] = useState('');
   const [dialog, setDialog] = useState<'' | 'suspend' | 'retire'>(''), [reason, setReason] = useState('');
   const [role, setRole] = useState(''), [hire, setHire] = useState<{ ten: string; client_id: string; owner: string }>({ ten: '', client_id: '', owner: '' }), [jd, setJd] = useState<JdValues>(jdFromSource({}));
+  const [permitModel, setPermitModel] = useState(''), [permitUntil, setPermitUntil] = useState(''), [showJd, setShowJd] = useState(false);
   const [jdChange, setJdChange] = useState(false), [submitted, setSubmitted] = useState<Data | null>(null), [pending, setPending] = useState('');
   const live = useRef(false), working = useRef(false), keys = useRef(new Map<string, string>()), attempt = useRef<Attempt | null>(null), scope = useRef('');
   const available = useRef(tools); available.current = tools;
@@ -85,7 +85,7 @@ export function AgentHrPanel({ mcp, tools, models, me, onMutated }: Props) {
     if (working.current) return;
     working.current = true; scope.current = operation; setBusy(true); setError(''); setDone(''); setConfirmUrl('');
     try { await job(); for (const key of keys.current.keys()) if (key.startsWith(`${JSON.stringify(operation)}:`)) keys.current.delete(key); }
-    catch (e) { if (live.current) { setError((e as Error).message); setKind(classifyError(e)); } }
+    catch (e) { if (live.current) { setError(agentErrorText(e)); setKind(classifyError(e)); } }
     finally { working.current = false; if (live.current) setBusy(false); }
   }
   const search = async (model_id: string, extra: Data = {}) => rowsOf(await call('search_records', { model_id, limit: 100, ...extra }));
@@ -115,30 +115,50 @@ export function AgentHrPanel({ mcp, tools, models, me, onMutated }: Props) {
   const roleRow = (value: unknown) => (roles || []).find(r => refId(r.ref || r.id) === refId(value));
   const roleName = (value: unknown) => refName(value) || (roleRow(value) ? title(roleRow(value)!) : '') || '—';
   const label = (id: string) => modelName(catalog, id);
-  const open = (ref: string) => { setView({ kind: 'detail', ref }); setDetail(null); setHistory(null); setJdChange(false); setSubmitted(null); attempt.current = null; void run(() => loadDetail(ref)); };
+  const open = (ref: string) => { setView({ kind: 'detail', ref }); setDetail(null); setHistory(null); setJdChange(false); setShowJd(false); setPermitModel(''); setPermitUntil(''); setSubmitted(null); attempt.current = null; void run(() => loadDetail(ref)); };
   const back = () => { setView({ kind: 'list' }); setDetail(null); setDialog(''); setSubmitted(null); attempt.current = null; void run(loadList); };
 
   async function setState(set: Data, message: string) {
     const record = detail!.record;
     if (typeof record.revision !== 'number') throw new Error('Chưa đọc được phiên bản hồ sơ.');
-    const text = reason.trim();
-    const value = await call('update_record', { ref: record.ref, set, expected_revision: record.revision, ...(text ? { reason: text } : {}) }, true);
+    const text = reason.trim(), send = (revision: number) => call('update_record', { ref: record.ref, set, expected_revision: revision, ...(text ? { reason: text } : {}) }, true);
+    let value: Data;
+    try { value = await send(record.revision); }
+    catch (e) {
+      if (errorReason(e) !== 'revision_conflict') throw e;
+      // Hồ sơ vừa đổi (vd lõi tự tạm dừng khi chạm hạn mức): đọc lại phiên bản mới, thử đúng một lần nữa.
+      const fresh = recordOf(await call('get_record', { ref: record.ref }), AGENT_MODEL);
+      if (typeof fresh.revision !== 'number') throw e;
+      value = await send(fresh.revision);
+    }
     recordOf(value, AGENT_MODEL);
     setDialog(''); setReason(''); onMutated?.();
     await loadDetail(String(record.ref));
     if (live.current) setDone(message);
   }
-  function jdPayload(hoSoId: string, nangLuc: unknown): Data {
-    const perDay = intOr(jd.han_muc_viec_ngay), value = Number(jd.han_muc_gia_tri), autonomy = intOr(jd.muc_tu_chu);
-    if (perDay === null) throw new Error('Việc mỗi ngày phải là số nguyên không âm.');
-    if (jd.han_muc_gia_tri.trim() === '' || !Number.isFinite(value) || value < 0) throw new Error('Giá trị mỗi phiếu phải là số không âm (0 = không giới hạn).');
+  /**
+   * Giá trị gửi lõi: chỉ trường người dùng đã đổi so với `base` (vai trò hoặc JD gốc); trường vắng thì lõi sao từ vai trò của hồ sơ.
+   * Không có `base` (hồ sơ không có vai trò) thì gửi đủ và kèm năng lực dạng phẳng.
+   */
+  function jdPayload(hoSoId: string, base: JdValues | null, fallbackCaps: unknown): Data {
+    const perDay = wholeNumber(jd.han_muc_viec_ngay), value = wholeNumber(jd.han_muc_gia_tri), autonomy = wholeNumber(jd.muc_tu_chu);
+    if (jd.han_muc_viec_ngay.trim() !== '' && perDay === null) throw new Error('Việc mỗi ngày phải là số nguyên không âm.');
+    if (jd.han_muc_gia_tri.trim() !== '' && value === null) throw new Error('Giá trị mỗi phiếu phải là số nguyên VND không âm (0 = không giới hạn).');
     if (autonomy === null || autonomy > 3) throw new Error('Chọn mức tự chủ.');
-    return { ho_so: hoSoId, nang_luc: nangLuc, muc_tu_chu: autonomy, han_muc_viec_ngay: perDay, han_muc_gia_tri: value, khung_gio: jd.khung_gio.trim(), ngay_lam: jd.ngay_lam.trim() };
+    const changed = (key: keyof JdValues) => !base || jd[key].trim() !== base[key].trim();
+    return {
+      ho_so: hoSoId, ...(base ? {} : { nang_luc: flatCapabilities(fallbackCaps) }),
+      ...(changed('muc_tu_chu') ? { muc_tu_chu: autonomy } : {}),
+      ...(perDay !== null && changed('han_muc_viec_ngay') ? { han_muc_viec_ngay: perDay } : {}),
+      ...(value !== null && changed('han_muc_gia_tri') ? { han_muc_gia_tri: value } : {}),
+      ...(jd.khung_gio.trim() && changed('khung_gio') ? { khung_gio: jd.khung_gio.trim() } : {}),
+      ...(jd.ngay_lam.trim() && changed('ngay_lam') ? { ngay_lam: jd.ngay_lam.trim() } : {}),
+    };
   }
   /** Tạo jd_agent rồi gửi duyệt (OTP do IT xác nhận trên trang xT); giữ ref đã tạo để thử lại không tạo trùng. */
-  async function submitJd(current: Attempt, hoSoId: string, nangLuc: unknown) {
+  async function submitJd(current: Attempt, hoSoId: string, base: JdValues | null, fallbackCaps: unknown) {
     if (!current.jd) {
-      const record = recordOf(await call('create_record', { model_id: 'jd_agent', values: jdPayload(hoSoId, nangLuc) }, true), 'jd_agent');
+      const record = recordOf(await call('create_record', { model_id: 'jd_agent', values: jdPayload(hoSoId, base, fallbackCaps) }, true), 'jd_agent');
       if (typeof record.revision !== 'number') throw new Error('Máy chủ không trả về phiên bản của mô tả công việc.');
       current.jd = { ref: String(record.ref), revision: record.revision };
       if (live.current) setPending('Đã tạo mô tả công việc; chờ gửi IT duyệt.');
@@ -162,18 +182,26 @@ export function AgentHrPanel({ mcp, tools, models, me, onMutated }: Props) {
       current.hoSo = String(recordOf(await call('create_record', { model_id: AGENT_MODEL, values: { ten: hire.ten.trim(), client_id: hire.client_id.trim(), nguoi_phu_trach: ownerId, vai_tro: refId(picked.ref), trang_thai: 'cho_duyet' } }, true), AGENT_MODEL).ref);
       if (live.current) setPending('Đã tạo hồ sơ agent; tiếp tục mô tả công việc.');
     }
-    await submitJd(current, lastId(current.hoSo), fieldsOf(picked).nang_luc);
+    await submitJd(current, lastId(current.hoSo), jdFromSource(fieldsOf(picked)), fieldsOf(picked).nang_luc);
     if (live.current) setDone(`Đã gửi IT duyệt ${hire.ten.trim()}.`);
   }
   async function changeJd() {
-    const record = detail!.record, { active } = jdFor(detail!.jds, lastId(String(record.ref)));
-    if (!active) throw new Error('Chưa có mô tả công việc đang hiệu lực để sao chép năng lực.');
+    const record = detail!.record, active = activeJd(record, detail!.jds), role = roleRow(fieldsOf(record).vai_tro);
+    if (!active) throw new Error('Chưa có mô tả công việc đang hiệu lực để dựa theo.');
     if (!attempt.current) attempt.current = { signature: String(record.ref) };
-    await submitJd(attempt.current, lastId(String(record.ref)), fieldsOf(active).nang_luc);
+    await submitJd(attempt.current, lastId(String(record.ref)), role ? jdFromSource(fieldsOf(role)) : null, fieldsOf(active).nang_luc);
     await loadDetail(String(record.ref));
     if (live.current) setDone('Đã gửi IT duyệt yêu cầu đổi mô tả công việc.');
   }
 
+  async function openPermit() {
+    const record = detail!.record;
+    if (!permitModel) throw new Error('Chọn loại phiếu được gửi duyệt.');
+    await call('create_record', { model_id: 'giay_phep_hanh_dong', values: { ho_so: lastId(String(record.ref)), hanh_dong: `request.submit:${permitModel}`, ...(permitUntil ? { den_ngay: permitUntil } : {}) } }, true);
+    setPermitModel(''); setPermitUntil(''); onMutated?.();
+    await loadDetail(String(record.ref));
+    if (live.current) setDone('Đã mở giấy phép gửi duyệt.');
+  }
   const alert = <PortalAlert text={error} kind={kind}>{confirmUrl && <> <a href={confirmUrl} target="_blank" rel="noopener noreferrer">Mở trang xác nhận</a><p>Sau khi xác nhận, thử lại đúng thao tác để đọc kết quả.</p></>}</PortalAlert>;
   // khi hộp thoại mở, thông báo lỗi/xác nhận hiện trong hộp thoại (một chỗ duy nhất)
   const status = <>{busy && <p role="status">Đang xử lý…</p>}{done && <p role="status" data-testid="agenthr-done">{done}</p>}{pending && <p role="status">{pending} Thử lại sẽ tiếp tục bước chưa xong.</p>}{!dialog && alert}</>;
@@ -220,10 +248,10 @@ export function AgentHrPanel({ mcp, tools, models, me, onMutated }: Props) {
 
   if (view.kind === 'detail') {
     const record = detail?.record, f = record ? fieldsOf(record) : {}, state = String(f.trang_thai || '');
-    const { active, pending: pendingJd } = record ? jdFor(detail!.jds, lastId(String(record.ref))) : {};
+    const active = record ? activeJd(record, detail!.jds) : undefined, pendingJd = record ? jdFor(detail!.jds, lastId(String(record.ref))).pending : undefined;
     const jf = active ? fieldsOf(active) : {}, load = record ? workload(record, active) : null, st = record ? agentStatus(record) : null, name = record ? title(record) : '';
     const caps = capabilities(jf.nang_luc);
-    const startChange = () => { setJd(jdFromSource(jf)); setJdChange(true); setSubmitted(null); attempt.current = null; };
+    const startChange = () => { setJd(jdFromSource(jf)); setShowJd(false); setJdChange(true); setSubmitted(null); attempt.current = null; };
     return <section className="agenthr" aria-label="Hồ sơ agent">
       <button className="ghost sm back" onClick={back}>Nhân sự AI<ArrowLeft aria-hidden="true"/></button>
       {!record ? (busy ? <p role="status">Đang tải hồ sơ…</p> : null) : <>
@@ -240,11 +268,12 @@ export function AgentHrPanel({ mcp, tools, models, me, onMutated }: Props) {
         {pendingJd && <p className="note" role="note">Có yêu cầu đổi mô tả công việc đang chờ IT duyệt.</p>}
         {jdChange && <form className="panel" aria-label="Yêu cầu đổi mô tả công việc" onSubmit={e => { e.preventDefault(); void run(changeJd, `jd:${String(record.ref)}`); }}>
           <h3>{state === 'tam_dung' ? 'Mở lại: yêu cầu đổi mô tả công việc' : 'Đổi mô tả công việc'}</h3>
-          <p className="muted small">Năng lực giữ như mô tả đang hiệu lực. Yêu cầu đi IT duyệt (OTP trên trang xT); khi được duyệt, lõi xT mới cho agent làm lại.</p>
+          <p className="muted small">Năng lực lấy lại từ vai trò của agent; chỉ giá trị bạn sửa được gửi kèm. Yêu cầu đi IT duyệt (OTP trên trang xT); khi được duyệt, lõi xT mới cho agent làm lại.</p>
           {jdFields(jf.nang_luc)}
           <button className="pri" disabled={busy || !active}>{pending ? 'Thử lại gửi IT duyệt' : 'Gửi IT duyệt'}<Send aria-hidden="true"/></button><button type="button" className="ghost" disabled={busy} onClick={() => { setJdChange(false); attempt.current = null; setPending(''); }}>Hủy</button>
         </form>}
         {submitted && <JdRiskBlock record={submitted} models={catalog}/>}
+        {showJd && active && <JdRiskBlock record={active} models={catalog}/>}
         <div className="agent-grid">
           <section className="panel" aria-label="Được làm"><div className="ph"><h3>Được làm</h3>{active && state !== 'da_nghi' && !jdChange && <div className="act"><button className="sm" disabled={busy} onClick={startChange}>Đổi mô tả</button></div>}</div>
             {!active ? <p role="status" className="empty-note">Chưa có mô tả công việc đang hiệu lực.</p> : caps.length ? <CapTable caps={caps} models={catalog} permits={detail!.permits ?? undefined}/> : <p className="empty-note">Mô tả công việc không có năng lực nào.</p>}
@@ -257,12 +286,25 @@ export function AgentHrPanel({ mcp, tools, models, me, onMutated }: Props) {
                 <div className="row"><span>Giá trị mỗi phiếu</span><b>{money(jf.han_muc_gia_tri)}</b></div>
                 <div className="row"><span>Giờ làm</span><b>{workHours(jf)}</b></div>
                 {num(jf.muc_tu_chu) !== null && <div className="row"><span>Mức tự chủ</span><b>L{num(jf.muc_tu_chu)}</b></div>}
-                {f.hieu_luc_den ? <div className="row"><span>Hiệu lực đến</span><b>{String(f.hieu_luc_den)}</b></div> : null}
+                {f.hieu_luc_den ? <div className="row"><span>Hiệu lực đến</span><b>{dateVi(f.hieu_luc_den)}</b></div> : null}
+                {f.ngay_dem ? <div className="row"><span>Số việc tính cho ngày</span><b>{dateVi(f.ngay_dem)}</b></div> : null}
               </div>}
+              {f.jd_hieu_luc ? <div className="row"><span>Mô tả công việc hiệu lực</span>{active ? <button type="button" className="ghost sm" aria-expanded={showJd} onClick={() => setShowJd(v => !v)}>{showJd ? 'Ẩn mô tả công việc' : 'Xem mô tả công việc'}</button> : <span className="faint small">Không đọc được</span>}</div> : null}
             </section>
             <section className="panel" aria-label="Giấy phép hành động"><div className="ph"><h3>Giấy phép hành động</h3></div>
               {detail!.permits === null ? <p className="empty-note">Không đọc được giấy phép hành động.</p> : !detail!.permits.length ? <div className="empty"><span className="ei" aria-hidden="true"><Lock/></span><div>Chưa mở hành động nào. Agent chỉ soạn nháp.</div></div>
-                : <ul className="portal-doclist">{detail!.permits.map((p, i) => { const pf = fieldsOf(p); return <li key={String(p.ref || i)}><span><strong>{String(pf.hanh_dong || '—')}</strong>{pf.dieu_kien ? <small>{String(pf.dieu_kien)}</small> : null}</span>{pf.tu_ngay ? <span className="faint small">Từ {String(pf.tu_ngay)}</span> : null}</li>; })}</ul>}
+                : <ul className="portal-doclist">{detail!.permits.map((p, i) => { const pf = fieldsOf(p); return <li key={String(p.ref || i)}><span><strong>{permitLabel(pf.hanh_dong, label)}</strong>{pf.dieu_kien ? <small>{String(pf.dieu_kien)}</small> : null}</span><span className="faint small">{[pf.tu_ngay ? `Từ ${dateVi(pf.tu_ngay)}` : '', pf.den_ngay ? `Đến ${dateVi(pf.den_ngay)}` : ''].filter(Boolean).join(' ')}</span></li>; })}</ul>}
+              {state !== 'da_nghi' && detail!.permits !== null && (() => {
+                const needs = caps.filter(c => c.ops.includes('submit') && !detail!.permits!.some(p => permitCovers(fieldsOf(p), c.model)));
+                if (!needs.length) return null;
+                return <form className="permit-form" aria-label="Mở giấy phép gửi duyệt" onSubmit={e => { e.preventDefault(); void run(openPermit, `permit:${String(record.ref)}`); }}>
+                  <fieldset disabled={busy || !mcp}>
+                    <label>Cho phép gửi duyệt<select aria-label="Loại phiếu được gửi duyệt" value={permitModel} onChange={e => setPermitModel(e.target.value)} required><option value="">Chọn loại phiếu</option>{needs.map(c => <option key={c.model} value={c.model}>{label(c.model)}</option>)}<option value="*">Mọi loại</option></select></label>
+                    <label>Đến ngày<input aria-label="Giấy phép đến ngày" type="date" value={permitUntil} onChange={e => setPermitUntil(e.target.value)}/></label>
+                  </fieldset>
+                  <button className="pri" disabled={busy || !mcp || !permitModel}>Mở giấy phép<Send aria-hidden="true"/></button>
+                </form>;
+              })()}
             </section>
           </div>
         </div>
@@ -300,7 +342,7 @@ export function AgentHrPanel({ mcp, tools, models, me, onMutated }: Props) {
     </div>}
     {agents === null ? (busy ? <p role="status">Đang tải danh sách agent…</p> : null) : !list.length ? <div className="panel empty"><span className="ei" aria-hidden="true"><Bot/></span><div>Chưa có agent nào. Bấm Tuyển agent để thêm.</div></div> :
       <div className="panel flush"><table><thead><tr><th>Agent</th><th>Vai trò</th><th>Phụ trách</th><th>Hôm nay</th><th>Trạng thái</th><th><span className="sr-only">Mở</span></th></tr></thead><tbody>{list.map(a => {
-        const f = fieldsOf(a), st = agentStatus(a), w = workload(a, jdFor(jds, lastId(String(a.ref))).active), name = title(a);
+        const f = fieldsOf(a), st = agentStatus(a), w = workload(a, activeJd(a, jds)), name = title(a);
         return <tr key={String(a.ref)}><td><div className="who"><span className="av agent" aria-hidden="true"><Bot/></span><span className="t">{name}<small>{String(f.client_id || '')}</small></span></div></td><td>{roleName(f.vai_tro)}</td><td>{personName(f.nguoi_phu_trach)}</td>
           <td>{w.limit ? <div className="meter"><div className={`bar ${w.tone}`} role="meter" aria-label={`Việc hôm nay của ${name}`} aria-valuemin={0} aria-valuemax={w.limit} aria-valuenow={w.done ?? 0}><i style={{ width: `${w.pct}%` }}/></div><span className="small">{w.done ?? 0}/{w.limit}</span></div> : <span className="faint">{w.done ?? '—'}</span>}</td>
           <td><Pill tone={st.tone}>{st.label}</Pill></td><td><button className="ghost sm" onClick={() => open(String(a.ref))}>{`Mở ${name}`}<ChevronRight aria-hidden="true"/></button></td></tr>;
