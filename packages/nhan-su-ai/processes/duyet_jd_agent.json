@@ -1,7 +1,7 @@
 {
   "id": "duyet_jd_agent",
   "name": "IT duyệt JD của agent (tuyển, đổi JD, mở lại)",
-  "version": 1,
+  "version": 2,
   "roles": [
     "it_admin",
     "director"
@@ -17,7 +17,13 @@
       "id": "it",
       "type": "approve",
       "name": "IT duyệt JD (xem cảnh báo nâng quyền)",
-      "assignee": "role(it_admin)",
+      "assignee": {
+        "kind": "role",
+        "role": "it_admin",
+        "alternates": [
+          "role(director)"
+        ]
+      },
       "outcomes": [
         "approve",
         "reject",

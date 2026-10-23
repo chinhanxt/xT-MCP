@@ -1,7 +1,7 @@
 {
   "format": "xt-pack/1",
   "pack": "nhan-su-ai",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "title": "Nhân sự AI: tuyển, giao việc, giám sát và cho nghỉ agent",
   "depends_on": [
     "de-xuat-phe-duyet",

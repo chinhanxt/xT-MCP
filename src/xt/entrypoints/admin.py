@@ -11,7 +11,11 @@
                     [--confirm sha256:…]
     xt pack disable|enable --tenant acme kho-hang --proposed-by <ai> --approved-by <ai>
                     [--confirm sha256:…]
+    xt person set --tenant acme --key NV-0004 [--add-roles a,b] [--remove-roles c]
+                    [--active|--inactive] --proposed-by <ai> --approved-by <ai> [--confirm sha256:…]
 
+`person set` (D-DEMO-LEVELS-1) đổi đúng vai trò gốc / cờ active của một người theo cùng luồng kế
+hoạch + mã xác nhận, ghi `xt_meta.person_change` (hash-chain audit); không tạo/xóa người.
 `pack install` không có `--confirm` chỉ in kế hoạch (diễn tập DDL thật, rollback) và mã xác nhận;
 chạy lại với đúng mã đó mới áp. `pack disable|enable` (ứng dụng Tầng 3, G8) theo cùng luồng: tắt
 giữ dữ liệu, chặn ghi và ẩn model của gói ở tenant đó. Không có giá trị mặc định ngầm cho tenant,
@@ -110,6 +114,20 @@ def _parser() -> argparse.ArgumentParser:
         pl.add_argument("--proposed-by", required=True)
         pl.add_argument("--approved-by", required=True)
         pl.add_argument("--confirm", help="mã xác nhận (digest) in ra ở lần chạy xem kế hoạch")
+    person = sub.add_parser("person").add_subparsers(dest="cmd", required=True)
+    ps = person.add_parser(
+        "set", help="đổi vai trò gốc / cờ active của một người (in kế hoạch; --confirm để áp)"
+    )
+    ps.add_argument("--tenant", required=True)
+    ps.add_argument("--key", required=True, help="khóa người trong sơ đồ tổ chức, vd NV-0004")
+    ps.add_argument("--add-roles", default="", help="vai trò gốc thêm, phân tách dấu phẩy")
+    ps.add_argument("--remove-roles", default="", help="vai trò gốc bỏ, phân tách dấu phẩy")
+    act = ps.add_mutually_exclusive_group()
+    act.add_argument("--active", dest="active", action="store_const", const=True, default=None)
+    act.add_argument("--inactive", dest="active", action="store_const", const=False)
+    ps.add_argument("--proposed-by", required=True)
+    ps.add_argument("--approved-by", required=True)
+    ps.add_argument("--confirm", help="mã xác nhận (digest) in ra ở lần chạy xem kế hoạch")
     return p
 
 
@@ -134,6 +152,8 @@ def run(argv: Sequence[str], env: Mapping[str, str]) -> int:
             )
         print(f"tenant {args.alias}: seq={ref.seq} id={ref.id}")
         return 0
+    if args.group == "person":
+        return _person(args, dsn)
     if args.group == "org":
         data = json.loads(args.file.read_text(encoding="utf-8"))
         if is_hr_format(data):
@@ -232,6 +252,45 @@ def _lifecycle(args: argparse.Namespace, dsn: str, env: Mapping[str, str]) -> in
             f"eligible={len(plan.incidents)} retried={plan.retried} "
             f"failed={plan.failed} skipped={plan.skipped}"
         )
+    return 0
+
+
+def _person(args: argparse.Namespace, dsn: str) -> int:
+    from xt.entrypoints.composition import person_admin as pa
+
+    want = {
+        "add_roles": pa.parse_roles(args.add_roles),
+        "remove_roles": pa.parse_roles(args.remove_roles),
+        "active": args.active,
+    }
+    if not want["add_roles"] and not want["remove_roles"] and args.active is None:
+        raise AdminError(
+            "cần ít nhất một thay đổi: --add-roles, --remove-roles, --active/--inactive"
+        )
+    with connect(dsn) as conn:
+        ref = tenant_of_alias(conn, args.tenant)
+        if not args.confirm:
+            plan = pa.read_plan(conn, tenant=ref, alias=args.tenant, key=args.key, **want)
+    if not args.confirm:
+        print(plan.render_vi())
+        if plan.problems:
+            return 1
+        print("\nĐã kiểm, CHƯA áp. Người duyệt xem kế hoạch rồi chạy lại với --confirm <mã>.")
+        return 0
+    plan = pa.apply_person(
+        dsn,
+        tenant=ref,
+        alias=args.tenant,
+        key=args.key,
+        confirm=args.confirm,
+        proposed_by=args.proposed_by,
+        approved_by=args.approved_by,
+        **want,
+    )
+    print(
+        f"đã đổi {args.key} ở {args.tenant}: vai trò gốc {plan.after['roles']},"
+        f" active={plan.after['active']} ({plan.digest})"
+    )
     return 0
 
 

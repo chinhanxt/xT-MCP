@@ -134,8 +134,12 @@ def test_onboarding_assigns_seed_people_not_director(ops: SeedOps, hr: dict[str,
     s = ops.act(iid, "hr", hr_people[0])
     for step in ("it", "accounting"):
         got = cands(s, step)
-        assert got == {ops.pid(k) for k in want[step]}, (step, got)
-        assert ops.pid(director) not in got
+        # tiếp nhận v8 (D-DEMO-LEVELS-1): giám đốc là người duyệt THAY THẾ của bước IT (alternates),
+        # cộng thêm chứ không thay người IT của seed; bước kế toán không có alternates.
+        alt = {ops.pid(director)} if step == "it" else set()
+        assert got == {ops.pid(k) for k in want[step]} | alt, (step, got)
+        if step != "it":
+            assert ops.pid(director) not in got
     ops.act(iid, "it", it_people[0])
     ops.act(iid, "accounting", acc_people[0])
     done = ops.act(iid, "manager", newbie["manager_id"])

@@ -1,7 +1,7 @@
 {
   "id": "employee_onboarding",
   "name": "Tiếp nhận nhân sự mới (HR, IT, Kế toán, Quản lý)",
-  "version": 7,
+  "version": 8,
   "roles": [
     "hr",
     "it_admin",
@@ -67,7 +67,13 @@
             "id": "it",
             "type": "task",
             "name": "IT: email, tài khoản, thiết bị",
-            "assignee": "role(it_admin)",
+            "assignee": {
+              "kind": "role",
+              "role": "it_admin",
+              "alternates": [
+                "role(director)"
+              ]
+            },
             "outcomes": [
               "done",
               "request_info"
