@@ -240,9 +240,10 @@ form.composer button{min-height:52px;width:52px;padding:0;background:var(--ink);
 .portal button[aria-pressed=true]{background:var(--info-bg);color:var(--ink);border-color:var(--focus)}
 .portal .seg button[aria-pressed=true],.portal .tabs button[aria-pressed=true]{background:var(--paper);border-color:transparent}
 .portal .tabs button[aria-pressed=true]{background:none;border-bottom-color:var(--ink)}
-.portal-members > p,.portal-members form > p,.portal-departments > p[role=note]{color:var(--ink-2);font-size:15px;margin:10px 0}
-.portal-members > button,.portal-members > label{margin:6px 10px 6px 0}
+.portal-members > p,.portal-members > [role=tabpanel] > p,.portal-members form > p,.portal-departments > p[role=note]{color:var(--ink-2);font-size:15px;margin:10px 0}
+.portal-members > button,.portal-members > label,.portal-members > [role=tabpanel] > button,.portal-members > [role=tabpanel] > label{margin:6px 10px 6px 0}
 .portal-members form{padding:16px 0;border-top:1px solid var(--line-2)}
+.portal-members > [role=tabpanel] > form:first-child{border-top:0;padding-top:0}
 .workspace-card{display:flex;align-items:center;gap:12px;margin:0 0 16px}
 .workspace-card .t{display:flex;flex-direction:column;line-height:1.3}
 .workspace-card small{color:var(--ink-3);font-size:15px}
@@ -304,3 +305,87 @@ header.top{position:static;flex-wrap:wrap;height:auto;min-height:var(--top);padd
 .meta{display:none}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* Desk đợt 2: tab con Kho, bảng tồn kho */
+.portal th.num,.portal td.num{text-align:right;font-variant-numeric:tabular-nums}
+.stock-table{padding:0}
+.stock-table > .ph{margin:0}
+.stock-table > p{padding:16px 20px;margin:0;color:var(--ink-2)}
+.tier3-app .portal .tabs{margin-top:4px}
+/* số đếm thanh bên + chấm chuông (mockup .nav a .n, .iconbtn .dot) */
+.nav button .n{margin-left:auto;font-size:14px;font-weight:600;background:var(--block);color:#fff;border-radius:999px;padding:0 8px;line-height:22px}
+.nav button[aria-current=page] .n{background:#fff;color:var(--ink)}
+.iconbtn .dot{position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:var(--block);border:2px solid var(--paper)}
+
+/* ---------- Nhân sự AI (mockup #agent, #ho-so, #tuyen, #duyet-jd, #suspend) ---------- */
+.agenthr-head{display:flex;align-items:center;gap:12px;margin:0 0 16px}
+.agenthr-head .lead-sm{margin:0;flex:1}
+.agenthr-head .act,.agent-head .act{display:flex;gap:10px;flex-wrap:wrap}
+.agenthr-title{font-size:24px!important;font-weight:600;letter-spacing:-.01em}
+.agenthr .back{padding-left:6px;margin:0 0 14px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);background:var(--paper);border:1px solid var(--line);border-radius:var(--r-2);margin-bottom:20px}
+.stat{padding:18px 20px;border-right:1px solid var(--line-2)}
+.stat:last-child{border-right:0}
+.stat .v{font-size:26px;font-weight:600;letter-spacing:-.01em}
+.stat .l{color:var(--ink-2);font-size:15px}
+.panel.flush{padding:0;overflow:hidden}
+.who{display:flex;align-items:center;gap:12px}
+.who .t{display:flex;flex-direction:column;line-height:1.3;font-weight:600}
+.who small{color:var(--ink-3);font-size:14px;font-weight:400}
+.meter{display:flex;align-items:center;gap:12px}
+.bar{flex:1;height:8px;border-radius:999px;background:var(--line-2);overflow:hidden;min-width:90px}
+.bar i{display:block;height:100%;background:var(--ink)}
+.bar.warn i{background:var(--held)}
+.bar.full i{background:var(--block)}
+.empty{padding:48px 20px;text-align:center;color:var(--ink-2);display:flex;flex-direction:column;align-items:center;gap:10px}
+.empty .ei{width:52px;height:52px;border-radius:50%;background:var(--line-2);display:grid;place-items:center;color:var(--ink-3)}
+.panel > .empty{margin:0}
+.empty-note{color:var(--ink-2)}
+.agent-head{display:flex;align-items:center;gap:16px;margin:0 0 20px;flex-wrap:wrap}
+.agent-head .sub{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.agent-head .act{margin-left:auto}
+.av.lg{width:56px;height:56px;border-radius:13px}.av.lg svg.lucide{width:26px;height:26px}
+.av.block{background:var(--block);color:#fff}.av.neutral{background:var(--ink-2);color:#fff}
+.agent-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+.agent-grid > .panel,.agent-grid > .grid > .panel{margin:0}
+.agent-grid > .grid{gap:20px}
+.agent-grid + .panel{margin-top:20px}
+.agent-grid table{margin:0 -20px;width:calc(100% + 40px)}
+.limits{display:grid;gap:18px}
+.limits .row{display:flex;justify-content:space-between;gap:12px}
+.limits .bar{margin-top:8px}
+.ok-ic{color:var(--ok)}.ok-ic svg.lucide,.faint svg.lucide{width:18px;height:18px}
+.hire-split{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:20px;align-items:start}
+.roles{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.roles .role,:where(.portal) .roles button.role{border:1px solid var(--line);border-radius:var(--r-2);padding:18px;background:var(--paper);text-align:left;display:flex;flex-direction:column;align-items:flex-start;gap:10px;white-space:normal;min-height:0;font-weight:400}
+.roles .role:hover{border-color:#C9CED6}
+.portal .roles .role[aria-pressed=true]{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink);background:var(--paper)}
+.role .ri{width:40px;height:40px;border-radius:9px;background:var(--line-2);display:grid;place-items:center}
+.role[aria-pressed=true] .ri{background:var(--ink);color:#fff}
+.role > strong{font-size:17px;font-weight:600}
+.role .desc{color:var(--ink-2);font-size:15px}
+.roles button.role > svg.lucide{order:0}
+.caps{display:flex;flex-wrap:wrap;gap:6px}
+.cap{font-size:14px;border:1px solid var(--line);border-radius:5px;padding:1px 8px;color:var(--ink-2)}
+.cap.w{border-color:#C9CED6;color:var(--ink);font-weight:500}
+.hire-split form.panel{flex-direction:column;align-items:stretch}
+.hire-split fieldset{grid-template-columns:1fr}
+.agenthr fieldset label{flex-direction:column;align-items:stretch;gap:6px}
+.flag{display:flex;gap:12px;padding:14px 16px;border-radius:var(--r-1);background:var(--held-bg);color:#5C3B00}
+.flag+.flag{margin-top:8px}
+.flag svg.lucide{color:var(--held);margin-top:2px}
+.flag b{display:block;color:var(--ink)}
+.jd-risk table{margin:16px -20px -20px;width:calc(100% + 40px);border-top:1px solid var(--line-2)}
+.scrim{position:fixed;inset:0;background:rgba(24,32,43,.45);display:none;align-items:center;justify-content:center;z-index:20}
+.scrim.on{display:flex}
+.modal{background:var(--paper);border-radius:14px;width:460px;max-width:calc(100vw - 32px);padding:28px;display:flex;flex-direction:column;gap:18px}
+.modal-head{display:flex;align-items:center;gap:12px}
+.modal-head h3{font-size:20px!important}
+.modal label.field{flex-direction:column;align-items:stretch;gap:6px}
+.dialog-act{display:flex;gap:10px}
+.dialog-act button:first-child{flex:1}
+:where(.portal) button.danger.fill{background:var(--block);border-color:var(--block);color:#fff}
+@media (max-width:1100px){.agent-grid,.hire-split{grid-template-columns:minmax(0,1fr)}.stats{grid-template-columns:repeat(2,1fr)}}
+.agenthr .portal-doclist li > span:not(.pill){display:flex;flex-direction:column;gap:2px;min-width:0}
+.agenthr .portal-doclist small{color:var(--ink-3);font-size:14px}
+.roles .role,:where(.portal) .roles button.role{justify-content:flex-start}

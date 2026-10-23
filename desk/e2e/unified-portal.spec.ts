@@ -76,6 +76,11 @@ test('unified built portal: H/P/D/Kho, actual Studio iframe and Response bridge,
   await page.goto('/');await page.locator('#login').click();
   await expect(page.locator('#box')).toBeEnabled();
   const nav=page.getByRole('navigation',{name:'Không gian xT'});
+  // số đếm thật từ get_inbox({}) khi mở Desk: huy hiệu Quy trình + chấm chuông; tên truy cập nút vẫn là "P"
+  await expect(nav.getByRole('button',{name:'P',exact:true}).getByTestId('nav-approvals')).toHaveText('1');
+  await expect(nav.getByRole('button',{name:'P',exact:true})).toHaveAccessibleDescription('1 yêu cầu chờ bạn duyệt');
+  await expect(page.getByRole('button',{name:'Hộp duyệt',exact:true}).getByTestId('bell-dot')).toBeAttached();
+  expect(fixture.calls.filter(call=>call.name==='get_inbox'&&Object.keys(call.arguments).length===0)).toHaveLength(1);
   await nav.getByRole('button',{name:'H',exact:true}).click();
   await expect(page.locator('#box')).toBeHidden();
   await expect(page.locator('.portal')).toContainText('lan@example.test');
@@ -93,6 +98,9 @@ test('unified built portal: H/P/D/Kho, actual Studio iframe and Response bridge,
   await expect(page.getByTestId('confirm-card').getByRole('link')).toHaveAttribute('href','https://xt.freepro.online/desk/confirm/browser-fixture');
   await nav.getByRole('button',{name:'T3',exact:true}).click();
   await page.getByRole('button',{name:'Mở Kho hàng (WMS)',exact:true}).click();
+  await expect(page.getByRole('tab',{name:'Tồn kho',exact:true})).toHaveAttribute('aria-selected','true');
+  await page.getByRole('tab',{name:'Phiếu',exact:true}).click();
+  await expect(page.getByRole('tab',{name:'Phiếu',exact:true})).toHaveAttribute('aria-selected','true');
   await page.getByLabel('Mã phiếu',{exact:true}).fill('PN-1');
   await page.getByLabel('Kho',{exact:true}).selectOption(warehouse);
   await page.getByLabel('Hàng hóa',{exact:true}).selectOption(item);

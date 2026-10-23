@@ -101,7 +101,9 @@ it('creates a stock request using named pickers, exact milli quantities and the 
   }
   expect(container.querySelector('[aria-label="Kho"]')?.textContent).toContain('Kho Hà Nội');
   await input('Mã phiếu','PN-42'); await choose('Kho',warehouseId); await choose('Hàng hóa',itemId); await choose('Vị trí',locationId); await input('Số lượng','1.001');
-  await act(async()=>container.querySelectorAll('form')[1].dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+  await click('Phiếu');
+  expect(container.querySelector('#kho-panel-requests')?.hasAttribute('hidden')).toBe(false);
+  await act(async()=>container.querySelector('form[aria-label="Phiếu nhập/xuất"]')!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
   expect(vi.mocked(mcp.client.callTool).mock.calls.some(call=>call[0].name==='create_record')).toBe(true);
   await click('Gửi phiếu đi duyệt');
   expect(vi.mocked(mcp.client.callTool).mock.calls.some(call=>call[0].name==='submit_request')).toBe(true);
