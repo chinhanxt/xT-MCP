@@ -54,10 +54,12 @@ export function TraceList({ items }: { items: Trace[] }) {
       {items.map((t, i) => (
         <details key={t.node_id + i} className={'trace ' + t.status}>
           <summary>
-            <span>{t.status === 'success' ? '✓' : t.status === 'error' ? '×' : '–'}</span> {t.label}
+            <span>{t.status === 'success' ? '✓' : t.status === 'error' ? '×' : t.status === 'waiting' ? '…' : '–'}</span> {t.label}
             <small>
               {t.status === 'skipped'
                 ? 'Bỏ qua nhánh'
+                : t.status === 'waiting'
+                ? 'Chờ duyệt'
                 : `${t.duration_ms} ms${t.attempts && t.attempts > 1 ? ` · ${t.attempts} lần` : ''}${t.used_fallback ? ' · Giá trị thay thế' : ''}`}
             </small>
           </summary>

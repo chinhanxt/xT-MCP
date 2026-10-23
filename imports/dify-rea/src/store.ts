@@ -47,6 +47,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS app_versions(app_id TEXT NOT NULL REFERENCES apps(id) ON DELETE CASCADE,version INTEGER NOT NULL,config TEXT NOT NULL,name TEXT NOT NULL,description TEXT NOT NULL,created_at TEXT NOT NULL,PRIMARY KEY(app_id,version));
       CREATE TABLE IF NOT EXISTS share_links(id TEXT PRIMARY KEY,app_id TEXT UNIQUE NOT NULL REFERENCES apps(id) ON DELETE CASCADE,workspace_id TEXT NOT NULL,created_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS app_triggers(id TEXT PRIMARY KEY,app_id TEXT NOT NULL REFERENCES apps(id) ON DELETE CASCADE,workspace_id TEXT NOT NULL,kind TEXT NOT NULL,config TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 1,created_by TEXT NOT NULL DEFAULT '',last_fired_at INTEGER,created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS run_waits(run_id TEXT PRIMARY KEY REFERENCES runs(id) ON DELETE CASCADE,workspace_id TEXT NOT NULL,node_id TEXT NOT NULL,request_ref TEXT NOT NULL,config TEXT NOT NULL,snapshot TEXT NOT NULL,expires_at INTEGER,created_at TEXT NOT NULL,resumed_at TEXT);
       CREATE TABLE IF NOT EXISTS public_sessions(id TEXT PRIMARY KEY,token_hash TEXT UNIQUE NOT NULL,share_id TEXT NOT NULL REFERENCES share_links(id) ON DELETE CASCADE,expires INTEGER NOT NULL);
     `);
     this.transaction(() => {

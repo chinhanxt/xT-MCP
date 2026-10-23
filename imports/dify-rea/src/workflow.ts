@@ -8,6 +8,15 @@ import { contextText, retrieve } from './knowledge.ts';
 import { sourceCheck } from './xt-source.ts';
 import type { XtTools } from './xt-tools.ts';
 import { httpNodeUrl, runHttpNode } from './http-node.ts';
+import { randomUUID } from 'node:crypto';
+import {
+  approvalNote,
+  humanApprovalNeedsXt,
+  requestApproval,
+  type ApprovalDecision,
+  type WaitSnapshot,
+  type WorkflowOutcome,
+} from './human-approval-node.ts';
 import { withNodePolicy } from './node-policy.ts';
 import { defaultGeneration, xtToolNames } from './contracts.ts';
 import {
@@ -143,20 +152,27 @@ export async function runWorkflow(
   inputs: Record<string, string | number | boolean> = {},
   coreTools?: XtTools,
   integrated = coreTools !== undefined,
-): Promise<RunResult> {
+  run: { id?: string; resume?: { snapshot: WaitSnapshot; decision: ApprovalDecision } } = {},
+): Promise<WorkflowOutcome> {
   const check = sourceCheck(coreTools, integrated);
+  const resume = run.resume,
+    saved = resume?.snapshot;
   const graph = config.graph,
     ordered = validateGraph(
       graph,
       (config.inputs ?? []).map((f) => f.name),
     ),
-    values = new Map([['input', input], ...Object.entries(inputs).map(([key, value]) => [key, String(value)] as [string, string])]),
-    trace: Trace[] = [],
-    active = new Set<string>(),
-    branches = new Map<string, string>();
-  const citations: RunResult['citations'] = [];
-  const outputs: string[] = [];
-  for (const id of ordered) {
+    values = new Map(
+      saved?.values ?? [['input', input], ...Object.entries(inputs).map(([key, value]) => [key, String(value)] as [string, string])],
+    ),
+    trace: Trace[] = saved ? saved.trace.filter((t) => !(t.node_id === saved.node_id && t.status === 'waiting')) : [],
+    active = new Set<string>(saved?.active ?? []),
+    branches = new Map<string, string>(saved?.branches ?? []);
+  const citations: RunResult['citations'] = saved ? [...saved.citations] : [];
+  const outputs: string[] = saved ? [...saved.outputs] : [];
+  if (saved && ordered[saved.index] !== saved.node_id) throw new HttpError(409, 'Workflow đã thay đổi; không chạy tiếp được.');
+  for (let index = saved?.index ?? 0; index < ordered.length; index++) {
+    const id = ordered[index];
     if (signal?.aborted) throw new HttpError(499, 'Đã dừng workflow.');
     const n = graph.nodes.find((n) => n.id === id)!,
       started = Date.now();
@@ -169,7 +185,8 @@ export async function runWorkflow(
       continue;
     }
     let value = input,
-      output = '';
+      output = '',
+      waitingRef = '';
     try {
       const policy = await withNodePolicy(
         n,
@@ -259,6 +276,29 @@ export async function runWorkflow(
               branches.set(id, hit.id);
             } else output = JSON.stringify(extractParameters(content, n.data.parameters ?? []));
           }
+          if (n.type === 'human_approval') {
+            if (resume && saved!.node_id === id) {
+              value = saved!.request_ref;
+              output = JSON.stringify({ request_ref: saved!.request_ref, state: resume.decision });
+              branches.set(id, resume.decision);
+            } else {
+              if (!coreTools) throw new HttpError(400, humanApprovalNeedsXt);
+              const note = approvalNote(render(n.data.title ?? '', values), render(n.data.summary ?? '', values), n.data.approver_hint);
+              value = note;
+              waitingRef = await requestApproval(
+                coreTools,
+                {
+                  run_id: run.id ?? randomUUID(),
+                  node_id: id,
+                  model: n.data.request_model ?? '',
+                  values: parseArgs(n.data.request_values || '{}', (key, field) => jsonEscape(lookup(values, key, field))),
+                  note,
+                },
+                signal,
+              );
+              output = `Đang chờ duyệt: ${waitingRef}`;
+            }
+          }
           if (n.type === 'list_operator') {
             value = render(n.data.variable ?? '', values);
             output = JSON.stringify(operateList(value, n.data, (template) => render(template, values)) ?? null);
@@ -274,6 +314,23 @@ export async function runWorkflow(
         },
         signal,
       );
+      if (waitingRef) {
+        trace.push({ node_id: id, label: n.data.label, type: n.type, status: 'waiting', input: value, output, duration_ms: Date.now() - started });
+        const snapshot: WaitSnapshot = {
+          node_id: id,
+          index,
+          request_ref: waitingRef,
+          ...(n.data.timeout_hours ? { timeout_hours: n.data.timeout_hours } : {}),
+          paused_at: Date.now(),
+          values: [...values],
+          active: [...active],
+          branches: [...branches],
+          citations,
+          outputs,
+          trace,
+        };
+        return { output: `Đang chờ duyệt. Yêu cầu xT: ${waitingRef}`, trace, citations, status: 'waiting', request_ref: waitingRef, waiting: snapshot };
+      }
       values.set(id, output);
       active.add(id);
       trace.push({

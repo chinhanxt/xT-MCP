@@ -16,8 +16,18 @@ function list(value: unknown, field: string, max: number): unknown[] {
 
 // Shape-only parsing at the config boundary; graph-level rules live in validateNodeData.
 export function nodeDataInput(d: Record<string, unknown>, data: GraphNode['data']) {
-    for (const key of ['tool', 'args', 'query', 'instruction'] as const)
+    for (const key of ['tool', 'args', 'query', 'instruction', 'title', 'summary', 'request_values'] as const)
         if (d[key] !== undefined) data[key] = text(d[key], key, 20000, false);
+    if (d.approver_hint !== undefined) data.approver_hint = text(d.approver_hint, 'Gợi ý người duyệt', 200, false);
+    if (d.request_model !== undefined) {
+        data.request_model = text(d.request_model, 'Loại yêu cầu xT', 64);
+        if (!/^[a-z][a-z0-9_]{0,62}$/.test(data.request_model)) throw new HttpError(400, 'Loại yêu cầu xT không hợp lệ.');
+    }
+    if (d.timeout_hours !== undefined) {
+        if (typeof d.timeout_hours !== 'number' || !Number.isFinite(d.timeout_hours) || d.timeout_hours <= 0 || d.timeout_hours > 8760)
+            throw new HttpError(400, 'Hạn duyệt cần từ 0–8760 giờ.');
+        data.timeout_hours = d.timeout_hours;
+    }
     if (data.tool !== undefined && !xtToolNames.includes(data.tool)) throw new HttpError(400, `Công cụ xT "${data.tool}" không được cấp.`);
     if (d.cases !== undefined)
         data.cases = list(d.cases, 'Nhánh điều kiện', 10).map((raw) => {
@@ -90,6 +100,7 @@ export const hasCases = (n: GraphNode) => n.type === 'condition' && n.data.cases
 export function branchHandles(n: GraphNode): string[] | undefined {
     if (n.type === 'condition') return hasCases(n) ? [...n.data.cases!.map((c) => c.id), 'else'] : ['true', 'false'];
     if (n.type === 'question_classifier') return (n.data.classes ?? []).map((c) => c.id);
+    if (n.type === 'human_approval') return ['approved', 'rejected'];
     return undefined;
 }
 
@@ -107,6 +118,10 @@ export function nodeTemplates(n: GraphNode): string[] {
         d.query,
         d.instruction,
         d.filter?.value,
+        d.title,
+        d.summary,
+        d.approver_hint,
+        d.request_values,
         ...(d.cases ?? []).flatMap((c) => c.conditions.flatMap((x) => [x.variable, x.value])),
     ].filter((value): value is string => !!value);
 }
@@ -152,6 +167,11 @@ export function validateNodeData(n: GraphNode) {
         }
     }
     if (n.type === 'list_operator' && !d.variable) throw new HttpError(400, `Node ${label} cần biến danh sách.`);
+    if (n.type === 'human_approval') {
+        if (!d.title?.trim() || !d.summary?.trim()) throw new HttpError(400, `Node ${label} cần tiêu đề và nội dung.`);
+        if (!d.request_model) throw new HttpError(400, `Node ${label} cần loại yêu cầu xT.`);
+        parseArgs(d.request_values || '{}', () => '');
+    }
 }
 
 // Parses an args template; placeholders are substituted by `fill` before JSON.parse.

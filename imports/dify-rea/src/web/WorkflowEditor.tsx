@@ -19,6 +19,7 @@ const names: Record<NodeKind, string> = {
   question_classifier: 'Phân loại câu hỏi',
   parameter_extractor: 'Trích tham số',
   list_operator: 'Xử lý danh sách',
+  human_approval: 'Người duyệt',
 };
 const operatorNames: Record<CompareOperator, string> = {
   contains: 'Có chứa',
@@ -39,6 +40,7 @@ const operatorNames: Record<CompareOperator, string> = {
 function branchHandles(type: string | undefined, data: Record<string, unknown>): string[] | undefined {
   if (type === 'condition') return Array.isArray(data.cases) ? [...(data.cases as ConditionCase[]).map((c) => c.id), 'else'] : undefined;
   if (type === 'question_classifier') return ((data.classes as { id: string }[] | undefined) ?? []).map((c) => c.id);
+  if (type === 'human_approval') return ['approved', 'rejected'];
   return undefined;
 }
 function OperatorSelect({ value, onChange }: { value: CompareOperator; onChange: (v: CompareOperator) => void }) {
@@ -72,6 +74,7 @@ function GraphCard({ data, type, selected }: NodeProps<Node<Record<string, unkno
               question_classifier: '☰',
               parameter_extractor: '{}',
               list_operator: '≡',
+              human_approval: '✋',
             } as Record<
               string,
               string
@@ -208,6 +211,9 @@ export function WorkflowEditor({
               ? { query: '{{input}}', parameters: [{ name: 'ten', type: 'string' as const, description: '', required: true }] }
               : {}),
             ...(type === 'list_operator' ? { variable: '{{input}}' } : {}),
+            ...(type === 'human_approval'
+              ? { title: 'Duyệt kết quả workflow', summary: '{{input}}', request_model: 'advance_request', request_values: '{}' }
+              : {}),
           },
         },
       ],
@@ -230,6 +236,7 @@ export function WorkflowEditor({
             'list_operator',
             'http',
             'xt_tool',
+            'human_approval',
             'output',
           ] as NodeKind[]
         ).map((type) => (
@@ -408,6 +415,52 @@ export function WorkflowEditor({
                     onChange={(e) => patch({ args: e.target.value })}
                   />
                 </label>
+              </>
+            )}
+            {node.type === 'human_approval' && (
+              <>
+                <label>
+                  Tiêu đề
+                  <input value={node.data.title ?? ''} onChange={(e) => patch({ title: e.target.value })} />
+                </label>
+                <label>
+                  Nội dung
+                  <textarea rows={4} value={node.data.summary ?? ''} onChange={(e) => patch({ summary: e.target.value })} />
+                </label>
+                <label>
+                  Gợi ý người duyệt
+                  <input
+                    value={node.data.approver_hint ?? ''}
+                    placeholder="Ví dụ: Trưởng phòng kinh doanh"
+                    onChange={(e) => patch({ approver_hint: e.target.value || undefined })}
+                  />
+                </label>
+                <label>
+                  Hạn duyệt (giờ)
+                  <input
+                    type="number"
+                    min={1}
+                    value={node.data.timeout_hours ?? ''}
+                    onChange={(e) => patch({ timeout_hours: e.target.value ? Number(e.target.value) : undefined })}
+                  />
+                </label>
+                <label>
+                  Loại yêu cầu xT
+                  <input value={node.data.request_model ?? ''} onChange={(e) => patch({ request_model: e.target.value })} />
+                </label>
+                <label>
+                  Trường của yêu cầu (JSON)
+                  <textarea
+                    rows={5}
+                    value={node.data.request_values ?? '{}'}
+                    placeholder={'{"amount": "{{so_tien}}"}'}
+                    onChange={(e) => patch({ request_values: e.target.value })}
+                  />
+                </label>
+                <p className="hint">
+                  Tạo và gửi yêu cầu duyệt thật trong xT. Người duyệt quyết định trên Desk; sau đó bấm "Kiểm tra và chạy tiếp" ở Lịch sử chạy.
+                  Nhánh approved / rejected.
+                </p>
               </>
             )}
             {(node.type === 'question_classifier' || node.type === 'parameter_extractor') && (

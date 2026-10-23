@@ -49,7 +49,7 @@ export function createTriggerRunner(store: Store, options: { integrated?: boolea
       running.add(trigger.id);
       const done = (async () => {
         try {
-          const needsXt = integrated && (config.graph.nodes.some((n) => n.type === 'retrieval') || !!config.xt_tools?.length);
+          const needsXt = integrated && (config.graph.nodes.some((n) => n.type === 'retrieval' || n.type === 'human_approval') || !!config.xt_tools?.length);
           if (needsXt) throw new HttpError(403, xtTriggerDenied);
           validateAppReferences(store, trigger.workspace_id, config, true, true);
           const inputs = runInputs(config.inputs ?? [], undefined);
@@ -111,7 +111,7 @@ export function startScheduler(store: Store, runner: TriggerRunner, options: { i
   return { tick, stop: () => clearInterval(timer) };
 }
 
-const statuses = ['running', 'success', 'error'] as const;
+const statuses = ['running', 'waiting', 'success', 'error'] as const;
 const sources = ['manual', 'api', 'schedule', 'share'] as const;
 export async function routeTriggers(ctx: RouteContext, runner: TriggerRunner): Promise<boolean> {
   const { store, path, method, workspace, send, url } = ctx;

@@ -5,10 +5,14 @@ import type { RunResult } from '../contracts.ts';
 import { api } from './api.ts';
 import { Modal, ErrorBox, TraceList, Citations } from './ui.tsx';
 const triggerLabel: Record<string, string> = { manual: 'Thủ công', api: 'API', schedule: 'Lịch', share: 'Chia sẻ' };
+const statusLabel: Record<string, string> = { success: 'Thành công', error: 'Thất bại', waiting: 'Chờ duyệt', running: 'Đang chạy' };
+const statusClass: Record<string, string> = { success: 'green', error: 'red', waiting: 'amber' };
 export function Runs({ appId }: { appId?: string }) {
   const [runs, setRuns] = useState<any[]>([]),
     [selected, select] = useState<any>(null),
-    [error, setError] = useState('');
+    [error, setError] = useState(''),
+    [resuming, setResuming] = useState(false),
+    [resumeNote, setResumeNote] = useState('');
   const [status, setStatus] = useState(''),
     [trigger, setTrigger] = useState(''),
     [cursor, setCursor] = useState<string | null>(null);
@@ -30,11 +34,26 @@ export function Runs({ appId }: { appId?: string }) {
     load();
   }, [appId, status, trigger]);
   async function open(id: string) {
+    setResumeNote('');
     try {
       select(await api('/runs/' + encodeURIComponent(id)));
     } catch (e) {
       setError((e as Error).message);
     }
+  }
+  async function resume(id: string) {
+    setResuming(true);
+    setResumeNote('');
+    try {
+      const done = (await api('/runs/' + encodeURIComponent(id) + '/resume', 'POST')) as RunResult;
+      if (done.status === 'waiting') setResumeNote(done.output);
+    } catch (e) {
+      setResumeNote((e as Error).message);
+    } finally {
+      setResuming(false);
+    }
+    await open(id).catch(() => {});
+    load();
   }
   const result = selected?.result as RunResult | null;
   return (
@@ -54,6 +73,7 @@ export function Runs({ appId }: { appId?: string }) {
             <option value="success">Thành công</option>
             <option value="error">Thất bại</option>
             <option value="running">Đang chạy</option>
+            <option value="waiting">Chờ duyệt</option>
           </select>
           <select value={trigger} onChange={(e) => setTrigger(e.target.value)}>
             <option value="">Mọi nguồn</option>
@@ -90,9 +110,7 @@ export function Runs({ appId }: { appId?: string }) {
                 <td>{triggerLabel[r.trigger] ?? r.trigger}</td>
                 <td>{r.mode === 'draft' ? 'Bản nháp' : 'Đã xuất bản'}</td>
                 <td>
-                  <span className={'pill ' + (r.status === 'success' ? 'green' : r.status === 'error' ? 'red' : '')}>
-                    {r.status === 'success' ? 'Thành công' : r.status === 'error' ? 'Thất bại' : 'Đang chạy'}
-                  </span>
+                  <span className={'pill ' + (statusClass[r.status] ?? '')}>{statusLabel[r.status] ?? r.status}</span>
                 </td>
                 <td>{r.duration_ms == null ? '—' : r.duration_ms >= 1000 ? (r.duration_ms / 1000).toFixed(1) + ' s' : r.duration_ms + ' ms'}</td>
                 <td>{new Date(r.created_at).toLocaleString('vi-VN')}</td>
@@ -113,6 +131,15 @@ export function Runs({ appId }: { appId?: string }) {
           <label>Đầu vào</label>
           <pre className="result-box">{selected.input}</pre>
           {selected.error && <ErrorBox error={selected.error} />}
+          {selected.status === 'waiting' && (
+            <div className="actions">
+              <span className="pill amber">Chờ duyệt{result?.request_ref ? ` · ${result.request_ref}` : ''}</span>
+              <button disabled={resuming} onClick={() => resume(selected.id)}>
+                {resuming ? 'Đang kiểm tra…' : 'Kiểm tra và chạy tiếp'}
+              </button>
+            </div>
+          )}
+          {resumeNote && <p className="hint">{resumeNote}</p>}
           {result?.output && (
             <>
               <label>Kết quả</label>

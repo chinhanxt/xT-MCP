@@ -41,6 +41,7 @@ export function authorizeStudioRoute(path: string, method: string, role: StudioR
     if (/^\/api\/apps\/[\w-]+\/run$/.test(path) && method === 'POST') return;
     if (/^\/api\/apps\/[\w-]+\/conversations(?:\/[\w-]+)?$/.test(path) && ['GET', 'DELETE'].includes(method)) return;
     if (path === '/api/runs' && method === 'GET') return;
+    if (/^\/api\/runs\/[\w-]+\/resume$/.test(path) && method === 'POST') return;
     throw new HttpError(403, 'Không đủ quyền Studio.');
   }
   if (/^\/api\/(apps|knowledge|documents|runs)(\/|$)/.test(path)) return;

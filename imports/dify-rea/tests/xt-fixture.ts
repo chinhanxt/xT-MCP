@@ -19,7 +19,8 @@ export async function integratedStudio() {
   const secret = randomBytes(32);
   const records = new Map<string, FixtureRecord>();
   const calls: CoreCall[] = [];
-  const core = { status: 200 };
+  // `handler` replaces the record fixture with a programmable xT tool responder.
+  const core: { status: number; handler?: (call: CoreCall) => unknown } = { status: 200 };
   const coreServer = createServer(async (request, response) => {
     const chunks: Buffer[] = [];
     for await (const chunk of request) chunks.push(chunk);
@@ -34,6 +35,7 @@ export async function integratedStudio() {
     if (core.status !== 200) { response.writeHead(core.status).end('{"error":"unavailable"}'); return; }
     if (payload.action === 'list') { response.end(JSON.stringify({ tools: [] })); return; }
     calls.push(payload);
+    if (core.handler) { response.end(JSON.stringify(await core.handler(payload))); return; }
     const args = payload.arguments, record = records.get(String(args.ref));
     if (!record) { response.end(JSON.stringify({ ok: false, error: { code: 'not_found' } })); return; }
     if (record.denied) { response.end(JSON.stringify({ ok: false, error: { code: 'access_denied' } })); return; }
