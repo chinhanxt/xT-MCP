@@ -46,6 +46,7 @@ from xt.application.tools.ports import (
 from xt.contracts.tools import BY_NAME, ToolContract
 
 if TYPE_CHECKING:
+    from xt.application.agenthr.ports import AgentHrGate
     from xt.application.notify_tool import NotificationToolPort
 
 _NOT_ATTRIBUTES = frozenset({"idempotency_key", "cursor", "text_cursor"})
@@ -70,6 +71,8 @@ class ToolServices:
     transactions: TransactionRunner
     ids: IdGenerator
     notifications: NotificationToolPort | None = None
+    # Cổng AgentHR (D-AGENTHR-1): None = không có (hành vi cũ).
+    agenthr: AgentHrGate | None = None
 
 
 class Handler:

@@ -131,6 +131,14 @@ REASONS: frozenset[str] = frozenset(
         "autonomy_hard_limit",
         "file_not_clean",
         "dependency_open",
+        # AgentHR (D-AGENTHR-1): cổng nhân sự AI chặn agent có hồ sơ.
+        "agent_suspended",
+        "agent_terminated",
+        "outside_job_description",
+        "outside_working_hours",
+        "daily_limit_reached",
+        "over_value_limit",
+        "held_for_release",
     }
 )
 

@@ -364,6 +364,9 @@ class ToolDispatcher:
         handler = self.handlers[contract.name]
         s = self.services
         self._authorize(handler, ctx, args)
+        if ctx.actor.is_agent and s.agenthr is not None:
+            # AgentHR: hồ sơ không ở "Đang làm" / ngoài ca -> chặn mọi tool, kể cả đọc.
+            s.agenthr.check_call(ctx, contract.name)
         if not self.settings.available(contract.name):
             version, remediation = GATED_CAPABILITIES[contract.name]
             raise capability_unavailable(contract.name, version, remediation)
@@ -435,6 +438,9 @@ class ToolDispatcher:
                 return _Refuse(self._pending_state(existing, ctx.now))
             plan = handler.plan(s, ctx, args)
             level = self._level(contract, plan)
+            if ctx.actor.is_agent and s.agenthr is not None:
+                # AgentHR TRƯỚC kiểm tự chủ: chỉ thêm điều kiện chặn (JD, hạn mức, giấy phép).
+                s.agenthr.check_write(ctx, contract.name, args, plan)
             confirmers = self._gate(ctx, contract, level, plan)
             if confirmers:
                 return _Refuse(
@@ -832,6 +838,9 @@ class ConfirmationService:
                 actor=Actor(op.actor.tenant, subject, PrincipalKind.HUMAN, self._client_id, None),
             )
             try:
+                if op.actor.is_agent and d.services.agenthr is not None:
+                    # Agent bị đình chỉ/cho nghỉ trong TTL: thao tác đang chờ không còn chạy.
+                    d.services.agenthr.check_call(agent_ctx, op.tool)
                 # Quyền có thể đã bị thu hồi trong TTL: kiểm lại cho cả hai bên lúc thực thi.
                 d._authorize(handler, agent_ctx, op.arguments)
                 d._authorize(handler, human_ctx, op.arguments)
