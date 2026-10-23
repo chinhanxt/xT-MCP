@@ -55,13 +55,16 @@ Bản mới thêm trường `alternates` vào spec quy trình và thêm migratio
 
 ```bash
 cd /home/chinhan/.cache/xt-deploy
+git status --short                                           # phải rỗng; có thay đổi thì dừng, lưu lại trước
 git fetch origin && git checkout --detach origin/staging      # /packages của xtc.sh đọc thư mục này
 cd deploy
 docker tag xt/xt:dev xt/xt:pre-demo-levels                  # để hoàn tác
 COMPOSE_PROJECT_NAME=xt-e2e-20261016 docker compose --env-file .env build xt-api
+$XTC -- db migrate          # xtc.sh dùng `compose run` nên đã chạy ảnh mới; mong đợi "đã áp: 0023_person_change"
 COMPOSE_PROJECT_NAME=xt-e2e-20261016 docker compose --env-file .env up -d --no-deps --no-build xt-api xt-worker
-$XTC -- db migrate                                           # mong đợi: "đã áp: 0023_person_change"
 ```
+
+Migrate trước rồi mới khởi động lại xt-api/xt-worker, để dịch vụ mới không chạy trên DB chưa có 0023.
 
 ### 3.2. Nâng gói
 
@@ -112,6 +115,8 @@ Thay `-U xt -d xt` nếu `.env` đặt `POSTGRES_USER`/`POSTGRES_DB` khác.
 
 **Cảnh báo:** `xt org import` không có `--if-empty`, hoặc chạy lại demo-seed ở chế độ force, sẽ nạp lại `roles`/`active` từ `org.json` và ghi đè các thay đổi trên. Khi đó phải chạy lại mục 3.3.
 
+Không chạy lại `python -m xte2e.demo_roles e2e/demo-roles.binhminh.json --apply` với kế hoạch cũ. Kế hoạch đó dùng NV-0032 làm người duyệt IT và NV-0005 làm kế toán. Bước 1 của script tạo lại user Keycloak cho người vận hành chưa có đăng nhập, rồi chạy `xt org import --links`, nên đi ngược roster này. Nếu cần cấp thêm vai trò gói, mở hồ sơ tiếp nhận trên Desk: Nhi mở hồ sơ, Khang tạo `access_grant`, giám đốc hoàn thành bước IT, Oanh làm bước kế toán.
+
 ### 3.4. Keycloak: tắt và bật lại tài khoản
 
 Đăng nhập kcadm một lần. Mật khẩu lấy từ env của chính container, không gõ ra màn hình:
@@ -140,10 +145,12 @@ Tắt tài khoản và đăng xuất mọi phiên đang mở:
 for u in quyen.dothuc vinh.buiquang tung.tranba phuc.maixuan tung.nguyenthanh linh.vuphuong e2e.hai-to-chuc; do
   id=$(uid $u); [ -n "$id" ] || { echo "không thấy $u"; continue; }
   kc update users/$id -r "$REALM" -s enabled=false
-  kc create users/$id/logout -r "$REALM"
+  kc create users/$id/logout -r "$REALM" -s realm="$REALM" -s user="$id"
   kc get users/$id -r "$REALM" --fields username,enabled
 done
 ```
+
+Lệnh đăng xuất theo đúng ví dụ "logout a user" của tài liệu Keycloak Admin CLI (`create users/ID/logout` kèm `-s realm=… -s user=…`; không có `-s` thì `create` không có thân yêu cầu). Cú pháp `create`/`get` đã đối chiếu `kcadm.sh --help` của ảnh `xt/keycloak:26.6.3-optimized`; chưa chạy trên stack demo.
 
 Bật lại một tài khoản, ví dụ Quyên. Làm cả hai phía, Keycloak và xT:
 

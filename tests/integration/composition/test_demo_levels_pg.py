@@ -294,3 +294,57 @@ def test_reactivated_person_is_candidate_again(roster: Lv, lv: tuple[Lv, dict[st
         assert ops.pid(VINH) in ops.candidates(iid, "it")
     finally:
         person_set_confirmed(env, ops.alias, VINH, "--inactive")
+
+
+def test_onboarding_it_step_via_desk_confirmation_director(roster: Lv) -> None:
+    """Đường thật của Desk: transition_record trên lifecycle_task (human_only) -> xác nhận. Bước IT
+    hiện trong hộp việc giám đốc; Khang (người tạo grant) xác nhận thì op từ chối, bước còn mở;
+    giám đốc xác nhận thì grant được áp với approved_by = giám đốc."""
+    from xt.application.tools.ports import PendingStatus
+
+    ops = roster
+    dept = ops.create(NHI, "department", {"code": "KDLVC", "name": "Kinh doanh 3"})
+    emp = _employee(ops, BAO, dept)
+    case = ops.create(
+        NHI,
+        "lifecycle_case",
+        {"code": "ON-2026-8003", "employee": emp["id"], "kind": "onboarding",
+         "effective_on": "2026-11-02", "initiated_by": ops.pid(NHI)},
+    )  # fmt: skip
+    grant = ops.create(
+        KHANG,
+        "access_grant",
+        {"employee": emp["id"], "system": "keycloak", "role": "sales", "issued_on": "2026-11-02"},
+    )
+    data = {"case_id": case["id"], "employee_id": emp["id"], "employee_user": ops.pid(BAO)}
+    ops.start("employee_onboarding", data, NHI)
+    where = {"field": "lifecycle_case", "op": "=", "value": case["id"]}
+    tasks = {t["step"]: t for t in ops.search("lifecycle_task", where)}
+
+    def finish(step: str, who: str, key: str) -> Any:
+        ref = f"lifecycle_task:{tasks[step]['id']}"
+        pending = ops.complete(who, ref, "done", key)
+        assert pending["error"]["code"] == "confirmation_required", pending
+        return ops.confirm(pending, who, who)
+
+    assert finish("hr", NHI, "lv-8003-hr").status is PendingStatus.CONFIRMED
+    ref = f"lifecycle_task:{tasks['it']['id']}"
+    assert ops.inbox_item(TRI, ref)["ref"] == ref  # bước IT có trong hộp việc giám đốc
+    own = finish("it", KHANG, "lv-8003-it-khang")
+    assert own.status is not PendingStatus.CONFIRMED or own.error, own
+    assert ops.get("lifecycle_task", tasks["it"]["id"])["state"] == "waiting"
+
+    def applied(c: Caller, _: Any) -> dict[str, Any] | None:
+        with ops.rt.uow.tenant_tx(c.actor) as cur:
+            row = cur.execute(
+                "SELECT approved_by FROM xt_meta.person_role_grant WHERE grant_ref = %s",
+                (f"access_grant:{grant['id']}",),
+            ).fetchone()
+        return dict(row) if row else None
+
+    assert ops.run(TRI, applied) is None
+    done = finish("it", TRI, "lv-8003-it-tri")
+    assert done.status is PendingStatus.CONFIRMED and not done.error, done
+    row = ops.run(TRI, applied)
+    assert row is not None and str(row["approved_by"]) == ops.pid(TRI)
+    assert ops.get("lifecycle_task", tasks["it"]["id"])["state"] == "done"
