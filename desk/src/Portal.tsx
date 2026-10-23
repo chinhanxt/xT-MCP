@@ -44,7 +44,10 @@ function RecordCard({ row, select, enumLabel }: { row: Data; select?: (ref: stri
     {ref && select && <button onClick={() => select(ref)}>Mở {label(row)}</button>}
   </article>;
 }
+/** Yêu cầu mở từ khung chung (ô tìm người, lối tắt): chạy đúng lời gọi sẵn có của Con người. */
+export type PortalIntent = { id: number; area: Area; kind: 'people'; query: string } | { id: number; area: Area; kind: 'tasks' };
 type Props = {
+  intent?: PortalIntent;
   area: string; mcp: McpConnection | null; tools: McpTool[]; sandboxUrl: URL;
   onOpenLink: (url: string, frame: Element | null) => boolean;
   revealDpop: ComponentProps<typeof ToolItem>['dpop'];
@@ -55,7 +58,7 @@ export function Portal(props: Props) {
   if (session.current.mcp !== props.mcp) session.current = {mcp:props.mcp, epoch:session.current.epoch+1};
   return <PortalView key={`${props.area}:${session.current.epoch}`} {...props}/>;
 }
-function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNavigate }: Props) {
+function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNavigate, intent }: Props) {
   const [data, setData] = useState<Data | null>(null), [error, setErrorText] = useState(''), [errorKind, setErrorKind] = useState<ErrorKind>('error'), [rejecting, setRejecting] = useState(false), [reason, setReason] = useState(''), [loading, setLoading] = useState(false);
   const [query, setQuery] = useState(''), [model, setModel] = useState(''), [catalogModel, setCatalogModel] = useState('stock_item');
   const [catalog, setCatalog] = useState<Data[]>([]), [workspace, setWorkspace] = useState<Data | null>(null);
@@ -122,6 +125,11 @@ function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNa
     }
     return () => { current.current.active = false; seq.current++; };
   }, [mcp,area]);
+  useEffect(() => {
+    if (!mcp || !intent || area !== 'H') return;
+    if (intent.kind === 'people') { setQuery(intent.query); void call('find_people',{query:intent.query,limit:50}); }
+    else void call('get_inbox',{kinds:['task','notification','mention']});
+  }, [mcp, intent?.id]); // eslint-disable-line
   const openRecord = (ref:string) => { void call('get_record',{ref}); };
   const title: Record<string,string> = {H:'Con người',P:'Quy trình',D:'Dữ liệu',I:'Trí tuệ',Kho:'WareTrack'};
   const select = (modelId:string, value:string, update:(value:string)=>void, list=picklists[modelId] || []) => <select aria-label={labels[modelId]} value={value} onChange={e=>update(e.target.value)} required><option value="">Chọn {labels[modelId]}</option>{list.map(row=><option key={uuid(row)} value={uuid(row)}>{label(row)}</option>)}</select>;
