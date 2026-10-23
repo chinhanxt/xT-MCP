@@ -304,7 +304,10 @@ class AgentHr:
                     "agenthr: ghi lần chặn lỗi trace_id=%s (%s)", ctx.trace_id, type(e).__name__
                 )
 
-        after_rollback(safe)
+        try:
+            after_rollback(safe)
+        except RuntimeError:  # ngoài Runtime.run_as (vd công cụ quản trị): ghi ngay, best effort
+            safe()
         raise access_denied(
             b.message, b.reason, None, remediation=b.remediation, agent=p.id, **detail
         )
