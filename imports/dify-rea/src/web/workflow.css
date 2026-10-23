@@ -180,3 +180,23 @@
 .condition-row > button {
   flex: 0 0 auto;
 }
+dialog:has(.subgraph-modal) {
+  max-width: 1200px;
+}
+.subgraph-modal {
+  display: flex;
+  height: 70vh;
+  margin-top: 12px;
+}
+.subgraph-modal .workflow-editor {
+  flex: 1;
+  height: 100%;
+}
+.node-symbol.iteration,
+.node-symbol.loop {
+  color: #5b8bd6;
+  background: #edf3fc;
+}
+.trace.nested {
+  margin-left: 18px;
+}

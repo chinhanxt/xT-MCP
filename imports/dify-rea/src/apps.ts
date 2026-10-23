@@ -4,7 +4,7 @@ import { body, hashToken, now, type RouteContext } from './http.ts';
 import type { Store } from './store.ts';
 import { randomBytes } from 'node:crypto';
 import { HttpError, text, choice, configInput, kind } from './validation.ts';
-import { emptyConfig } from './contracts.ts';
+import { allNodes, emptyConfig } from './contracts.ts';
 import type { AppConfig, ChatMessage, RunResult } from './contracts.ts';
 import { retrieve, contextText } from './knowledge.ts';
 import { generate, generateStream } from './models.ts';
@@ -21,18 +21,18 @@ export function validateAppReferences(store: Store, workspace: string, config: A
   for (const selection of config.mcp_tools ?? []) selectedTool(store, workspace, selection);
   const modelIds = [
     config.model_id,
-    ...(workflow ? config.graph.nodes.filter((n) => n.type === 'llm').map((n) => n.data.model_id || config.model_id) : []),
+    ...(workflow ? allNodes(config.graph).filter((n) => n.type === 'llm').map((n) => n.data.model_id || config.model_id) : []),
   ].filter(Boolean);
   for (const id of modelIds) if (store.model(workspace, id).kind !== 'chat') throw new HttpError(400, 'Cần model chat.');
   if (
     strict &&
     ((!workflow && !config.model_id) ||
-      (workflow && config.graph.nodes.some((n) => n.type === 'llm' && !n.data.model_id && !config.model_id)))
+      (workflow && allNodes(config.graph).some((n) => n.type === 'llm' && !n.data.model_id && !config.model_id)))
   )
     throw new HttpError(400, 'Chọn model cho ứng dụng hoặc node AI.');
   for (const id of [
     ...config.knowledge_ids,
-    ...config.graph.nodes.flatMap((n) => (n.type === 'retrieval' && n.data.knowledge_id ? [n.data.knowledge_id] : [])),
+    ...allNodes(config.graph).flatMap((n) => (n.type === 'retrieval' && n.data.knowledge_id ? [n.data.knowledge_id] : [])),
   ])
     store.knowledge(workspace, id);
 }

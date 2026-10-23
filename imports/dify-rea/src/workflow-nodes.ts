@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: 2026 xT contributors
 // Node data parsing, validation and pure evaluation for the multi-branch and data nodes of the workflow.
 import type { CompareOperator, ConditionCase, ExtractorParameter, GraphNode } from './contracts.ts';
-import { compareOperators, parameterTypes, xtToolNames } from './contracts.ts';
+import { compareOperators, iterationLimits, parameterTypes, xtToolNames } from './contracts.ts';
 import { HttpError, choice, object, strings, text } from './validation.ts';
 
 export const refPattern = /\{\{\s*([\w-]+)(?:\.([\w-]+))?\s*\}\}/g;
@@ -12,6 +12,28 @@ const numericOperators: CompareOperator[] = ['eq', 'ne', 'gt', 'lt', 'ge', 'le']
 function list(value: unknown, field: string, max: number): unknown[] {
     if (!Array.isArray(value) || value.length > max) throw new HttpError(400, `${field} không hợp lệ (tối đa ${max}).`);
     return value;
+}
+
+function bounded(value: unknown, min: number, max: number, field: string): number {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max)
+        throw new HttpError(400, `${field} cần từ ${min}–${max}.`);
+    return value;
+}
+
+function caseInput(raw: unknown): ConditionCase {
+    const c = object(raw);
+    return {
+        id: text(c.id, 'ID nhánh', 20),
+        logical_operator: choice<'and' | 'or'>(c.logical_operator, ['and', 'or'], 'Toán tử logic'),
+        conditions: list(c.conditions, 'Điều kiện con', 10).map((item) => {
+            const x = object(item);
+            return {
+                variable: text(x.variable, 'Biến điều kiện', 2000),
+                operator: choice(x.operator, compareOperators, 'Phép so sánh'),
+                value: x.value === undefined ? '' : text(x.value, 'Giá trị so sánh', 2000, false),
+            };
+        }),
+    };
 }
 
 // Shape-only parsing at the config boundary; graph-level rules live in validateNodeData.
@@ -29,20 +51,17 @@ export function nodeDataInput(d: Record<string, unknown>, data: GraphNode['data'
         data.timeout_hours = d.timeout_hours;
     }
     if (data.tool !== undefined && !xtToolNames.includes(data.tool)) throw new HttpError(400, `Công cụ xT "${data.tool}" không được cấp.`);
-    if (d.cases !== undefined)
-        data.cases = list(d.cases, 'Nhánh điều kiện', 10).map((raw) => {
-            const c = object(raw);
+    if (d.cases !== undefined) data.cases = list(d.cases, 'Nhánh điều kiện', 10).map(caseInput);
+    if (d.until !== undefined) data.until = caseInput(d.until);
+    if (d.max_items !== undefined) data.max_items = bounded(d.max_items, 1, iterationLimits.maxItems, 'Tối đa mục');
+    if (d.max_rounds !== undefined) data.max_rounds = bounded(d.max_rounds, 1, iterationLimits.maxRounds, 'Tối đa vòng');
+    if (d.loop_vars !== undefined)
+        data.loop_vars = list(d.loop_vars, 'Biến vòng lặp', 10).map((raw) => {
+            const v = object(raw);
             return {
-                id: text(c.id, 'ID nhánh', 20),
-                logical_operator: choice<'and' | 'or'>(c.logical_operator, ['and', 'or'], 'Toán tử logic'),
-                conditions: list(c.conditions, 'Điều kiện con', 10).map((item) => {
-                    const x = object(item);
-                    return {
-                        variable: text(x.variable, 'Biến điều kiện', 2000),
-                        operator: choice(x.operator, compareOperators, 'Phép so sánh'),
-                        value: x.value === undefined ? '' : text(x.value, 'Giá trị so sánh', 2000, false),
-                    };
-                }),
+                name: text(v.name, 'Tên biến vòng lặp', 64),
+                init: v.init === undefined ? '' : text(v.init, 'Giá trị đầu', 20000, false),
+                ...(v.update === undefined || v.update === '' ? {} : { update: text(v.update, 'Giá trị sau mỗi vòng', 20000, false) }),
             };
         });
     if (d.classes !== undefined)
@@ -101,10 +120,12 @@ export function branchHandles(n: GraphNode): string[] | undefined {
     if (n.type === 'condition') return hasCases(n) ? [...n.data.cases!.map((c) => c.id), 'else'] : ['true', 'false'];
     if (n.type === 'question_classifier') return (n.data.classes ?? []).map((c) => c.id);
     if (n.type === 'human_approval') return ['approved', 'rejected'];
+    if (n.type === 'loop') return ['done', 'exhausted'];
     return undefined;
 }
 
-// Every template-bearing string of a node, checked for {{refs}} by validateGraph.
+// Every template-bearing string of a node, checked for {{refs}} by validateGraph in the node's own (parent) scope.
+// A loop's `until` and `loop_vars[].update` read the inner round and are checked by innerTemplates instead.
 export function nodeTemplates(n: GraphNode): string[] {
     const d = n.data;
     return [
@@ -123,8 +144,16 @@ export function nodeTemplates(n: GraphNode): string[] {
         d.approver_hint,
         d.request_values,
         ...(d.cases ?? []).flatMap((c) => c.conditions.flatMap((x) => [x.variable, x.value])),
+        ...(d.loop_vars ?? []).map((v) => v.init),
     ].filter((value): value is string => !!value);
 }
+
+// Templates of a loop evaluated after each round, in the scope of its sub-graph.
+export const innerTemplates = (n: GraphNode): string[] =>
+    [
+        ...(n.data.until?.conditions ?? []).flatMap((x) => [x.variable, x.value]),
+        ...(n.data.loop_vars ?? []).map((v) => v.update),
+    ].filter((value): value is string => !!value);
 
 function uniqueIds(ids: string[], label: string, what: string) {
     if (!ids.length) throw new HttpError(400, `Node ${label} cần ít nhất một ${what}.`);
@@ -167,6 +196,24 @@ export function validateNodeData(n: GraphNode) {
         }
     }
     if (n.type === 'list_operator' && !d.variable) throw new HttpError(400, `Node ${label} cần biến danh sách.`);
+    if ((n.type === 'iteration' || n.type === 'loop') && !d.graph) throw new HttpError(400, `Node ${label} cần các bước bên trong.`);
+    if (n.type === 'iteration') {
+        const refs = [...(d.variable ?? '').matchAll(refPattern)];
+        if (refs.length !== 1 || refs[0][0] !== d.variable!.trim())
+            throw new HttpError(400, `Biến danh sách của ${label} phải là đúng một biến {{...}} chứa mảng JSON.`);
+        if (d.max_items !== undefined && (d.max_items < 1 || d.max_items > iterationLimits.maxItems))
+            throw new HttpError(400, `Tối đa mục cần từ 1–${iterationLimits.maxItems}.`);
+    }
+    if (n.type === 'loop') {
+        if (!d.until?.conditions.length) throw new HttpError(400, `Node ${label} cần điều kiện dừng.`);
+        if (d.max_rounds !== undefined && (d.max_rounds < 1 || d.max_rounds > iterationLimits.maxRounds))
+            throw new HttpError(400, `Tối đa vòng cần từ 1–${iterationLimits.maxRounds}.`);
+        const names = (d.loop_vars ?? []).map((v) => v.name);
+        if (new Set(names).size !== names.length) throw new HttpError(400, `Node ${label} có biến vòng lặp bị trùng tên.`);
+        for (const name of names)
+            if (!/^[A-Za-z_][\w-]{0,63}$/.test(name) || ['input', 'item', 'index', 'round', 'last'].includes(name))
+                throw new HttpError(400, `Tên biến vòng lặp "${name}" không hợp lệ hoặc trùng tên dành riêng.`);
+    }
     if (n.type === 'human_approval') {
         if (!d.title?.trim() || !d.summary?.trim()) throw new HttpError(400, `Node ${label} cần tiêu đề và nội dung.`);
         if (!d.request_model) throw new HttpError(400, `Node ${label} cần loại yêu cầu xT.`);

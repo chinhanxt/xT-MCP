@@ -7,6 +7,7 @@
 import { body, hashToken, type RouteContext } from './http.ts';
 import type { Store } from './store.ts';
 import type { RunResult } from './contracts.ts';
+import { allNodes } from './contracts.ts';
 import { HttpError, choice, object } from './validation.ts';
 import { runInputs } from './input-fields.ts';
 import { runWorkflow } from './workflow.ts';
@@ -49,7 +50,7 @@ export function createTriggerRunner(store: Store, options: { integrated?: boolea
       running.add(trigger.id);
       const done = (async () => {
         try {
-          const needsXt = integrated && (config.graph.nodes.some((n) => n.type === 'retrieval' || n.type === 'human_approval') || !!config.xt_tools?.length);
+          const needsXt = integrated && (allNodes(config.graph).some((n) => n.type === 'retrieval' || n.type === 'human_approval') || !!config.xt_tools?.length);
           if (needsXt) throw new HttpError(403, xtTriggerDenied);
           validateAppReferences(store, trigger.workspace_id, config, true, true);
           const inputs = runInputs(config.inputs ?? [], undefined);

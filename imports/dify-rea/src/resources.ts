@@ -5,14 +5,15 @@ import { HttpError, modelInput, text } from './validation.ts';
 import { embed, generate } from './models.ts';
 import { indexDocument, retrieve } from './knowledge.ts';
 import type { AppConfig } from './contracts.ts';
+import { allNodes } from './contracts.ts';
 import { extractDocument } from './documents.ts';
 import { fetchXtDocument, sourceCheck, xtRef } from './xt-source.ts';
 function references(value: unknown, resource: 'model' | 'knowledge', id: string): boolean {
   if (!value) return false;
   const config = JSON.parse(String(value)) as AppConfig;
   return resource === 'model'
-    ? config.model_id === id || config.graph.nodes.some((n) => n.type === 'llm' && n.data.model_id === id)
-    : config.knowledge_ids.includes(id) || config.graph.nodes.some((n) => n.type === 'retrieval' && n.data.knowledge_id === id);
+    ? config.model_id === id || allNodes(config.graph).some((n) => n.type === 'llm' && n.data.model_id === id)
+    : config.knowledge_ids.includes(id) || allNodes(config.graph).some((n) => n.type === 'retrieval' && n.data.knowledge_id === id);
 }
 const rawContent = () => new HttpError(403, 'Studio tích hợp chỉ lập chỉ mục tài liệu từ bản ghi xT (xt_ref).');
 export async function routeResources(ctx: RouteContext): Promise<boolean> {
