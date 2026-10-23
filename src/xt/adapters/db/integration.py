@@ -261,6 +261,83 @@ class PgIntegrationStore:
             ).fetchone()
         return (int(row["autonomy"]), tuple(row["roles"])) if row else None
 
+    # ---- AgentHR (D-AGENTHR-1, migration 0022): trần tự chủ, bộ đếm ngày, nhật ký chặn
+    def upsert_agent_grant(
+        self, actor: ModelActor, person: UUID, client_id: str, autonomy: int, roles: Sequence[str]
+    ) -> None:
+        """Ghi trần tự chủ người `person` cấp cho client (chỉ ngữ cảnh xt_workflow: policy RLS)."""
+        with self.uow.tenant_tx(actor) as cur:
+            cur.execute(
+                "INSERT INTO xt_meta.agent_grant (tenant_id, person, client_id, autonomy, roles)"
+                " VALUES (xt.tenant(), %s, %s, %s, %s) ON CONFLICT (tenant_id, person, client_id)"
+                " DO UPDATE SET autonomy = EXCLUDED.autonomy, roles = EXCLUDED.roles"
+                " WHERE xt_meta.agent_grant.autonomy IS DISTINCT FROM EXCLUDED.autonomy"
+                " OR xt_meta.agent_grant.roles IS DISTINCT FROM EXCLUDED.roles",
+                (person, client_id, autonomy, list(roles)),
+            )
+
+    def delete_agent_grant(self, actor: ModelActor, person: UUID, client_id: str) -> bool:
+        with self.uow.tenant_tx(actor) as cur:
+            row = cur.execute(
+                "DELETE FROM xt_meta.agent_grant WHERE person = %s AND client_id = %s RETURNING 1",
+                (person, client_id),
+            ).fetchone()
+        return row is not None
+
+    def agent_usage(self, actor: ModelActor, client_id: str, person: UUID, day: Any) -> int:
+        with self.uow.tenant_tx(actor) as cur:
+            row = cur.execute(
+                "SELECT count FROM xt_meta.agent_usage WHERE client_id = %s AND person = %s"
+                " AND day = %s",
+                (client_id, person, day),
+            ).fetchone()
+        return int(row["count"]) if row else 0
+
+    def take_agent_usage(
+        self, actor: ModelActor, client_id: str, person: UUID, day: Any, limit: int
+    ) -> int | None:
+        """Tăng bộ đếm ngày một đơn vị, nguyên tử; `limit` > 0 và đã đạt -> None (không tăng)."""
+        with self.uow.tenant_tx(actor) as cur:
+            row = cur.execute(
+                "INSERT INTO xt_meta.agent_usage AS u (tenant_id, client_id, person, day, count)"
+                " VALUES (xt.tenant(), %s, %s, %s, 1)"
+                " ON CONFLICT (tenant_id, client_id, person, day) DO UPDATE SET count = u.count + 1"
+                " WHERE %s::int <= 0 OR u.count < %s::int RETURNING count",
+                (client_id, person, day, limit, limit),
+            ).fetchone()
+        return int(row["count"]) if row else None
+
+    def agenthr_block(
+        self,
+        actor: ModelActor,
+        *,
+        client_id: str,
+        person: UUID,
+        ho_so: UUID | None,
+        tool: str,
+        reason: str,
+        detail: Mapping[str, Any],
+    ) -> None:
+        """Một lần cổng chặn agent: dòng append-only trong hash-chain audit (op agenthr.block)."""
+        with self.uow.tenant_tx(actor) as cur:
+            cur.execute(
+                "INSERT INTO xt_meta.agenthr_event (op, client_id, person, ho_so, tool, reason,"
+                " detail) VALUES ('agenthr.block', %s, %s, %s, %s, %s, %s)",
+                (client_id, person, ho_so, tool[:64], reason, Jsonb(dict(detail))),
+            )
+
+    def agenthr_events(
+        self, actor: ModelActor, ho_so: UUID | None = None, limit: int = 200
+    ) -> list[dict[str, Any]]:
+        with self.uow.tenant_tx(actor) as cur:
+            rows = cur.execute(
+                "SELECT id, op, at, client_id, person, ho_so, tool, reason, detail"
+                " FROM xt_meta.agenthr_event WHERE (%s::uuid IS NULL OR ho_so = %s)"
+                " ORDER BY at DESC LIMIT %s",
+                (ho_so, ho_so, limit),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
     # ---- vai trò cấp qua access_grant (D-UNI-H-1, application.iam.role_grants)
     def person_active(self, actor: ModelActor, pid: UUID) -> bool:
         with self.uow.tenant_tx(actor) as cur:
