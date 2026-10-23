@@ -240,9 +240,10 @@ form.composer button{min-height:52px;width:52px;padding:0;background:var(--ink);
 .portal button[aria-pressed=true]{background:var(--info-bg);color:var(--ink);border-color:var(--focus)}
 .portal .seg button[aria-pressed=true],.portal .tabs button[aria-pressed=true]{background:var(--paper);border-color:transparent}
 .portal .tabs button[aria-pressed=true]{background:none;border-bottom-color:var(--ink)}
-.portal-members > p,.portal-members form > p,.portal-departments > p[role=note]{color:var(--ink-2);font-size:15px;margin:10px 0}
-.portal-members > button,.portal-members > label{margin:6px 10px 6px 0}
+.portal-members > p,.portal-members > [role=tabpanel] > p,.portal-members form > p,.portal-departments > p[role=note]{color:var(--ink-2);font-size:15px;margin:10px 0}
+.portal-members > button,.portal-members > label,.portal-members > [role=tabpanel] > button,.portal-members > [role=tabpanel] > label{margin:6px 10px 6px 0}
 .portal-members form{padding:16px 0;border-top:1px solid var(--line-2)}
+.portal-members > [role=tabpanel] > form:first-child{border-top:0;padding-top:0}
 .workspace-card{display:flex;align-items:center;gap:12px;margin:0 0 16px}
 .workspace-card .t{display:flex;flex-direction:column;line-height:1.3}
 .workspace-card small{color:var(--ink-3);font-size:15px}

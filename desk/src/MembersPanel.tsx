@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: 2026 xT contributors
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { McpConnection } from './mcp';
 import type { McpTool, ToolResult } from './types';
 import { config } from './config';
@@ -9,6 +9,7 @@ import { confirmUrlOf } from './portal-request';
 import { PortalAlert } from './PortalAlert';
 import { classifyError, type ErrorKind } from './portal-state';
 import { recordTitle, refKind, roleLabel } from './portal-labels';
+import { TabList, TabPanel } from './Tabs';
 
 type Data = Record<string, unknown>;
 type Attempt = { signature: string; employee?: string; caseRef?: string };
@@ -19,11 +20,14 @@ function recordRef(value: Data, model: string): string {
   if (typeof ref !== 'string' || !ref.startsWith(`${model}:`) || !id(ref)) throw new Error('Máy chủ không trả về mã bản ghi hợp lệ.');
   return ref;
 }
+const MEMBERS_TABS = [{ id: 'roles', label: 'Vai trò của tôi' }, { id: 'onboard', label: 'Tiếp nhận nhân viên' }, { id: 'grant', label: 'Cấp quyền SSO' }, { id: 'revoke', label: 'Thu hồi' }] as const;
+type MembersTab = (typeof MEMBERS_TABS)[number]['id'];
 type Props = { mcp: McpConnection | null; tools: McpTool[]; workspace: Data | null; onRefresh: () => void };
 export function MembersPanel({ mcp, tools, workspace, onRefresh }: Props) {
   const [raw, setRaw] = useState<Record<string, string>>({}), [grant, setGrant] = useState<Record<string, string>>({}), [revokedOn, setRevokedOn] = useState('');
   const [names, setNames] = useState<Record<string, string>>({}), [grants, setGrants] = useState<Data[] | null>(null), [tasks, setTasks] = useState<Data[] | null>(null), [cursors, setCursors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false), [expired, setExpired] = useState(false), [error, setError] = useState(''), [kind, setKind] = useState<ErrorKind>('error'), [done, setDone] = useState(''), [confirmUrl, setConfirmUrl] = useState(''), [pending, setPending] = useState('');
+  const [tab, setTab] = useState<MembersTab>('roles');
   const [hasErrorDetail, setHasErrorDetail] = useState(false), [failedOp, setFailedOp] = useState('');
   const live = useRef(false), working = useRef(false), attempt = useRef<Attempt | null>(null), keys = useRef(new Map<string, string>());
   const scope = useRef('');
@@ -116,10 +120,15 @@ export function MembersPanel({ mcp, tools, workspace, onRefresh }: Props) {
   const roles = obj(workspace?.me).roles;
   const input = (field: string, label: string, values: Record<string, string>, set: typeof setRaw, type = 'text') => <label key={field}>{label}<input aria-label={label} type={type} value={values[field] || ''} onChange={e => set(previous => ({ ...previous, [field]: e.target.value }))} required/></label>;
   const lifecycleTasks = tasks?.filter(t => String(t.ref).startsWith('lifecycle_task:'));
+  const panel = (id: MembersTab, children: ReactNode) => <TabPanel prefix="members" id={id} active={tab === id}>{children}</TabPanel>;
   return <section className="panel portal-members" aria-label="Thành viên và quyền">
     <h3>Thành viên và quyền</h3>
+    <TabList label="Mục cấp quyền" prefix="members" tabs={MEMBERS_TABS} value={tab} onChange={setTab} disabled={expired}/>
+    {panel('roles', <>
     {!expired && (workspace ? <p>Vai trò hiệu lực của tôi: {Array.isArray(roles) ? roles.map(roleLabel).join(', ') || 'Chưa có vai trò' : 'Chưa đọc được vai trò'}</p> : <p role="status">Đang tải vai trò…</p>)}
     <button disabled={busy || expired || !mcp} onClick={onRefresh}>Làm mới vai trò</button>
+    </>)}
+    {panel('onboard', <>
     <form aria-label="Tiếp nhận nhân viên" onSubmit={e => { e.preventDefault(); void run(onboard, 'onboard'); }}>
       <h4>HR: Tiếp nhận nhân viên</h4><fieldset disabled={busy || expired || !!attempt.current?.employee || !mcp}>
         {input('emp_no', 'Mã nhân viên', raw, setRaw)}{input('full_name', 'Họ và tên', raw, setRaw)}{input('job_title', 'Chức danh', raw, setRaw)}{input('department', 'ID phòng ban', raw, setRaw)}{input('user_id', 'ID tài khoản nhân viên', raw, setRaw)}
@@ -129,6 +138,8 @@ export function MembersPanel({ mcp, tools, workspace, onRefresh }: Props) {
       <button className="pri" disabled={busy || expired || !mcp || !workspace}>{pending ? 'Thử lại tiếp nhận' : 'Tạo và bắt đầu tiếp nhận'}</button>
     </form>
     {pending && <p role="status">{pending} Thử lại sẽ tiếp tục bước chưa xong.</p>}
+    </>)}
+    {panel('grant', <>
     <form aria-label="Đề xuất cấp quyền" onSubmit={e => { e.preventDefault(); void run(async () => {
       recordRef(await call('create_record', { model_id: 'access_grant', values: { employee: grant.employee, system: 'keycloak', role: grant.role, issued_on: grant.issued_on } }, true), 'access_grant');
       setDone('Đã ghi đề xuất cấp quyền; quyền chỉ hiệu lực sau bước IT.'); setGrant({});
@@ -138,11 +149,14 @@ export function MembersPanel({ mcp, tools, workspace, onRefresh }: Props) {
     {lifecycleTasks && !lifecycleTasks.length && <p role="status">Chưa có bước nhân sự được giao cho bạn.</p>}
     {lifecycleTasks?.map(task => <article className="portal-entry" key={String(task.ref)}><strong>{String(task.title || task.ref)}</strong><p>Bước {String(task.step).toUpperCase()}</p><button disabled={busy || expired || typeof task.revision !== 'number' || !Array.isArray(task.to_states) || !task.to_states.includes('done')} onClick={() => void run(() => complete(task), `step:${task.ref}`)}>Hoàn thành {String(task.step).toUpperCase()}</button></article>)}
     {cursors.tasks && <button disabled={busy || expired} onClick={() => void run(() => load('tasks', cursors.tasks))}>Tải thêm bước</button>}
+    </>)}
+    {panel('revoke', <>
     <button disabled={busy || expired || !mcp} onClick={() => void run(() => load('grants'))}>Tải quyền truy cập</button>
     <label>Ngày thu hồi<input aria-label="Ngày thu hồi" type="date" value={revokedOn} disabled={busy || expired} onChange={e => setRevokedOn(e.target.value)}/></label>
     {grants && !grants.length && <p role="status">Chưa có quyền truy cập bạn được xem.</p>}
     {grants?.map(row => { const values = obj(row.values), name = values.role ? roleLabel(values.role) : recordTitle(row, 'Quyền truy cập'), who = names[id(String(values.employee || ''))] || 'chưa rõ tên'; return <article className="portal-entry" key={String(row.ref)}><strong>{name}</strong><p>Nhân viên: {who} · Hệ thống: {String(values.system)} · Cấp: {String(values.issued_on)} · {values.revoked_on ? `Đã thu hồi: ${values.revoked_on}` : 'Chưa thu hồi (chưa khẳng định đã hiệu lực)'}</p>{!values.revoked_on && <><button title={String(row.ref)} aria-describedby={`grant-ref-${String(row.ref)}`} disabled={busy || expired || !revokedOn || typeof row.revision !== 'number'} onClick={() => void run(() => revoke(row), `revoke:${row.ref}`)}>Thu hồi {name}</button><span id={`grant-ref-${String(row.ref)}`} className="sr-only">Mã {String(row.ref)}</span></>}</article>; })}
     {cursors.grants && <button disabled={busy || expired} onClick={() => void run(() => load('grants', cursors.grants))}>Tải thêm quyền</button>}
+    </>)}
     {busy && <p role="status">Đang xử lý…</p>}{done && <p role="status">{done}</p>}
     <PortalAlert text={error} kind={kind}>{confirmUrl && <> <a href={confirmUrl} target="_blank" rel="noopener noreferrer">Mở trang xác nhận</a><p>Sau khi xác nhận, thử lại đúng thao tác để đọc kết quả.</p></>}{error && !hasErrorDetail && kind === 'error' && (failedOp === 'grant' || failedOp.startsWith('step:')) && <p>Nếu bước cấp quyền thất bại, kiểm tra vai trò được phép và việc người tạo tự duyệt; máy chủ có thể chỉ trả lỗi quy trình tổng quát.</p>}</PortalAlert>
   </section>;
