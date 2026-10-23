@@ -78,13 +78,15 @@ type Props = {
   onOpenLink: (url: string, frame: Element | null) => boolean;
   revealDpop: ComponentProps<typeof ToolItem>['dpop'];
   onNavigate?: (area: Area) => void;
+  /** Gọi sau mỗi thao tác ghi thành công (làm mới số đếm hộp duyệt). */
+  onMutated?: () => void;
 };
 export function Portal(props: Props) {
   const session = useRef({mcp:props.mcp, epoch:0});
   if (session.current.mcp !== props.mcp) session.current = {mcp:props.mcp, epoch:session.current.epoch+1};
   return <PortalView key={`${props.area}:${session.current.epoch}`} {...props}/>;
 }
-function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNavigate, intent }: Props) {
+function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNavigate, intent, onMutated }: Props) {
   const [data, setData] = useState<Data | null>(null), [error, setErrorText] = useState(''), [errorKind, setErrorKind] = useState<ErrorKind>('error'), [rejecting, setRejecting] = useState(false), [reason, setReason] = useState(''), [loading, setLoading] = useState(false);
   const [query, setQuery] = useState(''), [model, setModel] = useState(''), [catalogModel, setCatalogModel] = useState('stock_item');
   const [catalog, setCatalog] = useState<Data[]>([]), [workspace, setWorkspace] = useState<Data | null>(null);
@@ -126,6 +128,7 @@ function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNa
         else if (!writeTools.includes(name) && name !== 'get_history') setSelected(null);
       }
       if (writeTools.includes(name)) {
+        onMutated?.();
         for (const [key, value] of idempotency.current) if (value === args.idempotency_key) idempotency.current.delete(key);
         const record = obj(value.record || value.request);
         if (typeof record.ref === 'string') {
@@ -203,8 +206,8 @@ function PortalView({ area, mcp, tools, sandboxUrl, onOpenLink, revealDpop, onNa
     {outputFirst && output}
     {area==='H' && <div role="tabpanel" id="h-panel-docs" aria-labelledby="h-tab-docs" hidden={tab!=='docs'}><DocumentsPanel mcp={mcp} tools={tools} models={workspace ? catalog : null}/></div>}
     {area==='H' && <div role="tabpanel" id="h-panel-units" aria-labelledby="h-tab-units" hidden={tab!=='units'}><DepartmentsPanel mcp={mcp} tools={tools}/></div>}
-    {area==='H' && <div role="tabpanel" id="h-panel-members" aria-labelledby="h-tab-members" hidden={tab!=='members'}><MembersPanel mcp={mcp} tools={tools} workspace={workspace} onRefresh={()=>void call('inspect_workspace',{},'catalog')}/></div>}
-    {area==='P' && <RequestForm mcp={mcp} tools={tools} models={workspace ? catalog : null}/>}
+    {area==='H' && <div role="tabpanel" id="h-panel-members" aria-labelledby="h-tab-members" hidden={tab!=='members'}><MembersPanel mcp={mcp} tools={tools} workspace={workspace} onRefresh={()=>{void call('inspect_workspace',{},'catalog');onMutated?.();}}/></div>}
+    {area==='P' && <RequestForm mcp={mcp} tools={tools} models={workspace ? catalog : null} onDone={onMutated}/>}
     {area==='D' && <ReportPanel mcp={mcp} tools={tools} models={workspace ? catalog : null}/>}
     {area==='I' && <><div className="head-act"><button onClick={()=>onNavigate?.('Desk')} disabled={!onNavigate}>Mở trợ lý Desk<MessageSquare aria-hidden="true"/></button></div><p className="lead-sm">Studio dùng phiên và quyền xT của bạn, như trợ lý Desk.</p><iframe className="portal-frame" data-xt-scope="studio" title="xT Studio" src="/studio/?integrated=1"/></>}
     {area==='Kho' && <><div className="head-act"><button className="pri" onClick={()=>setKhoTab('requests')}>Tạo phiếu<Plus aria-hidden="true"/></button></div><p className="lead-sm">Số lượng có độ chính xác 0,001 đơn vị.</p>

@@ -76,6 +76,11 @@ test('unified built portal: H/P/D/Kho, actual Studio iframe and Response bridge,
   await page.goto('/');await page.locator('#login').click();
   await expect(page.locator('#box')).toBeEnabled();
   const nav=page.getByRole('navigation',{name:'Không gian xT'});
+  // số đếm thật từ get_inbox({}) khi mở Desk: huy hiệu Quy trình + chấm chuông; tên truy cập nút vẫn là "P"
+  await expect(nav.getByRole('button',{name:'P',exact:true}).getByTestId('nav-approvals')).toHaveText('1');
+  await expect(nav.getByRole('button',{name:'P',exact:true})).toHaveAccessibleDescription('1 yêu cầu chờ bạn duyệt');
+  await expect(page.getByRole('button',{name:'Hộp duyệt',exact:true}).getByTestId('bell-dot')).toBeAttached();
+  expect(fixture.calls.filter(call=>call.name==='get_inbox'&&Object.keys(call.arguments).length===0)).toHaveLength(1);
   await nav.getByRole('button',{name:'H',exact:true}).click();
   await expect(page.locator('#box')).toBeHidden();
   await expect(page.locator('.portal')).toContainText('lan@example.test');

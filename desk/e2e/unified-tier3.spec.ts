@@ -34,6 +34,7 @@ function handler(roles:string[],extra?:(call:Call)=>unknown) {
     switch(call.name) {
       case 'inspect_workspace': return workspace(roles);
       case 'describe_model': return {model:{id:call.arguments.model_id,label:String(call.arguments.model_id),fields:fieldsOf[String(call.arguments.model_id)]??[],metrics:[]}};
+      case 'get_inbox': return {counts:{task:0,approval:0,notification:0,overdue:0},items:[],next_cursor:null}; // số đếm thanh bên/chuông khi mở Desk
       case 'search_records': {
         const id=String(call.arguments.model_id);
         return {items:id==='crm_contact'?contacts:stockRows[id]??[],next_cursor:null};
@@ -65,6 +66,9 @@ test('T3 staff: only enabled apps, grouped under the 4 headings, no CLI hint',as
   await expect(page.locator('.tier3-disabled')).toHaveCount(0);
   await expect(page.locator('.tier3-lifecycle')).toHaveCount(0);
   expect(await page.locator('body').innerText()).not.toContain('xt pack');
+  // hộp duyệt rỗng (get_inbox thật trả 0): không có huy hiệu hay chấm đỏ
+  await expect(page.getByTestId('nav-approvals')).toHaveCount(0);
+  await expect(page.getByTestId('bell-dot')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
